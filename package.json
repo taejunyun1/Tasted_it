@@ -1,0 +1,44 @@
+{
+	"name": "retaste-beta",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "react-router build",
+		"dev": "react-router dev",
+		"typecheck": "wrangler types && react-router typegen && tsc -b",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:e2e": "playwright test",
+		"db:migrate:local": "wrangler d1 migrations apply retaste-local --local",
+		"db:seed:local": "wrangler d1 execute retaste-local --local --file scripts/seed-week1.sql",
+		"deploy": "pnpm run build && wrangler deploy",
+		"preview": "pnpm run build && vite preview",
+		"cf-typegen": "wrangler types",
+		"postinstall": "wrangler types"
+	},
+	"dependencies": {
+		"csv-parse": "^7.0.2",
+		"drizzle-orm": "^0.45.2",
+		"isbot": "^5.1.36",
+		"maplibre-gl": "^6.1.0",
+		"react": "^19.2.7",
+		"react-dom": "^19.2.7",
+		"react-router": "^8",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "^1.50.0",
+		"@playwright/test": "^1.62.1",
+		"@react-router/dev": "^8",
+		"@tailwindcss/vite": "^4.2.2",
+		"@types/node": "^22.20.1",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"drizzle-kit": "^0.31.10",
+		"tailwindcss": "^4.2.2",
+		"typescript": "^5.9.3",
+		"vite": "^8.0.3",
+		"vitest": "^4.1.10",
+		"wrangler": "^4.118.0"
+	}
+}

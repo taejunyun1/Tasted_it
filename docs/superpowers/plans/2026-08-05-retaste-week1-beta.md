@@ -77,7 +77,7 @@ wrangler.jsonc                     bindings and observability
 - Consumes: no application interfaces.
 - Produces: `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm test`, and `pnpm test:e2e`; Worker binding `DB: D1Database`.
 
-- [ ] **Step 1: Initialize Git and preserve the reference documents**
+- [x] **Step 1: Initialize Git and preserve the reference documents**
 
 Run:
 
@@ -89,29 +89,29 @@ git commit -m "docs: establish ReTaste product specification"
 
 Expected: a root commit containing only the supplied references and approved planning documents.
 
-- [ ] **Step 2: Scaffold the official Cloudflare React Router application into a temporary directory**
+- [x] **Step 2: Scaffold the official Cloudflare React Router application into a temporary directory**
 
 Run:
 
 ```bash
-pnpm create cloudflare@latest .retaste-scaffold --framework=react-router --no-deploy --no-git
+pnpm create cloudflare@latest retaste-scaffold --framework=react-router --no-deploy --no-git
 ```
 
-Expected: `.retaste-scaffold` contains `app`, `workers/app.ts`, `vite.config.ts`, `react-router.config.ts`, and `wrangler.jsonc`.
+Expected: `retaste-scaffold` contains `app`, `workers/app.ts`, `vite.config.ts`, `react-router.config.ts`, and `wrangler.jsonc`.
 
-- [ ] **Step 3: Move scaffold output into the repository and remove only the empty scaffold directory**
+- [x] **Step 3: Move scaffold output into the repository and remove only the empty scaffold directory**
 
 Run:
 
 ```bash
-rsync -a .retaste-scaffold/ ./
-rmdir .retaste-scaffold
+rsync -a --exclude node_modules --exclude .gitignore retaste-scaffold/ ./
+mv retaste-scaffold /tmp/retaste-scaffold-generated-20260805
 pnpm install
 ```
 
 Expected: dependencies install successfully and existing `refer`/`docs` remain unchanged.
 
-- [ ] **Step 4: Add quality scripts and test dependencies**
+- [x] **Step 4: Add quality scripts and test dependencies**
 
 Modify `package.json` so its scripts include:
 
@@ -140,7 +140,7 @@ pnpm add -D drizzle-kit vitest @playwright/test
 
 Expected: dependency installation exits 0.
 
-- [ ] **Step 5: Configure the local D1 binding**
+- [x] **Step 5: Configure the local D1 binding**
 
 Set `wrangler.jsonc` to:
 
@@ -169,7 +169,7 @@ SESSION_SECRET=replace-with-at-least-32-random-characters
 ADMIN_EMAIL=admin@example.com
 ```
 
-- [ ] **Step 6: Write and run the first smoke test**
+- [x] **Step 6: Write and run the first smoke test**
 
 Create `tests/unit/smoke.test.ts`:
 
