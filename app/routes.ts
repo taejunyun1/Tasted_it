@@ -13,10 +13,13 @@ export default [
   route("forgot-password", "routes/forgot-password.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
   route("me", "routes/me.tsx"),
+  route("reviewer/apply", "routes/reviewer-apply.tsx"),
+  route("reviewers/:slug", "routes/reviewer-profile.tsx"),
   route("logout", "routes/logout.tsx"),
   route("admin/places", "routes/admin-places.tsx"),
   route("admin/import", "routes/admin-import.tsx"),
   route("admin/candidates", "routes/admin-candidates.tsx"),
   route("admin/candidates/bulk", "routes/admin-candidates-bulk.tsx"),
   route("admin/data-sync", "routes/admin-data-sync.tsx"),
+  route("admin/reviewers", "routes/admin-reviewers.tsx"),
 ] satisfies RouteConfig;

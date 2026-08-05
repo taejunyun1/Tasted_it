@@ -245,3 +245,46 @@ export const adminAuditLogs = sqliteTable("admin_audit_logs", {
   afterState: text("after_state"),
   createdAt: text("created_at").notNull(),
 });
+
+export const reviewerApplications = sqliteTable(
+  "reviewer_applications",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["APPLIED", "REVIEWING", "APPROVED", "REJECTED"] }).notNull().default("APPLIED"),
+    statement: text("statement").notNull(),
+    occupation: text("occupation").notNull(),
+    tasteDirection: text("taste_direction").notNull(),
+    regionCode: text("region_code", { enum: ["GWANGJU", "JEONNAM"] }).notNull(),
+    specialtySlugs: text("specialty_slugs").notNull(),
+    approvedSuggestionCount: integer("approved_suggestion_count").notNull().default(0),
+    overrideReason: text("override_reason"),
+    adminNote: text("admin_note"),
+    reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: text("reviewed_at"),
+    ...timestamps,
+  },
+  (table) => [
+    index("reviewer_applications_user_status_idx").on(table.userId, table.status),
+    index("reviewer_applications_status_created_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const reviewerProfiles = sqliteTable(
+  "reviewer_profiles",
+  {
+    userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull().unique(),
+    status: text("status", { enum: ["ACTIVE", "DORMANT", "SUSPENDED"] }).notNull().default("ACTIVE"),
+    occupation: text("occupation").notNull(),
+    tasteDirection: text("taste_direction").notNull(),
+    regionCode: text("region_code", { enum: ["GWANGJU", "JEONNAM"] }).notNull(),
+    specialtySlugs: text("specialty_slugs").notNull(),
+    lastActivityAt: text("last_activity_at").notNull(),
+    approvedAt: text("approved_at").notNull(),
+    approvedBy: text("approved_by").references(() => users.id, { onDelete: "set null" }),
+    statusReason: text("status_reason"),
+    ...timestamps,
+  },
+  (table) => [index("reviewer_profiles_status_activity_idx").on(table.status, table.lastActivityAt)],
+);
