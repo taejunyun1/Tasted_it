@@ -83,7 +83,7 @@ Responsive Web / iOS / Android
 - Cloudflare D1 + Drizzle ORM
 - Better Auth + D1 세션
 - Cloudflare R2 + Cloudflare Images/Image Transformations
-- MapLibre GL JS + Kakao Local REST API
+- Kakao Map SDK(Web·Android·iOS) + Kakao Local REST API
 - Zod 입력 검증
 - Vitest + Workers integration + Playwright
 - Workers Observability + 구조화 로그
@@ -393,7 +393,7 @@ UI route는 도메인 규칙을 직접 구현하지 않는다. 웹 loader/action
 2. D1·Drizzle 스키마와 투표 이벤트 모델
 3. Better Auth 세션·소셜 로그인
 4. R2와 이미지 변환 파이프라인
-5. MapLibre 타일 공급자와 이용 조건
+5. Kakao Map SDK·Local API 키, 쿼터, 저장·표시 이용 조건
 6. 추천율 v1 수학 모델과 상수
 7. 리뷰어 유사도와 취향 그래프
 8. 캐시 무효화와 점수 재계산
