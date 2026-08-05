@@ -7,6 +7,8 @@ import {
   places,
   placeSourceLinks,
   publicDataSyncRuns,
+  reviewerApplications,
+  reviewerProfiles,
   savedPlaces,
   users,
   voteEvents,
@@ -19,5 +21,10 @@ describe("week 1 schema", () => {
 
   it("exports public data candidate tables", () => {
     expect([businessLicenses, placeSourceLinks, publicDataSyncRuns, adminAuditLogs]).toHaveLength(4);
+  });
+
+  it("exports reviewer application and profile tables", () => {
+    expect(reviewerApplications.status).toBeDefined();
+    expect(reviewerProfiles.status).toBeDefined();
   });
 });

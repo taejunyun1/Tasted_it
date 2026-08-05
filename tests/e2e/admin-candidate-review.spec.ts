@@ -9,6 +9,7 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
   await page.goto("/admin/candidates");
 
   await expect(page.getByRole("heading", { name: "장소 검수 목록" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "리뷰어 관리" })).toBeVisible();
   await expect(page.getByRole("link", { name: "전체" })).toBeVisible();
   await expect(page.getByRole("link", { name: "자동 승인" })).toBeVisible();
   await expect(page.getByRole("link", { name: "수동 확인" })).toBeVisible();
