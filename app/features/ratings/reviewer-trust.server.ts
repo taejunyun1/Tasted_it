@@ -34,7 +34,8 @@ export async function refreshReviewerTrust(db: AppDb, input: { now: string }) {
     .from(currentVotes)
     .innerJoin(users, eq(users.id, currentVotes.userId))
     .leftJoin(invalidatedVoteEvents, eq(invalidatedVoteEvents.voteEventId, currentVotes.eventId))
-    .orderBy(asc(currentVotes.placeId), asc(currentVotes.userId));
+    .orderBy(asc(currentVotes.placeId), asc(currentVotes.userId))
+    .limit(50_000);
   const active = rows.filter((row) => !row.invalidatedEventId && (row.value === 1 || row.value === -1));
 
   const userVotesByPlace = new Map<string, VoteValue[]>();

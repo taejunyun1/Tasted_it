@@ -40,7 +40,7 @@ export async function getHiddenGemStatus(db: AppDb, input: { placeId: string; no
   const cutoff = new Date(input.now); cutoff.setUTCDate(cutoff.getUTCDate() - 90);
   const peerIds = target[0] ? (await db.select({ placeId: places.id }).from(places)
     .innerJoin(placeCategories, and(eq(placeCategories.placeId, places.id), eq(placeCategories.categoryId, target[0].categoryId), eq(placeCategories.isPrimary, true)))
-    .where(and(eq(places.status, "PUBLISHED"), eq(places.neighborhood, target[0].neighborhood)))).map((row) => row.placeId) : [];
+    .where(and(eq(places.status, "PUBLISHED"), eq(places.neighborhood, target[0].neighborhood))).limit(1_000)).map((row) => row.placeId) : [];
   const metrics = peerIds.length ? await db.select().from(placeDailyMetrics)
     .where(and(inArray(placeDailyMetrics.placeId, peerIds), gte(placeDailyMetrics.metricDate, dateOnly(cutoff.toISOString())))) : [];
   const viewsByPlace = new Map(peerIds.map((placeId) => [placeId, 0]));
@@ -71,7 +71,8 @@ export async function listReviewerHotTakes(db: AppDb, reviewerUserId: string) {
   }).from(currentVotes)
     .innerJoin(users, and(eq(users.id, currentVotes.userId), eq(users.role, "REVIEWER")))
     .leftJoin(invalidatedVoteEvents, eq(invalidatedVoteEvents.voteEventId, currentVotes.eventId))
-    .orderBy(asc(currentVotes.placeId), asc(currentVotes.userId));
+    .orderBy(asc(currentVotes.placeId), asc(currentVotes.userId))
+    .limit(50_000);
   const active = rows.filter((row) => !row.invalidatedEventId && (row.value === 1 || row.value === -1));
   const own = active.filter((row) => row.userId === reviewerUserId);
   return new Map(own.map((vote) => {
