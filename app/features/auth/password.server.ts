@@ -1,4 +1,4 @@
-const ITERATIONS = 210_000;
+export const PASSWORD_HASH_ITERATIONS = 100_000;
 const encoder = new TextEncoder();
 
 function toBase64(bytes: Uint8Array) {
@@ -12,7 +12,7 @@ function fromBase64(value: string) {
 async function derive(password: string, salt: Uint8Array) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   const saltBuffer = new Uint8Array(salt).buffer;
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: saltBuffer, iterations: ITERATIONS }, key, 256);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: saltBuffer, iterations: PASSWORD_HASH_ITERATIONS }, key, 256);
   return new Uint8Array(bits);
 }
 
