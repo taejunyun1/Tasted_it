@@ -12,7 +12,7 @@ import {
   listPendingCandidates,
   rejectCandidate,
 } from "../features/candidates/candidate.server";
-import { suggestCategorySlugs } from "../features/candidates/category-suggestion";
+import { classifyCandidate } from "../features/candidates/category-suggestion";
 import { slugifyPlaceName } from "../features/places/place-slug";
 import type {
   PublicDataSource,
@@ -86,7 +86,6 @@ export async function action({ request }: Route.ActionArgs) {
       candidateId,
       actorUserId: user.id,
       categoryId: String(form.get("categoryId") ?? ""),
-      secondaryCategoryIds: form.getAll("secondaryCategoryIds").map(String),
       name: String(form.get("name") ?? "").trim(),
       address: String(form.get("address") ?? "").trim(),
       neighborhood: String(form.get("neighborhood") ?? "").trim(),
@@ -133,13 +132,14 @@ export default function AdminCandidates({ loaderData }: Route.ComponentProps) {
   const children = loaderData.categories.filter(
     (category) => category.parentId,
   );
-  const suggestions = useMemo(
+  const classification = useMemo(
     () =>
       selected
-        ? suggestCategorySlugs(selected.sourceType, selected.businessSubtype)
-        : [],
+        ? classifyCandidate({ sourceType: selected.sourceType, businessSubtype: selected.businessSubtype, businessName: selected.businessName, address: selected.roadAddress ?? selected.lotAddress })
+        : null,
     [selected],
   );
+  const suggestedCategory = children.find((item) => item.slug === classification?.categorySlug);
   const sourceName = (value: string) =>
     sources.find(([id]) => id === value)?.[1] ?? value;
 
@@ -271,7 +271,7 @@ export default function AdminCandidates({ loaderData }: Route.ComponentProps) {
                 <h2>{selected.businessName}</h2>
                 <p>{selected.roadAddress ?? selected.lotAddress}</p>
               </div>
-              <Form method="post" className="inspector-form">
+              <Form method="post" className="inspector-form" key={selected.id}>
                 <input type="hidden" name="candidateId" value={selected.id} />
                 <PlaceIdentityFields
                   key={selected.id}
@@ -292,6 +292,7 @@ export default function AdminCandidates({ loaderData }: Route.ComponentProps) {
                   <input
                     name="neighborhood"
                     placeholder="예: 동명동"
+                    defaultValue={classification?.neighborhood ?? ""}
                     required
                   />
                 </label>
@@ -315,17 +316,8 @@ export default function AdminCandidates({ loaderData }: Route.ComponentProps) {
                 </div>
                 <fieldset>
                   <legend>대표 카테고리</legend>
-                  <p className="category-hint">
-                    추천:{" "}
-                    {suggestions
-                      .map(
-                        (slug) =>
-                          children.find((item) => item.slug === slug)?.name,
-                      )
-                      .filter(Boolean)
-                      .join(", ") || "직접 선택"}
-                  </p>
-                  <select name="categoryId" required defaultValue="">
+                  {classification && <div className={`mb-3 border px-3 py-3 text-xs font-normal ${classification.confidence === "HIGH" ? "border-emerald-600 bg-emerald-50 text-emerald-900" : classification.confidence === "CONFLICT" ? "border-red-500 bg-red-50 text-red-800" : "border-amber-500 bg-amber-50 text-amber-900"}`}><strong className="font-semibold">자동 분류 신뢰도 · {{ HIGH: "높음", MEDIUM: "보통", LOW: "낮음", CONFLICT: "충돌" }[classification.confidence]}</strong><p className="mt-1">{classification.reasons.join(" · ")}</p></div>}
+                  <select name="categoryId" required defaultValue={suggestedCategory?.id ?? ""}>
                     <option value="" disabled>
                       대표 소분류 선택
                     </option>
@@ -338,30 +330,13 @@ export default function AdminCandidates({ loaderData }: Route.ComponentProps) {
                           .filter((child) => child.parentId === parent.id)
                           .map((child) => (
                             <option value={child.id} key={child.id}>
-                              {suggestions.includes(child.slug) ? "★ " : ""}
+                              {child.id === suggestedCategory?.id ? "★ " : ""}
                               {child.name}
                             </option>
                           ))}
                       </optgroup>
                     ))}
                   </select>
-                </fieldset>
-                <fieldset>
-                  <legend>보조 카테고리</legend>
-                  <div className="secondary-categories">
-                    {children.map((child) => (
-                      <label key={child.id}>
-                        <input
-                          type="checkbox"
-                          name="secondaryCategoryIds"
-                          value={child.id}
-                        />
-                        <span>
-                          {child.emoji} {child.name}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
                 </fieldset>
                 <button
                   className="approve-button"

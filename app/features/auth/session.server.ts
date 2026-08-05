@@ -40,6 +40,10 @@ function sessionCookie(id: string, secure: boolean): string {
   return attributes.join("; ");
 }
 
+function expiredSessionCookie(secure: boolean) {
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`;
+}
+
 export async function getOptionalUser(
   request: Request,
 ): Promise<SessionUser | null> {
@@ -98,4 +102,10 @@ export async function createUserSession(input: {
 
   const secure = new URL(input.requestUrl).protocol === "https:";
   return sessionCookie(id, secure);
+}
+
+export async function destroyUserSession(request: Request) {
+  const id = readCookie(request, SESSION_COOKIE);
+  if (id) await createDb(env.DB).delete(sessions).where(eq(sessions.id, id));
+  return expiredSessionCookie(new URL(request.url).protocol === "https:");
 }

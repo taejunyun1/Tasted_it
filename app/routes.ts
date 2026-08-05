@@ -2,11 +2,18 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 export default [
   index("routes/home.tsx"),
+  route("places", "routes/place-list.tsx"),
   route("maps/:categorySlug", "routes/map-category.tsx"),
   route("places/:placeSlug", "routes/place-detail.tsx"),
   route("privacy", "routes/privacy.tsx"),
   route("terms", "routes/terms.tsx"),
   route("login", "routes/login.tsx"),
+  route("signup", "routes/signup.tsx"),
+  route("verify-email", "routes/verify-email.tsx"),
+  route("forgot-password", "routes/forgot-password.tsx"),
+  route("reset-password", "routes/reset-password.tsx"),
+  route("me", "routes/me.tsx"),
+  route("logout", "routes/logout.tsx"),
   route("admin/places", "routes/admin-places.tsx"),
   route("admin/import", "routes/admin-import.tsx"),
   route("admin/candidates", "routes/admin-candidates.tsx"),

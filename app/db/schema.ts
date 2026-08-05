@@ -20,8 +20,25 @@ export const users = sqliteTable("users", {
   role: text("role", { enum: ["USER", "REVIEWER", "ADMIN"] })
     .notNull()
     .default("USER"),
+  passwordHash: text("password_hash"),
+  passwordSalt: text("password_salt"),
+  emailVerifiedAt: text("email_verified_at"),
   ...timestamps,
 });
+
+export const accountTokens = sqliteTable(
+  "account_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    purpose: text("purpose", { enum: ["VERIFY_EMAIL", "RESET_PASSWORD"] }).notNull(),
+    expiresAt: text("expires_at").notNull(),
+    consumedAt: text("consumed_at"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("account_tokens_user_purpose_idx").on(table.userId, table.purpose, table.expiresAt)],
+);
 
 export const sessions = sqliteTable(
   "sessions",

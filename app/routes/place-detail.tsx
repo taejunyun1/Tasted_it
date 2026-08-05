@@ -47,7 +47,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
-      <Link className="back-link" to={`/maps/${place.primaryCategory.slug}`}>← {place.primaryCategory.name} 지도로</Link>
+      <Link className="back-link" to={`/?category=${encodeURIComponent(place.primaryCategory.slug)}`}>← {place.primaryCategory.name} 지도로</Link>
       <div className="detail-grid">
         <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>
         <article className="detail-copy">
@@ -55,7 +55,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <div className="score"><strong>{rating.sampleStatus === "VISIBLE" ? `${rating.displayScore}%` : "평가 수 부족"}</strong><span>추천 {place.positive} · 비추천 {place.negative}</span></div>
           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
           <VoteControl vote={loaderData.vote} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={`/places/${place.slug}`} />
-          <div className="directions"><a href={`https://map.kakao.com/link/search/${query}`} target="_blank" rel="noreferrer">카카오맵 길찾기</a><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버지도 길찾기</a></div>
+          <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
         </article>
       </div>
     </main>

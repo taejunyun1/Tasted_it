@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { loadNaverMaps, toBoundsTuple } from "../../features/maps/naver-map-sdk";
 import type { PlaceSummary } from "../../features/places/place.types";
 
-export function PlaceMap({ places, selected, clientId, onSelect, onBounds }: {
+export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locateOnLoad = false }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
   onSelect: (id: string) => void;
   onBounds: (bbox: [number, number, number, number]) => void;
+  locateOnLoad?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +24,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds }: {
     let map: naver.maps.Map | undefined;
     let idleListener: unknown;
     const markers: naver.maps.Marker[] = [];
+    let locationMarker: naver.maps.Marker | undefined;
 
     if (!clientId) {
       setError("NAVER Maps Client ID가 설정되지 않았습니다.");
@@ -39,6 +41,17 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds }: {
         zoomControlOptions: { position: maps.Position.TOP_RIGHT },
       });
       map = instance;
+
+      if (locateOnLoad && navigator.geolocation) navigator.geolocation.getCurrentPosition(({ coords }) => {
+        if (disposed) return;
+        const position = new maps.LatLng(coords.latitude, coords.longitude);
+        instance.setCenter(position);
+        instance.setZoom(15);
+        const dot = document.createElement("span");
+        dot.className = "current-location-dot";
+        dot.setAttribute("aria-label", "내 위치");
+        locationMarker = new maps.Marker({ map: instance, position, icon: { content: dot, anchor: new maps.Point(10, 10) } });
+      }, () => undefined, { enableHighAccuracy: true, timeout: 8_000 });
 
       for (const place of places) {
         const button = document.createElement("button");
@@ -75,9 +88,10 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds }: {
       clearTimeout(timer);
       if (idleListener) naver.maps.Event.removeListener(idleListener);
       markers.forEach((marker) => marker.setMap(null));
+      locationMarker?.setMap(null);
       map?.destroy();
     };
-  }, [clientId, places, selected]);
+  }, [clientId, places, selected, locateOnLoad]);
 
   return <div className="map-canvas" ref={host} aria-label="장소 지도">
     {error && <p className="map-error" role="status">{error}</p>}
