@@ -152,6 +152,7 @@ export default function AdminCandidates({ loaderData }: Route.ComponentProps) {
           <p>공공데이터 원천과 공개 카테고리를 분리해 확인합니다.</p>
         </div>
         <nav>
+          <Link to="/admin/candidates/bulk">카테고리 일괄 검수</Link>
           <Link to="/admin/places">공개 장소</Link>
           <Link to="/admin/data-sync">데이터 동기화</Link>
         </nav>

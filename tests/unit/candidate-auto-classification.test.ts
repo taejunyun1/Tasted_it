@@ -1,0 +1,69 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  classifyCandidate,
+  extractNeighborhood,
+} from "../../app/features/candidates/category-suggestion";
+
+describe("classifyCandidate", () => {
+  it("classifies a Korean soup restaurant with high confidence", () => {
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "한식",
+      businessName: "일품 양평해장국 광주무등산점",
+      address: "광주광역시 동구 증심사길 25 (운림동)",
+    })).toMatchObject({
+      categorySlug: "gukbap-detail",
+      confidence: "HIGH",
+      neighborhood: "운림동",
+    });
+  });
+
+  it("detects conflicting cuisine signals", () => {
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "한식",
+      businessName: "스시 하루",
+      address: "광주광역시 동구 동명동 1",
+    })).toMatchObject({
+      categorySlug: "sushi-sashimi",
+      confidence: "CONFLICT",
+    });
+  });
+
+  it("uses a specific name signal as medium confidence without a subtype", () => {
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: null,
+      businessName: "멘야 하루",
+      address: "광주광역시 북구 용봉동 10",
+    })).toMatchObject({
+      categorySlug: "ramen-detail",
+      confidence: "MEDIUM",
+    });
+  });
+
+  it("uses only the source default with low confidence", () => {
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: null,
+      businessName: "맛있는집",
+      address: "광주광역시 서구 치평동 1",
+    })).toMatchObject({
+      categorySlug: "home-meal",
+      confidence: "LOW",
+    });
+  });
+});
+
+describe("extractNeighborhood", () => {
+  it("prefers a parenthesized legal neighborhood", () => {
+    expect(extractNeighborhood("광주광역시 동구 증심사길 25 (운림동)")).toBe("운림동");
+  });
+
+  it("extracts dong, eup and myeon address tokens", () => {
+    expect(extractNeighborhood("광주광역시 동구 동명동 10")).toBe("동명동");
+    expect(extractNeighborhood("전라남도 담양군 담양읍 중앙로 1")).toBe("담양읍");
+    expect(extractNeighborhood("전라남도 화순군 화순면 중앙로 1")).toBe("화순면");
+  });
+});

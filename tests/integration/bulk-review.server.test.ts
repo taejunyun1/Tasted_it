@@ -1,0 +1,90 @@
+import { env } from "cloudflare:workers";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { createDb } from "../../app/db/client.server";
+import { businessLicenses, places } from "../../app/db/schema";
+import {
+  bulkApproveCandidates,
+  listBulkReviewGroups,
+} from "../../app/features/candidates/bulk-review.server";
+import { upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
+import type { NormalizedLicense } from "../../app/features/candidates/public-data";
+
+const now = "2026-08-05T11:00:00.000Z";
+const license: NormalizedLicense = {
+  sourceType: "GENERAL_RESTAURANT",
+  sourceManagementNo: "bulk-safe",
+  businessName: "일품 양평해장국",
+  businessSubtype: "한식",
+  salesStatusCode: "01",
+  salesStatusName: "영업/정상",
+  detailStatusCode: "01",
+  detailStatusName: "영업",
+  normalizedStatus: "OPEN",
+  lotAddress: null,
+  roadAddress: "광주광역시 동구 증심사길 25 (운림동)",
+  phone: null,
+  sourceX: null,
+  sourceY: null,
+  latitude: 35.134266,
+  longitude: 126.955304,
+  regionCode: "GWANGJU",
+  sourceUpdatedAt: now,
+  rawPayload: "{}",
+};
+
+beforeEach(async () => {
+  await env.DB.prepare("INSERT OR IGNORE INTO users (id,email,display_name,role,created_at,updated_at) VALUES ('bulk-admin','bulk-admin@example.com','관리자','ADMIN',?,?)").bind(now, now).run();
+});
+
+describe("bulk candidate review", () => {
+  it("groups candidates and enables only safe high-confidence candidates", async () => {
+    const db = createDb(env.DB);
+    const safe = await upsertBusinessLicense(db, license, now);
+    const unsafe = await upsertBusinessLicense(db, {
+      ...license,
+      sourceManagementNo: "bulk-unsafe",
+      businessName: "맛있는집",
+      businessSubtype: null,
+      latitude: null,
+      longitude: null,
+    }, now);
+
+    const groups = await listBulkReviewGroups(db);
+    const rows = groups.flatMap((group) => group.candidates);
+    expect(rows.find((row) => row.id === safe.id)).toMatchObject({ confidence: "HIGH", eligible: true, neighborhood: "운림동" });
+    expect(rows.find((row) => row.id === unsafe.id)).toMatchObject({ confidence: "LOW", eligible: false });
+  });
+
+  it("approves safe candidates and skips unsafe selections", async () => {
+    const db = createDb(env.DB);
+    const safe = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "bulk-approve-safe" }, now);
+    const unsafe = await upsertBusinessLicense(db, {
+      ...license,
+      sourceManagementNo: "bulk-approve-unsafe",
+      businessName: "스시 충돌",
+      businessSubtype: "한식",
+    }, now);
+
+    const result = await bulkApproveCandidates(db, {
+      candidateIds: [safe.id, unsafe.id],
+      actorUserId: "bulk-admin",
+      now,
+    });
+
+    expect(result.approved).toHaveLength(1);
+    expect(result.approved[0].candidateId).toBe(safe.id);
+    expect(result.skipped).toEqual(expect.arrayContaining([expect.objectContaining({ candidateId: unsafe.id })]));
+    expect((await db.select().from(places)).some((place) => place.name === license.businessName)).toBe(true);
+    expect((await db.select().from(businessLicenses)).find((row) => row.id === unsafe.id)?.reviewStatus).toBe("PENDING");
+  });
+
+  it("rejects more than 25 candidates in one request", async () => {
+    const db = createDb(env.DB);
+    await expect(bulkApproveCandidates(db, {
+      candidateIds: Array.from({ length: 26 }, (_, index) => `candidate-${index}`),
+      actorUserId: "bulk-admin",
+      now,
+    })).rejects.toThrow("BULK_LIMIT_EXCEEDED");
+  });
+});
