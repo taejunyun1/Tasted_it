@@ -94,7 +94,12 @@ export async function recomputePlaceRating(db: AppDb, input: { placeId: string; 
     })),
   });
   const hashInput = active.map((row) => ({ userId: row.userId, eventId: row.eventId, value: row.value, role: row.role }));
-  const inputHash = await sha256(JSON.stringify({ config: config.algorithmVersion, votes: hashInput }));
+  const trustInput = reviewerIds.sort().map((reviewerId) => ({
+    reviewerId,
+    reliabilityWeight: reliabilityByUser.get(reviewerId) ?? 1,
+    similarityDamping: dampingByUser.get(reviewerId) ?? 1,
+  }));
+  const inputHash = await sha256(JSON.stringify({ config: config.algorithmVersion, votes: hashInput, reviewerTrust: trustInput }));
   const existing = await db.query.ratingSnapshots.findFirst({
     where: and(eq(ratingSnapshots.placeId, input.placeId), eq(ratingSnapshots.configId, config.id), eq(ratingSnapshots.inputHash, inputHash)),
   });

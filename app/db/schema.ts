@@ -336,6 +336,7 @@ export const reviewerReliabilitySnapshots = sqliteTable(
     id: text("id").primaryKey(),
     reviewerUserId: text("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     configId: text("config_id").notNull().references(() => ratingConfigs.id, { onDelete: "restrict" }),
+    inputHash: text("input_hash").notNull(),
     eligibleCount: integer("eligible_count").notNull(),
     correctCount: integer("correct_count").notNull(),
     posteriorAccuracy: real("posterior_accuracy").notNull(),
@@ -343,7 +344,7 @@ export const reviewerReliabilitySnapshots = sqliteTable(
     calibrationStatus: text("calibration_status", { enum: ["CALIBRATING", "ACTIVE"] }).notNull(),
     computedAt: text("computed_at").notNull(),
   },
-  (table) => [index("reviewer_reliability_user_computed_idx").on(table.reviewerUserId, table.computedAt)],
+  (table) => [index("reviewer_reliability_user_computed_idx").on(table.reviewerUserId, table.computedAt), uniqueIndex("reviewer_reliability_input_idx").on(table.reviewerUserId, table.configId, table.inputHash)],
 );
 
 export const reviewerSimilarityEdges = sqliteTable(

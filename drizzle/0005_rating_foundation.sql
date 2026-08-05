@@ -46,6 +46,7 @@ CREATE TABLE reviewer_reliability_snapshots (
   id TEXT PRIMARY KEY NOT NULL,
   reviewer_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   config_id TEXT NOT NULL REFERENCES rating_configs(id) ON DELETE RESTRICT,
+  input_hash TEXT NOT NULL,
   eligible_count INTEGER NOT NULL,
   correct_count INTEGER NOT NULL,
   posterior_accuracy REAL NOT NULL,
@@ -54,6 +55,7 @@ CREATE TABLE reviewer_reliability_snapshots (
   computed_at TEXT NOT NULL
 );
 CREATE INDEX reviewer_reliability_user_computed_idx ON reviewer_reliability_snapshots(reviewer_user_id, computed_at);
+CREATE UNIQUE INDEX reviewer_reliability_input_idx ON reviewer_reliability_snapshots(reviewer_user_id, config_id, input_hash);
 
 CREATE TABLE reviewer_similarity_edges (
   id TEXT PRIMARY KEY NOT NULL,
