@@ -132,6 +132,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">자동 분류 결과를 목록에서 확인하고, 애매한 후보만 카테고리를 직접 정합니다. 동네는 주소에서 자동 계산됩니다.</p>
           </div>
           <nav className="flex flex-wrap gap-2 text-sm font-medium">
+            <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/ratings">평가 운영</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/reviewers">리뷰어 관리</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/places">공개 장소</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/data-sync">데이터 동기화</Link>

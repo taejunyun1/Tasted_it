@@ -9,6 +9,17 @@ import {
   publicDataSyncRuns,
   reviewerApplications,
   reviewerProfiles,
+  ratingConfigs,
+  ratingSnapshots,
+  reviewerReliabilitySnapshots,
+  reviewerSimilarityEdges,
+  ratingRecomputeJobs,
+  goldenPickEvents,
+  flavorTemplates,
+  flavorRatings,
+  placeDailyMetrics,
+  integrityCases,
+  invalidatedVoteEvents,
   savedPlaces,
   users,
   voteEvents,
@@ -26,5 +37,24 @@ describe("week 1 schema", () => {
   it("exports reviewer application and profile tables", () => {
     expect(reviewerApplications.status).toBeDefined();
     expect(reviewerProfiles.status).toBeDefined();
+  });
+
+  it("exports the versioned rating foundation tables", () => {
+    expect([
+      ratingConfigs,
+      ratingSnapshots,
+      reviewerReliabilitySnapshots,
+      reviewerSimilarityEdges,
+      ratingRecomputeJobs,
+      goldenPickEvents,
+      flavorTemplates,
+      flavorRatings,
+      placeDailyMetrics,
+      integrityCases,
+      invalidatedVoteEvents,
+    ]).toHaveLength(11);
+    expect(ratingConfigs.algorithmVersion).toBeDefined();
+    expect(ratingSnapshots.inputHash).toBeDefined();
+    expect(integrityCases.status).toBeDefined();
   });
 });

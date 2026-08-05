@@ -1,5 +1,6 @@
 import { createRequestHandler } from "react-router";
 import { runScheduledCandidateSync } from "../app/features/candidates/scheduled-sync.server";
+import { runScheduledRatingMaintenance } from "../app/features/ratings/scheduled-rating.server";
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
@@ -11,6 +12,9 @@ export default {
     return requestHandler(request);
   },
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(runScheduledCandidateSync(env));
+    ctx.waitUntil(Promise.all([
+      runScheduledCandidateSync(env),
+      runScheduledRatingMaintenance(env),
+    ]));
   },
 } satisfies ExportedHandler<Env>;

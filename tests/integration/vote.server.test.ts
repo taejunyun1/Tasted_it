@@ -72,5 +72,9 @@ describe("castVote", () => {
 
     expect(events?.count).toBe(2);
     expect(current?.value).toBe(-1);
+    const jobs = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM rating_recompute_jobs WHERE place_id = ? AND status = 'PENDING'",
+    ).bind(placeId).first<{ count: number }>();
+    expect(jobs?.count).toBe(1);
   });
 });
