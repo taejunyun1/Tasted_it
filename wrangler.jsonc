@@ -13,8 +13,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "retaste-local",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_name": "retaste-production",
+			"database_id": "5181489d-83a7-4f78-9384-db096cadaa2d",
 			"migrations_dir": "drizzle"
 		}
 	],

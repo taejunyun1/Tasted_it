@@ -860,11 +860,11 @@ pnpm test:e2e
 
 Expected: every command exits 0. Fix failures before requesting Cloudflare access.
 
-- [ ] **Step 5: Request only the required Cloudflare account action**
+- [x] **Step 5: Request only the required Cloudflare account action**
 
 Ask the user to complete `pnpm wrangler login` in the current terminal, or provide an API token limited to Workers Scripts, D1, and account membership read. Do not request the global API key.
 
-- [ ] **Step 6: Create remote D1 and replace the local development ID**
+- [x] **Step 6: Create remote D1 and replace the local development ID**
 
 Run:
 

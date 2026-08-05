@@ -11,6 +11,8 @@
 
 사용자가 현재 터미널에서 `pnpm wrangler login`을 완료한다. API 토큰을 쓸 경우 Workers Scripts 편집, D1 편집, 계정 멤버십 읽기만 허용하며 Global API Key는 사용하지 않는다.
 
+첫 배포 전에 Cloudflare 계정 이메일 인증과 `workers.dev` 서브도메인 등록도 완료해야 한다. Wrangler 오류 `10034`는 계정 이메일 인증이 끝나지 않았다는 뜻이다.
+
 ## D1과 비밀값
 
 ```bash
