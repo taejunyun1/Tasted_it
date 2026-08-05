@@ -7,6 +7,9 @@
 	"name": "retaste-beta",
 	"compatibility_date": "2026-08-05",
 	"main": "./workers/app.ts",
+	"vars": {
+		"ADMIN_EMAIL": "admin@example.com"
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",

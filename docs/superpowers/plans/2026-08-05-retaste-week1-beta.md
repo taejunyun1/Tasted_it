@@ -502,7 +502,7 @@ pnpm typecheck
 
 Expected: both test files pass and typecheck exits 0.
 
-- [ ] **Step 6: Commit rating domain**
+- [x] **Step 6: Commit rating domain**
 
 ```bash
 git add app/features/ratings tests/unit/rating-v1.test.ts tests/integration/vote.server.test.ts
@@ -524,7 +524,7 @@ git commit -m "feat: add reproducible rating and vote events"
 - Consumes: `users`, `sessions`, `AppEnv`.
 - Produces: `getOptionalUser(request, env)`, `requireUser(request, env)`, `requireAdmin(request, env)`, and `/login`.
 
-- [ ] **Step 1: Write role guard tests**
+- [x] **Step 1: Write role guard tests**
 
 Create `tests/unit/auth-guards.test.ts`:
 
@@ -540,9 +540,9 @@ describe("role guards", () => {
 
 Run the test and expect module-not-found failure.
 
-- [ ] **Step 2: Implement signed beta sessions and guards**
+- [x] **Step 2: Implement opaque beta sessions and guards**
 
-Implement cookie-backed session IDs whose records live in D1. Cookies must be `HttpOnly`, `Secure` outside local development, `SameSite=Lax`, and expire after seven days. Implement:
+Implement cryptographically random, opaque cookie-backed session IDs whose records live in D1. Cookies must be `HttpOnly`, `Secure` outside local development, `SameSite=Lax`, and expire after seven days. Implement:
 
 ```ts
 export type UserRole = "USER" | "REVIEWER" | "ADMIN";
@@ -554,11 +554,11 @@ export function assertRole(actual: UserRole, allowed: readonly UserRole[]): void
 
 `requireUser` redirects to `/login?returnTo=<encoded path>`. `requireAdmin` calls `requireUser` and accepts only `ADMIN`.
 
-- [ ] **Step 3: Implement beta login route**
+- [x] **Step 3: Implement beta login route**
 
 Create `/login` with email and display name fields validated by Zod. The action upserts a user; `ADMIN_EMAIL` receives role `ADMIN`, all others receive `USER`; it creates a seven-day D1 session and redirects only to a same-origin path beginning with `/`.
 
-- [ ] **Step 4: Test authentication behavior**
+- [x] **Step 4: Test authentication behavior**
 
 Run:
 

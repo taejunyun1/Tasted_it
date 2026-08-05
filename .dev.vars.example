@@ -1,2 +1,2 @@
-SESSION_SECRET=replace-with-at-least-32-random-characters
+# Override non-secret local configuration here when necessary.
 ADMIN_EMAIL=admin@example.com
