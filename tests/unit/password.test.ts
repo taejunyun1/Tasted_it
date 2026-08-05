@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { hashPassword, verifyPassword } from "../../app/features/auth/password.server";
+import { PASSWORD_HASH_ITERATIONS, hashPassword, verifyPassword } from "../../app/features/auth/password.server";
 
 describe("password hashing", () => {
+  it("stays within the Cloudflare Workers PBKDF2 iteration ceiling", () => {
+    expect(PASSWORD_HASH_ITERATIONS).toBe(100_000);
+  });
+
   it("verifies only the original password", async () => {
     const encoded = await hashPassword("correct horse battery staple");
     expect(await verifyPassword("correct horse battery staple", encoded.hash, encoded.salt)).toBe(true);
