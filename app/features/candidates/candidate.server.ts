@@ -11,15 +11,18 @@ import {
 } from "../../db/schema";
 import type { NormalizedLicense, PublicDataSource, RegionCode } from "./public-data";
 import { slugifyPlaceName } from "../places/place-slug";
+import { extractNeighborhood } from "./category-suggestion";
 
-export async function listPendingCandidates(db: AppDb, filters: {
+export interface CandidateFilters {
   query?: string;
   sourceType?: PublicDataSource;
   regionCode?: RegionCode;
   businessSubtype?: string;
   coordinates?: "present" | "missing";
   sort?: "updated" | "name" | "source" | "region";
-} = {}) {
+}
+
+export async function listPendingCandidates(db: AppDb, filters: CandidateFilters = {}) {
   const conditions = [
     eq(businessLicenses.normalizedStatus, "OPEN"),
     eq(businessLicenses.reviewStatus, "PENDING"),
@@ -110,12 +113,13 @@ export async function approveCandidate(db: AppDb, input: {
   slug?: string;
   name: string;
   address: string;
-  neighborhood: string;
   latitude: number;
   longitude: number;
   now: string;
 }) {
-  if (!input.name || !input.address || !input.neighborhood) throw new Error("PLACE_REQUIRED_FIELD_MISSING");
+  if (!input.name || !input.address) throw new Error("PLACE_REQUIRED_FIELD_MISSING");
+  const neighborhood = extractNeighborhood(input.address);
+  if (!neighborhood) throw new Error("PLACE_NEIGHBORHOOD_NOT_FOUND");
   if (!Number.isFinite(input.latitude) || input.latitude < 33 || input.latitude > 39 || !Number.isFinite(input.longitude) || input.longitude < 124 || input.longitude > 132) throw new Error("INVALID_PLACE_COORDINATES");
   const candidate = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, input.candidateId) });
   if (!candidate || candidate.normalizedStatus !== "OPEN" || candidate.reviewStatus !== "PENDING") throw new Error("CANDIDATE_NOT_APPROVABLE");
@@ -130,9 +134,9 @@ export async function approveCandidate(db: AppDb, input: {
   await db.batch([
     db.insert(places).values({
       id: placeId, slug, name: input.name, status: "PUBLISHED", address: input.address,
-      neighborhood: input.neighborhood, latitude: input.latitude, longitude: input.longitude,
+      neighborhood, latitude: input.latitude, longitude: input.longitude,
       phone: candidate.phone, parkingSummary: null, heroImageUrl: null, kakaoPlaceId: null,
-      searchText: `${input.name} ${input.address} ${input.neighborhood} ${category.name}`.toLocaleLowerCase("ko-KR"),
+      searchText: `${input.name} ${input.address} ${neighborhood} ${category.name}`.toLocaleLowerCase("ko-KR"),
       createdAt: input.now, updatedAt: input.now,
     }),
     db.insert(placeCategories).values(categoryIds.map((categoryId) => ({ placeId, categoryId, isPrimary: categoryId === input.categoryId }))),

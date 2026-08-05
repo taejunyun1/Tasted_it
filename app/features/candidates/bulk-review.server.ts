@@ -3,7 +3,9 @@ import { asc, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { categories, places } from "../../db/schema";
 import { approveCandidate, listPendingCandidates } from "./candidate.server";
+import type { CandidateFilters } from "./candidate.server";
 import { classifyCandidate } from "./category-suggestion";
+import { classifyReviewState } from "./review-classification";
 
 const BULK_LIMIT = 25;
 
@@ -12,13 +14,9 @@ function duplicateKey(name: string, address: string) {
   return `${normalize(name)}::${normalize(address)}`;
 }
 
-function validCoordinates(latitude: number | null, longitude: number | null) {
-  return latitude != null && longitude != null && Number.isFinite(latitude) && latitude >= 33 && latitude <= 39 && Number.isFinite(longitude) && longitude >= 124 && longitude <= 132;
-}
-
-export async function listBulkReviewGroups(db: AppDb) {
+export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters = {}) {
   const [candidateRows, categoryRows, placeRows] = await Promise.all([
-    listPendingCandidates(db, { sort: "source" }),
+    listPendingCandidates(db, { ...filters, sort: filters.sort ?? "source" }),
     db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
     db.select({ name: places.name, address: places.address }).from(places),
   ]);
@@ -43,13 +41,15 @@ export async function listBulkReviewGroups(db: AppDb) {
       address,
     });
     const category = categoryBySlug.get(classification.categorySlug);
-    const blockers: string[] = [];
-    if (classification.confidence !== "HIGH") blockers.push(`자동 분류 ${classification.confidence}`);
-    if (!category || !category.parentId) blockers.push("활성 세부 카테고리 없음");
-    if (!address) blockers.push("주소 없음");
-    if (!classification.neighborhood) blockers.push("동네 추출 실패");
-    if (!validCoordinates(candidate.latitude, candidate.longitude)) blockers.push("좌표 확인 필요");
-    if (address && duplicateKeys.has(duplicateKey(candidate.businessName, address))) blockers.push("기존 공개 장소와 중복");
+    const review = classifyReviewState({
+      confidence: classification.confidence,
+      categoryAvailable: Boolean(category?.parentId),
+      address,
+      neighborhood: classification.neighborhood,
+      latitude: candidate.latitude,
+      longitude: candidate.longitude,
+      duplicate: Boolean(address && duplicateKeys.has(duplicateKey(candidate.businessName, address))),
+    });
     return {
       ...candidate,
       address,
@@ -58,8 +58,10 @@ export async function listBulkReviewGroups(db: AppDb) {
       confidence: classification.confidence,
       neighborhood: classification.neighborhood,
       reasons: classification.reasons,
-      blockers,
-      eligible: blockers.length === 0,
+      blockers: review.blockers,
+      reviewReasons: review.reviewReasons,
+      reviewState: review.state,
+      eligible: review.state === "AUTO",
     };
   }
 
@@ -89,18 +91,45 @@ export async function bulkApproveCandidates(db: AppDb, input: {
   if (candidateIds.length > BULK_LIMIT) throw new Error("BULK_LIMIT_EXCEEDED");
   const groups = await listBulkReviewGroups(db);
   const candidates = new Map(groups.flatMap((group) => group.candidates).map((candidate) => [candidate.id, candidate]));
+  return approveCandidateSelections(db, {
+    selections: candidateIds.flatMap((candidateId) => {
+      const candidate = candidates.get(candidateId);
+      return candidate?.reviewState === "AUTO" && candidate.categoryId ? [{ candidateId, categoryId: candidate.categoryId }] : [{ candidateId, categoryId: "" }];
+    }),
+    actorUserId: input.actorUserId,
+    now: input.now,
+  });
+}
+
+export async function approveCandidateSelections(db: AppDb, input: {
+  selections: Array<{ candidateId: string; categoryId: string }>;
+  actorUserId: string;
+  now: string;
+}) {
+  const selections = [...new Map(input.selections.filter((selection) => selection.candidateId).map((selection) => [selection.candidateId, selection])).values()];
+  if (selections.length > BULK_LIMIT) throw new Error("BULK_LIMIT_EXCEEDED");
+  const [groups, categoryRows] = await Promise.all([
+    listBulkReviewGroups(db),
+    db.select().from(categories).where(eq(categories.isActive, true)),
+  ]);
+  const candidates = new Map(groups.flatMap((group) => group.candidates).map((candidate) => [candidate.id, candidate]));
+  const validCategoryIds = new Set(categoryRows.filter((category) => category.parentId).map((category) => category.id));
   const batchKeys = new Set<string>();
   const approved: Array<{ candidateId: string; placeId: string }> = [];
   const skipped: Array<{ candidateId: string; reason: string }> = [];
 
-  for (const candidateId of candidateIds) {
+  for (const { candidateId, categoryId } of selections) {
     const candidate = candidates.get(candidateId);
     if (!candidate) {
       skipped.push({ candidateId, reason: "검수 대기 중인 영업 후보가 아닙니다." });
       continue;
     }
-    if (!candidate.eligible || !candidate.categoryId || !candidate.neighborhood || candidate.latitude == null || candidate.longitude == null) {
+    if (candidate.reviewState === "BLOCKED" || !candidate.neighborhood || candidate.latitude == null || candidate.longitude == null) {
       skipped.push({ candidateId, reason: candidate.blockers.join(", ") || "일괄 승인 조건을 충족하지 않습니다." });
+      continue;
+    }
+    if (!validCategoryIds.has(categoryId)) {
+      skipped.push({ candidateId, reason: "활성 세부 카테고리를 선택해야 합니다." });
       continue;
     }
     const key = duplicateKey(candidate.businessName, candidate.address);
@@ -113,10 +142,9 @@ export async function bulkApproveCandidates(db: AppDb, input: {
       const result = await approveCandidate(db, {
         candidateId,
         actorUserId: input.actorUserId,
-        categoryId: candidate.categoryId,
+        categoryId,
         name: candidate.businessName,
         address: candidate.address,
-        neighborhood: candidate.neighborhood,
         latitude: candidate.latitude,
         longitude: candidate.longitude,
         now: input.now,
