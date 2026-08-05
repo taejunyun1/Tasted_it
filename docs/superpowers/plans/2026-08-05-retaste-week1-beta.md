@@ -808,8 +808,13 @@ git commit -m "feat: add guarded vote and save actions"
 - Create: `data/week1-places.csv`
 - Create: `docs/operations/week1-data-runbook.md`
 - Create: `docs/operations/cloudflare-deploy.md`
+- Create: `docs/legal/privacy-data-inventory.md`
+- Create: `app/routes/privacy.tsx`
+- Create: `app/routes/terms.tsx`
 - Create: `tests/e2e/release.spec.ts`
 - Modify: `wrangler.jsonc`
+
+**Legal source:** Generate and review the Korean drafts against [`kimlawtech/korean-privacy-terms`](https://github.com/kimlawtech/korean-privacy-terms), specifically its `privacy-kr` flow and Korean PIPA templates. Record the upstream version or commit used. The generated text is a draft, not legal advice.
 
 **Interfaces:**
 - Consumes: Admin CSV import, all public/user routes, Cloudflare account at the deployment sub-step only.
@@ -839,6 +844,10 @@ Expected: 20–50 published rows, zero duplicate slugs, zero missing coordinates
 - [ ] **Step 3: Write operational runbooks**
 
 `docs/operations/week1-data-runbook.md` documents CSV columns, validation rules, import, rollback by imported IDs, and quality queries. `docs/operations/cloudflare-deploy.md` documents login, remote D1 creation, migration, secret entry, data import, deploy, smoke tests, and rollback to the prior Worker version.
+
+- [ ] **Step 3A: Inventory personal data and publish legal drafts**
+
+Create `docs/legal/privacy-data-inventory.md` listing every collected field, purpose, legal basis, storage system, retention/deletion rule, processor, and overseas transfer. Generate `/privacy` and `/terms` drafts from the pinned `korean-privacy-terms` version, adapt them to the inventory, preserve required Apache-2.0 notices, and link both pages from the global footer and login screen. At minimum cover beta identity, D1 sessions, votes, saves, optional geolocation behavior, Cloudflare logs, contact details, and account deletion request flow. No placeholder such as `[회사명]`, `[담당자]`, or `[보유기간]` may remain at deployment.
 
 - [ ] **Step 4: Run the full local release gate**
 
@@ -887,7 +896,7 @@ Expected: Wrangler prints a `workers.dev` URL and deployment version.
 
 Use the deployed Admin import to load `data/week1-places.csv`, then run `BASE_URL=<workers-url> pnpm test:e2e -- tests/e2e/release.spec.ts`.
 
-The release spec asserts HTTP 200 for home, category map, and place detail; login succeeds; vote/save persist; `/admin/places` rejects a normal user; and no console error occurs on the map page.
+The release spec asserts HTTP 200 for home, category map, place detail, `/privacy`, and `/terms`; login succeeds; vote/save persist; `/admin/places` rejects a normal user; legal links are reachable from login and the global footer; and no console error occurs on the map page.
 
 - [ ] **Step 9: Commit release configuration and tag the beta**
 
