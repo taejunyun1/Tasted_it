@@ -4,6 +4,7 @@ interface MapSearchChange {
   selected?: string | null;
   q?: string | null;
   category?: string | null;
+  bbox?: string | null;
 }
 
 export function findSelectedPlace(places: PlaceSummary[], selectedId: string | null) {
