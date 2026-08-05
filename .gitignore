@@ -1,0 +1,11 @@
+.DS_Store
+.worktrees/
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+build/
+playwright-report/
+test-results/
+
