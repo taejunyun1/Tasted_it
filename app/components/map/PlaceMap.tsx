@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { loadNaverMaps, toBoundsTuple } from "../../features/maps/naver-map-sdk";
 import type { PlaceSummary } from "../../features/places/place.types";
 
-export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locateOnLoad = false }: {
+export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initialBounds, locateOnLoad = false }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
   onSelect: (id: string) => void;
   onBounds: (bbox: [number, number, number, number]) => void;
+  initialBounds?: [number, number, number, number];
   locateOnLoad?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -15,6 +16,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
   const [map, setMap] = useState<naver.maps.Map | null>(null);
   const initialClientId = useRef(clientId);
   const initialLocateOnLoad = useRef(locateOnLoad);
+  const initialBoundsRef = useRef(initialBounds);
   const selectRef = useRef(onSelect);
   const boundsRef = useRef(onBounds);
   selectRef.current = onSelect;
@@ -44,6 +46,14 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
       });
       instance = created;
       setMap(created);
+
+      if (initialBoundsRef.current) {
+        const [west, south, east, north] = initialBoundsRef.current;
+        created.fitBounds(new maps.LatLngBounds(
+          new maps.LatLng(south, west),
+          new maps.LatLng(north, east),
+        ));
+      }
 
       if (initialLocateOnLoad.current && navigator.geolocation) navigator.geolocation.getCurrentPosition(({ coords }) => {
         if (disposed) return;

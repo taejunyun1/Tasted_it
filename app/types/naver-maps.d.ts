@@ -10,6 +10,7 @@ declare namespace naver.maps {
   class Map {
     constructor(element: HTMLElement, options: { center: LatLng; zoom: number; zoomControl?: boolean; zoomControlOptions?: { position: Position } });
     getBounds(): LatLngBounds;
+    fitBounds(bounds: LatLngBounds): void;
     setCenter(position: LatLng): void;
     setZoom(zoom: number): void;
     destroy(): void;
@@ -21,6 +22,7 @@ declare namespace naver.maps {
   }
 
   class LatLngBounds {
+    constructor(southwest: LatLng, northeast: LatLng);
     getSW(): { lat(): number; lng(): number };
     getNE(): { lat(): number; lng(): number };
   }
