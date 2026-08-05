@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("map keeps its zoom level while bounds refresh the place list", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(`/?qa=${Date.now()}-${Math.random()}`);
   const zoomIn = page.getByRole("link", { name: "지도 확대", exact: true });
   await expect(zoomIn).toBeVisible();
   const initialBounds = new URL(page.url()).searchParams.get("bbox");
