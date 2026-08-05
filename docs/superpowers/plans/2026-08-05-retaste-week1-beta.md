@@ -569,7 +569,7 @@ pnpm test:e2e -- tests/e2e/login.spec.ts
 
 Expected: User login reaches `/`, malicious external `returnTo` is ignored, and a User receives 403 from `/admin/places`.
 
-- [ ] **Step 5: Commit authentication slice**
+- [x] **Step 5: Commit authentication slice**
 
 ```bash
 git add app/features/auth app/routes/login.tsx tests/unit/auth-guards.test.ts tests/e2e/login.spec.ts
@@ -593,7 +593,7 @@ git commit -m "feat: add beta identity and role guards"
 - Consumes: `AppDb`, `requireAdmin`, place/category tables.
 - Produces: `listPlaces(filters)`, `getPlaceBySlug(slug)`, `upsertPlace(input)`, and `parsePlaceCsv(text): PlaceImportResult`.
 
-- [ ] **Step 1: Write CSV validation tests**
+- [x] **Step 1: Write CSV validation tests**
 
 Create `tests/unit/place-import.test.ts` covering a valid row and invalid coordinates:
 
@@ -608,19 +608,19 @@ expect(parsePlaceCsv(invalid).errors[0]).toMatchObject({ row: 2, field: "latitud
 
 Run and expect module-not-found failure.
 
-- [ ] **Step 2: Define public place contracts and CSV parser**
+- [x] **Step 2: Define public place contracts and CSV parser**
 
 Define `PlaceSummary`, `PlaceDetail`, `PlaceFilters`, `PlaceImportRow`, `PlaceImportError`, and `PlaceImportResult`. Use Zod to require non-empty name/slug/address/neighborhood/category, latitude `33..39`, longitude `124..132`, and an optional HTTP(S) image URL. Normalize `searchText` from name, neighborhood, address, and primary category.
 
-- [ ] **Step 3: Implement place service**
+- [x] **Step 3: Implement place service**
 
 Implement `listPlaces` with `PUBLISHED` status, category slug, bounding box, search prefix/contains, stable `(name,id)` cursor, and rating counts from `current_votes`. Implement `getPlaceBySlug` to return 404 for non-public places. Implement `upsertPlace` in a D1 batch with its primary category relation.
 
-- [ ] **Step 4: Implement minimal Admin routes**
+- [x] **Step 4: Implement minimal Admin routes**
 
 `/admin/places` lists status, name, category, and edit link. `/admin/import` accepts a UTF-8 CSV file up to 2 MB, shows row-specific errors without partial writes, and imports valid rows only after an explicit confirmation submission. Both loader and action call `requireAdmin`.
 
-- [ ] **Step 5: Verify place behavior**
+- [x] **Step 5: Verify place behavior**
 
 Run:
 
