@@ -7,7 +7,7 @@ import type { UserRole } from "./guards.server";
 export interface UpsertBetaUserInput {
   email: string;
   displayName: string;
-  adminEmail: string;
+  adminEmail?: string;
   now: string;
   userId: string;
 }
@@ -17,8 +17,8 @@ export async function upsertBetaUser(
   input: UpsertBetaUserInput,
 ): Promise<{ id: string; role: UserRole }> {
   const email = input.email.trim().toLowerCase();
-  const role: UserRole =
-    email === input.adminEmail.trim().toLowerCase() ? "ADMIN" : "USER";
+  const adminEmail = input.adminEmail?.trim().toLowerCase();
+  const role: UserRole = adminEmail && email === adminEmail ? "ADMIN" : "USER";
   const existing = await db.query.users.findFirst({
     where: eq(users.email, email),
   });
