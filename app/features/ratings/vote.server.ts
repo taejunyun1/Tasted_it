@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { currentVotes, voteEvents } from "../../db/schema";
+import { enqueueRatingRecompute, markRatingStale } from "./recompute.server";
 
 export interface CastVoteInput {
   placeId: string;
@@ -67,4 +68,10 @@ export async function castVote(
         },
       }),
   ]);
+  await markRatingStale(db, input.placeId, input.now);
+  await enqueueRatingRecompute(db, {
+    placeId: input.placeId,
+    reason: "VOTE_CHANGED",
+    now: input.now,
+  });
 }
