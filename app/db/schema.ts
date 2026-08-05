@@ -5,6 +5,7 @@ import {
   real,
   sqliteTable,
   text,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 const timestamps = {
@@ -145,3 +146,82 @@ export const savedPlaces = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.userId, table.placeId] })],
 );
+
+export const businessLicenses = sqliteTable(
+  "business_licenses",
+  {
+    id: text("id").primaryKey(),
+    sourceType: text("source_type", { enum: ["GENERAL_RESTAURANT", "REST_CAFE", "BAKERY", "ENTERTAINMENT_BAR"] }).notNull(),
+    sourceManagementNo: text("source_management_no").notNull(),
+    businessName: text("business_name").notNull(),
+    businessSubtype: text("business_subtype"),
+    salesStatusCode: text("sales_status_code"),
+    salesStatusName: text("sales_status_name"),
+    detailStatusCode: text("detail_status_code"),
+    detailStatusName: text("detail_status_name"),
+    normalizedStatus: text("normalized_status", { enum: ["OPEN", "TEMPORARILY_CLOSED", "CLOSED", "UNKNOWN"] }).notNull(),
+    lotAddress: text("lot_address"),
+    roadAddress: text("road_address"),
+    phone: text("phone"),
+    sourceX: real("source_x"),
+    sourceY: real("source_y"),
+    latitude: real("latitude"),
+    longitude: real("longitude"),
+    regionCode: text("region_code", { enum: ["GWANGJU", "JEONNAM"] }).notNull(),
+    sourceUpdatedAt: text("source_updated_at"),
+    rawPayload: text("raw_payload").notNull(),
+    reviewStatus: text("review_status", { enum: ["PENDING", "APPROVED", "REJECTED"] }).notNull().default("PENDING"),
+    reviewReason: text("review_reason"),
+    reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: text("reviewed_at"),
+    firstSeenAt: text("first_seen_at").notNull(),
+    lastSeenAt: text("last_seen_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("business_licenses_source_idx").on(table.sourceType, table.sourceManagementNo),
+    index("business_licenses_candidate_idx").on(table.normalizedStatus, table.reviewStatus),
+    index("business_licenses_region_idx").on(table.regionCode),
+  ],
+);
+
+export const placeSourceLinks = sqliteTable(
+  "place_source_links",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    businessLicenseId: text("business_license_id").notNull().unique().references(() => businessLicenses.id, { onDelete: "restrict" }),
+    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(true),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("place_source_links_place_idx").on(table.placeId)],
+);
+
+export const publicDataSyncRuns = sqliteTable("public_data_sync_runs", {
+  id: text("id").primaryKey(),
+  sourceType: text("source_type").notNull(),
+  regionCode: text("region_code").notNull(),
+  addressField: text("address_field").notNull(),
+  status: text("status", { enum: ["RUNNING", "COMPLETED", "FAILED"] }).notNull(),
+  nextPage: integer("next_page").notNull().default(1),
+  totalCount: integer("total_count").notNull().default(0),
+  fetchedCount: integer("fetched_count").notNull().default(0),
+  insertedCount: integer("inserted_count").notNull().default(0),
+  updatedCount: integer("updated_count").notNull().default(0),
+  skippedCount: integer("skipped_count").notNull().default(0),
+  startedAt: text("started_at").notNull(),
+  finishedAt: text("finished_at"),
+  errorSummary: text("error_summary"),
+  ...timestamps,
+});
+
+export const adminAuditLogs = sqliteTable("admin_audit_logs", {
+  id: text("id").primaryKey(),
+  actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  beforeState: text("before_state"),
+  afterState: text("after_state"),
+  createdAt: text("created_at").notNull(),
+});

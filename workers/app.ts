@@ -1,4 +1,5 @@
 import { createRequestHandler } from "react-router";
+import { runScheduledCandidateSync } from "../app/features/candidates/scheduled-sync.server";
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
@@ -8,5 +9,8 @@ const requestHandler = createRequestHandler(
 export default {
   async fetch(request) {
     return requestHandler(request);
+  },
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(runScheduledCandidateSync(env));
   },
 } satisfies ExportedHandler<Env>;
