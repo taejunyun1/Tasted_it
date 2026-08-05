@@ -193,7 +193,7 @@ pnpm build
 
 Expected: all three commands exit 0.
 
-- [ ] **Step 7: Commit the scaffold**
+- [x] **Step 7: Commit the scaffold**
 
 ```bash
 git add .
@@ -207,16 +207,15 @@ git commit -m "chore: scaffold Cloudflare React Router application"
 **Files:**
 - Create: `app/db/schema.ts`
 - Create: `app/db/client.server.ts`
-- Create: `app/lib/env.server.ts`
 - Create: `drizzle/0000_week1.sql`
 - Create: `scripts/seed-week1.sql`
 - Test: `tests/unit/schema-contract.test.ts`
 
 **Interfaces:**
 - Consumes: Worker binding `DB: D1Database`.
-- Produces: `createDb(database: D1Database)`, Drizzle tables `users`, `sessions`, `categories`, `places`, `placeCategories`, `voteEvents`, `currentVotes`, and `savedPlaces`.
+- Produces: `createDb(database: D1Database)`, Wrangler-generated `Env`, and Drizzle tables `users`, `sessions`, `categories`, `places`, `placeCategories`, `voteEvents`, `currentVotes`, and `savedPlaces`.
 
-- [ ] **Step 1: Write the schema contract test**
+- [x] **Step 1: Write the schema contract test**
 
 Create `tests/unit/schema-contract.test.ts`:
 
@@ -242,7 +241,7 @@ Run `pnpm test -- tests/unit/schema-contract.test.ts`.
 
 Expected: FAIL because `app/db/schema.ts` does not exist.
 
-- [ ] **Step 2: Implement typed Drizzle schema**
+- [x] **Step 2: Implement typed Drizzle schema**
 
 Create `app/db/schema.ts` with these exact table contracts:
 
@@ -326,7 +325,7 @@ export const savedPlaces = sqliteTable("saved_places", {
 }, (table) => [primaryKey({ columns: [table.userId, table.placeId] })]);
 ```
 
-- [ ] **Step 3: Add DB and environment interfaces**
+- [x] **Step 3: Add DB construction and generated environment bindings**
 
 Create `app/db/client.server.ts`:
 
@@ -341,23 +340,15 @@ export function createDb(database: D1Database) {
 export type AppDb = ReturnType<typeof createDb>;
 ```
 
-Create `app/lib/env.server.ts`:
+Run `wrangler types` after each binding change and use the generated global `Env` interface. Do not hand-write Worker binding interfaces because they can drift from `wrangler.jsonc`.
 
-```ts
-export interface AppEnv {
-  DB: D1Database;
-  SESSION_SECRET: string;
-  ADMIN_EMAIL: string;
-}
-```
-
-- [ ] **Step 4: Write migration and seed SQL**
+- [x] **Step 4: Write migration and seed SQL**
 
 Create `drizzle/0000_week1.sql` with SQL equivalent to the schema, including `CHECK(value IN (-1, 1))`, FK constraints, and indexes on `places(status)`, `places(search_text)`, and `place_categories(category_id, place_id)`.
 
 Create `scripts/seed-week1.sql` containing idempotent `INSERT OR IGNORE` rows for categories `ramen`, `donkatsu`, `gukbap`, `bakery`, and at least six clearly labeled sample places with coordinates inside Gwangju. Each place must use a stable ID and `PUBLISHED` status.
 
-- [ ] **Step 5: Apply migration and verify constraints**
+- [x] **Step 5: Apply migration and verify constraints**
 
 Run:
 
