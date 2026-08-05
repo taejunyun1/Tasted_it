@@ -15,7 +15,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function CategoryMap({ loaderData }: Route.ComponentProps) {
-  const [, setParams] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const setState = (key: string, value: string) => setParams((current) => { current.set(key, value); return current; }, { replace: true });
   const selected = loaderData.state.selected;
   return (
@@ -27,7 +27,7 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
       <nav className="view-tabs shell" aria-label="보기 방식"><Link to="?view=map">지도</Link><Link to="?view=list">목록</Link><button type="button" onClick={() => navigator.geolocation.getCurrentPosition(() => undefined)}>내 주변</button></nav>
       <div className="explore-split" data-view={loaderData.state.view}>
         <section className="map-panel" aria-label="지도 보기">
-          <PlaceMap places={loaderData.places} selected={selected} clientId={loaderData.clientId} onSelect={(id) => { setState("selected", id); document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" }); }} onBounds={(bbox) => setState("bbox", bbox.map((n) => n.toFixed(5)).join(","))} />
+          <PlaceMap places={loaderData.places} selected={selected} clientId={loaderData.clientId} initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined} onSelect={(id) => { setState("selected", id); document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" }); }} onBounds={(bbox) => setState("bbox", bbox.map((n) => n.toFixed(5)).join(","))} />
         </section>
         <section className="result-panel" aria-label="장소 목록">
           <p className="result-count">{loaderData.places.length} PLACES</p>
