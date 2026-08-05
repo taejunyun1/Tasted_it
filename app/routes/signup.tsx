@@ -5,6 +5,7 @@ import type { Route } from "./+types/signup";
 import { createDb } from "../db/client.server";
 import { registerAccount } from "../features/auth/account.server";
 import { sendAccountEmail } from "../features/auth/email.server";
+import { describeSignupFailure } from "../features/auth/signup-failure";
 import { AuthInput, AuthPage } from "./login";
 
 const schema = z.object({ displayName: z.string().trim().min(2).max(40), email: z.email(), password: z.string().min(10) });
@@ -17,7 +18,9 @@ export async function action({ request }: Route.ActionArgs) {
     const baseUrl = env.APP_BASE_URL || new URL(request.url).origin;
     await sendAccountEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM_EMAIL, to: account.email, purpose: "VERIFY_EMAIL", url: `${baseUrl}/verify-email?token=${encodeURIComponent(account.token)}` });
   } catch (error) {
-    if (error instanceof Error && error.message === "EMAIL_NOT_CONFIGURED") return data({ ok: false, message: "이메일 발송 설정이 필요합니다." }, { status: 503 });
+    const failure = describeSignupFailure(error);
+    console.error("SIGNUP_FAILED", failure.logCode);
+    return data({ ok: failure.ok, message: failure.message }, { status: failure.status });
   }
   return { ok: true, message: "가입 가능 여부와 관계없이 인증 안내가 등록된 이메일로 전송됩니다." };
 }
