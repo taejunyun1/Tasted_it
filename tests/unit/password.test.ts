@@ -3,7 +3,7 @@ import { PASSWORD_HASH_ITERATIONS, hashPassword, verifyPassword } from "../../ap
 
 describe("password hashing", () => {
   it("stays within the Cloudflare Workers PBKDF2 iteration ceiling", () => {
-    expect(PASSWORD_HASH_ITERATIONS).toBe(100_000);
+    expect(PASSWORD_HASH_ITERATIONS).toBe(99_999);
   });
 
   it("verifies only the original password", async () => {

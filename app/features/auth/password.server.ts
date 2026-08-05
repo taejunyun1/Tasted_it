@@ -1,4 +1,4 @@
-export const PASSWORD_HASH_ITERATIONS = 100_000;
+export const PASSWORD_HASH_ITERATIONS = 99_999;
 const encoder = new TextEncoder();
 
 function toBase64(bytes: Uint8Array) {
