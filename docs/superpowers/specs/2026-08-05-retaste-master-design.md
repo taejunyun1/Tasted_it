@@ -387,6 +387,8 @@ UI route는 도메인 규칙을 직접 구현하지 않는다. 웹 loader/action
 
 구현 전에 다음 ADR을 작성하고 공식 문서 링크, 선택안, 대안, 결과를 기록한다.
 
+현재 결정 대기 항목, 권장 기본안, 결정 시한은 [`docs/decisions/2026-08-05-next-product-decisions.md`](../../decisions/2026-08-05-next-product-decisions.md)에서 관리한다.
+
 1. Workers Static Assets와 React Router 버전
 2. D1·Drizzle 스키마와 투표 이벤트 모델
 3. Better Auth 세션·소셜 로그인
