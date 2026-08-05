@@ -8,6 +8,7 @@ import { calculateRating } from "../features/ratings/rating-v1";
 import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
+import { getHiddenGemStatus, recordPlaceDetailView } from "../features/ratings/rating-badges.server";
 import { castVote, getCurrentVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { getSaved, setSaved } from "../features/saves/save.server";
@@ -25,10 +26,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVote(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [snapshot, flavorPrint, goldenPicks] = await Promise.all([
+  const now = new Date().toISOString();
+  await recordPlaceDetailView(db, { placeId: place.id, now });
+  const [snapshot, flavorPrint, goldenPicks, hiddenGem] = await Promise.all([
     getLatestRatingSnapshot(db, place.id),
     getPlaceFlavorPrint(db, place.id),
-    listActiveGoldenPicks(db, new Date().toISOString()),
+    listActiveGoldenPicks(db, now),
+    getHiddenGemStatus(db, { placeId: place.id, now }),
   ]);
   const legacy = calculateRating(place);
   const rating = snapshot ? {
@@ -50,7 +54,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     isStale: false,
     algorithmVersion: "rating-v1-fallback",
   };
-  return { place, rating, flavorPrint, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote, saved };
+  return { place, rating, flavorPrint, hiddenGem, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote, saved };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -81,6 +85,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
         <article className="detail-copy">
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
           {loaderData.hasGoldenPick && <span className="rating-badge">GOLDEN PICK · 90일</span>}
+          {loaderData.hiddenGem.eligible && <span className="rating-badge rating-badge-hidden">HIDDEN GEM · 노출 대비 높은 평가</span>}
           <div className="score"><strong>{rating.overallScore === null ? `표본 수집 중 · ${rating.overallSampleCount}/8` : `${rating.overallScore}%`}</strong><span>{rating.isStale ? "새 평가 반영 중" : "검증된 최신 결과"}</span></div>
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}

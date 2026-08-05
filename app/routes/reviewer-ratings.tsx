@@ -9,6 +9,7 @@ import { assertRole } from "../features/auth/guards.server";
 import { requireUser } from "../features/auth/session.server";
 import { submitFlavorRating } from "../features/ratings/flavor-print.server";
 import { grantGoldenPick, listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
+import { listReviewerHotTakes } from "../features/ratings/rating-badges.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
@@ -24,8 +25,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     .leftJoin(flavorTemplates, and(eq(flavorTemplates.categoryId, categories.id), eq(flavorTemplates.status, "ACTIVE")))
     .where(eq(places.status, "PUBLISHED"))
     .orderBy(asc(places.name));
-  const activePicks = await listActiveGoldenPicks(db, new Date().toISOString(), user.id);
-  return { user, activePicks, places: rows.map((row) => ({ ...row, dimensions: row.dimensionsJson ? JSON.parse(row.dimensionsJson) as string[] : [] })) };
+  const [activePicks, hotTakes] = await Promise.all([
+    listActiveGoldenPicks(db, new Date().toISOString(), user.id),
+    listReviewerHotTakes(db, user.id),
+  ]);
+  return { user, activePicks, places: rows.map((row) => ({ ...row, dimensions: row.dimensionsJson ? JSON.parse(row.dimensionsJson) as string[] : [], hotTake: hotTakes.get(row.placeId) ?? null })) };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -56,5 +60,5 @@ export async function action({ request }: Route.ActionArgs) {
 export function meta() { return [{ title: "리뷰어 평가 — Re:Taste" }]; }
 
 export default function ReviewerRatings({ loaderData }: Route.ComponentProps) {
-  return <main id="main" className="reviewer-rating-shell"><header><p className="eyebrow">REVIEWER / BLIND FIELD NOTE</p><h1>리뷰어 평가</h1><p>다른 리뷰어의 결과는 제출 전에 공개하지 않습니다. Flavor Print와 Golden Pick은 서로 독립적으로 기록됩니다.</p><strong>활성 Golden Pick {loaderData.activePicks.length}개</strong></header><section className="reviewer-rating-list">{loaderData.places.map((place) => <article key={place.placeId}><div><p>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p><h2>{place.placeName}</h2></div>{place.templateId ? <Form method="post" className="flavor-form"><input type="hidden" name="intent" value="flavor"/><input type="hidden" name="placeId" value={place.placeId}/><input type="hidden" name="templateId" value={place.templateId}/><fieldset><legend>Flavor Print · {place.templateVersion}</legend>{place.dimensions.map((dimension, index) => <label key={dimension}><span>{dimension}</span><select name={`dimension-${index}`} defaultValue="3" aria-label={`${place.placeName} ${dimension}`}><option value="1">1 · 약함</option><option value="2">2</option><option value="3">3 · 보통</option><option value="4">4</option><option value="5">5 · 강함</option></select></label>)}</fieldset><label><span>확신도</span><select name="confidence" defaultValue="MEDIUM"><option value="LOW">낮음</option><option value="MEDIUM">보통</option><option value="HIGH">높음</option></select></label><button>Flavor Print 저장</button></Form> : <p className="template-empty">이 카테고리의 Flavor Print 템플릿 준비 중</p>}<Form method="post"><input type="hidden" name="intent" value="golden"/><input type="hidden" name="placeId" value={place.placeId}/><button className="golden-button">Golden Pick 부여</button></Form></article>)}</section></main>;
+  return <main id="main" className="reviewer-rating-shell"><header><p className="eyebrow">REVIEWER / BLIND FIELD NOTE</p><h1>리뷰어 평가</h1><p>다른 리뷰어의 결과는 제출 전에 공개하지 않습니다. Flavor Print와 Golden Pick은 서로 독립적으로 기록됩니다.</p><strong>활성 Golden Pick {loaderData.activePicks.length}개</strong></header><section className="reviewer-rating-list">{loaderData.places.map((place) => <article key={place.placeId}><div><p>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p><h2>{place.placeName}</h2>{place.hotTake?.eligible && <p className="hot-take-note">HOT TAKE · 동료 {place.hotTake.peerCount}명 중 {Math.round(place.hotTake.peerAgreement * 100)}%와 다른 관점</p>}</div>{place.templateId ? <Form method="post" className="flavor-form"><input type="hidden" name="intent" value="flavor"/><input type="hidden" name="placeId" value={place.placeId}/><input type="hidden" name="templateId" value={place.templateId}/><fieldset><legend>Flavor Print · {place.templateVersion}</legend>{place.dimensions.map((dimension, index) => <label key={dimension}><span>{dimension}</span><select name={`dimension-${index}`} defaultValue="3" aria-label={`${place.placeName} ${dimension}`}><option value="1">1 · 약함</option><option value="2">2</option><option value="3">3 · 보통</option><option value="4">4</option><option value="5">5 · 강함</option></select></label>)}</fieldset><label><span>확신도</span><select name="confidence" defaultValue="MEDIUM"><option value="LOW">낮음</option><option value="MEDIUM">보통</option><option value="HIGH">높음</option></select></label><button>Flavor Print 저장</button></Form> : <p className="template-empty">이 카테고리의 Flavor Print 템플릿 준비 중</p>}<Form method="post"><input type="hidden" name="intent" value="golden"/><input type="hidden" name="placeId" value={place.placeId}/><button className="golden-button">Golden Pick 부여</button></Form></article>)}</section></main>;
 }
