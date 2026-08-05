@@ -739,11 +739,11 @@ git commit -m "feat: add synchronized map and place exploration"
 - Consumes: `requireUser`, `castVote`, `savedPlaces`, `getPlaceBySlug`.
 - Produces: place-detail intents `vote` and `save`; `setSaved(db, { userId, placeId, saved, now }): Promise<void>`.
 
-- [ ] **Step 1: Write failing save and E2E tests**
+- [x] **Step 1: Write failing save and E2E tests**
 
 Assert `setSaved(...saved:true)` is idempotent and `saved:false` removes the row. E2E flow: login, open place, recommend, switch to not recommended, save, reload, and observe the final vote/save state.
 
-- [ ] **Step 2: Implement save service**
+- [x] **Step 2: Implement save service**
 
 ```ts
 export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
@@ -764,7 +764,7 @@ export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
 
 Define `SaveInput` with `userId`, `placeId`, `saved`, and ISO `now`.
 
-- [ ] **Step 3: Add guarded place actions**
+- [x] **Step 3: Add guarded place actions**
 
 The place-detail action calls `requireUser`, validates a discriminated union:
 
@@ -777,11 +777,11 @@ const actionSchema = z.discriminatedUnion("intent", [
 
 Generate event IDs with `crypto.randomUUID()`, never accept user ID from form data, and redirect unauthenticated users to login.
 
-- [ ] **Step 4: Implement accessible optimistic controls**
+- [x] **Step 4: Implement accessible optimistic controls**
 
 `VoteControl` uses two labeled buttons, `aria-pressed`, visible selected state beyond color, pending state, and an `aria-live` result message. Save uses a labeled toggle button. Loader returns the current user's own vote/save state without exposing identity to other users.
 
-- [ ] **Step 5: Verify repeatable user flow**
+- [x] **Step 5: Verify repeatable user flow**
 
 Run:
 
@@ -793,7 +793,7 @@ pnpm typecheck
 
 Expected: changing a vote appends an event but leaves one current vote; save survives reload.
 
-- [ ] **Step 6: Commit user reactions**
+- [x] **Step 6: Commit user reactions**
 
 ```bash
 git add app tests

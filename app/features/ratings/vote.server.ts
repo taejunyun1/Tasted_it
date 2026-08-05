@@ -11,6 +11,19 @@ export interface CastVoteInput {
   eventId: string;
 }
 
+export async function getCurrentVote(
+  db: AppDb,
+  input: Pick<CastVoteInput, "placeId" | "userId">,
+): Promise<-1 | 1 | null> {
+  const vote = await db.query.currentVotes.findFirst({
+    where: and(
+      eq(currentVotes.placeId, input.placeId),
+      eq(currentVotes.userId, input.userId),
+    ),
+  });
+  return vote?.value === -1 || vote?.value === 1 ? vote.value : null;
+}
+
 export async function castVote(
   db: AppDb,
   input: CastVoteInput,
