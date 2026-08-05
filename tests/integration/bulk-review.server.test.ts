@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { businessLicenses, places } from "../../app/db/schema";
 import {
+  approveCandidateSelections,
   bulkApproveCandidates,
   listBulkReviewGroups,
 } from "../../app/features/candidates/bulk-review.server";
@@ -85,6 +86,42 @@ describe("bulk candidate review", () => {
       candidateIds: Array.from({ length: 26 }, (_, index) => `candidate-${index}`),
       actorUserId: "bulk-admin",
       now,
+    })).rejects.toThrow("BULK_LIMIT_EXCEEDED");
+  });
+
+  it("approves a conflict candidate when an active child category is selected manually", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, {
+      ...license, sourceManagementNo: "manual-conflict", businessName: "스시 충돌", businessSubtype: "한식",
+    }, now);
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+    expect(row.reviewState).toBe("MANUAL");
+
+    const result = await approveCandidateSelections(db, {
+      selections: [{ candidateId: candidate.id, categoryId: row.categoryId! }], actorUserId: "bulk-admin", now,
+    });
+
+    expect(result.approved).toEqual([expect.objectContaining({ candidateId: candidate.id })]);
+  });
+
+  it("does not approve a blocked candidate even with a manual category", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, {
+      ...license, sourceManagementNo: "manual-blocked", latitude: null, longitude: null,
+    }, now);
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+    const result = await approveCandidateSelections(db, {
+      selections: [{ candidateId: candidate.id, categoryId: row.categoryId! }], actorUserId: "bulk-admin", now,
+    });
+    expect(result.approved).toHaveLength(0);
+    expect(result.skipped).toEqual([expect.objectContaining({ candidateId: candidate.id, reason: expect.stringContaining("좌표") })]);
+  });
+
+  it("rejects more than 25 explicit selections", async () => {
+    const db = createDb(env.DB);
+    await expect(approveCandidateSelections(db, {
+      selections: Array.from({ length: 26 }, (_, index) => ({ candidateId: `manual-${index}`, categoryId: "category" })),
+      actorUserId: "bulk-admin", now,
     })).rejects.toThrow("BULK_LIMIT_EXCEEDED");
   });
 });

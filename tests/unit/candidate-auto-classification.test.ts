@@ -66,4 +66,8 @@ describe("extractNeighborhood", () => {
     expect(extractNeighborhood("전라남도 담양군 담양읍 중앙로 1")).toBe("담양읍");
     expect(extractNeighborhood("전라남도 화순군 화순면 중앙로 1")).toBe("화순면");
   });
+
+  it("extracts a ri address token", () => {
+    expect(extractNeighborhood("전라남도 담양군 담양읍 학동리 12")).toBe("학동리");
+  });
 });

@@ -71,11 +71,13 @@ const defaults: Record<PublicDataSource, string> = {
 
 export function extractNeighborhood(address: string | null | undefined) {
   if (!address) return null;
+  const isNeighborhood = (token: string) => /(?:동|읍|면|리)$/.test(token);
   const parenthesized = [...address.matchAll(/\(([^)]*)\)/g)]
     .flatMap((match) => match[1].split(/[·,\s]+/))
-    .find((token) => /(?:동|읍|면)$/.test(token));
+    .find(isNeighborhood);
   if (parenthesized) return parenthesized;
-  return address.split(/[·,()\s]+/).find((token) => /(?:동|읍|면)$/.test(token)) ?? null;
+  const tokens = address.split(/[·,()\s]+/).filter(isNeighborhood);
+  return tokens.find((token) => token.endsWith("리")) ?? tokens.at(-1) ?? null;
 }
 
 export function classifyCandidate(input: {
