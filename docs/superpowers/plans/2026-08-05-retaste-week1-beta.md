@@ -361,7 +361,7 @@ pnpm test -- tests/unit/schema-contract.test.ts
 
 Expected: the query reports at least 6 places and the test passes.
 
-- [ ] **Step 6: Commit database foundation**
+- [x] **Step 6: Commit database foundation**
 
 ```bash
 git add app/db app/lib drizzle scripts tests/unit/schema-contract.test.ts wrangler.jsonc package.json pnpm-lock.yaml
@@ -382,7 +382,7 @@ git commit -m "feat: add week one D1 data model"
 - Consumes: `AppDb`, `voteEvents`, `currentVotes`.
 - Produces: `calculateRating(input: { positive: number; negative: number }): RatingV1`; `castVote(db, input: { placeId: string; userId: string; value: -1 | 1; now: string; eventId: string }): Promise<void>`.
 
-- [ ] **Step 1: Write failing rating tests**
+- [x] **Step 1: Write failing rating tests**
 
 Create `tests/unit/rating-v1.test.ts`:
 
@@ -412,7 +412,7 @@ Run `pnpm test -- tests/unit/rating-v1.test.ts`.
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 2: Implement rating v1**
+- [x] **Step 2: Implement rating v1**
 
 Create `app/features/ratings/rating-v1.ts`:
 
@@ -438,7 +438,7 @@ export function calculateRating(input: { positive: number; negative: number }): 
 }
 ```
 
-- [ ] **Step 3: Write vote service integration cases**
+- [x] **Step 3: Write vote service integration cases**
 
 Create `tests/integration/vote.server.test.ts` using a test D1 database migrated from `drizzle/0000_week1.sql`. Assert:
 
@@ -455,7 +455,7 @@ Run `pnpm test -- tests/integration/vote.server.test.ts`.
 
 Expected: FAIL because `castVote` does not exist.
 
-- [ ] **Step 4: Implement transactional vote writes**
+- [x] **Step 4: Implement transactional vote writes**
 
 Create `app/features/ratings/vote.server.ts` with `castVote` that:
 
@@ -491,7 +491,7 @@ export async function castVote(db: AppDb, input: CastVoteInput): Promise<void> {
 
 Include the exact `CastVoteInput` type and Drizzle imports required by this implementation.
 
-- [ ] **Step 5: Run rating and vote checks**
+- [x] **Step 5: Run rating and vote checks**
 
 Run:
 
