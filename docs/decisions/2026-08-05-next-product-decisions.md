@@ -10,7 +10,7 @@
 
 | ID | 확정일 | 결정 | 적용 시점 |
 |---|---|---|---|
-| D-07 | 2026-08-05 | 웹·iOS·Android 지도는 **Kakao Map SDK**를 사용하고 장소 검색·주소 변환은 **Kakao Local REST API**로 통일한다. Re:Taste D1의 WGS84 좌표는 계속 내부 기준 원본으로 유지한다. | 다음 지도 개편 |
+| D-07 | 2026-08-05 | 웹·iOS·Android 지도는 **NAVER Maps Dynamic Map SDK**를 사용한다. Re:Taste D1의 WGS84 좌표는 계속 내부 기준 원본으로 유지한다. | 웹 지도 적용 완료, 모바일 앱에서 재사용 |
 
 ## 1. 이 문서의 목적
 
@@ -44,8 +44,8 @@
 | D-03 | 관리자 인증 | **Cloudflare Access로 관리자 경로 보호 + 앱 내부 ADMIN 권한 검사** | 앱 로그인만 사용 | 관리자 CMS 공개 전 | 운영 보안, 감사 로그 |
 | D-04 | 만 14세 미만 | **가입 차단** | 법정대리인 동의 절차 구축 | 가입 화면 구현 전 | 생년 확인, 약관, 개인정보 |
 | D-05 | 장소 위치의 기준값 | **WGS84 위도·경도를 내부 원본으로 저장** | 특정 지도 사업자 ID를 원본으로 사용 | 장소 스키마 확장 전 | 검색, 지도, 앱, 공급자 교체 |
-| D-06 | 장소 검색·주소 보정 | **Kakao Local REST API + 운영자 핀 수동 보정** | 세부 검수 규칙만 남음 | 장소 등록 UI 설계 전 | API 키·쿼터·검수 흐름 |
-| D-07 | 지도 렌더러·타일 | **확정: Kakao Map SDK** | 결정 완료 | 다음 지도 개편 | 웹·앱 SDK, 키, 도메인 등록 |
+| D-06 | 장소 검색·주소 보정 | **NAVER Maps Geocoding + 운영자 핀 수동 보정** | 장소명 후보 검색원은 별도 결정 | 장소 등록 UI 설계 전 | API 키·쿼터·검수 흐름 |
+| D-07 | 지도 렌더러·타일 | **확정: NAVER Maps Dynamic Map** | 결정 완료 | 웹 적용 완료 | 웹·앱 SDK, 키, 도메인 등록 |
 | D-08 | 실데이터 공개 조건 | **운영 상태·주소·좌표를 수동 확인한 장소만 PUBLISHED** | 자동 수집 즉시 공개 | 다음 데이터 반영 전 | CMS 상태, 화면 고지, 배치 작업 |
 | D-09 | 이미지 정책 | **직접 촬영·서면 허용·라이선스 확인 이미지만 R2 저장** | 외부 URL 연결, 제휴사 업로드 | 이미지 기능 전 | 저작권, 저장소, 삭제 요청 |
 | D-10 | 카테고리 구조 | **대표 카테고리 1개 + 보조 태그 복수** | 단일 카테고리만 유지 | 장소 CMS 확장 전 | 필터, 검색, 마이그레이션 |
@@ -84,9 +84,9 @@ Cloudflare Workers의 Custom Domain은 DNS 레코드와 인증서를 자동 구�
 
 | 계층 | 권장 선택 | 역할 |
 |---|---|---|
-| 화면 렌더링 | Kakao Map SDK | 웹·iOS·Android 지도, 마커, 클러스터 표시 |
-| 배경 지도 | Kakao Map | 한국어 도로·지명·배경 지도 제공 |
-| 장소 검색 | Kakao Local REST API | 한국 음식점 검색, 도로명·지번 주소, 좌표 후보 제공 |
+| 화면 렌더링 | NAVER Maps Dynamic Map | 웹·iOS·Android 지도, 마커, 클러스터 표시 |
+| 배경 지도 | NAVER Maps | 한국어 도로·지명·배경 지도 제공 |
+| 주소 변환 | NAVER Maps Geocoding | 도로명·지번 주소와 좌표 후보 제공 |
 | 내부 기준 원본 | Re:Taste D1 | 검수된 좌표·주소·상태·출처와 변경 이력 보존 |
 
 특정 공급자의 장소 ID는 연결 키일 뿐 Re:Taste 장소의 기본키가 아니다. 공급자를 바꾸거나 ID가 사라져도 내부 장소가 유지되어야 한다.
@@ -119,25 +119,25 @@ Cloudflare Workers의 Custom Domain은 DNS 레코드와 인증서를 자동 구�
 - 이전·폐업 제보를 받으면 즉시 삭제하기보다 `검토 중` 상태와 변경 이력을 남긴다.
 - 공개 장소도 마지막 확인일을 보이고, 초기에는 90일 단위 재검수를 권장한다.
 
-### 5.4 Kakao Map 운영 기준
+### 5.4 NAVER Maps 운영 기준
 
-- 웹은 JavaScript 키와 허용 도메인을 등록한다.
-- Android·iOS는 네이티브 앱 키와 패키지명·번들 ID를 등록한다.
-- REST API 키는 서버 비밀값으로 관리하고 브라우저에 노출하지 않는다.
-- 개발자 계정에서 무료 쿼터가 적용되는 첫 활성화 앱을 Re:Taste 운영 앱으로 지정한다.
+- 웹은 Client ID와 허용 도메인을 등록한다.
+- Android·iOS는 패키지명·번들 ID를 등록한다.
+- Client Secret은 서버 비밀값으로 관리하고 브라우저에 노출하지 않는다.
+- 무료 이용량이 적용되는 NAVER Maps 대표 계정 여부를 확인한다.
 - 지도와 장소 검색 사용량을 월간·일간으로 관찰하고 비용 상한 알림을 둔다.
-- Kakao 장소 ID와 별개로 Re:Taste 내부 ID와 WGS84 좌표를 유지한다.
+- 외부 장소 ID와 별개로 Re:Taste 내부 ID와 WGS84 좌표를 유지한다.
 - 기존 OpenStreetMap·MapLibre 화면은 전환 검증이 끝난 뒤 제거한다.
 
-### 5.5 Kakao API 도입 전에 정할 것
+### 5.5 NAVER Maps API 운영 전에 정할 것
 
-2026-07-21부터 카카오맵 API 사용 절차와 무료 쿼터 방식이 변경되었다. 개발자 계정의 첫 활성화 앱만 무료 쿼터 대상이 될 수 있으므로 다음을 먼저 정한다.
+NAVER Maps는 대표 계정에 무료 이용량을 제공하므로 다음을 먼저 정한다.
 
-- 어떤 Kakao Developers 앱을 Re:Taste 운영 앱으로 사용할지
+- 어떤 NAVER Cloud Maps Application을 Re:Taste 운영 앱으로 사용할지
 - 개발·운영 키를 어떻게 분리할지
 - 예상 일간 검색량과 초과 비용 상한
 - 검색 결과를 얼마나 오래 저장할 수 있는지에 대한 최신 이용조건 검토
-- Kakao 결과를 자동 공개하지 않고 내부 검수 후보로만 사용할지 여부 — **권장: 후보로만 사용**
+- 외부 검색 결과를 자동 공개하지 않고 내부 검수 후보로만 사용할지 여부 — **권장: 후보로만 사용**
 
 ## 6. 인증과 권한 결정안
 
@@ -244,8 +244,8 @@ B2B 맞춤 서비스 결제는 웹 흐름을 유지하고 첫 소비자 앱에�
 1. 법적 정보와 실데이터 검수가 끝날 때까지 초대형 비공개 베타로 운영한다.
 2. 만 14세 미만 가입은 MVP에서 차단한다.
 3. 일반 사용자는 이메일 매직링크, 관리자는 앱 권한 검사와 Cloudflare Access를 함께 사용한다.
-4. Kakao Map SDK를 웹·iOS·Android 지도에 사용한다. **확정**
-5. Kakao Local은 검색 후보와 주소 보정에 사용하고, D1의 WGS84 좌표를 내부 기준 원본으로 삼는다. **지도 공급자 확정, 검수 규칙 결정 필요**
+4. NAVER Maps Dynamic Map SDK를 웹·iOS·Android 지도에 사용한다. **확정**
+5. NAVER Maps Geocoding은 주소 보정에 사용하고, D1의 WGS84 좌표를 내부 기준 원본으로 삼는다. **지도 공급자 확정, 장소명 검색원·검수 규칙 결정 필요**
 6. 장소는 운영 상태·주소·좌표를 사람이 확인한 뒤에만 공개한다.
 7. 카테고리는 대표 1개와 보조 태그 복수 구조로 확장한다.
 8. 이미지는 직접 촬영 또는 이용 허락이 확인된 파일만 R2에 저장한다.
@@ -275,7 +275,7 @@ B2B 맞춤 서비스 결제는 웹 흐름을 유지하고 첫 소비자 앱에�
 
 1. 이 문서의 D-01~D-12 결정 상태 갱신
 2. 인증·관리자 접근 ADR
-3. Kakao Map SDK·Kakao Local·장소 원본 ADR
+3. NAVER Maps SDK·Geocoding·장소 원본 ADR
 4. 장소 등록·검수 운영 매뉴얼
 5. 이미지 권리·삭제 요청 매뉴얼
 6. 리뷰어 운영 정책과 평가 v2 ADR
@@ -285,8 +285,8 @@ B2B 맞춤 서비스 결제는 웹 흐름을 유지하고 첫 소비자 앱에�
 ## 14. 공식 참고 문서
 
 - [OpenStreetMap Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) — 표준 타일 사용·귀속·캐시·금지사항
-- [Kakao Map API 이해하기](https://developers.kakao.com/docs/ko/kakaomap/common) — 2026-07-21 이후 사용 절차·쿼터와 제공 기능
-- [Kakao Map REST API](https://developers.kakao.com/docs/ko/kakaomap/rest-api) — 장소 검색 결과의 주소·좌표·외부 ID 필드
+- [NAVER Maps 개요](https://guide.ncloud-docs.com/docs/maps-overview) — Dynamic Map·Geocoding·모바일 SDK 제공 기능
+- [NAVER Maps Application](https://guide.ncloud-docs.com/docs/maps-app) — Client ID·Secret과 허용 URL 등록
 - [Cloudflare Workers Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) — 운영 도메인 연결 방식
 - [Cloudflare Workers one-click Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/) — `workers.dev`와 Preview URL 접근 제한
 

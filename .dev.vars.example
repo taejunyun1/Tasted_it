@@ -1,2 +1,4 @@
 # Override non-secret local configuration here when necessary.
 ADMIN_EMAIL=local-admin@example.com
+NAVER_MAPS_CLIENT_ID=replace-with-naver-maps-client-id
+NAVER_MAPS_CLIENT_SECRET=replace-with-naver-maps-client-secret
