@@ -12,6 +12,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [map, setMap] = useState<naver.maps.Map | null>(null);
   const selectRef = useRef(onSelect);
   const boundsRef = useRef(onBounds);
   selectRef.current = onSelect;
@@ -21,9 +22,8 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
     if (!host.current) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
-    let map: naver.maps.Map | undefined;
+    let instance: naver.maps.Map | undefined;
     let idleListener: unknown;
-    const markers: naver.maps.Marker[] = [];
     let locationMarker: naver.maps.Marker | undefined;
 
     if (!clientId) {
@@ -34,43 +34,30 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
     setError(null);
     void loadNaverMaps(clientId).then(({ maps }) => {
       if (disposed || !host.current) return;
-      const instance = new maps.Map(host.current, {
+      const created = new maps.Map(host.current, {
         center: new maps.LatLng(35.1595, 126.8526),
         zoom: 12,
         zoomControl: true,
         zoomControlOptions: { position: maps.Position.TOP_RIGHT },
       });
-      map = instance;
+      instance = created;
+      setMap(created);
 
       if (locateOnLoad && navigator.geolocation) navigator.geolocation.getCurrentPosition(({ coords }) => {
         if (disposed) return;
         const position = new maps.LatLng(coords.latitude, coords.longitude);
-        instance.setCenter(position);
-        instance.setZoom(15);
+        created.setCenter(position);
+        created.setZoom(15);
         const dot = document.createElement("span");
         dot.className = "current-location-dot";
         dot.setAttribute("aria-label", "내 위치");
-        locationMarker = new maps.Marker({ map: instance, position, icon: { content: dot, anchor: new maps.Point(10, 10) } });
+        locationMarker = new maps.Marker({ map: created, position, icon: { content: dot, anchor: new maps.Point(10, 10) } });
       }, () => undefined, { enableHighAccuracy: true, timeout: 8_000 });
 
-      for (const place of places) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `map-pin${selected === place.id ? " is-selected" : ""}`;
-        button.setAttribute("aria-label", `${place.name} 지도 핀`);
-        button.textContent = place.primaryCategory.emoji;
-        button.onclick = () => selectRef.current(place.id);
-        markers.push(new maps.Marker({
-          map: instance,
-          position: new maps.LatLng(place.latitude, place.longitude),
-          icon: { content: button, anchor: new maps.Point(21, 21) },
-        }));
-      }
-
-      idleListener = maps.Event.addListener(instance, "idle", () => {
+      idleListener = maps.Event.addListener(created, "idle", () => {
         clearTimeout(timer);
         timer = setTimeout(() => {
-          const bounds = instance.getBounds();
+          const bounds = created.getBounds();
           const southwest = bounds.getSW();
           const northeast = bounds.getNE();
           boundsRef.current(toBoundsTuple(
@@ -87,11 +74,30 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
       disposed = true;
       clearTimeout(timer);
       if (idleListener) naver.maps.Event.removeListener(idleListener);
-      markers.forEach((marker) => marker.setMap(null));
       locationMarker?.setMap(null);
-      map?.destroy();
+      setMap((current) => current === instance ? null : current);
+      instance?.destroy();
     };
-  }, [clientId, places, selected, locateOnLoad]);
+  }, [clientId, locateOnLoad]);
+
+  useEffect(() => {
+    if (!map || !window.naver?.maps) return;
+    const { maps } = window.naver;
+    const markers = places.map((place) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `map-pin${selected === place.id ? " is-selected" : ""}`;
+      button.setAttribute("aria-label", `${place.name} 지도 핀`);
+      button.textContent = place.primaryCategory.emoji;
+      button.onclick = () => selectRef.current(place.id);
+      return new maps.Marker({
+        map,
+        position: new maps.LatLng(place.latitude, place.longitude),
+        icon: { content: button, anchor: new maps.Point(21, 21) },
+      });
+    });
+    return () => markers.forEach((marker) => marker.setMap(null));
+  }, [map, places, selected]);
 
   return <div className="map-canvas" ref={host} aria-label="장소 지도">
     {error && <p className="map-error" role="status">{error}</p>}
