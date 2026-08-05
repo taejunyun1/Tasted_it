@@ -631,7 +631,7 @@ pnpm typecheck
 
 Expected: invalid imports do not write rows, valid imports are idempotent by slug, and hidden/draft places are absent from public queries.
 
-- [ ] **Step 6: Commit place administration**
+- [x] **Step 6: Commit place administration**
 
 ```bash
 git add app/features/places app/routes/admin-places.tsx app/routes/admin-import.tsx tests
@@ -658,11 +658,11 @@ git commit -m "feat: add real place import and administration"
 - Consumes: `listPlaces`, `getPlaceBySlug`, `PlaceSummary`, `RatingV1`.
 - Produces: `/`, `/maps/:categorySlug`, `/places/:placeSlug`; URL keys `bbox`, `selected`, `q`, and `view`.
 
-- [ ] **Step 1: Write URL state and browse acceptance tests**
+- [x] **Step 1: Write URL state and browse acceptance tests**
 
 Assert that `parseMapState("?bbox=126.80,35.05,127.05,35.25&selected=place-1&view=list")` returns numeric bounds and `view: "list"`; invalid bounds return the Gwangju default. In Playwright, assert category navigation renders the same seeded place in both the list and map marker accessible label.
 
-- [ ] **Step 2: Implement design tokens and document shell**
+- [x] **Step 2: Implement design tokens and document shell**
 
 Set CSS variables:
 
@@ -688,23 +688,23 @@ Set CSS variables:
 
 Implement skip link, semantic header/main/footer, focus styles, reduced-motion handling, and route-level error boundary.
 
-- [ ] **Step 3: Implement home and category list loaders**
+- [x] **Step 3: Implement home and category list loaders**
 
 Home displays the product proposition, category grid, and latest places. Category loader validates `bbox`, `q`, `selected`, and `view`, calls `listPlaces`, and returns serializable place summaries.
 
-- [ ] **Step 4: Implement client-only MapLibre map**
+- [x] **Step 4: Implement client-only MapLibre map**
 
 `PlaceMap` initializes only inside `useEffect`, uses a Gwangju default center `[126.8526, 35.1595]`, and renders accessible marker buttons whose labels equal `장소명 지도 핀`. It emits selected place and debounced bounds after 400 ms. It never requests geolocation during mount; “내 주변” triggers the browser permission request.
 
-- [ ] **Step 5: Implement synchronized responsive layout**
+- [x] **Step 5: Implement synchronized responsive layout**
 
 Desktop uses 60% map and 40% list. Mobile exposes map/list tabs using `view=map|list`; both representations remain keyboard reachable. Clicking a marker updates `selected` in the URL and highlights/scrolls the matching card without refetching unrelated state.
 
-- [ ] **Step 6: Implement place detail view**
+- [x] **Step 6: Implement place detail view**
 
 Display editorial hero, recommendation percentage or “평가 수 부족”, positive/negative counts, address, parking summary, category, inactive save/vote positions that Task 7 activates, and Kakao/Naver external directions links. Missing images use a neutral text fallback with no broken image request.
 
-- [ ] **Step 7: Run UI verification**
+- [x] **Step 7: Run UI verification**
 
 Run:
 
@@ -717,7 +717,7 @@ pnpm build
 
 Expected: all checks pass at desktop and mobile Playwright projects.
 
-- [ ] **Step 8: Commit public exploration UI**
+- [x] **Step 8: Commit public exploration UI**
 
 ```bash
 git add app tests
