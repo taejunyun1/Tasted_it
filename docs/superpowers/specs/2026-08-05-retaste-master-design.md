@@ -73,7 +73,7 @@ Responsive Web / iOS / Android
                │
  D1 ─ R2 ─ Cloudflare Images ─ Scheduled Jobs / Queues
                │
- Kakao Local API ─ Payment Provider ─ Notification Provider
+ NAVER Maps API ─ Payment Provider ─ Notification Provider
 ```
 
 ### 기술 기준
@@ -83,7 +83,7 @@ Responsive Web / iOS / Android
 - Cloudflare D1 + Drizzle ORM
 - Better Auth + D1 세션
 - Cloudflare R2 + Cloudflare Images/Image Transformations
-- MapLibre GL JS + Kakao Local REST API
+- NAVER Maps Dynamic Map SDK(Web·Android·iOS) + Geocoding API
 - Zod 입력 검증
 - Vitest + Workers integration + Playwright
 - Workers Observability + 구조화 로그
@@ -240,6 +240,15 @@ UI route는 도메인 규칙을 직접 구현하지 않는다. 웹 loader/action
 - 배지 만료, 권한 거부, 외부 API 실패가 로그에서 구분된다.
 - 이용약관, 개인정보처리방침, 리뷰·광고 분리 정책과 문의 채널이 존재한다.
 
+### 개인정보 처리방침 기준
+
+- 개인정보 처리방침과 이용약관의 작성 기준은 [`kimlawtech/korean-privacy-terms`](https://github.com/kimlawtech/korean-privacy-terms) 저장소의 한국 PIPA용 `privacy-kr` 템플릿·체크리스트로 고정한다.
+- 저장소 문구를 완성본으로 간주하지 않는다. Re:Taste의 실제 수집 항목, 처리 목적, 보유기간, 파기, 위탁·국외 이전, 쿠키·분석 도구, 이용자 권리, 개인정보 보호책임자와 문의처를 배포 환경과 대조하여 채운다.
+- 베타에서는 이메일, 표시 이름, 로그인 세션, 추천·비추천, 저장 장소와 Cloudflare 운영 로그를 데이터 인벤토리에 포함한다. 브라우저 위치는 사용자가 `내 주변`을 누를 때만 요청하며, 서버 저장 여부를 방침에 명시한다.
+- Cloudflare, 결제사, 이메일·분석·크래시 도구를 추가할 때마다 개인정보 처리방침과 위탁·국외 이전 표를 같은 변경에서 갱신한다.
+- 웹 공개 전 `/privacy`와 `/terms`를 제공하고 회원가입·로그인 화면에서 접근 가능하게 한다. 앱 출시 전에는 계정 삭제, 권한 설명, 스토어 개인정보 표시와 문서 내용이 일치하는지 재검증한다.
+- 기준 저장소는 Apache-2.0 라이선스이므로 필요한 저작권·라이선스 고지를 보존한다. 생성 문서는 참고용 초안이므로 실서비스와 결제 출시 전 법률 전문가의 최종 검토를 출시 게이트로 둔다.
+
 ## 8. MVP 이후 제작 로드맵
 
 ### Phase 2: 운영 안정화 — 권장 2~4주
@@ -378,11 +387,13 @@ UI route는 도메인 규칙을 직접 구현하지 않는다. 웹 loader/action
 
 구현 전에 다음 ADR을 작성하고 공식 문서 링크, 선택안, 대안, 결과를 기록한다.
 
+현재 결정 대기 항목, 권장 기본안, 결정 시한은 [`docs/decisions/2026-08-05-next-product-decisions.md`](../../decisions/2026-08-05-next-product-decisions.md)에서 관리한다.
+
 1. Workers Static Assets와 React Router 버전
 2. D1·Drizzle 스키마와 투표 이벤트 모델
 3. Better Auth 세션·소셜 로그인
 4. R2와 이미지 변환 파이프라인
-5. MapLibre 타일 공급자와 이용 조건
+5. NAVER Maps SDK·Geocoding API 키, 쿼터, 저장·표시 이용 조건
 6. 추천율 v1 수학 모델과 상수
 7. 리뷰어 유사도와 취향 그래프
 8. 캐시 무효화와 점수 재계산
@@ -408,4 +419,3 @@ Re:Taste의 장기 1차 제품은 다음 조건을 모두 만족할 때 완료�
 - 유료 캠페인과 편집 추천이 데이터와 UI에서 명확히 분리된다.
 - iOS·Android 앱이 웹과 같은 계정·장소·투표·저장 데이터를 사용한다.
 - 백업·복구·관측성·법적 문서·문의 채널·스토어 심사 요건이 갖춰져 있다.
-

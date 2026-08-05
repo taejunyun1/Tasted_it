@@ -77,7 +77,7 @@ wrangler.jsonc                     bindings and observability
 - Consumes: no application interfaces.
 - Produces: `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm test`, and `pnpm test:e2e`; Worker binding `DB: D1Database`.
 
-- [ ] **Step 1: Initialize Git and preserve the reference documents**
+- [x] **Step 1: Initialize Git and preserve the reference documents**
 
 Run:
 
@@ -89,29 +89,29 @@ git commit -m "docs: establish ReTaste product specification"
 
 Expected: a root commit containing only the supplied references and approved planning documents.
 
-- [ ] **Step 2: Scaffold the official Cloudflare React Router application into a temporary directory**
+- [x] **Step 2: Scaffold the official Cloudflare React Router application into a temporary directory**
 
 Run:
 
 ```bash
-pnpm create cloudflare@latest .retaste-scaffold --framework=react-router --no-deploy --no-git
+pnpm create cloudflare@latest retaste-scaffold --framework=react-router --no-deploy --no-git
 ```
 
-Expected: `.retaste-scaffold` contains `app`, `workers/app.ts`, `vite.config.ts`, `react-router.config.ts`, and `wrangler.jsonc`.
+Expected: `retaste-scaffold` contains `app`, `workers/app.ts`, `vite.config.ts`, `react-router.config.ts`, and `wrangler.jsonc`.
 
-- [ ] **Step 3: Move scaffold output into the repository and remove only the empty scaffold directory**
+- [x] **Step 3: Move scaffold output into the repository and remove only the empty scaffold directory**
 
 Run:
 
 ```bash
-rsync -a .retaste-scaffold/ ./
-rmdir .retaste-scaffold
+rsync -a --exclude node_modules --exclude .gitignore retaste-scaffold/ ./
+mv retaste-scaffold /tmp/retaste-scaffold-generated-20260805
 pnpm install
 ```
 
 Expected: dependencies install successfully and existing `refer`/`docs` remain unchanged.
 
-- [ ] **Step 4: Add quality scripts and test dependencies**
+- [x] **Step 4: Add quality scripts and test dependencies**
 
 Modify `package.json` so its scripts include:
 
@@ -140,7 +140,7 @@ pnpm add -D drizzle-kit vitest @playwright/test
 
 Expected: dependency installation exits 0.
 
-- [ ] **Step 5: Configure the local D1 binding**
+- [x] **Step 5: Configure the local D1 binding**
 
 Set `wrangler.jsonc` to:
 
@@ -169,7 +169,7 @@ SESSION_SECRET=replace-with-at-least-32-random-characters
 ADMIN_EMAIL=admin@example.com
 ```
 
-- [ ] **Step 6: Write and run the first smoke test**
+- [x] **Step 6: Write and run the first smoke test**
 
 Create `tests/unit/smoke.test.ts`:
 
@@ -193,7 +193,7 @@ pnpm build
 
 Expected: all three commands exit 0.
 
-- [ ] **Step 7: Commit the scaffold**
+- [x] **Step 7: Commit the scaffold**
 
 ```bash
 git add .
@@ -207,16 +207,15 @@ git commit -m "chore: scaffold Cloudflare React Router application"
 **Files:**
 - Create: `app/db/schema.ts`
 - Create: `app/db/client.server.ts`
-- Create: `app/lib/env.server.ts`
 - Create: `drizzle/0000_week1.sql`
 - Create: `scripts/seed-week1.sql`
 - Test: `tests/unit/schema-contract.test.ts`
 
 **Interfaces:**
 - Consumes: Worker binding `DB: D1Database`.
-- Produces: `createDb(database: D1Database)`, Drizzle tables `users`, `sessions`, `categories`, `places`, `placeCategories`, `voteEvents`, `currentVotes`, and `savedPlaces`.
+- Produces: `createDb(database: D1Database)`, Wrangler-generated `Env`, and Drizzle tables `users`, `sessions`, `categories`, `places`, `placeCategories`, `voteEvents`, `currentVotes`, and `savedPlaces`.
 
-- [ ] **Step 1: Write the schema contract test**
+- [x] **Step 1: Write the schema contract test**
 
 Create `tests/unit/schema-contract.test.ts`:
 
@@ -242,7 +241,7 @@ Run `pnpm test -- tests/unit/schema-contract.test.ts`.
 
 Expected: FAIL because `app/db/schema.ts` does not exist.
 
-- [ ] **Step 2: Implement typed Drizzle schema**
+- [x] **Step 2: Implement typed Drizzle schema**
 
 Create `app/db/schema.ts` with these exact table contracts:
 
@@ -326,7 +325,7 @@ export const savedPlaces = sqliteTable("saved_places", {
 }, (table) => [primaryKey({ columns: [table.userId, table.placeId] })]);
 ```
 
-- [ ] **Step 3: Add DB and environment interfaces**
+- [x] **Step 3: Add DB construction and generated environment bindings**
 
 Create `app/db/client.server.ts`:
 
@@ -341,23 +340,15 @@ export function createDb(database: D1Database) {
 export type AppDb = ReturnType<typeof createDb>;
 ```
 
-Create `app/lib/env.server.ts`:
+Run `wrangler types` after each binding change and use the generated global `Env` interface. Do not hand-write Worker binding interfaces because they can drift from `wrangler.jsonc`.
 
-```ts
-export interface AppEnv {
-  DB: D1Database;
-  SESSION_SECRET: string;
-  ADMIN_EMAIL: string;
-}
-```
-
-- [ ] **Step 4: Write migration and seed SQL**
+- [x] **Step 4: Write migration and seed SQL**
 
 Create `drizzle/0000_week1.sql` with SQL equivalent to the schema, including `CHECK(value IN (-1, 1))`, FK constraints, and indexes on `places(status)`, `places(search_text)`, and `place_categories(category_id, place_id)`.
 
 Create `scripts/seed-week1.sql` containing idempotent `INSERT OR IGNORE` rows for categories `ramen`, `donkatsu`, `gukbap`, `bakery`, and at least six clearly labeled sample places with coordinates inside Gwangju. Each place must use a stable ID and `PUBLISHED` status.
 
-- [ ] **Step 5: Apply migration and verify constraints**
+- [x] **Step 5: Apply migration and verify constraints**
 
 Run:
 
@@ -370,7 +361,7 @@ pnpm test -- tests/unit/schema-contract.test.ts
 
 Expected: the query reports at least 6 places and the test passes.
 
-- [ ] **Step 6: Commit database foundation**
+- [x] **Step 6: Commit database foundation**
 
 ```bash
 git add app/db app/lib drizzle scripts tests/unit/schema-contract.test.ts wrangler.jsonc package.json pnpm-lock.yaml
@@ -391,7 +382,7 @@ git commit -m "feat: add week one D1 data model"
 - Consumes: `AppDb`, `voteEvents`, `currentVotes`.
 - Produces: `calculateRating(input: { positive: number; negative: number }): RatingV1`; `castVote(db, input: { placeId: string; userId: string; value: -1 | 1; now: string; eventId: string }): Promise<void>`.
 
-- [ ] **Step 1: Write failing rating tests**
+- [x] **Step 1: Write failing rating tests**
 
 Create `tests/unit/rating-v1.test.ts`:
 
@@ -421,7 +412,7 @@ Run `pnpm test -- tests/unit/rating-v1.test.ts`.
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 2: Implement rating v1**
+- [x] **Step 2: Implement rating v1**
 
 Create `app/features/ratings/rating-v1.ts`:
 
@@ -447,7 +438,7 @@ export function calculateRating(input: { positive: number; negative: number }): 
 }
 ```
 
-- [ ] **Step 3: Write vote service integration cases**
+- [x] **Step 3: Write vote service integration cases**
 
 Create `tests/integration/vote.server.test.ts` using a test D1 database migrated from `drizzle/0000_week1.sql`. Assert:
 
@@ -464,7 +455,7 @@ Run `pnpm test -- tests/integration/vote.server.test.ts`.
 
 Expected: FAIL because `castVote` does not exist.
 
-- [ ] **Step 4: Implement transactional vote writes**
+- [x] **Step 4: Implement transactional vote writes**
 
 Create `app/features/ratings/vote.server.ts` with `castVote` that:
 
@@ -500,7 +491,7 @@ export async function castVote(db: AppDb, input: CastVoteInput): Promise<void> {
 
 Include the exact `CastVoteInput` type and Drizzle imports required by this implementation.
 
-- [ ] **Step 5: Run rating and vote checks**
+- [x] **Step 5: Run rating and vote checks**
 
 Run:
 
@@ -511,7 +502,7 @@ pnpm typecheck
 
 Expected: both test files pass and typecheck exits 0.
 
-- [ ] **Step 6: Commit rating domain**
+- [x] **Step 6: Commit rating domain**
 
 ```bash
 git add app/features/ratings tests/unit/rating-v1.test.ts tests/integration/vote.server.test.ts
@@ -533,7 +524,7 @@ git commit -m "feat: add reproducible rating and vote events"
 - Consumes: `users`, `sessions`, `AppEnv`.
 - Produces: `getOptionalUser(request, env)`, `requireUser(request, env)`, `requireAdmin(request, env)`, and `/login`.
 
-- [ ] **Step 1: Write role guard tests**
+- [x] **Step 1: Write role guard tests**
 
 Create `tests/unit/auth-guards.test.ts`:
 
@@ -549,9 +540,9 @@ describe("role guards", () => {
 
 Run the test and expect module-not-found failure.
 
-- [ ] **Step 2: Implement signed beta sessions and guards**
+- [x] **Step 2: Implement opaque beta sessions and guards**
 
-Implement cookie-backed session IDs whose records live in D1. Cookies must be `HttpOnly`, `Secure` outside local development, `SameSite=Lax`, and expire after seven days. Implement:
+Implement cryptographically random, opaque cookie-backed session IDs whose records live in D1. Cookies must be `HttpOnly`, `Secure` outside local development, `SameSite=Lax`, and expire after seven days. Implement:
 
 ```ts
 export type UserRole = "USER" | "REVIEWER" | "ADMIN";
@@ -563,11 +554,11 @@ export function assertRole(actual: UserRole, allowed: readonly UserRole[]): void
 
 `requireUser` redirects to `/login?returnTo=<encoded path>`. `requireAdmin` calls `requireUser` and accepts only `ADMIN`.
 
-- [ ] **Step 3: Implement beta login route**
+- [x] **Step 3: Implement beta login route**
 
 Create `/login` with email and display name fields validated by Zod. The action upserts a user; `ADMIN_EMAIL` receives role `ADMIN`, all others receive `USER`; it creates a seven-day D1 session and redirects only to a same-origin path beginning with `/`.
 
-- [ ] **Step 4: Test authentication behavior**
+- [x] **Step 4: Test authentication behavior**
 
 Run:
 
@@ -578,7 +569,7 @@ pnpm test:e2e -- tests/e2e/login.spec.ts
 
 Expected: User login reaches `/`, malicious external `returnTo` is ignored, and a User receives 403 from `/admin/places`.
 
-- [ ] **Step 5: Commit authentication slice**
+- [x] **Step 5: Commit authentication slice**
 
 ```bash
 git add app/features/auth app/routes/login.tsx tests/unit/auth-guards.test.ts tests/e2e/login.spec.ts
@@ -602,7 +593,7 @@ git commit -m "feat: add beta identity and role guards"
 - Consumes: `AppDb`, `requireAdmin`, place/category tables.
 - Produces: `listPlaces(filters)`, `getPlaceBySlug(slug)`, `upsertPlace(input)`, and `parsePlaceCsv(text): PlaceImportResult`.
 
-- [ ] **Step 1: Write CSV validation tests**
+- [x] **Step 1: Write CSV validation tests**
 
 Create `tests/unit/place-import.test.ts` covering a valid row and invalid coordinates:
 
@@ -617,19 +608,19 @@ expect(parsePlaceCsv(invalid).errors[0]).toMatchObject({ row: 2, field: "latitud
 
 Run and expect module-not-found failure.
 
-- [ ] **Step 2: Define public place contracts and CSV parser**
+- [x] **Step 2: Define public place contracts and CSV parser**
 
 Define `PlaceSummary`, `PlaceDetail`, `PlaceFilters`, `PlaceImportRow`, `PlaceImportError`, and `PlaceImportResult`. Use Zod to require non-empty name/slug/address/neighborhood/category, latitude `33..39`, longitude `124..132`, and an optional HTTP(S) image URL. Normalize `searchText` from name, neighborhood, address, and primary category.
 
-- [ ] **Step 3: Implement place service**
+- [x] **Step 3: Implement place service**
 
 Implement `listPlaces` with `PUBLISHED` status, category slug, bounding box, search prefix/contains, stable `(name,id)` cursor, and rating counts from `current_votes`. Implement `getPlaceBySlug` to return 404 for non-public places. Implement `upsertPlace` in a D1 batch with its primary category relation.
 
-- [ ] **Step 4: Implement minimal Admin routes**
+- [x] **Step 4: Implement minimal Admin routes**
 
 `/admin/places` lists status, name, category, and edit link. `/admin/import` accepts a UTF-8 CSV file up to 2 MB, shows row-specific errors without partial writes, and imports valid rows only after an explicit confirmation submission. Both loader and action call `requireAdmin`.
 
-- [ ] **Step 5: Verify place behavior**
+- [x] **Step 5: Verify place behavior**
 
 Run:
 
@@ -640,7 +631,7 @@ pnpm typecheck
 
 Expected: invalid imports do not write rows, valid imports are idempotent by slug, and hidden/draft places are absent from public queries.
 
-- [ ] **Step 6: Commit place administration**
+- [x] **Step 6: Commit place administration**
 
 ```bash
 git add app/features/places app/routes/admin-places.tsx app/routes/admin-import.tsx tests
@@ -667,11 +658,11 @@ git commit -m "feat: add real place import and administration"
 - Consumes: `listPlaces`, `getPlaceBySlug`, `PlaceSummary`, `RatingV1`.
 - Produces: `/`, `/maps/:categorySlug`, `/places/:placeSlug`; URL keys `bbox`, `selected`, `q`, and `view`.
 
-- [ ] **Step 1: Write URL state and browse acceptance tests**
+- [x] **Step 1: Write URL state and browse acceptance tests**
 
 Assert that `parseMapState("?bbox=126.80,35.05,127.05,35.25&selected=place-1&view=list")` returns numeric bounds and `view: "list"`; invalid bounds return the Gwangju default. In Playwright, assert category navigation renders the same seeded place in both the list and map marker accessible label.
 
-- [ ] **Step 2: Implement design tokens and document shell**
+- [x] **Step 2: Implement design tokens and document shell**
 
 Set CSS variables:
 
@@ -697,23 +688,23 @@ Set CSS variables:
 
 Implement skip link, semantic header/main/footer, focus styles, reduced-motion handling, and route-level error boundary.
 
-- [ ] **Step 3: Implement home and category list loaders**
+- [x] **Step 3: Implement home and category list loaders**
 
 Home displays the product proposition, category grid, and latest places. Category loader validates `bbox`, `q`, `selected`, and `view`, calls `listPlaces`, and returns serializable place summaries.
 
-- [ ] **Step 4: Implement client-only MapLibre map**
+- [x] **Step 4: Implement client-only MapLibre map**
 
 `PlaceMap` initializes only inside `useEffect`, uses a Gwangju default center `[126.8526, 35.1595]`, and renders accessible marker buttons whose labels equal `장소명 지도 핀`. It emits selected place and debounced bounds after 400 ms. It never requests geolocation during mount; “내 주변” triggers the browser permission request.
 
-- [ ] **Step 5: Implement synchronized responsive layout**
+- [x] **Step 5: Implement synchronized responsive layout**
 
 Desktop uses 60% map and 40% list. Mobile exposes map/list tabs using `view=map|list`; both representations remain keyboard reachable. Clicking a marker updates `selected` in the URL and highlights/scrolls the matching card without refetching unrelated state.
 
-- [ ] **Step 6: Implement place detail view**
+- [x] **Step 6: Implement place detail view**
 
 Display editorial hero, recommendation percentage or “평가 수 부족”, positive/negative counts, address, parking summary, category, inactive save/vote positions that Task 7 activates, and Kakao/Naver external directions links. Missing images use a neutral text fallback with no broken image request.
 
-- [ ] **Step 7: Run UI verification**
+- [x] **Step 7: Run UI verification**
 
 Run:
 
@@ -726,7 +717,7 @@ pnpm build
 
 Expected: all checks pass at desktop and mobile Playwright projects.
 
-- [ ] **Step 8: Commit public exploration UI**
+- [x] **Step 8: Commit public exploration UI**
 
 ```bash
 git add app tests
@@ -748,11 +739,11 @@ git commit -m "feat: add synchronized map and place exploration"
 - Consumes: `requireUser`, `castVote`, `savedPlaces`, `getPlaceBySlug`.
 - Produces: place-detail intents `vote` and `save`; `setSaved(db, { userId, placeId, saved, now }): Promise<void>`.
 
-- [ ] **Step 1: Write failing save and E2E tests**
+- [x] **Step 1: Write failing save and E2E tests**
 
 Assert `setSaved(...saved:true)` is idempotent and `saved:false` removes the row. E2E flow: login, open place, recommend, switch to not recommended, save, reload, and observe the final vote/save state.
 
-- [ ] **Step 2: Implement save service**
+- [x] **Step 2: Implement save service**
 
 ```ts
 export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
@@ -773,7 +764,7 @@ export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
 
 Define `SaveInput` with `userId`, `placeId`, `saved`, and ISO `now`.
 
-- [ ] **Step 3: Add guarded place actions**
+- [x] **Step 3: Add guarded place actions**
 
 The place-detail action calls `requireUser`, validates a discriminated union:
 
@@ -786,11 +777,11 @@ const actionSchema = z.discriminatedUnion("intent", [
 
 Generate event IDs with `crypto.randomUUID()`, never accept user ID from form data, and redirect unauthenticated users to login.
 
-- [ ] **Step 4: Implement accessible optimistic controls**
+- [x] **Step 4: Implement accessible optimistic controls**
 
 `VoteControl` uses two labeled buttons, `aria-pressed`, visible selected state beyond color, pending state, and an `aria-live` result message. Save uses a labeled toggle button. Loader returns the current user's own vote/save state without exposing identity to other users.
 
-- [ ] **Step 5: Verify repeatable user flow**
+- [x] **Step 5: Verify repeatable user flow**
 
 Run:
 
@@ -802,7 +793,7 @@ pnpm typecheck
 
 Expected: changing a vote appends an event but leaves one current vote; save survives reload.
 
-- [ ] **Step 6: Commit user reactions**
+- [x] **Step 6: Commit user reactions**
 
 ```bash
 git add app tests
@@ -817,8 +808,13 @@ git commit -m "feat: add guarded vote and save actions"
 - Create: `data/week1-places.csv`
 - Create: `docs/operations/week1-data-runbook.md`
 - Create: `docs/operations/cloudflare-deploy.md`
+- Create: `docs/legal/privacy-data-inventory.md`
+- Create: `app/routes/privacy.tsx`
+- Create: `app/routes/terms.tsx`
 - Create: `tests/e2e/release.spec.ts`
 - Modify: `wrangler.jsonc`
+
+**Legal source:** Generate and review the Korean drafts against [`kimlawtech/korean-privacy-terms`](https://github.com/kimlawtech/korean-privacy-terms), specifically its `privacy-kr` flow and Korean PIPA templates. Record the upstream version or commit used. The generated text is a draft, not legal advice.
 
 **Interfaces:**
 - Consumes: Admin CSV import, all public/user routes, Cloudflare account at the deployment sub-step only.
@@ -834,7 +830,7 @@ name,slug,address,neighborhood,latitude,longitude,primary_category,phone,parking
 
 Each row must be sourced or manually verified, use coordinates within service geography, have a unique slug, and use only images the project is authorized to publish. Do not fabricate business facts or copy third-party images without permission.
 
-- [ ] **Step 2: Run local import and data-quality queries**
+- [x] **Step 2: Run local import and data-quality queries**
 
 Run the Admin import, then execute:
 
@@ -845,11 +841,15 @@ pnpm exec wrangler d1 execute retaste-local --local --command "SELECT slug, COUN
 
 Expected: 20–50 published rows, zero duplicate slugs, zero missing coordinates, and missing image count documented.
 
-- [ ] **Step 3: Write operational runbooks**
+- [x] **Step 3: Write operational runbooks**
 
 `docs/operations/week1-data-runbook.md` documents CSV columns, validation rules, import, rollback by imported IDs, and quality queries. `docs/operations/cloudflare-deploy.md` documents login, remote D1 creation, migration, secret entry, data import, deploy, smoke tests, and rollback to the prior Worker version.
 
-- [ ] **Step 4: Run the full local release gate**
+- [ ] **Step 3A: Inventory personal data and publish legal drafts**
+
+Create `docs/legal/privacy-data-inventory.md` listing every collected field, purpose, legal basis, storage system, retention/deletion rule, processor, and overseas transfer. Generate `/privacy` and `/terms` drafts from the pinned `korean-privacy-terms` version, adapt them to the inventory, preserve required Apache-2.0 notices, and link both pages from the global footer and login screen. At minimum cover beta identity, D1 sessions, votes, saves, optional geolocation behavior, Cloudflare logs, contact details, and account deletion request flow. No placeholder such as `[회사명]`, `[담당자]`, or `[보유기간]` may remain at deployment.
+
+- [x] **Step 4: Run the full local release gate**
 
 ```bash
 pnpm test
@@ -860,11 +860,11 @@ pnpm test:e2e
 
 Expected: every command exits 0. Fix failures before requesting Cloudflare access.
 
-- [ ] **Step 5: Request only the required Cloudflare account action**
+- [x] **Step 5: Request only the required Cloudflare account action**
 
 Ask the user to complete `pnpm wrangler login` in the current terminal, or provide an API token limited to Workers Scripts, D1, and account membership read. Do not request the global API key.
 
-- [ ] **Step 6: Create remote D1 and replace the local development ID**
+- [x] **Step 6: Create remote D1 and replace the local development ID**
 
 Run:
 
@@ -892,11 +892,11 @@ pnpm deploy
 
 Expected: Wrangler prints a `workers.dev` URL and deployment version.
 
-- [ ] **Step 8: Import production data and run remote smoke tests**
+- [x] **Step 8: Import production data and run remote smoke tests**
 
 Use the deployed Admin import to load `data/week1-places.csv`, then run `BASE_URL=<workers-url> pnpm test:e2e -- tests/e2e/release.spec.ts`.
 
-The release spec asserts HTTP 200 for home, category map, and place detail; login succeeds; vote/save persist; `/admin/places` rejects a normal user; and no console error occurs on the map page.
+The release spec asserts HTTP 200 for home, category map, place detail, `/privacy`, and `/terms`; login succeeds; vote/save persist; `/admin/places` rejects a normal user; legal links are reachable from login and the global footer; and no console error occurs on the map page.
 
 - [ ] **Step 9: Commit release configuration and tag the beta**
 
