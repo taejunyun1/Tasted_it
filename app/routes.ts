@@ -23,4 +23,5 @@ export default [
   route("admin/candidates/bulk", "routes/admin-candidates-bulk.tsx"),
   route("admin/data-sync", "routes/admin-data-sync.tsx"),
   route("admin/reviewers", "routes/admin-reviewers.tsx"),
+  route("admin/ratings", "routes/admin-ratings.tsx"),
 ] satisfies RouteConfig;

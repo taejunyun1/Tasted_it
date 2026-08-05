@@ -13,7 +13,7 @@ function before(iso: string, milliseconds: number) {
 export async function scanVoteIntegrity(db: AppDb, input: { now: string }) {
   const since24h = before(input.now, 24 * 60 * 60 * 1000);
   const since10m = before(input.now, 10 * 60 * 1000);
-  const events = await db.select().from(voteEvents).where(gte(voteEvents.createdAt, since24h));
+  const events = await db.select().from(voteEvents).where(gte(voteEvents.createdAt, since24h)).limit(5000);
   const userIds = [...new Set(events.map((event) => event.userId))];
   const userRows = userIds.length ? await db.select().from(users).where(inArray(users.id, userIds)) : [];
   const userById = new Map(userRows.map((user) => [user.id, user]));
