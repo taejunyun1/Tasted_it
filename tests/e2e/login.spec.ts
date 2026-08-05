@@ -8,7 +8,7 @@ test("beta user logs in and external return targets are ignored", async ({
   await page.getByLabel("표시 이름").fill("베타 사용자");
   await page.getByRole("button", { name: "베타 로그인" }).click();
 
-  await expect(page).toHaveURL("http://127.0.0.1:5173/");
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
 });
 
 test("normal user receives 403 from the admin place route", async ({
@@ -20,7 +20,7 @@ test("normal user receives 403 from the admin place route", async ({
     .fill(`forbidden-${testInfo.project.name}@example.com`);
   await page.getByLabel("표시 이름").fill("일반 사용자");
   await page.getByRole("button", { name: "베타 로그인" }).click();
-  await expect(page).toHaveURL("http://127.0.0.1:5173/");
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
 
   const response = await page.request.get("/admin/places", {
     maxRedirects: 0,

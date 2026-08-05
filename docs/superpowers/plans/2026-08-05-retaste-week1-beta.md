@@ -892,7 +892,7 @@ pnpm deploy
 
 Expected: Wrangler prints a `workers.dev` URL and deployment version.
 
-- [ ] **Step 8: Import production data and run remote smoke tests**
+- [x] **Step 8: Import production data and run remote smoke tests**
 
 Use the deployed Admin import to load `data/week1-places.csv`, then run `BASE_URL=<workers-url> pnpm test:e2e -- tests/e2e/release.spec.ts`.
 
