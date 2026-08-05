@@ -20,6 +20,12 @@ import {
   placeDailyMetrics,
   integrityCases,
   invalidatedVoteEvents,
+  placeSuggestions,
+  placeCorrectionRequests,
+  placeDuplicateCandidates,
+  placeSlugRedirects,
+  placeRevisions,
+  placeRevalidationCases,
   savedPlaces,
   users,
   voteEvents,
@@ -56,5 +62,12 @@ describe("week 1 schema", () => {
     expect(ratingConfigs.algorithmVersion).toBeDefined();
     expect(ratingSnapshots.inputHash).toBeDefined();
     expect(integrityCases.status).toBeDefined();
+  });
+
+  it("exports place operations and revision tables", () => {
+    expect([placeSuggestions, placeCorrectionRequests, placeDuplicateCandidates, placeSlugRedirects, placeRevisions, placeRevalidationCases]).toHaveLength(6);
+    expect(places.lastVerifiedAt).toBeDefined();
+    expect(placeSuggestions.status).toBeDefined();
+    expect(placeRevisions.action).toBeDefined();
   });
 });
