@@ -18,7 +18,9 @@ const openLicense: NormalizedLicense = {
 beforeEach(async () => {
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO users (id,email,display_name,role,created_at,updated_at) VALUES ('candidate-admin','candidate-admin@example.com','관리자','ADMIN',?,?)").bind(now, now),
-    env.DB.prepare("INSERT OR IGNORE INTO categories (id,slug,name,emoji,sort_order,created_at,updated_at) VALUES ('candidate-category','korean','한식','🍚',1,?,?)").bind(now, now),
+    env.DB.prepare("INSERT OR IGNORE INTO categories (id,slug,name,emoji,sort_order,parent_id,created_at,updated_at) VALUES ('candidate-parent','candidate-parent','테스트 대분류','🍚',1,NULL,?,?)").bind(now, now),
+    env.DB.prepare("INSERT OR IGNORE INTO categories (id,slug,name,emoji,sort_order,parent_id,created_at,updated_at) VALUES ('candidate-category','candidate-child','한식','🍚',2,'candidate-parent',?,?)").bind(now, now),
+    env.DB.prepare("UPDATE categories SET parent_id='candidate-parent', is_active=1 WHERE id='candidate-category'"),
   ]);
 });
 

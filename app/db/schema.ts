@@ -41,6 +41,9 @@ export const categories = sqliteTable("categories", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   emoji: text("emoji").notNull(),
+  parentId: text("parent_id"),
+  description: text("description"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps,
 });
