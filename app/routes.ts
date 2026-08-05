@@ -10,5 +10,6 @@ export default [
   route("admin/places", "routes/admin-places.tsx"),
   route("admin/import", "routes/admin-import.tsx"),
   route("admin/candidates", "routes/admin-candidates.tsx"),
+  route("admin/candidates/bulk", "routes/admin-candidates-bulk.tsx"),
   route("admin/data-sync", "routes/admin-data-sync.tsx"),
 ] satisfies RouteConfig;
