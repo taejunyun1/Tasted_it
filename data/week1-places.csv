@@ -1,0 +1,21 @@
+name,slug,address,neighborhood,latitude,longitude,primary_category,phone,parking_summary,kakao_place_id,hero_image_url,status
+궁전제과,gungjeon-bakery-chungjang,광주 동구 충장로,충장동,35.1477475,126.9175733,bakery,,,,,PUBLISHED
+파리바게뜨 중흥점,paris-baguette-jungheung,광주 북구 우치로,중흥2동,35.1733250,126.9126110,bakery,,,,,PUBLISHED
+파리바게뜨 연제점,paris-baguette-yeonje,광주 북구 양일1로,연제동,35.1976516,126.8708619,bakery,,,,,PUBLISHED
+빵쇼핑,bbang-shopping-hwasun,전남 화순군 지강로,원화리,35.0434960,126.9041710,bakery,,,,,PUBLISHED
+홍익돈까스 매곡점,hongik-donkatsu-maegok,광주 북구 서하로,매곡동,35.1876035,126.8912488,donkatsu,,,,,PUBLISHED
+돈가스 연제점,donkatsu-yeonje,광주 북구 양일로,연제동,35.1994565,126.8698083,donkatsu,,,,,PUBLISHED
+최고당돈가스 수완지구점,choegodang-donkatsu-suwan,광주 광산구 수완로52번길,수완동,35.1900550,126.8297733,donkatsu,,,,,PUBLISHED
+뚱스파스타앤돈까스,ddungs-pasta-donkatsu,광주 북구 호동로 18,용봉동,35.1754458,126.9136621,donkatsu,,,,,PUBLISHED
+홍익돈까스 충장점,hongik-donkatsu-chungjang,광주 동구 중앙로160번길,충장동,35.1472490,126.9145241,donkatsu,,,,,PUBLISHED
+라멘 키노리,ramen-kinori,광주 북구 호동로 9-1,용봉동,35.1750876,126.9134835,ramen,,,,,PUBLISHED
+오이시라멘,oishi-ramen,광주 북구 우치로90번길 7-7,용봉동,35.1759115,126.9129439,ramen,,,,,PUBLISHED
+쇼부라멘,shobu-ramen,광주 광산구 장신로265번길,신창동,35.1908268,126.8390382,ramen,,,,,PUBLISHED
+키리라멘,kiri-ramen,광주 광산구 수완로 6,수완동,35.1861050,126.8289064,ramen,,,,,PUBLISHED
+시골집국밥,sigol-jip-gukbap,광주 서구 운천로,상무2동,35.1468294,126.8565859,gukbap,,,,,PUBLISHED
+빛고을 국밥 왕족발,bitgoeul-gukbap,광주 북구 첨단연신로91번길,연제동,35.2064537,126.8604839,gukbap,,,,,PUBLISHED
+고향국밥,gohyang-gukbap,광주 북구 대천로,문흥동,35.1862708,126.9215424,gukbap,,,,,PUBLISHED
+조봉순상무국밥,jobongsun-sangmu-gukbap,광주 북구 호동로15번길 9,용봉동,35.1756249,126.9142148,gukbap,,,,,PUBLISHED
+창평국밥 우산점,changpyeong-gukbap-usan,광주 광산구 무진대로212번길,우산동,35.1605101,126.8035875,gukbap,,,,,PUBLISHED
+외갓집국밥,oegatjip-gukbap,광주 서구 무진대로 923,광천동,35.1618459,126.8815261,gukbap,,,,,PUBLISHED
+소머리국밥 우산점,someori-gukbap-usan,광주 광산구 우산로,우산동,35.1566162,126.8109412,gukbap,,,,,PUBLISHED

@@ -10,7 +10,7 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  return <html lang="ko"><head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><Meta /><Links /></head><body><a className="skip-link" href="#main">본문으로 건너뛰기</a><header className="site-head"><Link className="brand" to="/">Re:Taste<span>광주·전남 맛 지도</span></Link><nav><Link to="/maps/ramen">맛 지도</Link><Link to="/login">로그인</Link></nav></header>{children}<footer className="site-footer"><strong>Re:Taste</strong><span>추천할 만한 한 끼를 기록합니다.</span></footer><ScrollRestoration /><Scripts /></body></html>;
+  return <html lang="ko"><head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><Meta /><Links /></head><body><a className="skip-link" href="#main">본문으로 건너뛰기</a><header className="site-head"><Link className="brand" to="/">Re:Taste<span>광주·전남 맛 지도</span></Link><nav><Link to="/maps/ramen">맛 지도</Link><Link to="/login">로그인</Link></nav></header>{children}<footer className="site-footer"><strong>Re:Taste</strong><span>추천할 만한 한 끼를 기록합니다.</span><nav aria-label="법적 고지"><Link to="/privacy">개인정보 처리방침</Link><Link to="/terms">이용약관</Link></nav></footer><ScrollRestoration /><Scripts /></body></html>;
 }
 export default function App() { return <Outlet />; }
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

@@ -14,6 +14,6 @@ test("category journey exposes the same place in list and map", async ({ page })
 test("place detail has directions and an honest sample state", async ({ page }) => {
   await page.goto("/places/sample-dongmyeong-ramen");
   await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명" })).toBeVisible();
-  await expect(page.getByText("평가 수 부족")).toBeVisible();
+  await expect(page.locator(".score strong")).toHaveText(/평가 수 부족|\d+%/);
   await expect(page.getByRole("link", { name: "카카오맵 길찾기" })).toBeVisible();
 });

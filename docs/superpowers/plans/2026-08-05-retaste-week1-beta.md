@@ -830,7 +830,7 @@ name,slug,address,neighborhood,latitude,longitude,primary_category,phone,parking
 
 Each row must be sourced or manually verified, use coordinates within service geography, have a unique slug, and use only images the project is authorized to publish. Do not fabricate business facts or copy third-party images without permission.
 
-- [ ] **Step 2: Run local import and data-quality queries**
+- [x] **Step 2: Run local import and data-quality queries**
 
 Run the Admin import, then execute:
 
@@ -841,7 +841,7 @@ pnpm exec wrangler d1 execute retaste-local --local --command "SELECT slug, COUN
 
 Expected: 20–50 published rows, zero duplicate slugs, zero missing coordinates, and missing image count documented.
 
-- [ ] **Step 3: Write operational runbooks**
+- [x] **Step 3: Write operational runbooks**
 
 `docs/operations/week1-data-runbook.md` documents CSV columns, validation rules, import, rollback by imported IDs, and quality queries. `docs/operations/cloudflare-deploy.md` documents login, remote D1 creation, migration, secret entry, data import, deploy, smoke tests, and rollback to the prior Worker version.
 
@@ -849,7 +849,7 @@ Expected: 20–50 published rows, zero duplicate slugs, zero missing coordinates
 
 Create `docs/legal/privacy-data-inventory.md` listing every collected field, purpose, legal basis, storage system, retention/deletion rule, processor, and overseas transfer. Generate `/privacy` and `/terms` drafts from the pinned `korean-privacy-terms` version, adapt them to the inventory, preserve required Apache-2.0 notices, and link both pages from the global footer and login screen. At minimum cover beta identity, D1 sessions, votes, saves, optional geolocation behavior, Cloudflare logs, contact details, and account deletion request flow. No placeholder such as `[회사명]`, `[담당자]`, or `[보유기간]` may remain at deployment.
 
-- [ ] **Step 4: Run the full local release gate**
+- [x] **Step 4: Run the full local release gate**
 
 ```bash
 pnpm test

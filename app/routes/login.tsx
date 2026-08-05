@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { data, Form, redirect, useSearchParams } from "react-router";
+import { data, Form, Link, redirect, useSearchParams } from "react-router";
 import { z } from "zod";
 
 import type { Route } from "./+types/login";
@@ -101,6 +101,10 @@ export default function Login({ actionData }: Route.ComponentProps) {
           베타 로그인
         </button>
       </Form>
+      <p className="mt-8 text-sm text-neutral-600">
+        로그인하면 <Link className="underline" to="/terms">이용약관</Link>과{" "}
+        <Link className="underline" to="/privacy">개인정보 처리방침</Link>을 확인한 것으로 봅니다.
+      </p>
     </main>
   );
 }
