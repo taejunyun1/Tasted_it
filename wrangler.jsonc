@@ -8,9 +8,6 @@
 	"compatibility_date": "2026-08-05",
 	"main": "./workers/app.ts",
 	"preview_urls": false,
-	"vars": {
-		"ADMIN_EMAIL": "admin@example.com"
-	},
 	"d1_databases": [
 		{
 			"binding": "DB",

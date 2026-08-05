@@ -13,6 +13,7 @@ export default defineConfig({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
         bindings: {
+          ADMIN_EMAIL: "admin@example.com",
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, "drizzle"),
           ),
