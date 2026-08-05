@@ -13,6 +13,8 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [map, setMap] = useState<naver.maps.Map | null>(null);
+  const initialClientId = useRef(clientId);
+  const initialLocateOnLoad = useRef(locateOnLoad);
   const selectRef = useRef(onSelect);
   const boundsRef = useRef(onBounds);
   selectRef.current = onSelect;
@@ -26,13 +28,13 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
     let idleListener: unknown;
     let locationMarker: naver.maps.Marker | undefined;
 
-    if (!clientId) {
+    if (!initialClientId.current) {
       setError("NAVER Maps Client ID가 설정되지 않았습니다.");
       return;
     }
 
     setError(null);
-    void loadNaverMaps(clientId).then(({ maps }) => {
+    void loadNaverMaps(initialClientId.current).then(({ maps }) => {
       if (disposed || !host.current) return;
       const created = new maps.Map(host.current, {
         center: new maps.LatLng(35.1595, 126.8526),
@@ -43,7 +45,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
       instance = created;
       setMap(created);
 
-      if (locateOnLoad && navigator.geolocation) navigator.geolocation.getCurrentPosition(({ coords }) => {
+      if (initialLocateOnLoad.current && navigator.geolocation) navigator.geolocation.getCurrentPosition(({ coords }) => {
         if (disposed) return;
         const position = new maps.LatLng(coords.latitude, coords.longitude);
         created.setCenter(position);
@@ -78,7 +80,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, locat
       setMap((current) => current === instance ? null : current);
       instance?.destroy();
     };
-  }, [clientId, locateOnLoad]);
+  }, []);
 
   useEffect(() => {
     if (!map || !window.naver?.maps) return;
