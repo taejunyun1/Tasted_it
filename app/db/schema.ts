@@ -288,3 +288,181 @@ export const reviewerProfiles = sqliteTable(
   },
   (table) => [index("reviewer_profiles_status_activity_idx").on(table.status, table.lastActivityAt)],
 );
+
+export const ratingConfigs = sqliteTable("rating_configs", {
+  id: text("id").primaryKey(),
+  algorithmVersion: text("algorithm_version").notNull().unique(),
+  minimumVisibleSamples: integer("minimum_visible_samples").notNull(),
+  alphaPrior: real("alpha_prior").notNull(),
+  betaPrior: real("beta_prior").notNull(),
+  reviewerMaxShare: real("reviewer_max_share").notNull(),
+  settingsJson: text("settings_json").notNull(),
+  activeFrom: text("active_from").notNull(),
+  activeUntil: text("active_until"),
+  ...timestamps,
+});
+
+export const ratingSnapshots = sqliteTable(
+  "rating_snapshots",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    configId: text("config_id").notNull().references(() => ratingConfigs.id, { onDelete: "restrict" }),
+    inputHash: text("input_hash").notNull(),
+    overallScore: integer("overall_score"),
+    userScore: integer("user_score"),
+    reviewerScore: integer("reviewer_score"),
+    overallSampleCount: integer("overall_sample_count").notNull(),
+    userSampleCount: integer("user_sample_count").notNull(),
+    reviewerSampleCount: integer("reviewer_sample_count").notNull(),
+    reviewerRawWeight: real("reviewer_raw_weight").notNull(),
+    reviewerCombinedWeight: real("reviewer_combined_weight").notNull(),
+    reviewerWeightShare: real("reviewer_weight_share").notNull(),
+    reasonsJson: text("reasons_json").notNull(),
+    isStale: integer("is_stale", { mode: "boolean" }).notNull().default(false),
+    computedAt: text("computed_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("rating_snapshots_input_idx").on(table.placeId, table.configId, table.inputHash),
+    index("rating_snapshots_place_computed_idx").on(table.placeId, table.computedAt),
+    index("rating_snapshots_stale_idx").on(table.isStale, table.computedAt),
+  ],
+);
+
+export const reviewerReliabilitySnapshots = sqliteTable(
+  "reviewer_reliability_snapshots",
+  {
+    id: text("id").primaryKey(),
+    reviewerUserId: text("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    configId: text("config_id").notNull().references(() => ratingConfigs.id, { onDelete: "restrict" }),
+    eligibleCount: integer("eligible_count").notNull(),
+    correctCount: integer("correct_count").notNull(),
+    posteriorAccuracy: real("posterior_accuracy").notNull(),
+    reliabilityWeight: real("reliability_weight").notNull(),
+    calibrationStatus: text("calibration_status", { enum: ["CALIBRATING", "ACTIVE"] }).notNull(),
+    computedAt: text("computed_at").notNull(),
+  },
+  (table) => [index("reviewer_reliability_user_computed_idx").on(table.reviewerUserId, table.computedAt)],
+);
+
+export const reviewerSimilarityEdges = sqliteTable(
+  "reviewer_similarity_edges",
+  {
+    id: text("id").primaryKey(),
+    configId: text("config_id").notNull().references(() => ratingConfigs.id, { onDelete: "cascade" }),
+    leftReviewerUserId: text("left_reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    rightReviewerUserId: text("right_reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    overlapCount: integer("overlap_count").notNull(),
+    agreementRate: real("agreement_rate").notNull(),
+    clusterId: text("cluster_id").notNull(),
+    damping: real("damping").notNull(),
+    computedAt: text("computed_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("reviewer_similarity_pair_config_idx").on(table.configId, table.leftReviewerUserId, table.rightReviewerUserId),
+    index("reviewer_similarity_cluster_idx").on(table.clusterId),
+  ],
+);
+
+export const ratingRecomputeJobs = sqliteTable(
+  "rating_recompute_jobs",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").references(() => places.id, { onDelete: "cascade" }),
+    configId: text("config_id").notNull().references(() => ratingConfigs.id, { onDelete: "restrict" }),
+    scope: text("scope", { enum: ["PLACE", "ALL"] }).notNull(),
+    status: text("status", { enum: ["PENDING", "RUNNING", "COMPLETED", "FAILED"] }).notNull().default("PENDING"),
+    reason: text("reason").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    errorSummary: text("error_summary"),
+    startedAt: text("started_at"),
+    finishedAt: text("finished_at"),
+    ...timestamps,
+  },
+  (table) => [index("rating_recompute_jobs_status_created_idx").on(table.status, table.createdAt)],
+);
+
+export const goldenPickEvents = sqliteTable(
+  "golden_pick_events",
+  {
+    id: text("id").primaryKey(),
+    reviewerUserId: text("reviewer_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "restrict" }),
+    eventType: text("event_type", { enum: ["GRANT", "WITHDRAW", "EXPIRE"] }).notNull(),
+    previousEventId: text("previous_event_id"),
+    reason: text("reason"),
+    effectiveAt: text("effective_at").notNull(),
+    expiresAt: text("expires_at"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("golden_pick_reviewer_effective_idx").on(table.reviewerUserId, table.effectiveAt), index("golden_pick_place_effective_idx").on(table.placeId, table.effectiveAt)],
+);
+
+export const flavorTemplates = sqliteTable(
+  "flavor_templates",
+  {
+    id: text("id").primaryKey(),
+    categoryId: text("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
+    version: text("version").notNull(),
+    dimensionsJson: text("dimensions_json").notNull(),
+    status: text("status", { enum: ["DRAFT", "ACTIVE", "ARCHIVED"] }).notNull().default("DRAFT"),
+    approvedBy: text("approved_by").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: text("approved_at"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("flavor_templates_category_version_idx").on(table.categoryId, table.version)],
+);
+
+export const flavorRatings = sqliteTable(
+  "flavor_ratings",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    reviewerUserId: text("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    templateId: text("template_id").notNull().references(() => flavorTemplates.id, { onDelete: "restrict" }),
+    valuesJson: text("values_json").notNull(),
+    confidence: text("confidence", { enum: ["LOW", "MEDIUM", "HIGH"] }).notNull(),
+    status: text("status", { enum: ["ACTIVE", "WITHDRAWN"] }).notNull().default("ACTIVE"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("flavor_ratings_place_reviewer_template_idx").on(table.placeId, table.reviewerUserId, table.templateId)],
+);
+
+export const placeDailyMetrics = sqliteTable(
+  "place_daily_metrics",
+  {
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    metricDate: text("metric_date").notNull(),
+    detailViews: integer("detail_views").notNull().default(0),
+    directionClicks: integer("direction_clicks").notNull().default(0),
+    saveActions: integer("save_actions").notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.placeId, table.metricDate] })],
+);
+
+export const integrityCases = sqliteTable(
+  "integrity_cases",
+  {
+    id: text("id").primaryKey(),
+    signalType: text("signal_type").notNull(),
+    subjectType: text("subject_type", { enum: ["USER", "PLACE", "REVIEWER_CLUSTER"] }).notNull(),
+    subjectId: text("subject_id").notNull(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    status: text("status", { enum: ["OPEN", "REVIEWING", "DISMISSED", "CONFIRMED"] }).notNull().default("OPEN"),
+    evidenceJson: text("evidence_json").notNull(),
+    resolutionReason: text("resolution_reason"),
+    reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: text("reviewed_at"),
+    ...timestamps,
+  },
+  (table) => [index("integrity_cases_status_created_idx").on(table.status, table.createdAt)],
+);
+
+export const invalidatedVoteEvents = sqliteTable("invalidated_vote_events", {
+  voteEventId: text("vote_event_id").primaryKey().references(() => voteEvents.id, { onDelete: "restrict" }),
+  integrityCaseId: text("integrity_case_id").notNull().references(() => integrityCases.id, { onDelete: "restrict" }),
+  reason: text("reason").notNull(),
+  invalidatedBy: text("invalidated_by").references(() => users.id, { onDelete: "set null" }),
+  invalidatedAt: text("invalidated_at").notNull(),
+});
