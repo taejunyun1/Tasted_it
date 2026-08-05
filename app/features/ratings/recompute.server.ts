@@ -139,3 +139,10 @@ export async function processRatingJobs(db: AppDb, input: { now: string; limit: 
   }
   return { processed: jobs.length, completed, failed };
 }
+
+export async function getLatestRatingSnapshot(db: AppDb, placeId: string) {
+  return db.query.ratingSnapshots.findFirst({
+    where: eq(ratingSnapshots.placeId, placeId),
+    orderBy: [desc(ratingSnapshots.computedAt)],
+  });
+}
