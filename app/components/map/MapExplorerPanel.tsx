@@ -25,12 +25,21 @@ export function MapExplorerPanel({ places, groups, selectedPlace, query, categor
 }) {
   const selectedGroup = groups.find((group) => group.children.some((child) => child.slug === category))?.id ?? null;
   const [groupId, setGroupId] = useState<string | null>(selectedGroup);
-  const [mobileView, setMobileView] = useState<"map" | "list">("list");
+  const [mobileView, setMobileView] = useState<"map" | "list">("map");
+  const [searchQuery, setSearchQuery] = useState(query);
   const children = useMemo(() => groups.find((group) => group.id === groupId)?.children ?? [], [groupId, groups]);
 
   useEffect(() => {
     if (selectedPlace) setMobileView("list");
   }, [selectedPlace]);
+
+  useEffect(() => {
+    setGroupId(selectedGroup);
+  }, [selectedGroup]);
+
+  useEffect(() => {
+    setSearchQuery(query);
+  }, [query]);
 
   if (selectedPlace) return <aside className="map-explorer-panel is-detail" data-mobile-view="list" aria-label="선택 장소 정보">
     <MapPlaceDetail place={selectedPlace} onBack={onClearSelection} />
@@ -51,18 +60,17 @@ export function MapExplorerPanel({ places, groups, selectedPlace, query, categor
       <div className="map-search-row">
         <form onSubmit={submitSearch} role="search">
           <label htmlFor="map-search">장소 검색</label>
-          <input id="map-search" name="q" defaultValue={query} placeholder="동네·상호명 검색" />
+          <input id="map-search" name="q" value={searchQuery} onChange={(event) => setSearchQuery(event.currentTarget.value)} placeholder="동네·상호명 검색" />
           <button>검색</button>
         </form>
         <button type="button" className="map-locate" onClick={onLocate}>◎ 내 주변</button>
       </div>
       <div className="map-category-groups" aria-label="대표 카테고리">
-        <button type="button" data-active={!category || undefined} onClick={() => { setGroupId(null); onCategory(null); }}>전체</button>
-        {groups.map((group) => <button type="button" key={group.id} data-active={group.id === groupId || undefined} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}
+        <button type="button" aria-pressed={!category} data-active={!category || undefined} onClick={() => { setGroupId(null); onCategory(null); }}>전체</button>
+        {groups.map((group) => <button type="button" key={group.id} aria-expanded={group.id === groupId} data-expanded={group.id === groupId || undefined} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}
       </div>
       {groupId && <div className="map-category-children" aria-label="세부 카테고리">
-        <button type="button" data-active={!category || undefined} onClick={() => onCategory(null)}>분류 전체</button>
-        {children.map((child) => <button type="button" key={child.id} data-active={child.slug === category || undefined} onClick={() => onCategory(child.slug)}>{child.emoji} {child.name} <small>{child.count}</small></button>)}
+        {children.map((child) => <button type="button" key={child.id} aria-pressed={child.slug === category} data-active={child.slug === category || undefined} onClick={() => onCategory(child.slug)}>{child.emoji} {child.name} <small>{child.count}</small></button>)}
       </div>}
       <div className="map-result-head"><strong>{places.length}</strong><span>현재 지도 안의 장소</span></div>
       <MapPlaceList places={places} onSelect={onSelect} />
