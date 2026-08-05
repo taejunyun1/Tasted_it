@@ -1,55 +1,15 @@
 import { env } from "cloudflare:workers";
-import { Link } from "react-router";
-
+import { useMemo, useState } from "react";
+import { Form, Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/home";
+import { PlaceMap } from "../components/map/PlaceMap";
 import { createDb } from "../db/client.server";
-import { listPlaces } from "../features/places/place.server";
-import { PlaceCard } from "../components/places/PlaceCard";
-
-const categories = [
-  { slug: "ramen", name: "라멘", emoji: "🍜", note: "깊은 육수와 면" },
-  { slug: "donkatsu", name: "돈까스", emoji: "🍛", note: "바삭한 한 접시" },
-  { slug: "gukbap", name: "국밥", emoji: "🍲", note: "든든한 지역의 맛" },
-  { slug: "bakery", name: "베이커리", emoji: "🥐", note: "갓 구운 동네 빵" },
-];
-
-export function meta() {
-  return [
-    { title: "Re:Taste — 광주·전남 맛 지도" },
-    { name: "description", content: "추천과 비추천이 분명한 광주·전남 큐레이션 맛 지도" },
-  ];
-}
-
-export async function loader({}: Route.LoaderArgs) {
-  return { latest: await listPlaces(createDb(env.DB), { limit: 4 }) };
-}
-
+import { parseMapState } from "../features/maps/map-state";
+import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
+export function meta() { return [{ title: "Re:Taste — 내 주변 맛 지도" }, { name: "description", content: "현재 위치에서 찾는 광주·전남 맛 지도" }]; }
+export async function loader({ request }: Route.LoaderArgs) { const url = new URL(request.url); const state = parseMapState(url.search); const category = url.searchParams.get("category") || undefined; const db = createDb(env.DB); const [places, groups] = await Promise.all([listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }), listPublicCategoryGroups(db)]); return { places, groups, state, category: category ?? null, clientId: env.NAVER_MAPS_CLIENT_ID ?? "" }; }
 export default function Home({ loaderData }: Route.ComponentProps) {
-  return (
-    <main id="main">
-      <section className="hero shell">
-        <p className="eyebrow">GWANGJU · JEONNAM / BETA 01</p>
-        <h1>오늘의 한 끼,<br />취향부터 고르세요.</h1>
-        <p className="hero-copy">별점 대신 추천과 비추천. 광고 순위 대신 실제 선택을 위한 지역 맛 지도입니다.</p>
-      </section>
-
-      <section className="taste-index shell" aria-labelledby="taste-title">
-        <div className="section-heading"><p className="eyebrow">TASTE INDEX</p><h2 id="taste-title">무엇이 당기나요?</h2></div>
-        <div className="category-grid">
-          {categories.map((category, index) => (
-            <Link className="category-entry" to={`/maps/${category.slug}`} key={category.slug}>
-              <span className="category-number">0{index + 1}</span>
-              <span className="category-emoji" aria-hidden>{category.emoji}</span>
-              <strong>{category.name}</strong><small>{category.note}</small>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="latest shell" aria-labelledby="latest-title">
-        <div className="section-heading"><p className="eyebrow">NEW ON THE MAP</p><h2 id="latest-title">지도에 막 올라온 곳</h2></div>
-        <div className="place-grid">{loaderData.latest.map((place) => <PlaceCard place={place} key={place.id} />)}</div>
-      </section>
-    </main>
-  );
+  const [params, setParams] = useSearchParams(); const selectedGroup = loaderData.groups.find((group) => group.children.some((child) => child.slug === loaderData.category))?.id ?? loaderData.groups[0]?.id ?? null; const [groupId, setGroupId] = useState<string | null>(selectedGroup); const children = useMemo(() => loaderData.groups.find((group) => group.id === groupId)?.children ?? [], [groupId, loaderData.groups]);
+  const update = (key: string, value?: string) => setParams((current) => { if (value) current.set(key, value); else current.delete(key); return current; }, { replace: true });
+  return <main id="main" className="relative h-[calc(100vh-78px)] min-h-[560px] border-b border-neutral-950"><div className="absolute inset-0"><PlaceMap places={loaderData.places} selected={loaderData.state.selected} clientId={loaderData.clientId} locateOnLoad onSelect={(id) => update("selected", id)} onBounds={(bbox) => update("bbox", bbox.map((value) => value.toFixed(5)).join(","))}/></div><div className="pointer-events-none absolute inset-x-0 top-0 z-[2] p-3 md:p-5"><div className="pointer-events-auto flex max-w-4xl flex-col items-start gap-2"><Form className="flex w-full max-w-md border border-neutral-950 bg-white shadow-md"><input className="min-w-0 flex-1 px-4 py-3 font-normal" name="q" defaultValue={loaderData.state.query} placeholder="지역·상호명 검색"/><button className="bg-neutral-950 px-4 text-sm font-semibold text-white">찾기</button></Form><div className="flex max-w-full gap-1 overflow-x-auto border border-neutral-800 bg-white/95 p-2 shadow-md"> <button className={`whitespace-nowrap px-3 py-2 text-xs font-medium ${!loaderData.category ? "bg-emerald-900 text-white" : ""}`} onClick={() => { setGroupId(null); update("category"); }}>전체</button>{loaderData.groups.map((group) => <button key={group.id} className={`whitespace-nowrap px-3 py-2 text-xs font-medium ${group.id === groupId ? "bg-emerald-900 text-white" : ""}`} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}</div>{groupId && <div className="flex max-w-full gap-1 overflow-x-auto border border-neutral-400 bg-white/95 p-2 shadow"><button className="whitespace-nowrap px-3 py-2 text-xs font-medium" onClick={() => update("category")}>분류 전체</button>{children.map((child) => <button key={child.id} className={`whitespace-nowrap border px-3 py-2 text-xs font-medium ${child.slug === loaderData.category ? "border-lime-600 bg-lime-200" : "border-neutral-300"}`} onClick={() => update("category", child.slug)}>{child.emoji} {child.name} {child.count}</button>)}</div>}<div className="flex gap-2"><span className="bg-neutral-900 px-3 py-2 text-xs font-medium text-white">현재 지도 {loaderData.places.length}곳</span><Link className="pointer-events-auto border border-neutral-900 bg-white px-3 py-2 text-xs font-medium" to={`/places?${params.toString()}`}>장소 목록</Link></div></div></div></main>;
 }

@@ -107,7 +107,6 @@ export async function approveCandidate(db: AppDb, input: {
   candidateId: string;
   actorUserId: string;
   categoryId: string;
-  secondaryCategoryIds?: string[];
   slug?: string;
   name: string;
   address: string;
@@ -120,7 +119,7 @@ export async function approveCandidate(db: AppDb, input: {
   if (!Number.isFinite(input.latitude) || input.latitude < 33 || input.latitude > 39 || !Number.isFinite(input.longitude) || input.longitude < 124 || input.longitude > 132) throw new Error("INVALID_PLACE_COORDINATES");
   const candidate = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, input.candidateId) });
   if (!candidate || candidate.normalizedStatus !== "OPEN" || candidate.reviewStatus !== "PENDING") throw new Error("CANDIDATE_NOT_APPROVABLE");
-  const categoryIds = [...new Set([input.categoryId, ...(input.secondaryCategoryIds ?? [])].filter(Boolean))];
+  const categoryIds = [input.categoryId];
   const categoryRows = await db.select().from(categories).where(and(inArray(categories.id, categoryIds), eq(categories.isActive, true)));
   if (categoryRows.length !== categoryIds.length || categoryRows.some((category) => !category.parentId)) throw new Error("CATEGORY_NOT_FOUND");
   const category = categoryRows.find((row) => row.id === input.categoryId)!;

@@ -1,12 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test("admin can inspect places and receives row-specific CSV errors", async ({
-  page,
+  context, page,
 }) => {
-  await page.goto("/login?returnTo=/admin/places");
-  await page.getByLabel("이메일").fill("admin@example.com");
-  await page.getByLabel("표시 이름").fill("Re:Taste 관리자");
-  await page.getByRole("button", { name: "베타 로그인" }).click();
+  await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: "http://127.0.0.1:5173" }]);
+  await page.goto("/admin/places");
 
   await expect(page).toHaveURL(/\/admin\/places$/);
   await expect(page.getByRole("heading", { name: "장소 관리" })).toBeVisible();

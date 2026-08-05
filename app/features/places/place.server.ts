@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
@@ -200,6 +201,26 @@ export async function listPlaces(
   filters: PlaceFilters = {},
 ): Promise<PlaceSummary[]> {
   return selectPublicPlaces(db, filters);
+}
+
+export async function listPublicCategoryGroups(db: AppDb) {
+  const parents = alias(categories, "category_parents");
+  const rows = await db.select({
+    parentId: parents.id, parentSlug: parents.slug, parentName: parents.name, parentEmoji: parents.emoji, parentSort: parents.sortOrder,
+    id: categories.id, slug: categories.slug, name: categories.name, emoji: categories.emoji, sortOrder: categories.sortOrder,
+    count: sql<number>`count(distinct ${places.id})`,
+  }).from(categories)
+    .innerJoin(parents, eq(parents.id, categories.parentId))
+    .innerJoin(placeCategories, and(eq(placeCategories.categoryId, categories.id), eq(placeCategories.isPrimary, true)))
+    .innerJoin(places, and(eq(places.id, placeCategories.placeId), eq(places.status, "PUBLISHED")))
+    .where(and(eq(categories.isActive, true), eq(parents.isActive, true)))
+    .groupBy(categories.id, parents.id).orderBy(asc(parents.sortOrder), asc(categories.sortOrder));
+  const groups = new Map<string, { id: string; slug: string; name: string; emoji: string; children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }> }>();
+  for (const row of rows) {
+    if (!groups.has(row.parentId)) groups.set(row.parentId, { id: row.parentId, slug: row.parentSlug, name: row.parentName, emoji: row.parentEmoji, children: [] });
+    groups.get(row.parentId)!.children.push({ id: row.id, slug: row.slug, name: row.name, emoji: row.emoji, count: Number(row.count) });
+  }
+  return [...groups.values()];
 }
 
 export async function getPlaceBySlug(

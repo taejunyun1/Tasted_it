@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
 
 import type { Route } from "./+types/admin-candidates-bulk";
@@ -9,6 +9,7 @@ import {
   bulkApproveCandidates,
   listBulkReviewGroups,
 } from "../features/candidates/bulk-review.server";
+import { reconcileCandidateSelection } from "../features/candidates/bulk-selection";
 
 const confidenceLabels = {
   HIGH: "높음",
@@ -38,6 +39,10 @@ export default function AdminCandidatesBulk({ loaderData, actionData }: Route.Co
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const needsReview = loaderData.groups.reduce((total, group) => total + group.candidates.filter((candidate) => !candidate.eligible).length, 0);
+
+  useEffect(() => {
+    setSelected((current) => reconcileCandidateSelection(current, eligibleIds));
+  }, [eligibleIds]);
 
   function toggleCandidate(id: string) {
     setSelected((current) => {

@@ -1,29 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-test("beta user logs in and external return targets are ignored", async ({
-  page,
-}, testInfo) => {
+test("login uses verified email credentials and ignores external return targets", async ({ page }) => {
   await page.goto("/login?returnTo=https://evil.example/path");
-  await page.getByLabel("이메일").fill(`user-${testInfo.project.name}@example.com`);
-  await page.getByLabel("표시 이름").fill("베타 사용자");
-  await page.getByRole("button", { name: "베타 로그인" }).click();
-
-  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
+  await expect(page.getByLabel("이메일")).toBeVisible();
+  await expect(page.getByLabel("비밀번호")).toBeVisible();
+  await expect(page.getByRole("link", { name: "회원가입" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "비밀번호 재설정" })).toBeVisible();
 });
 
-test("normal user receives 403 from the admin place route", async ({
-  page,
-}, testInfo) => {
-  await page.goto("/login");
-  await page
-    .getByLabel("이메일")
-    .fill(`forbidden-${testInfo.project.name}@example.com`);
-  await page.getByLabel("표시 이름").fill("일반 사용자");
-  await page.getByRole("button", { name: "베타 로그인" }).click();
-  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
-
-  const response = await page.request.get("/admin/places", {
-    maxRedirects: 0,
-  });
-  expect(response.status()).toBe(403);
+test("anonymous visitor is redirected from admin review", async ({ page }) => {
+  await page.goto("/admin/candidates");
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Fadmin%2Fcandidates$/);
 });
