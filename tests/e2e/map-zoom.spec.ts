@@ -14,4 +14,6 @@ test("map keeps its zoom level while bounds refresh the place list", async ({ pa
   await page.getByRole("link", { name: "지도 확대", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("bbox"))
     .not.toBe(firstBounds);
+  await expect.poll(async () => Number(await page.locator(".map-result-head strong").textContent()))
+    .toBe(await page.getByRole("button", { name: /선택$/ }).count());
 });

@@ -1,15 +1,73 @@
 import { env } from "cloudflare:workers";
-import { useMemo, useState } from "react";
-import { Form, Link, useSearchParams } from "react-router";
+import { useEffect } from "react";
+import { useSearchParams } from "react-router";
 import type { Route } from "./+types/home";
+import { MapExplorerPanel } from "../components/map/MapExplorerPanel";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
+import { findSelectedPlace, updateMapSearch } from "../features/maps/map-selection";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
-export function meta() { return [{ title: "Re:Taste — 내 주변 맛 지도" }, { name: "description", content: "현재 위치에서 찾는 광주·전남 맛 지도" }]; }
-export async function loader({ request }: Route.LoaderArgs) { const url = new URL(request.url); const state = parseMapState(url.search); const category = url.searchParams.get("category") || undefined; const db = createDb(env.DB); const [places, groups] = await Promise.all([listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }), listPublicCategoryGroups(db)]); return { places, groups, state, category: category ?? null, clientId: env.NAVER_MAPS_CLIENT_ID ?? "" }; }
+
+export function meta() {
+  return [{ title: "Re:Taste — 내 주변 맛 지도" }, { name: "description", content: "현재 위치에서 찾는 광주·전남 맛 지도" }];
+}
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const url = new URL(request.url);
+  const state = parseMapState(url.search);
+  const category = url.searchParams.get("category") || undefined;
+  const db = createDb(env.DB);
+  const [places, groups] = await Promise.all([
+    listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
+    listPublicCategoryGroups(db),
+  ]);
+  return { places, groups, state, category: category ?? null, clientId: env.NAVER_MAPS_CLIENT_ID ?? "" };
+}
+
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const [params, setParams] = useSearchParams(); const selectedGroup = loaderData.groups.find((group) => group.children.some((child) => child.slug === loaderData.category))?.id ?? loaderData.groups[0]?.id ?? null; const [groupId, setGroupId] = useState<string | null>(selectedGroup); const children = useMemo(() => loaderData.groups.find((group) => group.id === groupId)?.children ?? [], [groupId, loaderData.groups]);
-  const update = (key: string, value?: string) => setParams((current) => { if (value) current.set(key, value); else current.delete(key); return current; }, { replace: true });
-  return <main id="main" className="relative h-[calc(100vh-78px)] min-h-[560px] border-b border-neutral-950"><div className="absolute inset-0"><PlaceMap places={loaderData.places} selected={loaderData.state.selected} clientId={loaderData.clientId} initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined} locateOnLoad={!params.has("bbox")} onSelect={(id) => update("selected", id)} onBounds={(bbox) => update("bbox", bbox.map((value) => value.toFixed(5)).join(","))}/></div><div className="pointer-events-none absolute inset-x-0 top-0 z-[2] p-3 md:p-5"><div className="pointer-events-auto flex max-w-4xl flex-col items-start gap-2"><Form className="flex w-full max-w-md border border-neutral-950 bg-white shadow-md"><input className="min-w-0 flex-1 px-4 py-3 font-normal" name="q" defaultValue={loaderData.state.query} placeholder="지역·상호명 검색"/><button className="bg-neutral-950 px-4 text-sm font-semibold text-white">찾기</button></Form><div className="flex max-w-full gap-1 overflow-x-auto border border-neutral-800 bg-white/95 p-2 shadow-md"> <button className={`whitespace-nowrap px-3 py-2 text-xs font-medium ${!loaderData.category ? "bg-emerald-900 text-white" : ""}`} onClick={() => { setGroupId(null); update("category"); }}>전체</button>{loaderData.groups.map((group) => <button key={group.id} className={`whitespace-nowrap px-3 py-2 text-xs font-medium ${group.id === groupId ? "bg-emerald-900 text-white" : ""}`} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}</div>{groupId && <div className="flex max-w-full gap-1 overflow-x-auto border border-neutral-400 bg-white/95 p-2 shadow"><button className="whitespace-nowrap px-3 py-2 text-xs font-medium" onClick={() => update("category")}>분류 전체</button>{children.map((child) => <button key={child.id} className={`whitespace-nowrap border px-3 py-2 text-xs font-medium ${child.slug === loaderData.category ? "border-lime-600 bg-lime-200" : "border-neutral-300"}`} onClick={() => update("category", child.slug)}>{child.emoji} {child.name} {child.count}</button>)}</div>}<div className="flex gap-2"><span className="bg-neutral-900 px-3 py-2 text-xs font-medium text-white">현재 지도 {loaderData.places.length}곳</span><Link className="pointer-events-auto border border-neutral-900 bg-white px-3 py-2 text-xs font-medium" to={`/places?${params.toString()}`}>장소 목록</Link></div></div></div></main>;
+  const [params, setParams] = useSearchParams();
+  const selectedPlace = findSelectedPlace(loaderData.places, loaderData.state.selected);
+  const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => setParams((current) => updateMapSearch(current, change), { replace: true });
+  const setBounds = (bbox: [number, number, number, number]) => setSearch({ bbox: bbox.map((value) => value.toFixed(5)).join(",") });
+  const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
+    const longitudeRadius = 0.025;
+    const latitudeRadius = 0.018;
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("bbox", [coords.longitude - longitudeRadius, coords.latitude - latitudeRadius, coords.longitude + longitudeRadius, coords.latitude + latitudeRadius].map((value) => value.toFixed(5)).join(","));
+      next.delete("selected");
+      return next;
+    }, { replace: true });
+  });
+
+  useEffect(() => {
+    if (loaderData.state.selected && !selectedPlace) setSearch({ selected: null });
+  }, [loaderData.state.selected, selectedPlace]);
+
+  return <main id="main" className="map-explorer">
+    <MapExplorerPanel
+      places={loaderData.places}
+      groups={loaderData.groups}
+      selectedPlace={selectedPlace}
+      query={loaderData.state.query}
+      category={loaderData.category}
+      onSelect={(id) => setSearch({ selected: id })}
+      onClearSelection={() => setSearch({ selected: null })}
+      onSearch={(q) => setSearch({ q, selected: null })}
+      onCategory={(category) => setSearch({ category, selected: null })}
+      onLocate={locate}
+    />
+    <section className="map-explorer-map" aria-label="지도 영역">
+      <PlaceMap
+        places={loaderData.places}
+        selected={selectedPlace?.id ?? null}
+        clientId={loaderData.clientId}
+        initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined}
+        locateOnLoad={!params.has("bbox")}
+        onSelect={(id) => setSearch({ selected: id })}
+        onBounds={setBounds}
+      />
+    </section>
+  </main>;
 }
