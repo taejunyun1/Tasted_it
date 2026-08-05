@@ -1,4 +1,4 @@
-import { and, asc, eq, like, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, or } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -15,6 +15,9 @@ export async function listPendingCandidates(db: AppDb, filters: {
   query?: string;
   sourceType?: PublicDataSource;
   regionCode?: RegionCode;
+  businessSubtype?: string;
+  coordinates?: "present" | "missing";
+  sort?: "updated" | "name" | "source" | "region";
 } = {}) {
   const conditions = [
     eq(businessLicenses.normalizedStatus, "OPEN"),
@@ -22,11 +25,25 @@ export async function listPendingCandidates(db: AppDb, filters: {
   ];
   if (filters.sourceType) conditions.push(eq(businessLicenses.sourceType, filters.sourceType));
   if (filters.regionCode) conditions.push(eq(businessLicenses.regionCode, filters.regionCode));
+  if (filters.businessSubtype) conditions.push(eq(businessLicenses.businessSubtype, filters.businessSubtype));
+  if (filters.coordinates === "present") conditions.push(isNotNull(businessLicenses.latitude));
+  if (filters.coordinates === "missing") conditions.push(isNull(businessLicenses.latitude));
   if (filters.query?.trim()) {
     const value = `%${filters.query.trim()}%`;
     conditions.push(or(like(businessLicenses.businessName, value), like(businessLicenses.roadAddress, value), like(businessLicenses.lotAddress, value))!);
   }
-  return db.select().from(businessLicenses).where(and(...conditions)).orderBy(asc(businessLicenses.businessName)).limit(300);
+  const order = filters.sort === "updated" ? [desc(businessLicenses.sourceUpdatedAt), asc(businessLicenses.businessName)]
+    : filters.sort === "source" ? [asc(businessLicenses.sourceType), asc(businessLicenses.businessSubtype), asc(businessLicenses.businessName)]
+    : filters.sort === "region" ? [asc(businessLicenses.regionCode), asc(businessLicenses.businessName)]
+    : [asc(businessLicenses.businessName)];
+  return db.select().from(businessLicenses).where(and(...conditions)).orderBy(...order).limit(300);
+}
+
+export async function listCandidateSubtypes(db: AppDb) {
+  const rows = await db.selectDistinct({ value: businessLicenses.businessSubtype }).from(businessLicenses)
+    .where(and(eq(businessLicenses.normalizedStatus, "OPEN"), eq(businessLicenses.reviewStatus, "PENDING")))
+    .orderBy(asc(businessLicenses.businessSubtype));
+  return rows.flatMap((row) => row.value ? [row.value] : []);
 }
 
 export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense, now: string) {
@@ -89,6 +106,7 @@ export async function approveCandidate(db: AppDb, input: {
   candidateId: string;
   actorUserId: string;
   categoryId: string;
+  secondaryCategoryIds?: string[];
   slug: string;
   name: string;
   address: string;
@@ -102,8 +120,10 @@ export async function approveCandidate(db: AppDb, input: {
   if (!Number.isFinite(input.latitude) || input.latitude < 33 || input.latitude > 39 || !Number.isFinite(input.longitude) || input.longitude < 124 || input.longitude > 132) throw new Error("INVALID_PLACE_COORDINATES");
   const candidate = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, input.candidateId) });
   if (!candidate || candidate.normalizedStatus !== "OPEN" || candidate.reviewStatus !== "PENDING") throw new Error("CANDIDATE_NOT_APPROVABLE");
-  const category = await db.query.categories.findFirst({ where: eq(categories.id, input.categoryId) });
-  if (!category) throw new Error("CATEGORY_NOT_FOUND");
+  const categoryIds = [...new Set([input.categoryId, ...(input.secondaryCategoryIds ?? [])].filter(Boolean))];
+  const categoryRows = await db.select().from(categories).where(and(inArray(categories.id, categoryIds), eq(categories.isActive, true)));
+  if (categoryRows.length !== categoryIds.length || categoryRows.some((category) => !category.parentId)) throw new Error("CATEGORY_NOT_FOUND");
+  const category = categoryRows.find((row) => row.id === input.categoryId)!;
   const placeId = crypto.randomUUID();
   await db.batch([
     db.insert(places).values({
@@ -113,7 +133,7 @@ export async function approveCandidate(db: AppDb, input: {
       searchText: `${input.name} ${input.address} ${input.neighborhood} ${category.name}`.toLocaleLowerCase("ko-KR"),
       createdAt: input.now, updatedAt: input.now,
     }),
-    db.insert(placeCategories).values({ placeId, categoryId: input.categoryId, isPrimary: true }),
+    db.insert(placeCategories).values(categoryIds.map((categoryId) => ({ placeId, categoryId, isPrimary: categoryId === input.categoryId }))),
     db.insert(placeSourceLinks).values({ id: crypto.randomUUID(), placeId, businessLicenseId: candidate.id, isPrimary: true, createdAt: input.now }),
     db.update(businessLicenses).set({ reviewStatus: "APPROVED", reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(eq(businessLicenses.id, candidate.id), eq(businessLicenses.reviewStatus, "PENDING"), eq(businessLicenses.normalizedStatus, "OPEN"))),
     db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "APPROVE_CANDIDATE", targetType: "BUSINESS_LICENSE", targetId: candidate.id, beforeState: "PENDING", afterState: "APPROVED", createdAt: input.now }),

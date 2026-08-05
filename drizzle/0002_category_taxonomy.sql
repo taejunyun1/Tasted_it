@@ -1,0 +1,60 @@
+ALTER TABLE categories ADD COLUMN parent_id TEXT REFERENCES categories(id) ON DELETE RESTRICT;
+ALTER TABLE categories ADD COLUMN description TEXT;
+ALTER TABLE categories ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1));
+CREATE INDEX categories_parent_sort_idx ON categories(parent_id, sort_order);
+
+INSERT OR IGNORE INTO categories(id,slug,name,emoji,sort_order,parent_id,description,is_active,created_at,updated_at) VALUES
+('cat-korean','korean','한식','🍚',100,NULL,'한국 음식',1,datetime('now'),datetime('now')),
+('cat-japanese','japanese','일식','🍣',200,NULL,'일본 음식',1,datetime('now'),datetime('now')),
+('cat-chinese','chinese','중식','🥟',300,NULL,'중화 음식',1,datetime('now'),datetime('now')),
+('cat-western','western','양식','🍝',400,NULL,'서양 음식',1,datetime('now'),datetime('now')),
+('cat-bunsik','bunsik','분식','🍢',500,NULL,'분식과 간편식',1,datetime('now'),datetime('now')),
+('cat-chicken','chicken','치킨','🍗',600,NULL,'치킨',1,datetime('now'),datetime('now')),
+('cat-world','world-food','아시아·세계음식','🌏',700,NULL,'아시아 및 세계 음식',1,datetime('now'),datetime('now')),
+('cat-cafe','cafe-dessert','카페·디저트','☕',800,NULL,'카페와 디저트',1,datetime('now'),datetime('now')),
+('cat-bar','bar','술집·주점','🍺',900,NULL,'술집과 주점',1,datetime('now'),datetime('now')),
+('cat-healthy','healthy','건강식','🥗',1000,NULL,'샐러드와 채식',1,datetime('now'),datetime('now')),
+('cat-lunchbox','lunchbox','도시락·간편식','🍱',1100,NULL,'도시락과 간편식',1,datetime('now'),datetime('now')),
+('cat-other','other','기타','🍽️',1200,NULL,'기타 음식점',1,datetime('now'),datetime('now')),
+('cat-home-meal','home-meal','백반·가정식','🍚',101,'cat-korean',NULL,1,datetime('now'),datetime('now')),
+('cat-gukbap','gukbap-detail','국밥·해장국','🥣',102,'cat-korean',NULL,1,datetime('now'),datetime('now')),
+('cat-stew','stew','찌개·전골·탕','🍲',103,'cat-korean',NULL,1,datetime('now'),datetime('now')),
+('cat-grill','grill','고기·구이','🥩',104,'cat-korean',NULL,1,datetime('now'),datetime('now')),
+('cat-jokbal','jokbal-bossam','족발·보쌈','🍖',105,'cat-korean',NULL,1,datetime('now'),datetime('now')),
+('cat-hanjeongsik','hanjeongsik','한정식','🥢',106,'cat-korean',NULL,1,datetime('now'),datetime('now')),
+('cat-sushi','sushi-sashimi','초밥·회','🍣',201,'cat-japanese',NULL,1,datetime('now'),datetime('now')),
+('cat-donkatsu','donkatsu-detail','돈가스','🍛',202,'cat-japanese',NULL,1,datetime('now'),datetime('now')),
+('cat-ramen','ramen-detail','라멘','🍜',203,'cat-japanese',NULL,1,datetime('now'),datetime('now')),
+('cat-udon','udon-soba','우동·소바','🥢',204,'cat-japanese',NULL,1,datetime('now'),datetime('now')),
+('cat-japan-rice','japanese-rice','덮밥·카레','🍛',205,'cat-japanese',NULL,1,datetime('now'),datetime('now')),
+('cat-izakaya','izakaya','이자카야','🍶',206,'cat-japanese',NULL,1,datetime('now'),datetime('now')),
+('cat-jjajang','jjajang-jjamppong','짜장·짬뽕','🍜',301,'cat-chinese',NULL,1,datetime('now'),datetime('now')),
+('cat-chinese-dish','chinese-dish','중화요리','🥟',302,'cat-chinese',NULL,1,datetime('now'),datetime('now')),
+('cat-mala','mala-hotpot','마라·훠궈','🌶️',303,'cat-chinese',NULL,1,datetime('now'),datetime('now')),
+('cat-skewer','lamb-skewer','양꼬치','🍢',304,'cat-chinese',NULL,1,datetime('now'),datetime('now')),
+('cat-pasta','pasta','파스타','🍝',401,'cat-western',NULL,1,datetime('now'),datetime('now')),
+('cat-steak','steak','스테이크','🥩',402,'cat-western',NULL,1,datetime('now'),datetime('now')),
+('cat-pizza','pizza','피자','🍕',403,'cat-western',NULL,1,datetime('now'),datetime('now')),
+('cat-burger','burger','버거','🍔',404,'cat-western',NULL,1,datetime('now'),datetime('now')),
+('cat-brunch','brunch','브런치','🍳',405,'cat-western',NULL,1,datetime('now'),datetime('now')),
+('cat-tteokbokki','tteokbokki','떡볶이·튀김','🌶️',501,'cat-bunsik',NULL,1,datetime('now'),datetime('now')),
+('cat-gimbap','gimbap','김밥','🍙',502,'cat-bunsik',NULL,1,datetime('now'),datetime('now')),
+('cat-dumpling','dumpling','만두','🥟',503,'cat-bunsik',NULL,1,datetime('now'),datetime('now')),
+('cat-vietnamese','vietnamese','베트남','🍜',701,'cat-world',NULL,1,datetime('now'),datetime('now')),
+('cat-thai','thai','태국','🌶️',702,'cat-world',NULL,1,datetime('now'),datetime('now')),
+('cat-indian','indian','인도','🍛',703,'cat-world',NULL,1,datetime('now'),datetime('now')),
+('cat-mexican','mexican','멕시칸','🌮',704,'cat-world',NULL,1,datetime('now'),datetime('now')),
+('cat-cafe-shop','cafe','카페','☕',801,'cat-cafe',NULL,1,datetime('now'),datetime('now')),
+('cat-dessert','dessert','디저트','🍰',802,'cat-cafe',NULL,1,datetime('now'),datetime('now')),
+('cat-bakery','bakery-detail','베이커리','🥐',803,'cat-cafe',NULL,1,datetime('now'),datetime('now')),
+('cat-ice','ice-dessert','아이스크림·빙수','🍨',804,'cat-cafe',NULL,1,datetime('now'),datetime('now')),
+('cat-pub','pub','호프·펍','🍺',901,'cat-bar',NULL,1,datetime('now'),datetime('now')),
+('cat-pocha','pocha','포차','🍶',902,'cat-bar',NULL,1,datetime('now'),datetime('now')),
+('cat-wine','wine-bar','와인바','🍷',903,'cat-bar',NULL,1,datetime('now'),datetime('now')),
+('cat-cocktail','cocktail-bar','칵테일바','🍸',904,'cat-bar',NULL,1,datetime('now'),datetime('now')),
+('cat-salad','salad','샐러드','🥗',1001,'cat-healthy',NULL,1,datetime('now'),datetime('now')),
+('cat-vegan','vegan','비건·채식','🌱',1002,'cat-healthy',NULL,1,datetime('now'),datetime('now'));
+
+UPDATE categories SET parent_id='cat-japanese' WHERE slug IN ('ramen','donkatsu');
+UPDATE categories SET parent_id='cat-korean' WHERE slug='gukbap';
+UPDATE categories SET parent_id='cat-cafe' WHERE slug='bakery';
