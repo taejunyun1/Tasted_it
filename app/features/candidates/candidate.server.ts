@@ -10,6 +10,7 @@ import {
   placeSourceLinks,
 } from "../../db/schema";
 import type { NormalizedLicense, PublicDataSource, RegionCode } from "./public-data";
+import { slugifyPlaceName } from "../places/place-slug";
 
 export async function listPendingCandidates(db: AppDb, filters: {
   query?: string;
@@ -107,7 +108,7 @@ export async function approveCandidate(db: AppDb, input: {
   actorUserId: string;
   categoryId: string;
   secondaryCategoryIds?: string[];
-  slug: string;
+  slug?: string;
   name: string;
   address: string;
   neighborhood: string;
@@ -115,7 +116,6 @@ export async function approveCandidate(db: AppDb, input: {
   longitude: number;
   now: string;
 }) {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug)) throw new Error("INVALID_PLACE_SLUG");
   if (!input.name || !input.address || !input.neighborhood) throw new Error("PLACE_REQUIRED_FIELD_MISSING");
   if (!Number.isFinite(input.latitude) || input.latitude < 33 || input.latitude > 39 || !Number.isFinite(input.longitude) || input.longitude < 124 || input.longitude > 132) throw new Error("INVALID_PLACE_COORDINATES");
   const candidate = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, input.candidateId) });
@@ -124,10 +124,13 @@ export async function approveCandidate(db: AppDb, input: {
   const categoryRows = await db.select().from(categories).where(and(inArray(categories.id, categoryIds), eq(categories.isActive, true)));
   if (categoryRows.length !== categoryIds.length || categoryRows.some((category) => !category.parentId)) throw new Error("CATEGORY_NOT_FOUND");
   const category = categoryRows.find((row) => row.id === input.categoryId)!;
+  const baseSlug = slugifyPlaceName(input.name);
+  let slug = baseSlug;
+  for (let suffix = 2; await db.query.places.findFirst({ where: eq(places.slug, slug) }); suffix += 1) slug = `${baseSlug}-${suffix}`;
   const placeId = crypto.randomUUID();
   await db.batch([
     db.insert(places).values({
-      id: placeId, slug: input.slug, name: input.name, status: "PUBLISHED", address: input.address,
+      id: placeId, slug, name: input.name, status: "PUBLISHED", address: input.address,
       neighborhood: input.neighborhood, latitude: input.latitude, longitude: input.longitude,
       phone: candidate.phone, parkingSummary: null, heroImageUrl: null, kakaoPlaceId: null,
       searchText: `${input.name} ${input.address} ${input.neighborhood} ${category.name}`.toLocaleLowerCase("ko-KR"),

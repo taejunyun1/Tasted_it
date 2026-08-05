@@ -42,4 +42,15 @@ describe("candidate review service", () => {
     await upsertBusinessLicense(db, { ...openLicense, sourceManagementNo: "approval-candidate", normalizedStatus: "CLOSED", salesStatusName: "폐업" }, "2026-08-05T11:00:00.000Z");
     expect((await db.query.places.findFirst({ where: eq(places.id, approved.placeId) }))?.status).toBe("HIDDEN");
   });
+
+  it("creates unique slugs automatically from duplicate business names", async () => {
+    const db = createDb(env.DB);
+    const first = await upsertBusinessLicense(db, { ...openLicense, sourceManagementNo: "slug-first", businessName: "같은 상호" }, now);
+    const second = await upsertBusinessLicense(db, { ...openLicense, sourceManagementNo: "slug-second", businessName: "같은 상호" }, now);
+    const approve = (candidateId: string) => approveCandidate(db, { candidateId, actorUserId: "candidate-admin", categoryId: "candidate-category", name: "같은 상호", address: openLicense.roadAddress!, neighborhood: "동명동", latitude: 35.15, longitude: 126.92, now });
+    await approve(first.id);
+    await approve(second.id);
+    const rows = await db.select({ slug: places.slug }).from(places);
+    expect(rows.map((row) => row.slug)).toEqual(expect.arrayContaining(["같은-상호", "같은-상호-2"]));
+  });
 });
