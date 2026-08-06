@@ -10,7 +10,7 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
 
   await expect(page.getByRole("heading", { name: "장소 검수 목록" })).toBeVisible();
   await expect(page.getByRole("link", { name: "리뷰어 관리" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "다음 10곳 AI 분류" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "다음 10곳 AI 분류" })).toHaveCount(0);
   await expect(page.getByLabel("AI 일일 사용량")).toContainText("앱 집계 기준");
   await expect(page.getByRole("link", { name: "운영 현황" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "전체" })).toBeVisible();
@@ -19,13 +19,15 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
   await expect(page.getByRole("link", { name: "승인 불가" })).toBeVisible();
   await expect(page.getByLabel("후보 네이버 지도")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "동네" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "상단 페이지 이동" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "하단 페이지 이동" })).toBeVisible();
 
   await expect(page.getByRole("checkbox", { name: /QA 양평해장국/ })).toBeEnabled();
   await page.getByRole("button", { name: "현재 페이지 선택" }).click();
   await expect(page.locator("p").filter({ hasText: "선택 · 차단 후보 제외" })).toBeVisible();
   await page.getByRole("button", { name: "현재 페이지 선택 해제" }).click();
   await page.getByRole("checkbox", { name: /QA 양평해장국/ }).check();
-  await expect(page.getByRole("button", { name: "선택 장소 AI 분류" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "선택 장소 다시 분류" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 반려" })).toHaveCount(0);
   await expect(page.getByLabel("QA 스시하루 대표 카테고리")).toBeVisible();
