@@ -20,6 +20,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
   const initialBoundsRef = useRef(initialBounds);
   const selectRef = useRef(onSelect);
   const boundsRef = useRef(onBounds);
+  const suppressNextBoundsRef = useRef(false);
   selectRef.current = onSelect;
   boundsRef.current = onBounds;
 
@@ -70,6 +71,10 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
       idleListener = maps.Event.addListener(created, "idle", () => {
         clearTimeout(timer);
         timer = setTimeout(() => {
+          if (suppressNextBoundsRef.current) {
+            suppressNextBoundsRef.current = false;
+            return;
+          }
           const bounds = created.getBounds();
           const southwest = bounds.getSW();
           const northeast = bounds.getNE();
@@ -110,6 +115,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
       button.onclick = () => {
         // Commit the detail selection before map idle events update the bbox URL.
         selectRef.current(place.id);
+        suppressNextBoundsRef.current = true;
         map.panTo(position);
         const focusZoom = getMarkerFocusZoom(map.getZoom());
         if (focusZoom !== null) map.setZoom(focusZoom);
