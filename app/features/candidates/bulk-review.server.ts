@@ -65,6 +65,8 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       longitude: candidate.longitude,
       duplicate: Boolean(address && duplicateKeys.has(duplicateKey(candidate.businessName, address))),
     });
+    const classificationCompleted = Boolean(ai && category?.parentId);
+    const displayState = review.state === "BLOCKED" ? "BLOCKED" as const : classificationCompleted ? "AUTO" as const : review.state;
     return {
       ...candidate,
       address,
@@ -77,7 +79,7 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       aiConfidence: aiRun?.confidence ?? null,
       blockers: review.blockers,
       reviewReasons: review.reviewReasons,
-      reviewState: review.state,
+      reviewState: displayState,
       eligible: review.state === "AUTO",
     };
   }
@@ -111,7 +113,7 @@ export async function bulkApproveCandidates(db: AppDb, input: {
   return approveCandidateSelections(db, {
     selections: candidateIds.flatMap((candidateId) => {
       const candidate = candidates.get(candidateId);
-      return candidate?.reviewState === "AUTO" && candidate.categoryId ? [{ candidateId, categoryId: candidate.categoryId }] : [{ candidateId, categoryId: "" }];
+      return candidate?.eligible && candidate.categoryId ? [{ candidateId, categoryId: candidate.categoryId }] : [{ candidateId, categoryId: "" }];
     }),
     actorUserId: input.actorUserId,
     now: input.now,

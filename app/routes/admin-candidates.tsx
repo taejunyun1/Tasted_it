@@ -9,7 +9,7 @@ import { categories } from "../db/schema";
 import { requireAdmin } from "../features/auth/session.server";
 import { approveCandidateSelections, listBulkReviewGroups } from "../features/candidates/bulk-review.server";
 import { reconcileCandidateSelection, selectCurrentPageCandidates } from "../features/candidates/bulk-selection";
-import { listCandidateSubtypes, rejectCandidate } from "../features/candidates/candidate.server";
+import { listCandidateSubtypes } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 
@@ -20,7 +20,7 @@ const sources: Array<[PublicDataSource, string]> = [
 const states = ["AUTO", "MANUAL", "BLOCKED"] as const;
 const confidenceLabels = { HIGH: "높음", MEDIUM: "보통", LOW: "낮음", CONFLICT: "충돌" } as const;
 const stateMeta = {
-  AUTO: { label: "자동 승인", className: "border-emerald-700 bg-emerald-50 text-emerald-900" },
+  AUTO: { label: "분류 완료", className: "border-emerald-700 bg-emerald-50 text-emerald-900" },
   MANUAL: { label: "수동 확인", className: "border-amber-600 bg-amber-50 text-amber-900" },
   BLOCKED: { label: "승인 불가", className: "border-rose-600 bg-rose-50 text-rose-900" },
 } as const;
@@ -89,12 +89,6 @@ export async function action({ request }: Route.ActionArgs) {
       return { approved: [], skipped: [], rejected: 0, error: `AI 분류를 완료하지 못했습니다. 잠시 후 다시 시도하세요. (${detail})`, ai: null };
     }
   }
-  if (form.get("intent") === "rejectSelected") {
-    const reason = String(form.get("reason") ?? "").trim();
-    if (!reason) return { approved: [], skipped: [], rejected: 0, error: "반려 사유를 입력하세요." };
-    await Promise.all(candidateIds.map((candidateId) => rejectCandidate(db, { candidateId, actorUserId: user.id, reason, now })));
-    return { approved: [], skipped: [], rejected: candidateIds.length, error: null, ai: null };
-  }
   const result = await approveCandidateSelections(db, {
     selections: candidateIds.map((candidateId) => ({ candidateId, categoryId: String(form.get(`category:${candidateId}`) ?? "") })),
     actorUserId: user.id,
@@ -114,6 +108,8 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const isSubmitting = navigation.state === "submitting";
   const selectedRows = loaderData.rows.filter((row) => selected.has(row.id));
   const selectableIds = useMemo(() => loaderData.rows.filter((row) => row.reviewState !== "BLOCKED").map((row) => row.id), [loaderData.rows]);
+  const pageSelectionIds = selectableIds.slice(0, 25);
+  const pageSelected = pageSelectionIds.length > 0 && pageSelectionIds.every((id) => selected.has(id));
 
   useEffect(() => {
     setSelected((current) => reconcileCandidateSelection(current, selectableIds));
@@ -148,20 +144,13 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">장소 검수 목록</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">자동 분류 결과를 목록에서 확인하고, 애매한 후보만 카테고리를 직접 정합니다. 동네는 주소에서 자동 계산됩니다.</p>
           </div>
-          <nav className="flex flex-wrap gap-2 text-sm font-medium">
-            <Form method="post"><button className="border border-emerald-800 bg-emerald-800 px-4 py-2.5 text-white disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={loaderData.aiQuota.blocked || isSubmitting}>AI 대기 후보 10곳 분류</button></Form>
-            <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/operations">운영 현황</Link>
-            <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/ratings">평가 운영</Link>
-            <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/reviewers">리뷰어 관리</Link>
-            <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/places">공개 장소</Link>
-            <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/data-sync">데이터 동기화</Link>
-          </nav>
+          <Form method="post"><button className="border border-emerald-800 bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={loaderData.aiQuota.blocked || isSubmitting}>다음 10곳 AI 분류</button></Form>
         </div>
       </header>
 
       <section className="mx-auto grid max-w-[1500px] grid-cols-2 border-x border-b border-neutral-300 bg-white md:grid-cols-4">
         <Summary label="전체 대기" value={loaderData.counts.ALL} />
-        <Summary label="자동 승인" value={loaderData.counts.AUTO} tone="text-emerald-800" />
+        <Summary label="분류 완료" value={loaderData.counts.AUTO} tone="text-emerald-800" />
         <Summary label="수동 확인" value={loaderData.counts.MANUAL} tone="text-amber-700" />
         <Summary label="승인 불가" value={loaderData.counts.BLOCKED} tone="text-rose-700" />
       </section>
@@ -189,18 +178,16 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <div className="flex items-end gap-2"><button className="h-10 flex-1 whitespace-nowrap bg-neutral-950 px-3 text-xs font-semibold text-white">필터 적용</button><Link className="grid h-10 place-items-center whitespace-nowrap border border-neutral-300 px-3 text-xs" to="/admin/candidates">초기화</Link></div>
         </Form>
 
-        {actionData && <div className={`mb-5 border px-4 py-3 text-sm ${actionData.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{actionData.error ?? (actionData.ai ? `AI ${actionData.ai.processed}곳 처리 · 성공 ${actionData.ai.succeeded} · 실패 ${actionData.ai.failed} · 캐시 ${actionData.ai.cached}` : `${actionData.approved.length}곳 공개 · ${actionData.rejected}곳 반려 · ${actionData.skipped.length}곳 제외`)}</div>}
+        {actionData && <div className={`mb-5 border px-4 py-3 text-sm ${actionData.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{actionData.error ?? (actionData.ai ? `AI ${actionData.ai.processed}곳 처리 · 성공 ${actionData.ai.succeeded}곳은 분류 완료로 이동 · 실패 ${actionData.ai.failed}` : `${actionData.approved.length}곳 승인·공개 · ${actionData.skipped.length}곳 확인 필요`)}</div>}
 
         <Form method="post">
           {[...selected].map((id) => <input key={id} type="hidden" name="candidateIds" value={id} />)}
           {selectedRows.map((row) => <input key={`category-${row.id}`} type="hidden" name={`category:${row.id}`} value={chosenCategories[row.id] ?? ""} />)}
           <div className="sticky top-0 z-20 mb-3 flex flex-col gap-3 border border-neutral-900 bg-[#1f2a24] px-4 py-3 text-white shadow-sm md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap items-center gap-2"><p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보 제외</p><button type="button" className="border border-neutral-500 px-2.5 py-1.5 text-xs" onClick={() => setSelected(selectCurrentPageCandidates(selectableIds))}>현재 페이지 선택</button><button type="button" className="border border-neutral-500 px-2.5 py-1.5 text-xs" onClick={() => setSelected(new Set())}>선택 해제</button></div>
+            <div className="flex flex-wrap items-center gap-3"><p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보 제외</p><button type="button" className="border border-neutral-500 px-3 py-2 text-xs text-neutral-200" onClick={() => setSelected(pageSelected ? new Set() : selectCurrentPageCandidates(selectableIds))}>{pageSelected ? "현재 페이지 선택 해제" : "현재 페이지 선택"}</button></div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <input className="min-w-0 border border-neutral-500 bg-white px-3 py-2 text-sm text-neutral-950" name="reason" placeholder="일괄 반려 사유" />
-              <button className="border border-[#d7f28a] px-4 py-2 text-sm font-medium text-[#d7f28a] disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting || loaderData.aiQuota.blocked}>선택 AI 분류</button>
-              <button className="border border-white px-4 py-2 text-sm font-medium disabled:opacity-40" name="intent" value="rejectSelected" disabled={!selected.size || isSubmitting}>선택 반려</button>
-              <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 승인·공개"}</button>
+              <button className="border border-white px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting || loaderData.aiQuota.blocked}>선택 장소 AI 분류</button>
+              <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 장소 승인·공개"}</button>
             </div>
           </div>
 
