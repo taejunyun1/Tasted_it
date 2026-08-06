@@ -12,3 +12,4 @@ worker-configuration.d.ts
 playwright-report/
 test-results/
 .playwright-cli/
+.superpowers/
