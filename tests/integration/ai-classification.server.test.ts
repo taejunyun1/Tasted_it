@@ -5,6 +5,23 @@ import { aiClassificationRuns, businessLicenses } from "../../app/db/schema";
 import { AI_CLASSIFICATION_PROMPT, classifyPendingCandidatesWithAi } from "../../app/features/candidates/ai-classification.server";
 
 describe("Workers AI candidate classification", () => {
+  it("offers contextual chicken and pub candidates for a hop chicken subtype", async () => {
+    const db = createDb(env.DB); const id = `ai-context-${crypto.randomUUID()}`; const now = "2026-08-06T09:00:00.000Z";
+    await db.insert(businessLicenses).values({ id, sourceType: "ENTERTAINMENT_BAR", sourceManagementNo: id, businessName: "왕가네 치킨호프", businessSubtype: "호프/통닭", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "chicken", confidence: 0.96, evidence: ["치킨", "통닭"], reasons: ["구체 음식 표현을 우선"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
+    const storedRun = (await db.select().from(aiClassificationRuns)).find((row) => row.candidateId === id)!;
+
+    expect(AI_CLASSIFICATION_PROMPT).toBe("place-category-v3");
+    expect(storedRun.validationError).toBeNull();
+    expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0 });
+    const request = run.mock.calls[0][1] as { messages: Array<{ role: string; content: string }> };
+    const payload = JSON.parse(request.messages.find((message) => message.role === "user")!.content) as { categories: Array<{ slug: string }> };
+    expect(payload.categories.map((category) => category.slug)).toEqual(expect.arrayContaining(["chicken", "pub"]));
+    expect(storedRun).toMatchObject({ promptVersion: "place-category-v3", categorySlug: "chicken", status: "SUCCESS" });
+  });
+
   it("stores validated output and reuses the 30-day input cache", async () => {
     const db = createDb(env.DB); const id = `ai-candidate-${crypto.randomUUID()}`; const now = "2026-08-06T10:00:00.000Z";
     await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: "테스트 라멘", businessSubtype: "일식", normalizedStatus: "OPEN", roadAddress: "광주광역시 동구 동명동", latitude: 35.1, longitude: 126.9, regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });

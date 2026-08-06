@@ -66,6 +66,25 @@ describe("classifyCandidate", () => {
     expect(result.reasons.join(" ")).toContain("육계장");
   });
 
+  it.each(["전주해장국", "서울설렁탕", "장터순대국", "나주곰탕", "원조돼지국밥"])(
+    "classifies the soup-family business %s as gukbap",
+    (businessName) => {
+      expect(classifyCandidate({
+        sourceType: "GENERAL_RESTAURANT",
+        businessSubtype: "한식",
+        businessName,
+      })).toMatchObject({ categorySlug: "gukbap-detail", confidence: "HIGH" });
+    },
+  );
+
+  it("prioritizes chicken food context over a pub venue signal", () => {
+    expect(classifyCandidate({
+      sourceType: "ENTERTAINMENT_BAR",
+      businessSubtype: "호프/통닭",
+      businessName: "왕가네 치킨호프",
+    })).toMatchObject({ categorySlug: "chicken", confidence: "HIGH" });
+  });
+
   it("keeps mixed takoyaki and burger signals in manual conflict", () => {
     const result = classifyCandidate({
       sourceType: "GENERAL_RESTAURANT",
