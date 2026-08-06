@@ -42,6 +42,20 @@ npm run db:migrate:local
 
 - 공개 점수는 활성 8표부터 표시하고 일반 회원·리뷰어 집단도 각각 8표 전에는 표본 수만 표시한다.
 - 투표는 원본 이벤트를 보존하고 재계산 작업을 만든다. 예약 작업은 리뷰어 신뢰도·유사도, 최대 25개 점수 작업, Golden Pick 만료, 조작 신호를 순서대로 처리한다.
+
+## 발견 피드 평가 QA 데이터
+
+장소 목록의 평가 공개 경계와 추천 레일을 검증할 때만 다음 시드를 사용한다. 이 파일은 `qa-discovery-*` 사용자·투표·Golden Pick만 교체하며 실제 회원 데이터는 수정하지 않는다.
+
+```bash
+# 로컬 D1
+./node_modules/.bin/wrangler d1 execute DB --local --file scripts/seed-discovery-ratings.sql
+
+# 운영 D1 — 기능 PR 병합과 배포 후 실행
+./node_modules/.bin/wrangler d1 execute DB --remote --file scripts/seed-discovery-ratings.sql
+```
+
+장소 ID 정렬 기준 앞의 일곱 곳에는 각각 0, 3, 7, 8, 12, 25, 50표가 배정된다. 출력 결과에서 `sample_count`를 확인하고 `/places`에서 8표 미만은 `평가 n/8`, 8표 이상은 추천률과 평가 인원이 함께 표시되는지 확인한다.
 - 리뷰어 신뢰도는 일반 회원 합의와 비교 가능한 평가 5개부터 보정하며, 공통 10곳·80% 이상 일치하는 리뷰어 군집은 `1/sqrt(k)`로 감쇠한다.
 - `/admin/ratings`에서 stale 스냅샷, 실패 작업, 열린 조작 사건을 확인하고 수동 재계산 또는 사건 상태 변경을 수행한다.
 - 무효화는 `vote_events`를 삭제하지 않고 `invalidated_vote_events`와 관리자 감사 로그를 남긴 뒤 해당 장소만 다시 계산한다.
