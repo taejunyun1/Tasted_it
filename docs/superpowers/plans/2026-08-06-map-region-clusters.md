@@ -43,7 +43,7 @@ expect(extractDistrict("전라남도 담양군 담양읍 중앙로 1")).toBe("�
 
 - [ ] **Step 2: Run the focused unit test and confirm missing-module failure**
 
-Run: `corepack pnpm exec vitest run tests/unit/region-cluster-policy.test.ts`  
+Run: `corepack pnpm exec vitest run tests/unit/region-cluster-policy.test.ts`
 Expected: FAIL because `region-cluster-policy.ts` does not exist.
 
 - [ ] **Step 3: Implement level selection and administrative extraction**
@@ -60,7 +60,7 @@ Coordinate fallback cells use approximately 8km at district level and 1.5km at n
 
 - [ ] **Step 6: Run unit tests and commit**
 
-Run: `corepack pnpm exec vitest run tests/unit/region-cluster-policy.test.ts`  
+Run: `corepack pnpm exec vitest run tests/unit/region-cluster-policy.test.ts`
 Expected: PASS.
 
 Commit: `2026-08-06 행정구역 지도 클러스터 계산 추가`.
@@ -85,7 +85,7 @@ At the initial QA zoom, assert a district heading such as `남구 1곳` is visib
 
 - [ ] **Step 2: Run the focused browser test and confirm failure**
 
-Run: `corepack pnpm exec playwright test tests/e2e/map-explorer-panel.spec.ts --project=chromium --grep="region"`  
+Run: `corepack pnpm exec playwright test tests/e2e/map-explorer-panel.spec.ts --project=chromium --grep="region"`
 Expected: FAIL because the list has no region headings.
 
 - [ ] **Step 3: Lift transient map state into `home.tsx`**
@@ -139,7 +139,7 @@ Use white capsules, dark green borders, subtle background hover/focus, `500` lab
 
 - [ ] **Step 6: Run desktop and mobile map E2E and commit**
 
-Run: `corepack pnpm exec playwright test tests/e2e/map-explorer-panel.spec.ts tests/e2e/map-zoom.spec.ts --project=chromium --project=mobile-chromium`  
+Run: `corepack pnpm exec playwright test tests/e2e/map-explorer-panel.spec.ts tests/e2e/map-zoom.spec.ts --project=chromium --project=mobile-chromium`
 Expected: all applicable tests pass; platform-gated tests are skipped only on their non-target project.
 
 Commit: `2026-08-06 구동별 지도 마커 전환`.
@@ -167,7 +167,7 @@ Expected: TypeScript 7 has zero diagnostics; all unit and integration tests pass
 
 - [ ] **Step 2: Run complete browser QA**
 
-Run: `corepack pnpm run test:e2e`  
+Run: `corepack pnpm run test:e2e`
 Expected: zero failed tests, including desktop and mobile region transitions, search, category filters, login, and quick sheet.
 
 - [ ] **Step 3: Verify production build and Worker package**
