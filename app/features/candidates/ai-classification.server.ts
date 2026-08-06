@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, notExists, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { aiClassificationRuns, businessLicenses, categories } from "../../db/schema";
 import { recordOperationalAlert } from "../operations/alerts.server";
@@ -7,7 +7,7 @@ import { AI_DAILY_BLOCK_NEURONS, estimateNeurons, getAiQuotaState, type AiTokenU
 import { classifyCandidate } from "./category-suggestion";
 
 export const AI_CLASSIFICATION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast" as const;
-export const AI_CLASSIFICATION_PROMPT = "place-category-v2";
+export const AI_CLASSIFICATION_PROMPT = "place-category-v3";
 export const AI_CLASSIFICATION_BATCH_SIZE = 10;
 const responseSchema = { type: "object", properties: { categorySlug: { type: "string" }, confidence: { type: "number", minimum: 0, maximum: 1 }, evidence: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 3 }, reasons: { type: "array", items: { type: "string" }, maxItems: 3 } }, required: ["categorySlug", "confidence", "evidence", "reasons"], additionalProperties: false } as const;
 
@@ -51,7 +51,7 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
   ))));
   const [candidateRows, categoryRows] = await Promise.all([
     db.select().from(businessLicenses).where(and(...conditions)).orderBy(asc(businessLicenses.updatedAt)).limit(limit),
-    db.select({ slug: categories.slug, name: categories.name }).from(categories).where(and(eq(categories.isActive, true), isNotNull(categories.parentId))).orderBy(asc(categories.sortOrder)),
+    db.select({ slug: categories.slug, name: categories.name }).from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
   ]);
   const allowed = new Set(categoryRows.map((category) => category.slug));
   let processed = 0; let succeeded = 0; let failed = 0; let cached = 0;
@@ -62,7 +62,16 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
     const candidateSlugSet = new Set(rule.candidateSlugs);
     const candidateCategories = categoryRows.filter((category) => candidateSlugSet.has(category.slug));
     const evidenceText = `${candidate.businessName} ${candidate.businessSubtype ?? ""}`;
-    const payload = { promptVersion: AI_CLASSIFICATION_PROMPT, businessName: candidate.businessName, businessSubtype: candidate.businessSubtype, regionCode: candidate.regionCode, ruleReasons: rule.reasons, categories: candidateCategories };
+    const payload = {
+      promptVersion: AI_CLASSIFICATION_PROMPT,
+      businessName: candidate.businessName,
+      businessSubtype: candidate.businessSubtype,
+      regionCode: candidate.regionCode,
+      ruleCategorySlug: rule.categorySlug,
+      ruleConfidence: rule.confidence,
+      ruleReasons: rule.reasons,
+      categories: candidateCategories,
+    };
     const inputHash = await sha256(JSON.stringify(payload));
     const cutoff = new Date(new Date(input.now).getTime() - 30 * 86_400_000).toISOString();
     const cachedRun = await db.query.aiClassificationRuns.findFirst({ where: and(eq(aiClassificationRuns.inputHash, inputHash), eq(aiClassificationRuns.status, "SUCCESS"), gte(aiClassificationRuns.createdAt, cutoff)), orderBy: desc(aiClassificationRuns.createdAt) });
@@ -77,7 +86,7 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
       } else {
         let validationError: unknown;
         for (let attempt = 0; attempt < 2; attempt += 1) {
-          const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: "한국 음식점의 대표 카테고리를 제공된 후보에서만 선택하세요. evidence에는 반드시 입력 상호명 또는 원천 업태에 실제로 있는 한국어 문자열을 그대로 복사하세요. 근거가 없거나 후보가 맞지 않으면 낮은 confidence를 사용하세요. 개인정보를 추론하지 마세요." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 260, temperature: 0 }) as AiRunResponse;
+          const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: "한국 음식점의 대표 카테고리를 제공된 후보에서만 선택하세요. 사용자가 실제로 찾는 구체 음식이 영업 형태와 넓은 행정 업태보다 우선합니다. 예: 호프/통닭·치킨호프는 치킨, 해장국·순대국·돼지국밥·설렁탕·곰탕은 국밥입니다. evidence에는 반드시 입력 상호명 또는 원천 업태에 실제로 있는 한국어 문자열을 그대로 복사하세요. 근거가 없거나 후보가 맞지 않으면 낮은 confidence를 사용하세요. 개인정보를 추론하지 마세요." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 260, temperature: 0 }) as AiRunResponse;
           addUsage(usage, result.usage);
           quota = getAiQuotaState(quota.used + estimateNeurons(result.usage));
           try {
