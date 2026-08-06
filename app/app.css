@@ -51,3 +51,20 @@
 @media(max-width:760px){.site-head{height:64px;min-height:64px;align-items:center;flex-direction:row;gap:10px;padding-block:0}.site-head__nav{width:auto;overflow:visible;white-space:normal;padding-bottom:0;margin-left:auto;gap:10px}.site-head__primary{gap:12px}.site-head__primary a{font-size:12px}.site-menu__panel{position:fixed;top:64px;right:10px;width:min(250px,calc(100vw - 20px))}.brand{font-size:22px}.map-explorer{height:calc(100dvh - 64px)}}
 .map-canvas--qa{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:50px;background:linear-gradient(135deg,#edf2e7,#faf7e8)}.map-canvas--qa>a{position:absolute;right:14px;top:14px;width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--text);background:#fff;font-size:24px}.map-canvas--qa .map-pin{position:relative;box-shadow:none}
 @media(max-width:760px){.map-place-sheet{bottom:69px}}
+
+/* Administrative map clusters: flat wayfinding labels shared by map and list. */
+.map-region-marker{min-width:78px;height:36px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #2f634d;border-radius:999px;background:rgba(255,255,255,.96);color:#173c2c;padding:0 11px;box-shadow:0 3px 10px rgba(23,60,44,.14);font-size:11px;font-weight:500;white-space:nowrap;cursor:pointer;transition:background .16s ease,border-color .16s ease}
+.map-region-marker strong{min-width:20px;height:20px;display:grid;place-items:center;border-radius:999px;background:#e2efe5;color:#174d35;font:600 10px/1 "IBM Plex Mono"}
+.map-region-marker:hover,.map-region-marker:focus-visible{border-color:#173c2c;background:#edf6ee}
+.map-region-groups{border-top:1px solid var(--border)}
+.map-region-group{border-bottom:1px solid var(--text)}
+.map-region-group__heading{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;border:0;background:#f1f5ee;padding:10px 16px;text-align:left;color:var(--text);cursor:pointer}
+.map-region-group__heading strong{font-size:13px;font-weight:600}
+.map-region-group__heading span{color:var(--accent);font:600 10px "IBM Plex Mono"}
+.map-region-group__heading small{color:#617068;font-size:9px;font-weight:500}
+.map-region-group__heading:hover,.map-region-group__heading:focus-visible{background:#e5efe2}
+.map-region-group .map-place-list{border-top:1px solid var(--border)}
+.map-region-group .map-place-list button{padding-block:11px}
+.map-canvas--qa .map-region-marker{position:relative}
+@media(max-width:760px){.map-region-group__heading{padding-inline:10px}.map-region-group__heading small{display:none}}
+@media(prefers-reduced-motion:reduce){.map-region-marker{transition:none}}

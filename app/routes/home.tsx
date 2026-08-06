@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import type { Route } from "./+types/home";
 import { MapExplorerPanel } from "../components/map/MapExplorerPanel";
@@ -8,6 +8,12 @@ import { PlaceMap } from "../components/map/PlaceMap";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
 import { findSelectedPlace, updateMapSearch } from "../features/maps/map-selection";
+import {
+  buildRegionClusters,
+  buildRegionGroups,
+  getRegionClusterLevel,
+  type RegionCluster,
+} from "../features/maps/region-cluster-policy";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
 
 export function meta() {
@@ -28,7 +34,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
+  const [mapZoom, setMapZoom] = useState(12);
+  const [focusCluster, setFocusCluster] = useState<RegionCluster | null>(null);
   const selectedPlace = findSelectedPlace(loaderData.places, loaderData.state.selected);
+  const clusterLevel = getRegionClusterLevel(mapZoom);
+  const clusters = useMemo(() => buildRegionClusters(loaderData.places, mapZoom), [loaderData.places, mapZoom]);
+  const regionGroups = useMemo(() => buildRegionGroups(loaderData.places, mapZoom), [loaderData.places, mapZoom]);
   const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => setParams((current) => updateMapSearch(current, change), { replace: true });
   const setBounds = (bbox: [number, number, number, number]) => setSearch({ bbox: bbox.map((value) => value.toFixed(5)).join(",") });
   const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
@@ -46,10 +57,18 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     if (loaderData.state.selected && !selectedPlace) setSearch({ selected: null });
   }, [loaderData.state.selected, selectedPlace]);
 
+  const focusRegion = (cluster: RegionCluster) => {
+    setSearch({ selected: null });
+    setFocusCluster(cluster);
+    setMapZoom(cluster.level === "DISTRICT" ? 13 : 15);
+  };
+
   return <main id="main" className="map-explorer">
     <MapExplorerPanel
       places={loaderData.places}
       groups={loaderData.groups}
+      regionGroups={regionGroups}
+      clusterLevel={clusterLevel}
       query={loaderData.state.query}
       category={loaderData.category}
       hasSelectedPlace={Boolean(selectedPlace)}
@@ -57,6 +76,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       onSearch={(q) => setSearch({ q, selected: null })}
       onCategory={(category) => setSearch({ category, selected: null })}
       onLocate={locate}
+      onGroupSelect={focusRegion}
     />
     <section className="map-explorer-map" aria-label="지도 영역">
       <PlaceMap
@@ -64,10 +84,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         selected={selectedPlace?.id ?? null}
         clientId={loaderData.clientId}
         qaMode={loaderData.qaMode}
+        zoom={mapZoom}
+        clusters={clusters}
+        focusCluster={focusCluster}
         initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined}
         locateOnLoad={!params.has("bbox")}
         onSelect={(id) => setSearch({ selected: id })}
         onBounds={setBounds}
+        onZoom={setMapZoom}
+        onClusterSelect={focusRegion}
       />
       {selectedPlace && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} />}
     </section>
