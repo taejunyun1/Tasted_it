@@ -23,7 +23,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
     listPublicCategoryGroups(db),
   ]);
-  return { places, groups, state, category: category ?? null, clientId: env.NAVER_MAPS_CLIENT_ID ?? "" };
+  return { places, groups, state, category: category ?? null, clientId: env.NAVER_MAPS_CLIENT_ID ?? "", qaMode: url.searchParams.has("qa") };
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
@@ -63,6 +63,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         places={loaderData.places}
         selected={selectedPlace?.id ?? null}
         clientId={loaderData.clientId}
+        qaMode={loaderData.qaMode}
         initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined}
         locateOnLoad={!params.has("bbox")}
         onSelect={(id) => setSearch({ selected: id })}

@@ -3,10 +3,11 @@ import { loadNaverMaps, toBoundsTuple } from "../../features/maps/naver-map-sdk"
 import { getMarkerFocusZoom, getMarkerInfluence } from "../../features/maps/place-marker-policy";
 import type { PlaceSummary } from "../../features/places/place.types";
 
-export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initialBounds, locateOnLoad = false }: {
+export function PlaceMap({ places, selected, clientId, qaMode = false, onSelect, onBounds, initialBounds, locateOnLoad = false }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
+  qaMode?: boolean;
   onSelect: (id: string) => void;
   onBounds: (bbox: [number, number, number, number]) => void;
   initialBounds?: [number, number, number, number];
@@ -15,6 +16,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [map, setMap] = useState<naver.maps.Map | null>(null);
+  const [qaZoom, setQaZoom] = useState(0);
   const initialClientId = useRef(clientId);
   const initialLocateOnLoad = useRef(locateOnLoad);
   const initialBoundsRef = useRef(initialBounds);
@@ -136,6 +138,21 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
       map.morph(position, focusZoom, { duration: 520, easing: "easeOutCubic" });
     }
   }, [map, places, selected]);
+
+  const qaFallback = !clientId && qaMode;
+  if (qaFallback) return <div className="map-canvas map-canvas--qa" aria-label="장소 지도" data-focused-place={selected || undefined}>
+    <a href="#" aria-label="지도 확대" onClick={(event) => {
+      event.preventDefault();
+      const nextZoom = qaZoom + 1;
+      setQaZoom(nextZoom);
+      const delta = Math.max(0.004, 0.02 / (nextZoom + 1));
+      onBounds([126.8526 - delta, 35.1595 - delta, 126.8526 + delta, 35.1595 + delta]);
+    }}>+</a>
+    {places.map((place) => {
+      const influence = getMarkerInfluence(place.positive, place.negative);
+      return <button key={place.id} type="button" className={`map-pin influence-${influence}${selected === place.id ? " is-selected" : ""}`} aria-label={`${place.name} 지도 핀`} data-influence={influence} onClick={() => onSelect(place.id)}>{place.primaryCategory.emoji}</button>;
+    })}
+  </div>;
 
   return <div className="map-canvas" ref={host} aria-label="장소 지도" data-focused-place={selected || undefined}>
     {error && <p className="map-error" role="status">{error}</p>}

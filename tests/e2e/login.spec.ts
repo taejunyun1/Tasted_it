@@ -15,6 +15,7 @@ test("an authenticated member skips login and logout returns to the map", async 
 
   await page.goto("/login?returnTo=/admin/candidates");
   await expect(page).toHaveURL(/\/$/);
+  await page.getByRole("button", { name: "메뉴" }).click();
   await expect(page.getByLabel("로그인됨 · QA 관리자")).toBeVisible();
 
   await page.getByRole("button", { name: "로그아웃" }).click();

@@ -38,7 +38,7 @@
 		"@types/react-dom": "^19.2.3",
 		"drizzle-kit": "^0.31.10",
 		"tailwindcss": "^4.2.2",
-		"typescript": "^5.9.3",
+		"typescript": "7.0.2",
 		"vite": "^8.0.3",
 		"vitest": "^4.1.10",
 		"wrangler": "^4.118.0"
