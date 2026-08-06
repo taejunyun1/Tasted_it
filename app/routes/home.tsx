@@ -52,6 +52,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       groups={loaderData.groups}
       query={loaderData.state.query}
       category={loaderData.category}
+      hasSelectedPlace={Boolean(selectedPlace)}
       onSelect={(id) => setSearch({ selected: id })}
       onSearch={(q) => setSearch({ q, selected: null })}
       onCategory={(category) => setSearch({ category, selected: null })}
