@@ -34,7 +34,7 @@
 
 ```ts
 expect(formatRatingSummary(placeWith7Votes)).toBe("평가 7/8");
-expect(formatRatingSummary(placeWith8Votes)).toBe("추천 75% · 8명 평가");
+expect(formatRatingSummary(placeWith8Votes)).toBe("추천 67% · 8명 평가");
 expect(result.nearby.map((item) => item.id)).toEqual(["near", "far"]);
 expect(new Set([...result.nearby, ...result.service, ...result.golden].map((item) => item.id)).size).toBe(totalRailItems);
 ```
@@ -168,4 +168,3 @@ Expected: Worker deployment succeeds and the D1 verification query shows distrib
 
 Run the discovery feed Playwright spec with `BASE_URL=https://retaste-beta.retaste-beta.workers.dev`.
 Expected: section order, rating boundary copy, search position, card links, and responsive rail behavior pass.
-

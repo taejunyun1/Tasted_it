@@ -1,9 +1,8 @@
 import { Link } from "react-router";
 import type { PlaceSummary } from "../../features/places/place.types";
-import { calculateRating } from "../../features/ratings/rating-v1";
+import { formatDistance, formatRatingSummary } from "../../features/places/place-discovery";
 
-export function PlaceCard({ place, selected = false }: { place: PlaceSummary; selected?: boolean }) {
-  const rating = calculateRating(place);
+export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel }: { place: PlaceSummary; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string }) {
   return (
     <article className="place-card" data-selected={selected || undefined} id={`place-${place.id}`}>
       <Link to={`/places/${place.slug}`} aria-label={`${place.name} 상세 보기`}>
@@ -13,7 +12,10 @@ export function PlaceCard({ place, selected = false }: { place: PlaceSummary; se
         </div>
         <div className="place-copy">
           <p>{place.neighborhood}</p><h3>{place.name}</h3>
-          <span>{rating.sampleStatus === "VISIBLE" ? `추천 ${rating.displayScore}%` : "평가 수 부족"}</span>
+          {recommendationLabel && <small className="place-reason">{recommendationLabel}</small>}
+          <span>{formatRatingSummary(place)}</span>
+          {distanceMeters !== undefined && <small>{formatDistance(distanceMeters)}</small>}
+          {goldenPickAt && <small>Golden Pick · {new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(goldenPickAt))}</small>}
         </div>
       </Link>
     </article>
