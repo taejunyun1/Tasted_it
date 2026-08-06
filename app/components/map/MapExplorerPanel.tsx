@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { PlaceSummary } from "../../features/places/place.types";
+import type { RegionCluster, RegionClusterLevel, RegionGroup } from "../../features/maps/region-cluster-policy";
 import { MapPlaceList } from "./MapPlaceList";
 
 export interface PublicCategoryGroup {
@@ -10,9 +11,11 @@ export interface PublicCategoryGroup {
   children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }>;
 }
 
-export function MapExplorerPanel({ places, groups, query, category, hasSelectedPlace, onSelect, onSearch, onCategory, onLocate }: {
+export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, hasSelectedPlace, onSelect, onSearch, onCategory, onLocate, onGroupSelect }: {
   places: PlaceSummary[];
   groups: PublicCategoryGroup[];
+  regionGroups: RegionGroup[];
+  clusterLevel: RegionClusterLevel;
   query: string;
   category: string | null;
   hasSelectedPlace: boolean;
@@ -20,6 +23,7 @@ export function MapExplorerPanel({ places, groups, query, category, hasSelectedP
   onSearch: (query: string) => void;
   onCategory: (slug: string | null) => void;
   onLocate: () => void;
+  onGroupSelect: (cluster: RegionCluster) => void;
 }) {
   const selectedGroup = groups.find((group) => group.children.some((child) => child.slug === category))?.id ?? null;
   const [groupId, setGroupId] = useState<string | null>(selectedGroup);
@@ -67,7 +71,7 @@ export function MapExplorerPanel({ places, groups, query, category, hasSelectedP
         {children.map((child) => <button type="button" key={child.id} aria-pressed={child.slug === category} data-active={child.slug === category || undefined} onClick={() => onCategory(child.slug)}>{child.emoji} {child.name} <small>{child.count}</small></button>)}
       </div>}
       <div className="map-result-head"><strong>{places.length}</strong><span>현재 지도 안의 장소</span></div>
-      <MapPlaceList places={places} onSelect={onSelect} />
+      <MapPlaceList places={places} groups={regionGroups} level={clusterLevel} onSelect={onSelect} onGroupSelect={onGroupSelect} />
     </div>
   </aside>;
 }

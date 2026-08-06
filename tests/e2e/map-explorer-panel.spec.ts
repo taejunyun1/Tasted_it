@@ -8,6 +8,11 @@ function qaPath(search = "") {
 
 test("a map pin opens a quick bottom sheet while preserving the explorer list", async ({ page }) => {
   await page.goto(qaPath());
+  const map = page.getByLabel("장소 지도");
+  await map.getByRole("button", { name: /음식점 \d+곳, 확대해서 보기$/ }).first().click();
+  await expect(map).toHaveAttribute("data-map-zoom", "13");
+  await map.getByRole("button", { name: /음식점 \d+곳, 확대해서 보기$/ }).first().click();
+  await expect(map).toHaveAttribute("data-map-zoom", "15");
   const pin = page.getByRole("button", { name: /지도 핀$/ }).first();
   await expect(pin).toBeVisible();
   await expect(pin).toHaveAttribute("data-influence", /^(base|medium|high)$/);
@@ -65,6 +70,20 @@ test("search input follows URL history", async ({ page }) => {
   await page.goBack();
 
   await expect(search).toHaveValue("국밥");
+});
+
+test("region groups keep the explorer list and map focus in sync", async ({ page }) => {
+  await page.goto(qaPath());
+
+  const districtGroup = page.getByRole("button", { name: /.+(?:구|시|군) \d+곳, 지도에서 보기$/ }).first();
+  await expect(districtGroup).toBeVisible();
+  const districtLabel = await districtGroup.getAttribute("data-region-label");
+  expect(districtLabel).toBeTruthy();
+
+  await districtGroup.click();
+
+  await expect(page.getByLabel("장소 지도")).toHaveAttribute("data-focused-region", districtLabel!);
+  await expect(page.getByRole("button", { name: /.+(?:동|읍|면|리|지구) \d+곳, 지도에서 보기$/ }).first()).toBeVisible();
 });
 
 test("mobile starts with the map panel collapsed", async ({ page }, testInfo) => {
