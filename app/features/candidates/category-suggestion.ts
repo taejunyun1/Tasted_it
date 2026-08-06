@@ -50,7 +50,7 @@ const nameRules: Rule[] = [
   { pattern: /치킨|통닭|닭강정/, slug: "chicken", group: "chicken", label: "상호의 치킨·통닭 표현", kind: "FOOD" },
   { pattern: /쌀국수|베트남/, slug: "vietnamese", group: "world", label: "상호의 베트남 음식 표현", kind: "FOOD" },
   { pattern: /태국|타이/, slug: "thai", group: "world", label: "상호의 태국 음식 표현", kind: "FOOD" },
-  { pattern: /인도|인디아|커리/, slug: "indian", group: "world", label: "상호의 인도 음식 표현", kind: "FOOD" },
+  { pattern: /인도|인디아|(?<!베이)커리/, slug: "indian", group: "world", label: "상호의 인도 음식 표현", kind: "FOOD" },
   { pattern: /멕시칸|타코(?!야끼|야키)/, slug: "mexican", group: "world", label: "상호의 멕시칸 표현", kind: "FOOD" },
   { pattern: /제과|제빵|베이커리|빵집|식빵|케이크|도넛|도너츠|크루아상|쿠키|과자점/, slug: "bakery-detail", group: "cafe", label: "상호의 제과·제빵·베이커리 표현", kind: "FOOD" },
   { pattern: /아이스크림|빙수/, slug: "ice-dessert", group: "cafe", label: "상호의 아이스크림·빙수 표현", kind: "FOOD" },

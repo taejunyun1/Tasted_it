@@ -26,4 +26,24 @@ describe("public-data category suggestions", () => {
     expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName }).categorySlug)
       .toBe("bakery-detail");
   });
+
+  it.each(["행복한빵", "추억의과자"])("does not force broad term %s into bakery", (businessName) => {
+    expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName }).categorySlug)
+      .not.toBe("bakery-detail");
+  });
+
+  it("prioritizes explicit bakery products over cafe and dessert wording", () => {
+    expect(classifyCandidate({ sourceType: "REST_CAFE", businessName: "오월베이커리카페" }).categorySlug)
+      .toBe("bakery-detail");
+    expect(classifyCandidate({ sourceType: "REST_CAFE", businessName: "달빛케이크디저트" }).categorySlug)
+      .toBe("bakery-detail");
+  });
+
+  it("raises confidence when a bakery name and subtype support each other", () => {
+    expect(classifyCandidate({
+      sourceType: "BAKERY",
+      businessSubtype: "제과점영업",
+      businessName: "우리동네제빵소",
+    })).toMatchObject({ categorySlug: "bakery-detail", confidence: "HIGH" });
+  });
 });
