@@ -14,6 +14,7 @@ import type { PublicDataSource, RegionCode } from "../features/candidates/public
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
 import { getAiClassificationBadge, removeAutoClassificationParam, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
+import { buildCandidatePageHref } from "../features/candidates/pagination";
 
 const sources: Array<[PublicDataSource, string]> = [
   ["GENERAL_RESTAURANT", "일반음식점"], ["REST_CAFE", "휴게음식점"],
@@ -201,6 +202,8 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           return feedback && <div className={`mb-5 border px-4 py-3 text-sm ${feedback.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{feedback.error ?? (feedback.ai ? `AI ${feedback.ai.processed}곳 처리 · 성공 ${feedback.ai.succeeded}곳은 분류 완료로 이동 · 실패 ${feedback.ai.failed}` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</div>;
         })()}
 
+        <Pagination pagination={loaderData.pagination} params={params} position="top" />
+
         <Form method="post">
           {[...selected].map((id) => <input key={id} type="hidden" name="candidateIds" value={id} />)}
           {selectedRows.map((row) => <input key={`category-${row.id}`} type="hidden" name={`category:${row.id}`} value={chosenCategories[row.id] ?? ""} />)}
@@ -231,7 +234,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           </section>
         </Form>
 
-        <Pagination pagination={loaderData.pagination} params={params} />
+        <Pagination pagination={loaderData.pagination} params={params} position="bottom" />
       </div>
     </main>
   );
@@ -249,7 +252,6 @@ function Filter({ label, children }: { label: string; children: React.ReactEleme
   return <label className="grid gap-1 text-[11px] font-medium text-neutral-600"><span>{label}</span><span className="[&>*]:h-10 [&>*]:w-full [&>*]:border [&>*]:border-neutral-300 [&>*]:bg-white [&>*]:px-3 [&>*]:text-sm [&>*]:text-neutral-950">{children}</span></label>;
 }
 
-function Pagination({ pagination, params }: { pagination: { page: number; pageSize: number; total: number; totalPages: number }; params: URLSearchParams }) {
-  const href = (page: number) => { const next = new URLSearchParams(params); next.set("page", String(page)); return `?${next}`; };
-  return <div className="mt-5 flex items-center justify-between text-sm"><p className="text-neutral-600">총 {pagination.total}곳 · {pagination.page}/{pagination.totalPages} 페이지</p><div className="flex gap-2"><Link aria-disabled={pagination.page === 1} className={`border border-neutral-300 bg-white px-4 py-2 ${pagination.page === 1 ? "pointer-events-none opacity-40" : ""}`} to={href(Math.max(1, pagination.page - 1))}>이전</Link><Link aria-disabled={pagination.page === pagination.totalPages} className={`border border-neutral-300 bg-white px-4 py-2 ${pagination.page === pagination.totalPages ? "pointer-events-none opacity-40" : ""}`} to={href(Math.min(pagination.totalPages, pagination.page + 1))}>다음</Link></div></div>;
+function Pagination({ pagination, params, position }: { pagination: { page: number; pageSize: number; total: number; totalPages: number }; params: URLSearchParams; position: "top" | "bottom" }) {
+  return <nav aria-label={`${position === "top" ? "상단" : "하단"} 페이지 이동`} className={`${position === "top" ? "mb-3" : "mt-5"} flex items-center justify-between border border-neutral-300 bg-white px-4 py-3 text-sm`}><p className="text-neutral-600">총 {pagination.total}곳 · <strong className="font-medium text-neutral-950">{pagination.page}/{pagination.totalPages} 페이지</strong></p><div className="flex gap-2"><Link aria-disabled={pagination.page === 1} className={`border border-neutral-300 bg-white px-4 py-2 ${pagination.page === 1 ? "pointer-events-none opacity-40" : ""}`} to={buildCandidatePageHref(params, Math.max(1, pagination.page - 1))}>이전</Link><Link aria-disabled={pagination.page === pagination.totalPages} className={`border border-neutral-900 bg-neutral-950 px-4 py-2 text-white ${pagination.page === pagination.totalPages ? "pointer-events-none opacity-40" : ""}`} to={buildCandidatePageHref(params, Math.min(pagination.totalPages, pagination.page + 1))}>다음</Link></div></nav>;
 }
