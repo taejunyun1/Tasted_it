@@ -2,6 +2,9 @@ INSERT OR IGNORE INTO users (id,email,display_name,role,email_verified_at,create
 VALUES ('qa-admin','qa-admin@retaste.local','QA 관리자','ADMIN','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z');
 INSERT OR REPLACE INTO sessions (id,user_id,expires_at,created_at)
 VALUES ('qa-admin-session','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z');
+INSERT OR REPLACE INTO sessions (id,user_id,expires_at,created_at) VALUES
+('qa-login-flow-desktop','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
+('qa-login-flow-mobile','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z');
 
 DELETE FROM reviewer_profiles WHERE user_id = 'qa-reviewer-member';
 DELETE FROM reviewer_applications WHERE user_id = 'qa-reviewer-member';

@@ -29,6 +29,7 @@ test("a list item opens the same detail and returning preserves filters", async 
 
   await result.click();
   await expect(page).toHaveURL(/selected=/);
+  await expect(page.getByLabel("장소 지도")).toHaveAttribute("data-focused-place", /.+/);
   await page.getByRole("button", { name: "목록으로" }).click();
 
   await expect(page).toHaveURL(/qa=/);

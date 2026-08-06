@@ -1,14 +1,18 @@
 import { env } from "cloudflare:workers";
-import { data, Form, Link, redirect, useSearchParams } from "react-router";
+import { data, Form, Link, redirect } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/login";
 import { createDb } from "../db/client.server";
 import { authenticateAccount } from "../features/auth/account.server";
 import { safeReturnTo } from "../features/auth/login";
-import { createUserSession } from "../features/auth/session.server";
+import { createUserSession, getOptionalUser } from "../features/auth/session.server";
 
 const schema = z.object({ email: z.email(), password: z.string().min(1), returnTo: z.string().optional() });
 export function meta() { return [{ title: "로그인 — Re:Taste" }]; }
+export async function loader({ request }: Route.LoaderArgs) {
+  if (await getOptionalUser(request)) return redirect("/");
+  return null;
+}
 export async function action({ request }: Route.ActionArgs) {
   const parsed = schema.safeParse(Object.fromEntries(await request.formData()));
   if (!parsed.success) return data({ error: "이메일과 비밀번호를 확인해 주세요." }, { status: 400 });
@@ -22,9 +26,8 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 export default function Login({ actionData }: Route.ComponentProps) {
-  const [params] = useSearchParams();
   return <AuthPage eyebrow="WELCOME BACK" title="다시 취향을 이어가세요." description="가입한 이메일과 비밀번호로 로그인합니다.">
-    <Form method="post" className="mt-10 grid gap-5"><input type="hidden" name="returnTo" value={safeReturnTo(params.get("returnTo"))} />
+    <Form method="post" action="/login" className="mt-10 grid gap-5">
       <AuthInput label="이메일" name="email" type="email" autoComplete="email" />
       <AuthInput label="비밀번호" name="password" type="password" autoComplete="current-password" />
       {actionData?.error && <p className="text-sm font-normal text-red-700">{actionData.error}</p>}

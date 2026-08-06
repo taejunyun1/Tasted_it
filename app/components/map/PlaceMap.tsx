@@ -110,12 +110,7 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
       button.dataset.influence = influence;
       button.textContent = place.primaryCategory.emoji;
       button.onclick = () => {
-        // Commit the detail selection before map idle events update the bbox URL.
         selectRef.current(place.id);
-        suppressBoundsUntilRef.current = Date.now() + 1_500;
-        map.panTo(position);
-        const focusZoom = getMarkerFocusZoom(map.getZoom());
-        if (focusZoom !== null) map.setZoom(focusZoom);
       };
       return new maps.Marker({
         map,
@@ -126,7 +121,23 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
     return () => markers.forEach((marker) => marker.setMap(null));
   }, [map, places, selected]);
 
-  return <div className="map-canvas" ref={host} aria-label="장소 지도">
+  useEffect(() => {
+    if (!map || !window.naver?.maps || !selected) return;
+    const place = places.find((candidate) => candidate.id === selected);
+    if (!place) return;
+    const position = new window.naver.maps.LatLng(place.latitude, place.longitude);
+    const focusZoom = getMarkerFocusZoom(map.getZoom()) ?? map.getZoom();
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    suppressBoundsUntilRef.current = Date.now() + 1_500;
+    if (reduceMotion) {
+      map.setCenter(position);
+      map.setZoom(focusZoom);
+    } else {
+      map.morph(position, focusZoom, { duration: 520, easing: "easeOutCubic" });
+    }
+  }, [map, places, selected]);
+
+  return <div className="map-canvas" ref={host} aria-label="장소 지도" data-focused-place={selected || undefined}>
     {error && <p className="map-error" role="status">{error}</p>}
   </div>;
 }
