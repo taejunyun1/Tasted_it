@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAutoClassificationReviewUrl } from "../../app/features/candidates/auto-classification-navigation";
+import { buildAutoClassificationReviewUrl, buildSourceAutoClassificationReviewUrl } from "../../app/features/candidates/auto-classification-navigation";
 
 describe("buildAutoClassificationReviewUrl", () => {
   it("검수 화면의 자동 분류 플래그를 만든다", () => {
@@ -10,5 +10,10 @@ describe("buildAutoClassificationReviewUrl", () => {
   it("기존 필터를 보존하면서 자동 분류 플래그를 추가한다", () => {
     expect(buildAutoClassificationReviewUrl(new URLSearchParams("region=GWANGJU&state=MANUAL")))
       .toBe("/admin/candidates?region=GWANGJU&state=MANUAL&autoClassify=1");
+  });
+
+  it("동기화한 업종의 최신 후보 화면으로 이동한다", () => {
+    expect(buildSourceAutoClassificationReviewUrl("BAKERY"))
+      .toBe("/admin/candidates?source=BAKERY&sort=updated&autoClassify=1");
   });
 });

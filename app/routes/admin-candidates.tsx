@@ -13,7 +13,7 @@ import { listCandidateSubtypes } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
-import { getAiClassificationBadge, removeAutoClassificationParam, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
+import { getAiClassificationBadge, removeAutoClassificationParam, selectAutomaticClassificationCandidateIds, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
 import { buildCandidatePageHref } from "../features/candidates/pagination";
 
 const sources: Array<[PublicDataSource, string]> = [
@@ -130,8 +130,16 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   useEffect(() => {
     if (!shouldAutoClassify(params, autoClassification.state, autoClassificationStarted.current)) return;
     autoClassificationStarted.current = true;
-    void autoClassification.submit({ intent: "runAi" }, { method: "post" });
-  }, [autoClassification, params]);
+    const candidateIds = selectAutomaticClassificationCandidateIds(loaderData.rows);
+    if (!candidateIds.length) {
+      void navigate(removeAutoClassificationParam(params), { replace: true });
+      return;
+    }
+    const form = new FormData();
+    form.set("intent", "runAi");
+    for (const candidateId of candidateIds) form.append("candidateIds", candidateId);
+    void autoClassification.submit(form, { method: "post" });
+  }, [autoClassification, loaderData.rows, navigate, params]);
 
   useEffect(() => {
     if (!autoClassificationStarted.current || autoClassification.state !== "idle" || !autoClassification.data || params.get("autoClassify") !== "1") return;

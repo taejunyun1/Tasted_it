@@ -16,3 +16,14 @@ export function getAiClassificationBadge(source: ClassificationSource) {
   if (source === "AI_RULE") return { label: "AI 분류 완료", tone: "success" as const };
   return null;
 }
+
+export function selectAutomaticClassificationCandidateIds(rows: ReadonlyArray<{
+  id: string;
+  reviewState: string;
+  classificationSource: string;
+}>) {
+  return rows
+    .filter((row) => row.reviewState !== "BLOCKED" && row.classificationSource !== "AI_RULE")
+    .slice(0, 10)
+    .map((row) => row.id);
+}
