@@ -9,6 +9,7 @@ import { classifyReviewState } from "./review-classification";
 import { reconcileAiClassification, validateAiClassification } from "./ai-classification-policy";
 
 const BULK_LIMIT = 25;
+const D1_IN_QUERY_CHUNK = 80;
 
 function duplicateKey(name: string, address: string) {
   const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/[\s(),.-]+/g, "");
@@ -21,7 +22,15 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
     db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
     db.select({ name: places.name, address: places.address }).from(places),
   ]);
-  const aiRows = candidateRows.length ? await db.select().from(aiClassificationRuns).where(inArray(aiClassificationRuns.candidateId, candidateRows.map((candidate) => candidate.id))).orderBy(desc(aiClassificationRuns.createdAt)).limit(1_000) : [];
+  const aiRows: Array<typeof aiClassificationRuns.$inferSelect> = [];
+  const candidateIds = candidateRows.map((candidate) => candidate.id);
+  for (let offset = 0; offset < candidateIds.length; offset += D1_IN_QUERY_CHUNK) {
+    aiRows.push(...await db.select().from(aiClassificationRuns)
+      .where(inArray(aiClassificationRuns.candidateId, candidateIds.slice(offset, offset + D1_IN_QUERY_CHUNK)))
+      .orderBy(desc(aiClassificationRuns.createdAt))
+      .limit(1_000));
+  }
+  aiRows.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const latestAi = new Map<string, (typeof aiRows)[number]>(); for (const row of aiRows) if (!latestAi.has(row.candidateId)) latestAi.set(row.candidateId, row);
   const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
   const categoryById = new Map(categoryRows.map((category) => [category.id, category]));
