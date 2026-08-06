@@ -108,10 +108,11 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
       button.dataset.influence = influence;
       button.textContent = place.primaryCategory.emoji;
       button.onclick = () => {
-        map.panTo(position);
+        // Commit the detail selection before map idle events update the bbox URL.
+        selectRef.current(place.id);
         const focusZoom = getMarkerFocusZoom(map.getZoom());
         if (focusZoom !== null) map.setZoom(focusZoom);
-        selectRef.current(place.id);
+        map.panTo(position);
       };
       return new maps.Marker({
         map,
