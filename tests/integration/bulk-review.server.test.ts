@@ -62,6 +62,24 @@ describe("bulk candidate review", () => {
     expect(rows.find((row) => row.id === unsafe.id)).toMatchObject({ confidence: "MEDIUM", eligible: false, classificationSource: "RULE_ONLY" });
   });
 
+  it("loads AI results when the pending queue exceeds the D1 bind parameter limit", async () => {
+    const db = createDb(env.DB);
+    const candidates = [];
+    for (let index = 0; index < 120; index += 1) {
+      candidates.push(await upsertBusinessLicense(db, {
+        ...license,
+        sourceManagementNo: `bulk-large-${index}`,
+        businessName: `대규모 검수 식당 ${index}`,
+      }, now));
+    }
+    await addAiAgreement(candidates.at(-1)!.id);
+
+    const rows = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates);
+
+    expect(rows.length).toBeGreaterThanOrEqual(120);
+    expect(rows.find((row) => row.id === candidates.at(-1)!.id)?.classificationSource).toBe("AI_RULE");
+  });
+
   it("approves safe candidates and skips unsafe selections", async () => {
     const db = createDb(env.DB);
     const safe = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "bulk-approve-safe" }, now);
