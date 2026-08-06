@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { PlaceSummary } from "../../features/places/place.types";
-import { MapPlaceDetail } from "./MapPlaceDetail";
 import { MapPlaceList } from "./MapPlaceList";
 
 export interface PublicCategoryGroup {
@@ -11,14 +10,12 @@ export interface PublicCategoryGroup {
   children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }>;
 }
 
-export function MapExplorerPanel({ places, groups, selectedPlace, query, category, onSelect, onClearSelection, onSearch, onCategory, onLocate }: {
+export function MapExplorerPanel({ places, groups, query, category, onSelect, onSearch, onCategory, onLocate }: {
   places: PlaceSummary[];
   groups: PublicCategoryGroup[];
-  selectedPlace: PlaceSummary | null;
   query: string;
   category: string | null;
   onSelect: (id: string) => void;
-  onClearSelection: () => void;
   onSearch: (query: string) => void;
   onCategory: (slug: string | null) => void;
   onLocate: () => void;
@@ -30,20 +27,12 @@ export function MapExplorerPanel({ places, groups, selectedPlace, query, categor
   const children = useMemo(() => groups.find((group) => group.id === groupId)?.children ?? [], [groupId, groups]);
 
   useEffect(() => {
-    if (selectedPlace) setMobileView("list");
-  }, [selectedPlace]);
-
-  useEffect(() => {
     setGroupId(selectedGroup);
   }, [selectedGroup]);
 
   useEffect(() => {
     setSearchQuery(query);
   }, [query]);
-
-  if (selectedPlace) return <aside className="map-explorer-panel is-detail" data-mobile-view="list" aria-label="선택 장소 정보">
-    <MapPlaceDetail place={selectedPlace} onBack={onClearSelection} />
-  </aside>;
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -6,7 +6,7 @@ function qaPath(search = "") {
   return `/?${params.toString()}`;
 }
 
-test("a map pin opens place information in the explorer panel", async ({ page }) => {
+test("a map pin opens a quick bottom sheet while preserving the explorer list", async ({ page }) => {
   await page.goto(qaPath());
   const pin = page.getByRole("button", { name: /지도 핀$/ }).first();
   await expect(pin).toBeVisible();
@@ -17,8 +17,10 @@ test("a map pin opens place information in the explorer panel", async ({ page })
 
   await expect(page).toHaveURL(/selected=/);
   await expect(pin).toHaveClass(/is-selected/);
-  await expect(page.getByRole("button", { name: "목록으로" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "장소 탐색" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: `${placeName} 빠른 정보` })).toBeVisible();
   await expect(page.getByRole("heading", { name: placeName })).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "추천 지표" })).toBeVisible();
   await expect(page.getByRole("link", { name: "상세 보기" })).toBeVisible();
 });
 
@@ -30,7 +32,10 @@ test("a list item opens the same detail and returning preserves filters", async 
   await result.click();
   await expect(page).toHaveURL(/selected=/);
   await expect(page.getByLabel("장소 지도")).toHaveAttribute("data-focused-place", /.+/);
-  await page.getByRole("button", { name: "목록으로" }).click();
+  await expect(page.getByRole("complementary", { name: "장소 탐색" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "추천 지표" })).toBeVisible();
+  await page.getByRole("button", { name: "빠른 정보 닫기" }).click();
 
   await expect(page).toHaveURL(/qa=/);
   await expect(page).not.toHaveURL(/selected=/);
