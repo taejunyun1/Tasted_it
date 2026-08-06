@@ -12,7 +12,8 @@ declare namespace naver.maps {
     getBounds(): LatLngBounds;
     getZoom(): number;
     fitBounds(bounds: LatLngBounds): void;
-    panTo(position: LatLng): void;
+    morph(position: LatLng, zoom: number, options?: { duration?: number; easing?: "linear" | "easeOutCubic" | "easeInCubic" }): void;
+    panTo(position: LatLng, options?: { duration?: number; easing?: "linear" | "easeOutCubic" | "easeInCubic" }): void;
     setCenter(position: LatLng): void;
     setZoom(zoom: number): void;
     destroy(): void;
