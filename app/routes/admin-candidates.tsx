@@ -8,10 +8,10 @@ import { createDb } from "../db/client.server";
 import { categories } from "../db/schema";
 import { requireAdmin } from "../features/auth/session.server";
 import { approveCandidateSelections, listBulkReviewGroups } from "../features/candidates/bulk-review.server";
-import { reconcileCandidateSelection } from "../features/candidates/bulk-selection";
+import { reconcileCandidateSelection, selectCurrentPageCandidates } from "../features/candidates/bulk-selection";
 import { listCandidateSubtypes, rejectCandidate } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
-import { classifyPendingCandidatesWithAi } from "../features/candidates/ai-classification.server";
+import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 
 const sources: Array<[PublicDataSource, string]> = [
   ["GENERAL_RESTAURANT", "일반음식점"], ["REST_CAFE", "휴게음식점"],
@@ -31,7 +31,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const db = createDb(env.DB);
   const coordinates = url.searchParams.get("coordinates");
   const sort = url.searchParams.get("sort");
-  const [groups, categoryRows, subtypes] = await Promise.all([
+  const now = new Date().toISOString();
+  const [groups, categoryRows, subtypes, aiQuota] = await Promise.all([
     listBulkReviewGroups(db, {
       query: url.searchParams.get("q") || undefined,
       sourceType: (url.searchParams.get("source") || undefined) as PublicDataSource | undefined,
@@ -42,6 +43,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     }),
     db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
     listCandidateSubtypes(db),
+    getDailyAiQuota(db, now),
   ]);
   const allRows = groups.flatMap((group) => group.candidates);
   const requestedState = url.searchParams.get("state");
@@ -67,6 +69,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     subtypes,
     filters: Object.fromEntries(url.searchParams),
     pagination: { page, pageSize, total: filteredRows.length, totalPages },
+    aiQuota,
   };
 }
 
@@ -78,8 +81,13 @@ export async function action({ request }: Route.ActionArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   if (form.get("intent") === "runAi") {
-    const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 100, now });
-    return { approved: [], skipped: [], rejected: 0, error: null, ai };
+    try {
+      const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 10, now });
+      return { approved: [], skipped: [], rejected: 0, error: ai.quota.blocked && !ai.processed ? "오늘 AI 무료 한도의 90%에 도달해 분류를 중지했습니다." : null, ai };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "알 수 없는 오류";
+      return { approved: [], skipped: [], rejected: 0, error: `AI 분류를 완료하지 못했습니다. 잠시 후 다시 시도하세요. (${detail})`, ai: null };
+    }
   }
   if (form.get("intent") === "rejectSelected") {
     const reason = String(form.get("reason") ?? "").trim();
@@ -111,6 +119,10 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
     setSelected((current) => reconcileCandidateSelection(current, selectableIds));
   }, [selectableIds]);
 
+  useEffect(() => {
+    setChosenCategories(Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
+  }, [loaderData.rows]);
+
   function toggle(id: string) {
     setSelected((current) => {
       const next = new Set(current);
@@ -137,7 +149,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">자동 분류 결과를 목록에서 확인하고, 애매한 후보만 카테고리를 직접 정합니다. 동네는 주소에서 자동 계산됩니다.</p>
           </div>
           <nav className="flex flex-wrap gap-2 text-sm font-medium">
-            <Form method="post"><button className="border border-emerald-800 bg-emerald-800 px-4 py-2.5 text-white" name="intent" value="runAi">AI 대기 후보 100곳 분류</button></Form>
+            <Form method="post"><button className="border border-emerald-800 bg-emerald-800 px-4 py-2.5 text-white disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={loaderData.aiQuota.blocked || isSubmitting}>AI 대기 후보 10곳 분류</button></Form>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/operations">운영 현황</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/ratings">평가 운영</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/reviewers">리뷰어 관리</Link>
@@ -155,6 +167,11 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
       </section>
 
       <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-10">
+        <section className={`mb-5 border px-4 py-3 ${loaderData.aiQuota.blocked ? "border-amber-600 bg-amber-50" : "border-neutral-300 bg-white"}`} aria-label="AI 일일 사용량">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><p><strong>Workers AI 오늘 사용량 {loaderData.aiQuota.used.toLocaleString()} / {loaderData.aiQuota.limit.toLocaleString()} Neurons</strong> <span className="text-neutral-500">({loaderData.aiQuota.percent}% · 앱 집계 기준)</span></p><span className="text-xs text-neutral-500">매일 UTC 00:00 초기화</span></div>
+          <div className="mt-2 h-2 overflow-hidden bg-neutral-200"><div className={`h-full ${loaderData.aiQuota.blocked ? "bg-amber-600" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, loaderData.aiQuota.percent)}%` }} /></div>
+          {loaderData.aiQuota.blocked && <p className="mt-2 text-sm font-medium text-amber-900">무료 한도의 90%에 도달했습니다. 과금 방지를 위해 AI 분류 버튼을 비활성화했습니다.</p>}
+        </section>
         <nav aria-label="검수 상태" className="mb-5 flex overflow-x-auto border-b border-neutral-900 text-sm font-medium">
           <Tab to={tabHref()} active={!params.get("state")} label="전체" count={loaderData.counts.ALL} />
           {states.map((state) => <Tab key={state} to={tabHref(state)} active={params.get("state") === state} label={stateMeta[state].label} count={loaderData.counts[state]} />)}
@@ -178,10 +195,10 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           {[...selected].map((id) => <input key={id} type="hidden" name="candidateIds" value={id} />)}
           {selectedRows.map((row) => <input key={`category-${row.id}`} type="hidden" name={`category:${row.id}`} value={chosenCategories[row.id] ?? ""} />)}
           <div className="sticky top-0 z-20 mb-3 flex flex-col gap-3 border border-neutral-900 bg-[#1f2a24] px-4 py-3 text-white shadow-sm md:flex-row md:items-center md:justify-between">
-            <p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보는 선택할 수 없습니다.</p>
+            <div className="flex flex-wrap items-center gap-2"><p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보 제외</p><button type="button" className="border border-neutral-500 px-2.5 py-1.5 text-xs" onClick={() => setSelected(selectCurrentPageCandidates(selectableIds))}>현재 페이지 선택</button><button type="button" className="border border-neutral-500 px-2.5 py-1.5 text-xs" onClick={() => setSelected(new Set())}>선택 해제</button></div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input className="min-w-0 border border-neutral-500 bg-white px-3 py-2 text-sm text-neutral-950" name="reason" placeholder="일괄 반려 사유" />
-              <button className="border border-[#d7f28a] px-4 py-2 text-sm font-medium text-[#d7f28a] disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting}>선택 AI 분류</button>
+              <button className="border border-[#d7f28a] px-4 py-2 text-sm font-medium text-[#d7f28a] disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting || loaderData.aiQuota.blocked}>선택 AI 분류</button>
               <button className="border border-white px-4 py-2 text-sm font-medium disabled:opacity-40" name="intent" value="rejectSelected" disabled={!selected.size || isSubmitting}>선택 반려</button>
               <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 승인·공개"}</button>
             </div>
@@ -193,12 +210,12 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             </div>
             {loaderData.rows.map((row) => {
               const blocked = row.reviewState === "BLOCKED";
-              return <article key={row.id} className={`grid gap-4 border-b border-neutral-200 px-4 py-5 last:border-b-0 xl:grid-cols-[42px_120px_minmax(210px,1fr)_minmax(260px,1.3fr)_220px_150px] ${blocked ? "bg-neutral-50" : "bg-white"}`}>
+              return <article key={row.id} className={`grid gap-3 border-b border-neutral-200 px-4 py-3 last:border-b-0 xl:grid-cols-[42px_110px_minmax(200px,1fr)_minmax(250px,1.3fr)_210px_140px] ${blocked ? "bg-neutral-50" : "bg-white"}`}>
                 <div><input type="checkbox" aria-label={`${row.businessName} 선택`} checked={selected.has(row.id)} disabled={blocked} onChange={() => toggle(row.id)} className="h-5 w-5 accent-emerald-800" /></div>
                 <div><span className={`inline-flex border-l-4 px-2 py-1 text-xs font-semibold ${stateMeta[row.reviewState].className}`}>{stateMeta[row.reviewState].label}</span></div>
-                <div><p className="text-[11px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-1 text-xs text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
+                <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">{row.neighborhood ?? "동네 추출 실패"} · {row.latitude?.toFixed(5) ?? "—"}, {row.longitude?.toFixed(5) ?? "—"}</p>{row.blockers.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{row.blockers.map((blocker) => <li key={blocker} className="border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">{blocker}</li>)}</ul>}</div>
-                <div>{row.reviewState === "MANUAL" ? <label className="grid gap-1 text-[11px] font-medium text-neutral-600"><span>{row.businessName} 대표 카테고리</span><select aria-label={`${row.businessName} 대표 카테고리`} value={chosenCategories[row.id] ?? ""} onChange={(event) => setChosenCategories((current) => ({ ...current, [row.id]: event.currentTarget.value }))} className="w-full border border-amber-500 bg-amber-50 px-2 py-2 text-sm text-neutral-950"><option value="">직접 선택</option>{parents.map((parent) => <optgroup key={parent.id} label={`${parent.emoji} ${parent.name}`}>{children.filter((child) => child.parentId === parent.id).map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}</optgroup>)}</select></label> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
+                <div>{row.reviewState === "MANUAL" ? <label className="grid gap-1 text-[10px] font-medium text-neutral-600"><span>추천 · {loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</span><select aria-label={`${row.businessName} 대표 카테고리`} value={chosenCategories[row.id] ?? ""} onChange={(event) => setChosenCategories((current) => ({ ...current, [row.id]: event.currentTarget.value }))} className="w-full border border-amber-500 bg-amber-50 px-2 py-1.5 text-xs text-neutral-950"><option value="">직접 선택</option>{parents.map((parent) => <optgroup key={parent.id} label={`${parent.emoji} ${parent.name}`}>{children.filter((child) => child.parentId === parent.id).map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}</optgroup>)}</select></label> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
                 <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}{row.aiConfidence == null ? "" : ` · AI ${Math.round(row.aiConfidence * 100)}%`}</p><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
               </article>;
             })}

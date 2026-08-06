@@ -560,7 +560,9 @@ export const aiClassificationRuns = sqliteTable("ai_classification_runs", {
   id: text("id").primaryKey(), candidateId: text("candidate_id").notNull().references(() => businessLicenses.id, { onDelete: "cascade" }),
   inputHash: text("input_hash").notNull(), model: text("model").notNull(), promptVersion: text("prompt_version").notNull(),
   status: text("status", { enum: ["SUCCESS", "FAILED"] }).notNull(), categorySlug: text("category_slug"), confidence: real("confidence"), reasonsJson: text("reasons_json"),
-  validationError: text("validation_error"), cachedFromId: text("cached_from_id"), createdAt: text("created_at").notNull(),
+  validationError: text("validation_error"), cachedFromId: text("cached_from_id"),
+  inputTokens: integer("input_tokens"), outputTokens: integer("output_tokens"), estimatedNeurons: integer("estimated_neurons"), attemptCount: integer("attempt_count").notNull().default(1),
+  createdAt: text("created_at").notNull(),
 }, (table) => [index("ai_classification_candidate_created_idx").on(table.candidateId, table.createdAt), index("ai_classification_hash_created_idx").on(table.inputHash, table.createdAt), index("ai_classification_status_created_idx").on(table.status, table.createdAt)]);
 
 export const operationalAlerts = sqliteTable("operational_alerts", {
