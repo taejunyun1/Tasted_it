@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { asc, eq } from "drizzle-orm";
-import { useEffect, useMemo, useState } from "react";
-import { Form, Link, useNavigation, useSearchParams } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Form, Link, useFetcher, useNavigate, useNavigation, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/admin-candidates";
 import { createDb } from "../db/client.server";
@@ -13,6 +13,8 @@ import { listCandidateSubtypes } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
+import { getAiClassificationBadge, removeAutoClassificationParam, selectAutomaticClassificationCandidateIds, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
+import { buildCandidatePageHref } from "../features/candidates/pagination";
 
 const sources: Array<[PublicDataSource, string]> = [
   ["GENERAL_RESTAURANT", "일반음식점"], ["REST_CAFE", "휴게음식점"],
@@ -100,7 +102,10 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function AdminCandidates({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
+  const autoClassification = useFetcher<typeof action>();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
+  const autoClassificationStarted = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [chosenCategories, setChosenCategories] = useState<Record<string, string>>(() =>
     Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
@@ -122,6 +127,25 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
     setChosenCategories(Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
   }, [loaderData.rows]);
 
+  useEffect(() => {
+    if (!shouldAutoClassify(params, autoClassification.state, autoClassificationStarted.current)) return;
+    autoClassificationStarted.current = true;
+    const candidateIds = selectAutomaticClassificationCandidateIds(loaderData.rows);
+    if (!candidateIds.length) {
+      void navigate(removeAutoClassificationParam(params), { replace: true });
+      return;
+    }
+    const form = new FormData();
+    form.set("intent", "runAi");
+    for (const candidateId of candidateIds) form.append("candidateIds", candidateId);
+    void autoClassification.submit(form, { method: "post" });
+  }, [autoClassification, loaderData.rows, navigate, params]);
+
+  useEffect(() => {
+    if (!autoClassificationStarted.current || autoClassification.state !== "idle" || !autoClassification.data || params.get("autoClassify") !== "1") return;
+    void navigate(removeAutoClassificationParam(params), { replace: true });
+  }, [autoClassification.data, autoClassification.state, navigate, params]);
+
   function toggle(id: string) {
     setSelected((current) => {
       const next = new Set(current);
@@ -141,13 +165,12 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   return (
     <main className="min-h-screen bg-[#f5f6f2] text-neutral-950">
       <header className="border-b border-neutral-300 bg-white">
-        <div className="mx-auto flex max-w-[1500px] flex-col gap-6 px-5 py-8 md:flex-row md:items-end md:justify-between md:px-10">
+        <div className="mx-auto max-w-[1500px] px-5 py-8 md:px-10">
           <div>
             <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-emerald-800">ADMIN / PLACE REVIEW</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">장소 검수 목록</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">자동 분류 결과를 목록에서 확인하고, 애매한 후보만 카테고리를 직접 정합니다. 동네는 주소에서 자동 계산됩니다.</p>
           </div>
-          <Form method="post"><button className="border border-emerald-800 bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={loaderData.aiQuota.blocked || isSubmitting}>다음 10곳 AI 분류</button></Form>
         </div>
       </header>
 
@@ -181,7 +204,13 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <div className="flex items-end gap-2"><button className="h-10 flex-1 whitespace-nowrap bg-neutral-950 px-3 text-xs font-semibold text-white">필터 적용</button><Link className="grid h-10 place-items-center whitespace-nowrap border border-neutral-300 px-3 text-xs" to="/admin/candidates">초기화</Link></div>
         </Form>
 
-        {actionData && <div className={`mb-5 border px-4 py-3 text-sm ${actionData.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{actionData.error ?? (actionData.ai ? `AI ${actionData.ai.processed}곳 처리 · 성공 ${actionData.ai.succeeded}곳은 분류 완료로 이동 · 실패 ${actionData.ai.failed}` : `${actionData.approved.length}곳 승인·공개 · ${actionData.skipped.length}곳 확인 필요`)}</div>}
+        {autoClassification.state !== "idle" && <div className="mb-5 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm">새 후보 10곳을 자동 분류하고 있습니다.</div>}
+        {(() => {
+          const feedback = autoClassification.data ?? actionData;
+          return feedback && <div className={`mb-5 border px-4 py-3 text-sm ${feedback.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{feedback.error ?? (feedback.ai ? `AI ${feedback.ai.processed}곳 처리 · 성공 ${feedback.ai.succeeded}곳은 분류 완료로 이동 · 실패 ${feedback.ai.failed}` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</div>;
+        })()}
+
+        <Pagination pagination={loaderData.pagination} params={params} position="top" />
 
         <Form method="post">
           {[...selected].map((id) => <input key={id} type="hidden" name="candidateIds" value={id} />)}
@@ -189,7 +218,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <div className="sticky top-0 z-20 mb-3 flex flex-col gap-3 border border-neutral-900 bg-[#1f2a24] px-4 py-3 text-white shadow-sm md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-3"><p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보 제외</p><button type="button" className="border border-neutral-500 px-3 py-2 text-xs text-neutral-200" onClick={() => setSelected(pageSelected ? new Set() : selectCurrentPageCandidates(selectableIds))}>{pageSelected ? "현재 페이지 선택 해제" : "현재 페이지 선택"}</button></div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <button className="border border-white px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting || loaderData.aiQuota.blocked}>선택 장소 AI 분류</button>
+              <button className="border border-white px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting || loaderData.aiQuota.blocked}>선택 장소 다시 분류</button>
               <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 장소 승인·공개"}</button>
             </div>
           </div>
@@ -202,7 +231,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
               const blocked = row.reviewState === "BLOCKED";
               return <article key={row.id} className={`grid gap-3 border-b border-neutral-200 px-4 py-3 last:border-b-0 xl:grid-cols-[42px_110px_minmax(200px,1fr)_minmax(250px,1.3fr)_210px_140px] ${blocked ? "bg-neutral-50" : "bg-white"}`}>
                 <div><input type="checkbox" aria-label={`${row.businessName} 선택`} checked={selected.has(row.id)} disabled={blocked} onChange={() => toggle(row.id)} className="h-5 w-5 accent-emerald-800" /></div>
-                <div><span className={`inline-flex border-l-4 px-2 py-1 text-xs font-semibold ${stateMeta[row.reviewState].className}`}>{stateMeta[row.reviewState].label}</span></div>
+                <div><span className={`inline-flex border-l-4 px-2 py-1 text-xs font-semibold ${stateMeta[row.reviewState].className}`}>{stateMeta[row.reviewState].label}</span>{(() => { const badge = getAiClassificationBadge(row.classificationSource); return badge && <span className={`mt-2 inline-flex border px-2 py-1 text-[10px] font-medium ${badge.tone === "error" ? "border-rose-400 text-rose-700" : "border-emerald-500 text-emerald-800"}`}>{badge.label}</span>; })()}</div>
                 <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">{row.neighborhood ?? "동네 추출 실패"} · {row.latitude?.toFixed(5) ?? "—"}, {row.longitude?.toFixed(5) ?? "—"}</p>{row.blockers.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{row.blockers.map((blocker) => <li key={blocker} className="border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">{blocker}</li>)}</ul>}</div>
                 <div>{row.reviewState === "MANUAL" ? <label className="grid gap-1 text-[10px] font-medium text-neutral-600"><span>추천 · {loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</span><select aria-label={`${row.businessName} 대표 카테고리`} value={chosenCategories[row.id] ?? ""} onChange={(event) => { const categoryId = event.currentTarget.value; setChosenCategories((current) => setCandidateCategory(current, row.id, categoryId)); }} className="w-full border border-amber-500 bg-amber-50 px-2 py-1.5 text-xs text-neutral-950"><option value="">직접 선택</option>{leafParents.map((category) => <option key={category.id} value={category.id}>{category.emoji} {category.name}</option>)}{parents.filter((parent) => children.some((child) => child.parentId === parent.id)).map((parent) => <optgroup key={parent.id} label={`${parent.emoji} ${parent.name}`}>{children.filter((child) => child.parentId === parent.id).map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}</optgroup>)}</select></label> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
@@ -213,7 +242,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           </section>
         </Form>
 
-        <Pagination pagination={loaderData.pagination} params={params} />
+        <Pagination pagination={loaderData.pagination} params={params} position="bottom" />
       </div>
     </main>
   );
@@ -231,7 +260,6 @@ function Filter({ label, children }: { label: string; children: React.ReactEleme
   return <label className="grid gap-1 text-[11px] font-medium text-neutral-600"><span>{label}</span><span className="[&>*]:h-10 [&>*]:w-full [&>*]:border [&>*]:border-neutral-300 [&>*]:bg-white [&>*]:px-3 [&>*]:text-sm [&>*]:text-neutral-950">{children}</span></label>;
 }
 
-function Pagination({ pagination, params }: { pagination: { page: number; pageSize: number; total: number; totalPages: number }; params: URLSearchParams }) {
-  const href = (page: number) => { const next = new URLSearchParams(params); next.set("page", String(page)); return `?${next}`; };
-  return <div className="mt-5 flex items-center justify-between text-sm"><p className="text-neutral-600">총 {pagination.total}곳 · {pagination.page}/{pagination.totalPages} 페이지</p><div className="flex gap-2"><Link aria-disabled={pagination.page === 1} className={`border border-neutral-300 bg-white px-4 py-2 ${pagination.page === 1 ? "pointer-events-none opacity-40" : ""}`} to={href(Math.max(1, pagination.page - 1))}>이전</Link><Link aria-disabled={pagination.page === pagination.totalPages} className={`border border-neutral-300 bg-white px-4 py-2 ${pagination.page === pagination.totalPages ? "pointer-events-none opacity-40" : ""}`} to={href(Math.min(pagination.totalPages, pagination.page + 1))}>다음</Link></div></div>;
+function Pagination({ pagination, params, position }: { pagination: { page: number; pageSize: number; total: number; totalPages: number }; params: URLSearchParams; position: "top" | "bottom" }) {
+  return <nav aria-label={`${position === "top" ? "상단" : "하단"} 페이지 이동`} className={`${position === "top" ? "mb-3" : "mt-5"} flex items-center justify-between border border-neutral-300 bg-white px-4 py-3 text-sm`}><p className="text-neutral-600">총 {pagination.total}곳 · <strong className="font-medium text-neutral-950">{pagination.page}/{pagination.totalPages} 페이지</strong></p><div className="flex gap-2"><Link aria-disabled={pagination.page === 1} className={`border border-neutral-300 bg-white px-4 py-2 ${pagination.page === 1 ? "pointer-events-none opacity-40" : ""}`} to={buildCandidatePageHref(params, Math.max(1, pagination.page - 1))}>이전</Link><Link aria-disabled={pagination.page === pagination.totalPages} className={`border border-neutral-900 bg-neutral-950 px-4 py-2 text-white ${pagination.page === pagination.totalPages ? "pointer-events-none opacity-40" : ""}`} to={buildCandidatePageHref(params, Math.min(pagination.totalPages, pagination.page + 1))}>다음</Link></div></nav>;
 }
