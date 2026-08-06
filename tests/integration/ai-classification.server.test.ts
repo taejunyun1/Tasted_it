@@ -2,13 +2,13 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { aiClassificationRuns, businessLicenses } from "../../app/db/schema";
-import { classifyPendingCandidatesWithAi } from "../../app/features/candidates/ai-classification.server";
+import { AI_CLASSIFICATION_PROMPT, classifyPendingCandidatesWithAi } from "../../app/features/candidates/ai-classification.server";
 
 describe("Workers AI candidate classification", () => {
   it("stores validated output and reuses the 30-day input cache", async () => {
     const db = createDb(env.DB); const id = `ai-candidate-${crypto.randomUUID()}`; const now = "2026-08-06T10:00:00.000Z";
     await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: "테스트 라멘", businessSubtype: "일식", normalizedStatus: "OPEN", roadAddress: "광주광역시 동구 동명동", latitude: 35.1, longitude: 126.9, regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
-    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "ramen-detail", confidence: 0.94, reasons: ["상호에 라멘"] }, usage: { prompt_tokens: 1_000, completion_tokens: 100 } });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "ramen-detail", confidence: 0.94, evidence: ["라멘"], reasons: ["상호에 라멘"] }, usage: { prompt_tokens: 1_000, completion_tokens: 100 } });
     const first = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
     const second = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now: "2026-08-07T10:00:00.000Z" });
     expect(first).toMatchObject({ processed: 1, succeeded: 1, failed: 0, cached: 0 });
@@ -24,7 +24,7 @@ describe("Workers AI candidate classification", () => {
     const db = createDb(env.DB); const id = `ai-retry-${crypto.randomUUID()}`; const now = "2026-08-08T10:00:00.000Z";
     await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: "재시도 라멘", businessSubtype: "일식", normalizedStatus: "OPEN", roadAddress: "광주광역시 동구", latitude: 35.1, longitude: 126.9, regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
     const usage = { prompt_tokens: 100, completion_tokens: 10 };
-    const run = vi.fn().mockResolvedValueOnce({ response: { nope: true }, usage }).mockResolvedValueOnce({ response: { categorySlug: "ramen-detail", confidence: 0.9, reasons: ["라멘"] }, usage });
+    const run = vi.fn().mockResolvedValueOnce({ response: { nope: true }, usage }).mockResolvedValueOnce({ response: { categorySlug: "ramen-detail", confidence: 0.9, evidence: ["라멘"], reasons: ["라멘"] }, usage });
     const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
     expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0 });
     expect(run).toHaveBeenCalledTimes(2);
@@ -46,7 +46,7 @@ describe("Workers AI candidate classification", () => {
     const db = createDb(env.DB); const now = "2026-08-10T10:00:00.000Z";
     const ids = Array.from({ length: 11 }, (_, index) => `batch-${index}-${crypto.randomUUID()}`);
     for (const [index, id] of ids.entries()) await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: `배치 라멘 ${index}`, businessSubtype: "일식", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
-    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "ramen-detail", confidence: 0.9, reasons: ["라멘"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "ramen-detail", confidence: 0.9, evidence: ["라멘"], reasons: ["라멘"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
     const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: ids, limit: 100, now });
     expect(result.processed).toBe(10);
     expect(run).toHaveBeenCalledTimes(10);
@@ -56,8 +56,8 @@ describe("Workers AI candidate classification", () => {
     const db = createDb(env.DB); const now = "2026-08-11T10:00:00.000Z";
     const completedId = `completed-${crypto.randomUUID()}`; const pendingId = `pending-${crypto.randomUUID()}`;
     for (const id of [completedId, pendingId]) await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: `${id} 라멘`, businessSubtype: "일식", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: "1999-01-01T00:00:00.000Z" });
-    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: completedId, inputHash: crypto.randomUUID(), model: "test", promptVersion: "test", status: "SUCCESS", categorySlug: "ramen-detail", confidence: 0.9, reasonsJson: '["완료"]', createdAt: now });
-    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "ramen-detail", confidence: 0.9, reasons: ["라멘"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: completedId, inputHash: crypto.randomUUID(), model: "test", promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: "ramen-detail", confidence: 0.9, reasonsJson: '["완료"]', createdAt: now });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "ramen-detail", confidence: 0.9, evidence: ["라멘"], reasons: ["라멘"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
 
     const result = await classifyPendingCandidatesWithAi(db, { run } as never, { limit: 10, now });
 
@@ -65,5 +65,29 @@ describe("Workers AI candidate classification", () => {
     expect(run).toHaveBeenCalled();
     expect((await db.select().from(aiClassificationRuns)).filter((row) => row.candidateId === completedId)).toHaveLength(1);
     expect((await db.select().from(aiClassificationRuns)).some((row) => row.candidateId === pendingId && row.status === "SUCCESS")).toBe(true);
+  });
+
+  it("reprocesses candidates whose only successful result uses a legacy prompt", async () => {
+    const db = createDb(env.DB); const now = "2026-08-11T11:00:00.000Z"; const id = `legacy-${crypto.randomUUID()}`;
+    await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: "콩물동부육계장", businessSubtype: "기타", normalizedStatus: "OPEN", regionCode: "JEONNAM", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: "1999-01-01T00:00:00.000Z" });
+    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: id, inputHash: crypto.randomUUID(), model: "legacy", promptVersion: "place-category-v1", status: "SUCCESS", categorySlug: "gimbap", confidence: 0.8, reasonsJson: '["gimbap"]', createdAt: now });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "stew", confidence: 0.94, evidence: ["육계장"], reasons: ["상호명 근거"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { limit: 10, now });
+
+    expect(result.succeeded).toBeGreaterThanOrEqual(1);
+    expect(run).toHaveBeenCalled();
+    expect((await db.select().from(aiClassificationRuns)).some((row) => row.candidateId === id && row.promptVersion === AI_CLASSIFICATION_PROMPT && row.categorySlug === "stew")).toBe(true);
+  });
+
+  it("rejects an AI category backed by evidence absent from the candidate", async () => {
+    const db = createDb(env.DB); const now = "2026-08-12T10:00:00.000Z"; const id = `ungrounded-${crypto.randomUUID()}`;
+    await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: "콩물동부육계장 분점", businessSubtype: "기타", normalizedStatus: "OPEN", regionCode: "JEONNAM", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "gimbap", confidence: 0.8, evidence: ["gimbap"], reasons: ["김밥"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
+
+    expect(result).toMatchObject({ processed: 1, succeeded: 0, failed: 1 });
+    expect((await db.select().from(aiClassificationRuns)).find((row) => row.candidateId === id)).toMatchObject({ status: "FAILED", validationError: "AI_EVIDENCE_UNGROUNDED" });
   });
 });

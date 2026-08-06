@@ -4,6 +4,7 @@ import type { ClassificationConfidence } from "./category-suggestion";
 const outputSchema = z.object({
   categorySlug: z.string().min(1).max(80),
   confidence: z.number().min(0).max(1),
+  evidence: z.array(z.string().min(1).max(80)).min(1).max(3).optional(),
   reasons: z.array(z.string().min(1).max(160)).max(3),
 }).strict();
 
@@ -14,6 +15,22 @@ export function validateAiClassification(raw: unknown, allowedSlugs: Set<string>
   if (!parsed.success) throw new Error("AI_OUTPUT_INVALID");
   if (!allowedSlugs.has(parsed.data.categorySlug)) throw new Error("AI_CATEGORY_UNKNOWN");
   return parsed.data;
+}
+
+function normalizeEvidence(value: string) {
+  return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/[^0-9a-z가-힣]/g, "").replaceAll("육계장", "육개장").replaceAll("타코야키", "타코야끼");
+}
+
+export function validateGroundedAiClassification(raw: unknown, allowedSlugs: Set<string>, evidenceText: string): AiClassification {
+  const parsed = validateAiClassification(raw, allowedSlugs);
+  if (!parsed.evidence?.length) throw new Error("AI_EVIDENCE_MISSING");
+  const normalizedSource = normalizeEvidence(evidenceText);
+  const grounded = parsed.evidence.every((token) => {
+    const normalizedToken = normalizeEvidence(token);
+    return normalizedToken.length >= 2 && normalizedSource.includes(normalizedToken);
+  });
+  if (!grounded) throw new Error("AI_EVIDENCE_UNGROUNDED");
+  return parsed;
 }
 
 export function reconcileAiClassification(input: { ruleSlug: string; ruleConfidence: ClassificationConfidence; ai: AiClassification | null }) {

@@ -74,3 +74,20 @@ test("mobile starts with the map panel collapsed", async ({ page }, testInfo) =>
   await expect(page.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "목록", exact: true })).toHaveAttribute("aria-pressed", "false");
 });
+
+test("mobile collapses the list when quick information opens and restores it on demand", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium");
+  await page.goto(qaPath());
+  const explorer = page.getByRole("complementary", { name: "장소 탐색" });
+
+  await page.getByRole("button", { name: "목록", exact: true }).click();
+  await expect(explorer).toHaveAttribute("data-mobile-view", "list");
+  await page.getByRole("button", { name: /선택$/ }).first().click();
+
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(explorer).toHaveAttribute("data-mobile-view", "map");
+
+  await page.getByRole("button", { name: "목록", exact: true }).click();
+  await expect(explorer).toHaveAttribute("data-mobile-view", "list");
+  await expect(page.getByRole("button", { name: /선택$/ }).first()).toBeVisible();
+});

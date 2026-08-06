@@ -4,6 +4,7 @@ export type ClassificationConfidence = "HIGH" | "MEDIUM" | "LOW" | "CONFLICT";
 
 export interface CandidateClassification {
   categorySlug: string;
+  candidateSlugs: string[];
   confidence: ClassificationConfidence;
   neighborhood: string | null;
   reasons: string[];
@@ -13,7 +14,7 @@ type CategoryGroup = "korean" | "japanese" | "chinese" | "western" | "bunsik" | 
 
 const nameRules: Array<{ pattern: RegExp; slug: string; group: CategoryGroup; label: string }> = [
   { pattern: /해장국|국밥/, slug: "gukbap-detail", group: "korean", label: "상호의 국밥·해장국 표현" },
-  { pattern: /찌개|전골|감자탕|설렁탕|곰탕/, slug: "stew", group: "korean", label: "상호의 찌개·탕 표현" },
+  { pattern: /육개장|찌개|전골|감자탕|설렁탕|곰탕/, slug: "stew", group: "korean", label: "상호의 육계장·육개장·찌개·탕 표현" },
   { pattern: /삼겹|갈비|구이|고기|정육/, slug: "grill", group: "korean", label: "상호의 고기·구이 표현" },
   { pattern: /족발|보쌈/, slug: "jokbal-bossam", group: "korean", label: "상호의 족발·보쌈 표현" },
   { pattern: /한정식/, slug: "hanjeongsik", group: "korean", label: "상호의 한정식 표현" },
@@ -21,6 +22,7 @@ const nameRules: Array<{ pattern: RegExp; slug: string; group: CategoryGroup; la
   { pattern: /라멘|멘야/, slug: "ramen-detail", group: "japanese", label: "상호의 라멘 표현" },
   { pattern: /우동|소바/, slug: "udon-soba", group: "japanese", label: "상호의 우동·소바 표현" },
   { pattern: /돈가스|돈까스/, slug: "donkatsu-detail", group: "japanese", label: "상호의 돈가스 표현" },
+  { pattern: /타코야끼|타코야키/, slug: "japanese-rice", group: "japanese", label: "상호의 타코야끼 표현" },
   { pattern: /이자카야/, slug: "izakaya", group: "japanese", label: "상호의 이자카야 표현" },
   { pattern: /짜장|짬뽕/, slug: "jjajang-jjamppong", group: "chinese", label: "상호의 짜장·짬뽕 표현" },
   { pattern: /마라|훠궈/, slug: "mala-hotpot", group: "chinese", label: "상호의 마라·훠궈 표현" },
@@ -37,7 +39,7 @@ const nameRules: Array<{ pattern: RegExp; slug: string; group: CategoryGroup; la
   { pattern: /쌀국수|베트남/, slug: "vietnamese", group: "world", label: "상호의 베트남 음식 표현" },
   { pattern: /태국|타이/, slug: "thai", group: "world", label: "상호의 태국 음식 표현" },
   { pattern: /인도|인디아|커리/, slug: "indian", group: "world", label: "상호의 인도 음식 표현" },
-  { pattern: /멕시칸|타코/, slug: "mexican", group: "world", label: "상호의 멕시칸 표현" },
+  { pattern: /멕시칸|타코(?!야끼|야키)/, slug: "mexican", group: "world", label: "상호의 멕시칸 표현" },
   { pattern: /제과|베이커리|빵집/, slug: "bakery-detail", group: "cafe", label: "상호의 베이커리 표현" },
   { pattern: /아이스크림|빙수/, slug: "ice-dessert", group: "cafe", label: "상호의 아이스크림·빙수 표현" },
   { pattern: /디저트|케이크/, slug: "dessert", group: "cafe", label: "상호의 디저트 표현" },
@@ -80,30 +82,47 @@ export function extractNeighborhood(address: string | null | undefined) {
   return tokens.find((token) => token.endsWith("리")) ?? tokens.at(-1) ?? null;
 }
 
+export function normalizeBusinessName(value: string) {
+  return value.normalize("NFKC").replace(/[\s·.,()\-_&]/g, "").replaceAll("육계장", "육개장").replaceAll("타코야키", "타코야끼");
+}
+
 export function classifyCandidate(input: {
   sourceType: PublicDataSource;
   businessSubtype?: string | null;
   businessName: string;
   address?: string | null;
 }): CandidateClassification {
-  const nameRule = nameRules.find((rule) => rule.pattern.test(input.businessName));
+  const normalizedName = normalizeBusinessName(input.businessName);
+  const nameMatches = nameRules.filter((rule) => rule.pattern.test(normalizedName));
+  const nameRulesBySlug = [...new Map(nameMatches.map((rule) => [rule.slug, rule])).values()];
+  const nameRule = nameRulesBySlug[0];
   const subtypeRule = subtypeRules.find((rule) => rule.pattern.test(input.businessSubtype?.trim() ?? ""));
   const neighborhood = extractNeighborhood(input.address);
 
+  if (nameRulesBySlug.length > 1) {
+    return {
+      categorySlug: nameRule.slug,
+      candidateSlugs: nameRulesBySlug.map((rule) => rule.slug),
+      confidence: "CONFLICT",
+      neighborhood,
+      reasons: [...nameRulesBySlug.map((rule) => rule.label), "상호에 서로 다른 대표 카테고리 신호가 함께 있음"],
+    };
+  }
   if (nameRule && subtypeRule) {
     const conflict = nameRule.group !== subtypeRule.group;
     return {
       categorySlug: nameRule.slug,
+      candidateSlugs: [nameRule.slug],
       confidence: conflict ? "CONFLICT" : "HIGH",
       neighborhood,
       reasons: [nameRule.label, conflict ? `원천 업태(${input.businessSubtype})와 불일치` : `원천 업태(${input.businessSubtype})와 일치`],
     };
   }
-  if (nameRule) return { categorySlug: nameRule.slug, confidence: "MEDIUM", neighborhood, reasons: [nameRule.label] };
-  if (subtypeRule) return { categorySlug: subtypeRule.slug, confidence: "MEDIUM", neighborhood, reasons: [`원천 업태(${input.businessSubtype}) 기준`] };
-  return { categorySlug: defaults[input.sourceType], confidence: "LOW", neighborhood, reasons: ["공공데이터 종류의 기본 분류만 적용"] };
+  if (nameRule) return { categorySlug: nameRule.slug, candidateSlugs: [nameRule.slug], confidence: "MEDIUM", neighborhood, reasons: [nameRule.label] };
+  if (subtypeRule) return { categorySlug: subtypeRule.slug, candidateSlugs: [subtypeRule.slug], confidence: "MEDIUM", neighborhood, reasons: [`원천 업태(${input.businessSubtype}) 기준`] };
+  return { categorySlug: defaults[input.sourceType], candidateSlugs: [defaults[input.sourceType]], confidence: "LOW", neighborhood, reasons: ["공공데이터 종류의 기본 분류만 적용"] };
 }
 
 export function suggestCategorySlugs(sourceType: PublicDataSource, subtype: string | null | undefined) {
-  return [classifyCandidate({ sourceType, businessSubtype: subtype, businessName: "" }).categorySlug];
+  return classifyCandidate({ sourceType, businessSubtype: subtype, businessName: "" }).candidateSlugs;
 }

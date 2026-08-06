@@ -10,11 +10,12 @@ export interface PublicCategoryGroup {
   children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }>;
 }
 
-export function MapExplorerPanel({ places, groups, query, category, onSelect, onSearch, onCategory, onLocate }: {
+export function MapExplorerPanel({ places, groups, query, category, hasSelectedPlace, onSelect, onSearch, onCategory, onLocate }: {
   places: PlaceSummary[];
   groups: PublicCategoryGroup[];
   query: string;
   category: string | null;
+  hasSelectedPlace: boolean;
   onSelect: (id: string) => void;
   onSearch: (query: string) => void;
   onCategory: (slug: string | null) => void;
@@ -33,6 +34,10 @@ export function MapExplorerPanel({ places, groups, query, category, onSelect, on
   useEffect(() => {
     setSearchQuery(query);
   }, [query]);
+
+  useEffect(() => {
+    if (hasSelectedPlace) setMobileView("map");
+  }, [hasSelectedPlace]);
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

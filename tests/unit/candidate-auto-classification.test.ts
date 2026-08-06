@@ -54,6 +54,30 @@ describe("classifyCandidate", () => {
       confidence: "LOW",
     });
   });
+
+  it("normalizes 육계장 and never suggests gimbap", () => {
+    const result = classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "기타",
+      businessName: "콩물동부육계장",
+    });
+
+    expect(result).toMatchObject({ categorySlug: "stew" });
+    expect(result.reasons.join(" ")).toContain("육계장");
+  });
+
+  it("keeps mixed takoyaki and burger signals in manual conflict", () => {
+    const result = classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "한식",
+      businessName: "다마수제타코야끼앤버거",
+    });
+
+    expect(result.confidence).toBe("CONFLICT");
+    expect(result.candidateSlugs).toEqual(expect.arrayContaining(["japanese-rice", "burger"]));
+    expect(result.reasons.join(" ")).toContain("타코야끼");
+    expect(result.reasons.join(" ")).toContain("버거");
+  });
 });
 
 describe("extractNeighborhood", () => {

@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { aiClassificationRuns, categories, places } from "../../db/schema";
@@ -7,6 +7,7 @@ import type { CandidateFilters } from "./candidate.server";
 import { classifyCandidate } from "./category-suggestion";
 import { classifyReviewState } from "./review-classification";
 import { reconcileAiClassification, validateAiClassification } from "./ai-classification-policy";
+import { AI_CLASSIFICATION_PROMPT } from "./ai-classification.server";
 
 const BULK_LIMIT = 25;
 const D1_IN_QUERY_CHUNK = 80;
@@ -26,7 +27,10 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
   const candidateIds = candidateRows.map((candidate) => candidate.id);
   for (let offset = 0; offset < candidateIds.length; offset += D1_IN_QUERY_CHUNK) {
     aiRows.push(...await db.select().from(aiClassificationRuns)
-      .where(inArray(aiClassificationRuns.candidateId, candidateIds.slice(offset, offset + D1_IN_QUERY_CHUNK)))
+      .where(and(
+        inArray(aiClassificationRuns.candidateId, candidateIds.slice(offset, offset + D1_IN_QUERY_CHUNK)),
+        eq(aiClassificationRuns.promptVersion, AI_CLASSIFICATION_PROMPT),
+      ))
       .orderBy(desc(aiClassificationRuns.createdAt))
       .limit(1_000));
   }

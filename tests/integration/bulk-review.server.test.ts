@@ -10,6 +10,7 @@ import {
 } from "../../app/features/candidates/bulk-review.server";
 import { upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
 import type { NormalizedLicense } from "../../app/features/candidates/public-data";
+import { AI_CLASSIFICATION_PROMPT } from "../../app/features/candidates/ai-classification.server";
 
 const now = "2026-08-05T11:00:00.000Z";
 const license: NormalizedLicense = {
@@ -39,7 +40,7 @@ beforeEach(async () => {
 });
 
 async function addAiAgreement(candidateId: string) {
-  await createDb(env.DB).insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId, inputHash: crypto.randomUUID(), model: "test", promptVersion: "place-category-v1", status: "SUCCESS", categorySlug: "gukbap-detail", confidence: 0.95, reasonsJson: '["규칙과 일치"]', createdAt: now });
+  await createDb(env.DB).insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId, inputHash: crypto.randomUUID(), model: "test", promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: "gukbap-detail", confidence: 0.95, reasonsJson: '["규칙과 일치"]', createdAt: now });
 }
 
 describe("bulk candidate review", () => {
@@ -85,11 +86,21 @@ describe("bulk candidate review", () => {
     const candidate = await upsertBusinessLicense(db, {
       ...license, sourceManagementNo: "ai-completed-conflict", businessName: "스시 충돌", businessSubtype: "한식",
     }, now);
-    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "test", promptVersion: "place-category-v1", status: "SUCCESS", categorySlug: "sushi-sashimi", confidence: 0.96, reasonsJson: '["AI 분류 완료"]', createdAt: now });
+    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "test", promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: "sushi-sashimi", confidence: 0.96, reasonsJson: '["AI 분류 완료"]', createdAt: now });
 
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
 
     expect(row).toMatchObject({ reviewState: "AUTO", eligible: false, classificationSource: "AI_RULE" });
+  });
+
+  it("ignores a legacy AI result and returns the candidate to manual review", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "legacy-ai-result", businessName: "콩물동부육계장", businessSubtype: "기타" }, now);
+    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "legacy", promptVersion: "place-category-v1", status: "SUCCESS", categorySlug: "gimbap", confidence: 0.8, reasonsJson: '["gimbap"]', createdAt: now });
+
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+
+    expect(row).toMatchObject({ categorySlug: "stew", reviewState: "MANUAL", classificationSource: "RULE_ONLY" });
   });
 
   it("approves safe candidates and skips unsafe selections", async () => {
