@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenses, places } from "../../app/db/schema";
+import { aiClassificationRuns, businessLicenses, places } from "../../app/db/schema";
 import {
   approveCandidateSelections,
   bulkApproveCandidates,
@@ -38,6 +38,10 @@ beforeEach(async () => {
   await env.DB.prepare("INSERT OR IGNORE INTO users (id,email,display_name,role,created_at,updated_at) VALUES ('bulk-admin','bulk-admin@example.com','관리자','ADMIN',?,?)").bind(now, now).run();
 });
 
+async function addAiAgreement(candidateId: string) {
+  await createDb(env.DB).insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId, inputHash: crypto.randomUUID(), model: "test", promptVersion: "place-category-v1", status: "SUCCESS", categorySlug: "gukbap-detail", confidence: 0.95, reasonsJson: '["규칙과 일치"]', createdAt: now });
+}
+
 describe("bulk candidate review", () => {
   it("groups candidates and enables only safe high-confidence candidates", async () => {
     const db = createDb(env.DB);
@@ -50,11 +54,12 @@ describe("bulk candidate review", () => {
       latitude: null,
       longitude: null,
     }, now);
+    await addAiAgreement(safe.id);
 
     const groups = await listBulkReviewGroups(db);
     const rows = groups.flatMap((group) => group.candidates);
     expect(rows.find((row) => row.id === safe.id)).toMatchObject({ confidence: "HIGH", eligible: true, neighborhood: "운림동" });
-    expect(rows.find((row) => row.id === unsafe.id)).toMatchObject({ confidence: "LOW", eligible: false });
+    expect(rows.find((row) => row.id === unsafe.id)).toMatchObject({ confidence: "MEDIUM", eligible: false, classificationSource: "RULE_ONLY" });
   });
 
   it("approves safe candidates and skips unsafe selections", async () => {
@@ -66,6 +71,7 @@ describe("bulk candidate review", () => {
       businessName: "스시 충돌",
       businessSubtype: "한식",
     }, now);
+    await addAiAgreement(safe.id);
 
     const result = await bulkApproveCandidates(db, {
       candidateIds: [safe.id, unsafe.id],

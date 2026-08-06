@@ -1,11 +1,12 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { categories, places } from "../../db/schema";
+import { aiClassificationRuns, categories, places } from "../../db/schema";
 import { approveCandidate, listPendingCandidates } from "./candidate.server";
 import type { CandidateFilters } from "./candidate.server";
 import { classifyCandidate } from "./category-suggestion";
 import { classifyReviewState } from "./review-classification";
+import { reconcileAiClassification, validateAiClassification } from "./ai-classification-policy";
 
 const BULK_LIMIT = 25;
 
@@ -20,6 +21,8 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
     db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
     db.select({ name: places.name, address: places.address }).from(places),
   ]);
+  const aiRows = candidateRows.length ? await db.select().from(aiClassificationRuns).where(inArray(aiClassificationRuns.candidateId, candidateRows.map((candidate) => candidate.id))).orderBy(desc(aiClassificationRuns.createdAt)).limit(1_000) : [];
+  const latestAi = new Map<string, (typeof aiRows)[number]>(); for (const row of aiRows) if (!latestAi.has(row.candidateId)) latestAi.set(row.candidateId, row);
   const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
   const categoryById = new Map(categoryRows.map((category) => [category.id, category]));
   const duplicateKeys = new Set(placeRows.map((place) => duplicateKey(place.name, place.address)));
@@ -40,9 +43,12 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       businessName: candidate.businessName,
       address,
     });
-    const category = categoryBySlug.get(classification.categorySlug);
+    const aiRun = latestAi.get(candidate.id); let ai = null;
+    if (aiRun?.status === "SUCCESS") try { ai = validateAiClassification({ categorySlug: aiRun.categorySlug, confidence: aiRun.confidence, reasons: JSON.parse(aiRun.reasonsJson ?? "[]") }, new Set(categoryRows.map((row) => row.slug))); } catch { ai = null; }
+    const combined = reconcileAiClassification({ ruleSlug: classification.categorySlug, ruleConfidence: classification.confidence, ai });
+    const category = categoryBySlug.get(combined.categorySlug);
     const review = classifyReviewState({
-      confidence: classification.confidence,
+      confidence: combined.confidence,
       categoryAvailable: Boolean(category?.parentId),
       address,
       neighborhood: classification.neighborhood,
@@ -54,10 +60,12 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       ...candidate,
       address,
       categoryId: category?.id ?? null,
-      categorySlug: classification.categorySlug,
-      confidence: classification.confidence,
+      categorySlug: combined.categorySlug,
+      confidence: combined.confidence,
       neighborhood: classification.neighborhood,
-      reasons: classification.reasons,
+      reasons: [...classification.reasons, ...combined.reasons],
+      classificationSource: aiRun?.status === "SUCCESS" ? "AI_RULE" as const : aiRun?.status === "FAILED" ? "AI_FAILED" as const : "RULE_ONLY" as const,
+      aiConfidence: aiRun?.confidence ?? null,
       blockers: review.blockers,
       reviewReasons: review.reviewReasons,
       reviewState: review.state,

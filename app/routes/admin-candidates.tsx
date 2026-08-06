@@ -11,6 +11,7 @@ import { approveCandidateSelections, listBulkReviewGroups } from "../features/ca
 import { reconcileCandidateSelection } from "../features/candidates/bulk-selection";
 import { listCandidateSubtypes, rejectCandidate } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
+import { classifyPendingCandidatesWithAi } from "../features/candidates/ai-classification.server";
 
 const sources: Array<[PublicDataSource, string]> = [
   ["GENERAL_RESTAURANT", "일반음식점"], ["REST_CAFE", "휴게음식점"],
@@ -76,18 +77,22 @@ export async function action({ request }: Route.ActionArgs) {
   if (candidateIds.length > 25) throw new Response("한 번에 최대 25곳까지 처리할 수 있습니다.", { status: 400 });
   const db = createDb(env.DB);
   const now = new Date().toISOString();
+  if (form.get("intent") === "runAi") {
+    const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 100, now });
+    return { approved: [], skipped: [], rejected: 0, error: null, ai };
+  }
   if (form.get("intent") === "rejectSelected") {
     const reason = String(form.get("reason") ?? "").trim();
     if (!reason) return { approved: [], skipped: [], rejected: 0, error: "반려 사유를 입력하세요." };
     await Promise.all(candidateIds.map((candidateId) => rejectCandidate(db, { candidateId, actorUserId: user.id, reason, now })));
-    return { approved: [], skipped: [], rejected: candidateIds.length, error: null };
+    return { approved: [], skipped: [], rejected: candidateIds.length, error: null, ai: null };
   }
   const result = await approveCandidateSelections(db, {
     selections: candidateIds.map((candidateId) => ({ candidateId, categoryId: String(form.get(`category:${candidateId}`) ?? "") })),
     actorUserId: user.id,
     now,
   });
-  return { ...result, rejected: 0, error: null };
+  return { ...result, rejected: 0, error: null, ai: null };
 }
 
 export default function AdminCandidates({ loaderData, actionData }: Route.ComponentProps) {
@@ -132,6 +137,8 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">자동 분류 결과를 목록에서 확인하고, 애매한 후보만 카테고리를 직접 정합니다. 동네는 주소에서 자동 계산됩니다.</p>
           </div>
           <nav className="flex flex-wrap gap-2 text-sm font-medium">
+            <Form method="post"><button className="border border-emerald-800 bg-emerald-800 px-4 py-2.5 text-white" name="intent" value="runAi">AI 대기 후보 100곳 분류</button></Form>
+            <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/operations">운영 현황</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/ratings">평가 운영</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/reviewers">리뷰어 관리</Link>
             <Link className="border border-neutral-300 bg-white px-4 py-2.5 hover:border-neutral-900" to="/admin/places">공개 장소</Link>
@@ -165,7 +172,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <div className="flex items-end gap-2"><button className="h-10 flex-1 whitespace-nowrap bg-neutral-950 px-3 text-xs font-semibold text-white">필터 적용</button><Link className="grid h-10 place-items-center whitespace-nowrap border border-neutral-300 px-3 text-xs" to="/admin/candidates">초기화</Link></div>
         </Form>
 
-        {actionData && <div className={`mb-5 border px-4 py-3 text-sm ${actionData.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{actionData.error ?? `${actionData.approved.length}곳 공개 · ${actionData.rejected}곳 반려 · ${actionData.skipped.length}곳 제외`}</div>}
+        {actionData && <div className={`mb-5 border px-4 py-3 text-sm ${actionData.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{actionData.error ?? (actionData.ai ? `AI ${actionData.ai.processed}곳 처리 · 성공 ${actionData.ai.succeeded} · 실패 ${actionData.ai.failed} · 캐시 ${actionData.ai.cached}` : `${actionData.approved.length}곳 공개 · ${actionData.rejected}곳 반려 · ${actionData.skipped.length}곳 제외`)}</div>}
 
         <Form method="post">
           {[...selected].map((id) => <input key={id} type="hidden" name="candidateIds" value={id} />)}
@@ -174,6 +181,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             <p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보는 선택할 수 없습니다.</p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input className="min-w-0 border border-neutral-500 bg-white px-3 py-2 text-sm text-neutral-950" name="reason" placeholder="일괄 반려 사유" />
+              <button className="border border-[#d7f28a] px-4 py-2 text-sm font-medium text-[#d7f28a] disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting}>선택 AI 분류</button>
               <button className="border border-white px-4 py-2 text-sm font-medium disabled:opacity-40" name="intent" value="rejectSelected" disabled={!selected.size || isSubmitting}>선택 반려</button>
               <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 승인·공개"}</button>
             </div>
@@ -191,7 +199,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
                 <div><p className="text-[11px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-1 text-xs text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">{row.neighborhood ?? "동네 추출 실패"} · {row.latitude?.toFixed(5) ?? "—"}, {row.longitude?.toFixed(5) ?? "—"}</p>{row.blockers.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{row.blockers.map((blocker) => <li key={blocker} className="border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">{blocker}</li>)}</ul>}</div>
                 <div>{row.reviewState === "MANUAL" ? <label className="grid gap-1 text-[11px] font-medium text-neutral-600"><span>{row.businessName} 대표 카테고리</span><select aria-label={`${row.businessName} 대표 카테고리`} value={chosenCategories[row.id] ?? ""} onChange={(event) => setChosenCategories((current) => ({ ...current, [row.id]: event.currentTarget.value }))} className="w-full border border-amber-500 bg-amber-50 px-2 py-2 text-sm text-neutral-950"><option value="">직접 선택</option>{parents.map((parent) => <optgroup key={parent.id} label={`${parent.emoji} ${parent.name}`}>{children.filter((child) => child.parentId === parent.id).map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}</optgroup>)}</select></label> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
-                <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason) => <li key={reason}>{reason}</li>)}</ul></details></div>
+                <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}{row.aiConfidence == null ? "" : ` · AI ${Math.round(row.aiConfidence * 100)}%`}</p><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
               </article>;
             })}
             {!loaderData.rows.length && <p className="px-5 py-16 text-center text-sm text-neutral-500">현재 조건에 맞는 검수 후보가 없습니다.</p>}

@@ -29,4 +29,5 @@ export default [
   route("admin/reviewers", "routes/admin-reviewers.tsx"),
   route("admin/ratings", "routes/admin-ratings.tsx"),
   route("admin/place-operations", "routes/admin-place-operations.tsx"),
+  route("admin/operations", "routes/admin-operations.tsx"),
 ] satisfies RouteConfig;
