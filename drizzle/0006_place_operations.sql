@@ -53,4 +53,4 @@ CREATE TABLE place_revalidation_cases (
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE INDEX place_revalidation_status_reason_idx ON place_revalidation_cases(status,reason_type);
-CREATE UNIQUE INDEX place_revalidation_open_key ON place_revalidation_cases(place_id,reason_type,status);
+CREATE INDEX place_revalidation_place_reason_idx ON place_revalidation_cases(place_id,reason_type);

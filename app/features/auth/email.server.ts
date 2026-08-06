@@ -2,11 +2,11 @@ export async function sendAccountEmail(input: {
   apiKey: string;
   from: string;
   to: string;
-  purpose: "VERIFY_EMAIL" | "RESET_PASSWORD";
+  purpose: "VERIFY_EMAIL" | "RESET_PASSWORD" | "VERIFY_CORRECTION";
   url: string;
   fetcher?: typeof fetch;
 }) {
-  const title = input.purpose === "VERIFY_EMAIL" ? "이메일 인증" : "비밀번호 재설정";
+  const title = input.purpose === "VERIFY_EMAIL" ? "이메일 인증" : input.purpose === "RESET_PASSWORD" ? "비밀번호 재설정" : "장소 정정 요청 확인";
   const response = await (input.fetcher ?? fetch)("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${input.apiKey}`, "Content-Type": "application/json" },

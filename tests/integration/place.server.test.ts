@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import {
   getPlaceBySlug,
+  resolvePlaceSlugRedirect,
   importPlaceRows,
   listAdminPlaces,
   listPlaces,
@@ -83,5 +84,13 @@ describe("place service", () => {
     expect(adminPlaces.map((place) => place.slug)).toEqual(
       expect.arrayContaining(["batch-place-1", "batch-place-2"]),
     );
+  });
+
+  it("resolves an absorbed place slug to its published target", async () => {
+    const db = createDb(env.DB);
+    await upsertPlace(db, { id: "redirect-target", row: { ...baseRow, slug: "redirect-target" }, now: "2026-08-05T00:00:00Z" });
+    await env.DB.prepare("INSERT INTO place_slug_redirects (old_slug, place_id, created_at) VALUES (?, ?, ?)").bind("old-place", "redirect-target", "2026-08-05T00:00:00Z").run();
+    await expect(resolvePlaceSlugRedirect(db, "old-place")).resolves.toBe("redirect-target");
+    await expect(resolvePlaceSlugRedirect(db, "unknown-old-place")).resolves.toBeNull();
   });
 });

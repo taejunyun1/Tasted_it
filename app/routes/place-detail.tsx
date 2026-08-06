@@ -3,7 +3,7 @@ import { Link, redirect } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/place-detail";
 import { createDb } from "../db/client.server";
-import { getPlaceBySlug } from "../features/places/place.server";
+import { getPlaceBySlug, resolvePlaceSlugRedirect } from "../features/places/place.server";
 import { calculateRating } from "../features/ratings/rating-v1";
 import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
@@ -21,6 +21,8 @@ const actionSchema = z.discriminatedUnion("intent", [
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const db = createDb(env.DB);
+  const redirectedSlug = await resolvePlaceSlugRedirect(db, params.placeSlug);
+  if (redirectedSlug) throw redirect(`/places/${redirectedSlug}`, 301);
   const [place, user] = await Promise.all([getPlaceBySlug(db, params.placeSlug), getOptionalUser(request)]);
   const [vote, saved] = user ? await Promise.all([
     getCurrentVote(db, { placeId: place.id, userId: user.id }),
@@ -62,6 +64,8 @@ export async function action({ request, params }: Route.ActionArgs) {
   const parsed = actionSchema.safeParse(Object.fromEntries(await request.formData()));
   if (!parsed.success) throw new Response("Invalid reaction", { status: 400, statusText: "INVALID_REACTION" });
   const db = createDb(env.DB);
+  const redirectedSlug = await resolvePlaceSlugRedirect(db, params.placeSlug);
+  if (redirectedSlug) throw redirect(`/places/${redirectedSlug}`, 308);
   const place = await getPlaceBySlug(db, params.placeSlug);
   const now = new Date().toISOString();
   if (parsed.data.intent === "vote") {

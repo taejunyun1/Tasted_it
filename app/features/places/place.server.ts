@@ -7,6 +7,7 @@ import {
   categories,
   currentVotes,
   placeCategories,
+  placeSlugRedirects,
   places,
 } from "../../db/schema";
 import type {
@@ -235,6 +236,13 @@ export async function getPlaceBySlug(
     });
   }
   return place;
+}
+
+export async function resolvePlaceSlugRedirect(db: AppDb, oldSlug: string): Promise<string | null> {
+  const [result] = await db.select({ slug: places.slug }).from(placeSlugRedirects)
+    .innerJoin(places, and(eq(places.id, placeSlugRedirects.placeId), eq(places.status, "PUBLISHED")))
+    .where(eq(placeSlugRedirects.oldSlug, oldSlug)).limit(1);
+  return result?.slug ?? null;
 }
 
 export async function upsertPlace(

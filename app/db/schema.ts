@@ -554,4 +554,4 @@ export const placeRevalidationCases = sqliteTable("place_revalidation_cases", {
   reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
   reviewedAt: text("reviewed_at"),
   ...timestamps,
-}, (table) => [index("place_revalidation_status_reason_idx").on(table.status, table.reasonType), uniqueIndex("place_revalidation_open_key").on(table.placeId, table.reasonType, table.status)]);
+}, (table) => [index("place_revalidation_status_reason_idx").on(table.status, table.reasonType), index("place_revalidation_place_reason_idx").on(table.placeId, table.reasonType)]);
