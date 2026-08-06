@@ -9,6 +9,16 @@ import {
 import type { RegionCluster } from "../../features/maps/region-cluster-policy";
 import type { PlaceSummary } from "../../features/places/place.types";
 
+function detachMarkers(markers: naver.maps.Marker[]) {
+  markers.forEach((marker) => {
+    try {
+      marker.setMap(null);
+    } catch {
+      // The NAVER SDK can already be torn down while React disposes effects during HMR.
+    }
+  });
+}
+
 export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, onSelect, onBounds, onZoom = () => undefined, onClusterSelect = () => undefined, initialBounds, locationBounds, locationNotice = null }: {
   places: PlaceSummary[];
   selected: string | null;
@@ -34,6 +44,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   const boundsRef = useRef(onBounds);
   const zoomRef = useRef(onZoom);
   const clusterSelectRef = useRef(onClusterSelect);
+  const markersRef = useRef<naver.maps.Marker[]>([]);
   const suppressBoundsUntilRef = useRef(0);
   selectRef.current = onSelect;
   boundsRef.current = onBounds;
@@ -45,6 +56,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     let instance: naver.maps.Map | undefined;
+    let mapsApi: typeof naver.maps | undefined;
     let idleListener: unknown;
     let zoomListener: unknown;
 
@@ -56,6 +68,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     setError(null);
     void loadNaverMaps(initialClientId.current).then(({ maps }) => {
       if (disposed || !host.current) return;
+      mapsApi = maps;
       const created = new maps.Map(host.current, {
         center: new maps.LatLng(35.1595, 126.8526),
         zoom: 12,
@@ -97,8 +110,10 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     return () => {
       disposed = true;
       clearTimeout(timer);
-      if (idleListener) naver.maps.Event.removeListener(idleListener);
-      if (zoomListener) naver.maps.Event.removeListener(zoomListener);
+      detachMarkers(markersRef.current);
+      markersRef.current = [];
+      if (idleListener && mapsApi) mapsApi.Event.removeListener(idleListener);
+      if (zoomListener && mapsApi) mapsApi.Event.removeListener(zoomListener);
       setMap((current) => current === instance ? null : current);
       instance?.destroy();
     };
@@ -146,7 +161,12 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
         icon: { content: button, anchor: new maps.Point(markerSize / 2, markerSize / 2) },
       });
     });
-    return () => markers.forEach((marker) => marker.setMap(null));
+    markersRef.current = markers;
+    return () => {
+      if (markersRef.current !== markers) return;
+      markersRef.current = [];
+      detachMarkers(markers);
+    };
   }, [clusters, map, places, selected]);
 
   useEffect(() => {
