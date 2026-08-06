@@ -1,8 +1,9 @@
 import { env } from "cloudflare:workers";
-import { Form, Link } from "react-router";
+import { Form, Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/place-list";
 import { PlaceCard } from "../components/places/PlaceCard";
 import { PlaceDiscoveryRail } from "../components/places/PlaceDiscoveryRail";
+import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
 import { getPlaceDiscovery } from "../features/places/place-discovery.server";
@@ -25,6 +26,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export default function PlaceList({ loaderData }: Route.ComponentProps) {
+  const [params, setParams] = useSearchParams();
+  const detailSlug = params.get("place");
+  const openDetail = (slug: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("place", slug); return next; });
+  const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
   return <main id="main" className="shell discovery-page">
     <header className="discovery-hero">
@@ -36,9 +41,9 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
       <Link className="discovery-map-link" to={`/${loaderData.search}`}>지도에서 보기</Link>
     </header>
 
-    <PlaceDiscoveryRail title="내 주변 추천" description={`${categoryName} · 현재 지도 중심에서 가까운 순`} places={loaderData.discovery.nearby} kind="nearby" />
-    <PlaceDiscoveryRail title="Re:Taste 추천" description="8표 이상 평가된 장소 중 추천 점수와 표본을 함께 봅니다." places={loaderData.discovery.service} kind="service" />
-    <PlaceDiscoveryRail title="최근 Golden Pick" description="활동 중인 리뷰어가 최근에 직접 고른 장소입니다." places={loaderData.discovery.golden} kind="golden" />
+    <PlaceDiscoveryRail title="내 주변 추천" description={`${categoryName} · 현재 지도 중심에서 가까운 순`} places={loaderData.discovery.nearby} kind="nearby" onOpenDetail={openDetail} />
+    <PlaceDiscoveryRail title="Re:Taste 추천" description="8표 이상 평가된 장소 중 추천 점수와 표본을 함께 봅니다." places={loaderData.discovery.service} kind="service" onOpenDetail={openDetail} />
+    <PlaceDiscoveryRail title="최근 Golden Pick" description="활동 중인 리뷰어가 최근에 직접 고른 장소입니다." places={loaderData.discovery.golden} kind="golden" onOpenDetail={openDetail} />
 
     <section className="discovery-section discovery-all" aria-labelledby="all-places">
       <header className="discovery-heading">
@@ -53,8 +58,9 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
         <button>찾기</button>
       </Form>
       <p className="discovery-count">{loaderData.places.length} PLACES · {categoryName}</p>
-      <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} />)}</div>
+      <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
       {!loaderData.places.length && <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>}
     </section>
+    <PlaceDetailSheet slug={detailSlug} onClose={closeDetail} />
   </main>;
 }

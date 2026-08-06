@@ -204,10 +204,13 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <div className="flex items-end gap-2"><button className="h-10 flex-1 whitespace-nowrap bg-neutral-950 px-3 text-xs font-semibold text-white">필터 적용</button><Link className="grid h-10 place-items-center whitespace-nowrap border border-neutral-300 px-3 text-xs" to="/admin/candidates">초기화</Link></div>
         </Form>
 
-        {autoClassification.state !== "idle" && <div className="mb-5 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm">새 후보 10곳을 자동 분류하고 있습니다.</div>}
+        {autoClassification.state !== "idle" && <div className="mb-5 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm">규칙 분류를 먼저 적용하고, 애매한 후보만 최대 3곳씩 AI로 확인하고 있습니다.</div>}
         {(() => {
           const feedback = autoClassification.data ?? actionData;
-          return feedback && <div className={`mb-5 border px-4 py-3 text-sm ${feedback.error ? "border-rose-600 bg-rose-50" : "border-emerald-700 bg-emerald-50"}`}>{feedback.error ?? (feedback.ai ? `AI ${feedback.ai.processed}곳 처리 · 성공 ${feedback.ai.succeeded}곳은 분류 완료로 이동 · 실패 ${feedback.ai.failed}` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</div>;
+          return feedback && <div className={`mb-5 border px-4 py-3 text-sm ${feedback.error || feedback.skipped.length ? "border-amber-600 bg-amber-50" : "border-emerald-700 bg-emerald-50"}`}>
+            <p>{feedback.error ?? (feedback.ai ? `${feedback.ai.processed}곳 처리 · 규칙 즉시 완료 ${feedback.ai.ruleCompleted}곳 · 전체 성공 ${feedback.ai.succeeded}곳 · 실패 ${feedback.ai.failed}` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</p>
+            {feedback.skipped.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{feedback.skipped.map((item) => <li key={item.candidateId}><strong>{loaderData.rows.find((row) => row.id === item.candidateId)?.businessName ?? item.candidateId}</strong> · {item.reason}</li>)}</ul>}
+          </div>;
         })()}
 
         <Pagination pagination={loaderData.pagination} params={params} position="top" />

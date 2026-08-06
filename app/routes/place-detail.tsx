@@ -73,7 +73,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   } else {
     await setSaved(db, { placeId: place.id, userId: user.id, saved: parsed.data.saved, now });
   }
-  return redirect(`/places/${params.placeSlug}`);
+  return { ok: true };
 }
 
 export function meta() { return [{ title: "장소 상세 — Re:Taste" }]; }

@@ -5,6 +5,8 @@ import { recordOperationalAlert } from "../operations/alerts.server";
 import { validateGroundedAiClassification } from "./ai-classification-policy";
 import { AI_DAILY_BLOCK_NEURONS, estimateNeurons, getAiQuotaState, type AiTokenUsage } from "./ai-usage-policy";
 import { classifyCandidate } from "./category-suggestion";
+import { getTerminalCategoryIds } from "./category-selection";
+import { mapWithConcurrency } from "../../lib/concurrency";
 
 export const AI_CLASSIFICATION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast" as const;
 export const AI_CLASSIFICATION_PROMPT = "place-category-v3";
@@ -51,13 +53,14 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
   ))));
   const [candidateRows, categoryRows] = await Promise.all([
     db.select().from(businessLicenses).where(and(...conditions)).orderBy(asc(businessLicenses.updatedAt)).limit(limit),
-    db.select({ slug: categories.slug, name: categories.name }).from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
+    db.select({ id: categories.id, parentId: categories.parentId, slug: categories.slug, name: categories.name }).from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
   ]);
   const allowed = new Set(categoryRows.map((category) => category.slug));
-  let processed = 0; let succeeded = 0; let failed = 0; let cached = 0;
+  const terminalIds = getTerminalCategoryIds(categoryRows);
+  const terminalSlugs = new Set(categoryRows.filter((category) => terminalIds.has(category.id)).map((category) => category.slug));
+  let processed = 0; let succeeded = 0; let failed = 0; let cached = 0; let ruleCompleted = 0;
 
-  for (const candidate of candidateRows) {
-    if (quota.used >= AI_DAILY_BLOCK_NEURONS) break;
+  await mapWithConcurrency(candidateRows, 3, async (candidate) => {
     const rule = classifyCandidate({ sourceType: candidate.sourceType, businessSubtype: candidate.businessSubtype, businessName: candidate.businessName, address: candidate.roadAddress ?? candidate.lotAddress });
     const candidateSlugSet = new Set(rule.candidateSlugs);
     const candidateCategories = categoryRows.filter((category) => candidateSlugSet.has(category.slug));
@@ -73,11 +76,21 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
       categories: candidateCategories,
     };
     const inputHash = await sha256(JSON.stringify(payload));
+    processed += 1;
+    if (rule.confidence === "HIGH" && terminalSlugs.has(rule.categorySlug)) {
+      await db.insert(aiClassificationRuns).values({
+        id: crypto.randomUUID(), candidateId: candidate.id, inputHash, model: "RULE_ONLY",
+        promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: rule.categorySlug,
+        confidence: 1, reasonsJson: JSON.stringify(rule.reasons), inputTokens: 0, outputTokens: 0,
+        estimatedNeurons: 0, attemptCount: 1, createdAt: input.now,
+      });
+      succeeded += 1;
+      ruleCompleted += 1;
+      return;
+    }
     const cutoff = new Date(new Date(input.now).getTime() - 30 * 86_400_000).toISOString();
     const cachedRun = await db.query.aiClassificationRuns.findFirst({ where: and(eq(aiClassificationRuns.inputHash, inputHash), eq(aiClassificationRuns.status, "SUCCESS"), gte(aiClassificationRuns.createdAt, cutoff)), orderBy: desc(aiClassificationRuns.createdAt) });
     const usage: UsageTotal = { inputTokens: 0, outputTokens: 0, estimatedNeurons: 0, attempts: 0 };
-    processed += 1;
-
     try {
       let parsed;
       if (cachedRun) {
@@ -88,14 +101,13 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: "한국 음식점의 대표 카테고리를 제공된 후보에서만 선택하세요. 사용자가 실제로 찾는 구체 음식이 영업 형태와 넓은 행정 업태보다 우선합니다. 예: 호프/통닭·치킨호프는 치킨, 해장국·순대국·돼지국밥·설렁탕·곰탕은 국밥입니다. evidence에는 반드시 입력 상호명 또는 원천 업태에 실제로 있는 한국어 문자열을 그대로 복사하세요. 근거가 없거나 후보가 맞지 않으면 낮은 confidence를 사용하세요. 개인정보를 추론하지 마세요." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 260, temperature: 0 }) as AiRunResponse;
           addUsage(usage, result.usage);
-          quota = getAiQuotaState(quota.used + estimateNeurons(result.usage));
           try {
             parsed = validateGroundedAiClassification(result.response, allowed, evidenceText);
             if (!candidateSlugSet.has(parsed.categorySlug)) throw new Error("AI_CATEGORY_OUTSIDE_CANDIDATES");
             validationError = undefined;
             break;
           }
-          catch (error) { validationError = error; if (quota.blocked) break; }
+          catch (error) { validationError = error; }
         }
         if (validationError || !parsed) throw validationError ?? new Error("AI_OUTPUT_INVALID");
       }
@@ -109,7 +121,7 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
       await recordOperationalAlert(db, { alertType: "AI_CLASSIFICATION", sourceId: candidate.id, message, details: { candidateId: candidate.id, promptVersion: AI_CLASSIFICATION_PROMPT }, now: input.now });
       failed += 1;
     }
-  }
+  });
   quota = await getDailyAiQuota(db, input.now);
-  return { processed, succeeded, failed, cached, limited: quota.blocked || candidateRows.length >= limit, quota };
+  return { processed, succeeded, failed, cached, ruleCompleted, limited: quota.blocked || candidateRows.length >= limit, quota };
 }

@@ -8,6 +8,7 @@ import { classifyCandidate } from "./category-suggestion";
 import { classifyReviewState } from "./review-classification";
 import { reconcileAiClassification, validateAiClassification } from "./ai-classification-policy";
 import { AI_CLASSIFICATION_PROMPT } from "./ai-classification.server";
+import { getTerminalCategoryIds } from "./category-selection";
 
 const BULK_LIMIT = 25;
 const D1_IN_QUERY_CHUNK = 80;
@@ -38,6 +39,7 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
   const latestAi = new Map<string, (typeof aiRows)[number]>(); for (const row of aiRows) if (!latestAi.has(row.candidateId)) latestAi.set(row.candidateId, row);
   const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
   const categoryById = new Map(categoryRows.map((category) => [category.id, category]));
+  const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
   const duplicateKeys = new Set(placeRows.map((place) => duplicateKey(place.name, place.address)));
   const groups = new Map<string, {
     categoryId: string;
@@ -62,14 +64,14 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
     const category = categoryBySlug.get(combined.categorySlug);
     const review = classifyReviewState({
       confidence: combined.confidence,
-      categoryAvailable: Boolean(category?.parentId),
+      categoryAvailable: Boolean(category && terminalCategoryIds.has(category.id)),
       address,
       neighborhood: classification.neighborhood,
       latitude: candidate.latitude,
       longitude: candidate.longitude,
       duplicate: Boolean(address && duplicateKeys.has(duplicateKey(candidate.businessName, address))),
     });
-    const classificationCompleted = Boolean(ai && category?.parentId);
+    const classificationCompleted = Boolean(ai && category && terminalCategoryIds.has(category.id));
     const displayState = review.state === "BLOCKED" ? "BLOCKED" as const : classificationCompleted ? "AUTO" as const : review.state;
     return {
       ...candidate,
@@ -136,7 +138,7 @@ export async function approveCandidateSelections(db: AppDb, input: {
     db.select().from(categories).where(eq(categories.isActive, true)),
   ]);
   const candidates = new Map(groups.flatMap((group) => group.candidates).map((candidate) => [candidate.id, candidate]));
-  const validCategoryIds = new Set(categoryRows.filter((category) => category.parentId).map((category) => category.id));
+  const validCategoryIds = getTerminalCategoryIds(categoryRows);
   const batchKeys = new Set<string>();
   const approved: Array<{ candidateId: string; placeId: string }> = [];
   const skipped: Array<{ candidateId: string; reason: string }> = [];
@@ -152,7 +154,7 @@ export async function approveCandidateSelections(db: AppDb, input: {
       continue;
     }
     if (!validCategoryIds.has(categoryId)) {
-      skipped.push({ candidateId, reason: "활성 세부 카테고리를 선택해야 합니다." });
+      skipped.push({ candidateId, reason: "승인 가능한 최종 카테고리를 선택해야 합니다." });
       continue;
     }
     const key = duplicateKey(candidate.businessName, candidate.address);
@@ -174,7 +176,13 @@ export async function approveCandidateSelections(db: AppDb, input: {
       });
       approved.push({ candidateId, placeId: result.placeId });
     } catch (error) {
-      skipped.push({ candidateId, reason: error instanceof Error ? error.message : "승인 처리 실패" });
+      const code = error instanceof Error ? error.message : "";
+      const reason = code === "CATEGORY_NOT_FOUND" ? "승인 가능한 최종 카테고리를 선택해야 합니다."
+        : code === "CANDIDATE_NOT_APPROVABLE" ? "이미 처리됐거나 영업 중인 검수 후보가 아닙니다."
+        : code === "INVALID_PLACE_COORDINATES" ? "좌표를 확인해야 합니다."
+        : code === "PLACE_NEIGHBORHOOD_NOT_FOUND" ? "주소에서 동네를 확인할 수 없습니다."
+        : "승인 처리 중 오류가 발생했습니다.";
+      skipped.push({ candidateId, reason });
     }
   }
   return { approved, skipped };

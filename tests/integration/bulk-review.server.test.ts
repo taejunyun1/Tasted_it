@@ -151,6 +151,24 @@ describe("bulk candidate review", () => {
     expect(result.approved).toEqual([expect.objectContaining({ candidateId: candidate.id })]);
   });
 
+  it("approves a candidate with an active childless parent category", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, {
+      ...license,
+      sourceManagementNo: "manual-terminal-parent",
+      businessName: "기영이숯불두마리치킨 여수여천점",
+      businessSubtype: "호프/통닭",
+    }, now);
+
+    const result = await approveCandidateSelections(db, {
+      selections: [{ candidateId: candidate.id, categoryId: "cat-chicken" }],
+      actorUserId: "bulk-admin",
+      now,
+    });
+
+    expect(result.approved).toEqual([expect.objectContaining({ candidateId: candidate.id })]);
+  });
+
   it("does not approve a blocked candidate even with a manual category", async () => {
     const db = createDb(env.DB);
     const candidate = await upsertBusinessLicense(db, {

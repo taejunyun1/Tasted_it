@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { calculateRating } from "../../features/ratings/rating-v1";
 import type { PlaceSummary } from "../../features/places/place.types";
 
-export function MapPlaceDetail({ place, onBack }: { place: PlaceSummary; onBack: () => void }) {
+export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSummary; onBack: () => void; onOpenDetail: (slug: string) => void }) {
   const rating = calculateRating(place);
   const voteCount = place.positive + place.negative;
   const isVisible = rating.sampleStatus === "VISIBLE";
@@ -41,7 +41,7 @@ export function MapPlaceDetail({ place, onBack }: { place: PlaceSummary; onBack:
     </div>
     <div className="map-place-sheet__actions">
       <a className="map-place-sheet__route" href={naverUrl} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
-      <Link className="map-place-sheet__more" to={`/places/${place.slug}`}>상세 보기</Link>
+      <Link className="map-place-sheet__more" to={`/places/${place.slug}`} onClick={(event) => { if (window.matchMedia("(max-width: 760px)").matches) { event.preventDefault(); onOpenDetail(place.slug); } }}>상세 보기</Link>
     </div>
   </aside>;
 }
