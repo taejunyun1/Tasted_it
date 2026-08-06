@@ -109,4 +109,3 @@ Push `codex/bakery-classification`, create a PR into `main`, review the complete
 - [ ] **Step 4: Deploy merged main and smoke test**
 
 Update local `main` from `origin/main`, run `corepack pnpm deploy`, then confirm `/`, `/admin/candidates`, and bakery classification tests remain healthy.
-
