@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconcileAiClassification, validateAiClassification } from "../../app/features/candidates/ai-classification-policy";
+import { reconcileAiClassification, validateAiClassification, validateGroundedAiClassification } from "../../app/features/candidates/ai-classification-policy";
 
 const slugs = new Set(["ramen-detail", "gukbap-detail"]);
 
@@ -16,5 +16,13 @@ describe("AI category policy", () => {
     expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "HIGH", ai: { categorySlug: "ramen-detail", confidence: 0.7, reasons: [] } })).toMatchObject({ eligible: false, confidence: "MEDIUM" });
     expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "HIGH", ai: null })).toMatchObject({ eligible: false, confidence: "MEDIUM" });
     expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "MEDIUM", ai: { categorySlug: "ramen-detail", confidence: 0.99, reasons: [] } })).toMatchObject({ eligible: false, confidence: "MEDIUM" });
+  });
+
+  it("rejects AI evidence that is absent from the supplied business data", () => {
+    expect(() => validateGroundedAiClassification(
+      { categorySlug: "gimbap", confidence: 0.8, evidence: ["gimbap"], reasons: ["김밥"] },
+      new Set(["gimbap"]),
+      "콩물동부육계장 기타",
+    )).toThrow("AI_EVIDENCE_UNGROUNDED");
   });
 });

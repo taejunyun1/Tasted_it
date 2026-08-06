@@ -2,13 +2,14 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, lt, notExists, sql } from 
 import type { AppDb } from "../../db/client.server";
 import { aiClassificationRuns, businessLicenses, categories } from "../../db/schema";
 import { recordOperationalAlert } from "../operations/alerts.server";
-import { validateAiClassification } from "./ai-classification-policy";
+import { validateGroundedAiClassification } from "./ai-classification-policy";
 import { AI_DAILY_BLOCK_NEURONS, estimateNeurons, getAiQuotaState, type AiTokenUsage } from "./ai-usage-policy";
+import { classifyCandidate } from "./category-suggestion";
 
 export const AI_CLASSIFICATION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast" as const;
-export const AI_CLASSIFICATION_PROMPT = "place-category-v1";
+export const AI_CLASSIFICATION_PROMPT = "place-category-v2";
 export const AI_CLASSIFICATION_BATCH_SIZE = 10;
-const responseSchema = { type: "object", properties: { categorySlug: { type: "string" }, confidence: { type: "number", minimum: 0, maximum: 1 }, reasons: { type: "array", items: { type: "string" }, maxItems: 3 } }, required: ["categorySlug", "confidence", "reasons"], additionalProperties: false } as const;
+const responseSchema = { type: "object", properties: { categorySlug: { type: "string" }, confidence: { type: "number", minimum: 0, maximum: 1 }, evidence: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 3 }, reasons: { type: "array", items: { type: "string" }, maxItems: 3 } }, required: ["categorySlug", "confidence", "evidence", "reasons"], additionalProperties: false } as const;
 
 type AiRunResponse = { response?: unknown; usage?: AiTokenUsage };
 type UsageTotal = { inputTokens: number; outputTokens: number; estimatedNeurons: number; attempts: number };
@@ -53,7 +54,11 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
 
   for (const candidate of candidateRows) {
     if (quota.used >= AI_DAILY_BLOCK_NEURONS) break;
-    const payload = { businessName: candidate.businessName, businessSubtype: candidate.businessSubtype, regionCode: candidate.regionCode, categories: categoryRows };
+    const rule = classifyCandidate({ sourceType: candidate.sourceType, businessSubtype: candidate.businessSubtype, businessName: candidate.businessName, address: candidate.roadAddress ?? candidate.lotAddress });
+    const candidateSlugSet = new Set(rule.candidateSlugs);
+    const candidateCategories = categoryRows.filter((category) => candidateSlugSet.has(category.slug));
+    const evidenceText = `${candidate.businessName} ${candidate.businessSubtype ?? ""}`;
+    const payload = { promptVersion: AI_CLASSIFICATION_PROMPT, businessName: candidate.businessName, businessSubtype: candidate.businessSubtype, regionCode: candidate.regionCode, ruleReasons: rule.reasons, categories: candidateCategories };
     const inputHash = await sha256(JSON.stringify(payload));
     const cutoff = new Date(new Date(input.now).getTime() - 30 * 86_400_000).toISOString();
     const cachedRun = await db.query.aiClassificationRuns.findFirst({ where: and(eq(aiClassificationRuns.inputHash, inputHash), eq(aiClassificationRuns.status, "SUCCESS"), gte(aiClassificationRuns.createdAt, cutoff)), orderBy: desc(aiClassificationRuns.createdAt) });
@@ -63,21 +68,27 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
     try {
       let parsed;
       if (cachedRun) {
-        parsed = validateAiClassification({ categorySlug: cachedRun.categorySlug, confidence: cachedRun.confidence, reasons: JSON.parse(cachedRun.reasonsJson ?? "[]") }, allowed);
+        const storedReasons = JSON.parse(cachedRun.reasonsJson ?? "[]") as string[];
+        parsed = validateGroundedAiClassification({ categorySlug: cachedRun.categorySlug, confidence: cachedRun.confidence, evidence: storedReasons.filter((reason) => reason.startsWith("근거:")).map((reason) => reason.slice(3)), reasons: storedReasons.filter((reason) => !reason.startsWith("근거:")) }, allowed, evidenceText);
       } else {
         let validationError: unknown;
         for (let attempt = 0; attempt < 2; attempt += 1) {
-          const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: "한국 음식점의 대표 세부 카테고리를 허용 목록에서 하나만 선택하세요. 근거는 최대 3개이며 개인정보를 추론하지 마세요." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 220, temperature: 0 }) as AiRunResponse;
+          const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: "한국 음식점의 대표 카테고리를 제공된 후보에서만 선택하세요. evidence에는 반드시 입력 상호명 또는 원천 업태에 실제로 있는 한국어 문자열을 그대로 복사하세요. 근거가 없거나 후보가 맞지 않으면 낮은 confidence를 사용하세요. 개인정보를 추론하지 마세요." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 260, temperature: 0 }) as AiRunResponse;
           addUsage(usage, result.usage);
           quota = getAiQuotaState(quota.used + estimateNeurons(result.usage));
-          try { parsed = validateAiClassification(result.response, allowed); validationError = undefined; break; }
+          try {
+            parsed = validateGroundedAiClassification(result.response, allowed, evidenceText);
+            if (!candidateSlugSet.has(parsed.categorySlug)) throw new Error("AI_CATEGORY_OUTSIDE_CANDIDATES");
+            validationError = undefined;
+            break;
+          }
           catch (error) { validationError = error; if (quota.blocked) break; }
         }
         if (validationError || !parsed) throw validationError ?? new Error("AI_OUTPUT_INVALID");
       }
 
       const id = crypto.randomUUID();
-      await db.insert(aiClassificationRuns).values({ id, candidateId: candidate.id, inputHash, model: AI_CLASSIFICATION_MODEL, promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: parsed.categorySlug, confidence: parsed.confidence, reasonsJson: JSON.stringify(parsed.reasons), cachedFromId: cachedRun?.id ?? null, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, estimatedNeurons: usage.estimatedNeurons, attemptCount: Math.max(1, usage.attempts), createdAt: input.now });
+      await db.insert(aiClassificationRuns).values({ id, candidateId: candidate.id, inputHash, model: AI_CLASSIFICATION_MODEL, promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: parsed.categorySlug, confidence: parsed.confidence, reasonsJson: JSON.stringify([...parsed.reasons, ...(parsed.evidence ?? []).map((token) => `근거:${token}`)]), cachedFromId: cachedRun?.id ?? null, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, estimatedNeurons: usage.estimatedNeurons, attemptCount: Math.max(1, usage.attempts), createdAt: input.now });
       succeeded += 1; if (cachedRun) cached += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI_CLASSIFICATION_UNKNOWN";

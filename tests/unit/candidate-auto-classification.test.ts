@@ -74,6 +74,7 @@ describe("classifyCandidate", () => {
     });
 
     expect(result.confidence).toBe("CONFLICT");
+    expect(result.candidateSlugs).toEqual(expect.arrayContaining(["japanese-rice", "burger"]));
     expect(result.reasons.join(" ")).toContain("타코야끼");
     expect(result.reasons.join(" ")).toContain("버거");
   });

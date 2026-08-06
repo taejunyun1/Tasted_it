@@ -4,6 +4,7 @@ export type ClassificationConfidence = "HIGH" | "MEDIUM" | "LOW" | "CONFLICT";
 
 export interface CandidateClassification {
   categorySlug: string;
+  candidateSlugs: string[];
   confidence: ClassificationConfidence;
   neighborhood: string | null;
   reasons: string[];
@@ -101,6 +102,7 @@ export function classifyCandidate(input: {
   if (nameRulesBySlug.length > 1) {
     return {
       categorySlug: nameRule.slug,
+      candidateSlugs: nameRulesBySlug.map((rule) => rule.slug),
       confidence: "CONFLICT",
       neighborhood,
       reasons: [...nameRulesBySlug.map((rule) => rule.label), "상호에 서로 다른 대표 카테고리 신호가 함께 있음"],
@@ -110,16 +112,17 @@ export function classifyCandidate(input: {
     const conflict = nameRule.group !== subtypeRule.group;
     return {
       categorySlug: nameRule.slug,
+      candidateSlugs: [nameRule.slug],
       confidence: conflict ? "CONFLICT" : "HIGH",
       neighborhood,
       reasons: [nameRule.label, conflict ? `원천 업태(${input.businessSubtype})와 불일치` : `원천 업태(${input.businessSubtype})와 일치`],
     };
   }
-  if (nameRule) return { categorySlug: nameRule.slug, confidence: "MEDIUM", neighborhood, reasons: [nameRule.label] };
-  if (subtypeRule) return { categorySlug: subtypeRule.slug, confidence: "MEDIUM", neighborhood, reasons: [`원천 업태(${input.businessSubtype}) 기준`] };
-  return { categorySlug: defaults[input.sourceType], confidence: "LOW", neighborhood, reasons: ["공공데이터 종류의 기본 분류만 적용"] };
+  if (nameRule) return { categorySlug: nameRule.slug, candidateSlugs: [nameRule.slug], confidence: "MEDIUM", neighborhood, reasons: [nameRule.label] };
+  if (subtypeRule) return { categorySlug: subtypeRule.slug, candidateSlugs: [subtypeRule.slug], confidence: "MEDIUM", neighborhood, reasons: [`원천 업태(${input.businessSubtype}) 기준`] };
+  return { categorySlug: defaults[input.sourceType], candidateSlugs: [defaults[input.sourceType]], confidence: "LOW", neighborhood, reasons: ["공공데이터 종류의 기본 분류만 적용"] };
 }
 
 export function suggestCategorySlugs(sourceType: PublicDataSource, subtype: string | null | undefined) {
-  return [classifyCandidate({ sourceType, businessSubtype: subtype, businessName: "" }).categorySlug];
+  return classifyCandidate({ sourceType, businessSubtype: subtype, businessName: "" }).candidateSlugs;
 }
