@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useSearchParams } from "react-router";
 import type { Route } from "./+types/home";
 import { MapExplorerPanel } from "../components/map/MapExplorerPanel";
+import { MapPlaceDetail } from "../components/map/MapPlaceDetail";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
@@ -49,11 +50,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     <MapExplorerPanel
       places={loaderData.places}
       groups={loaderData.groups}
-      selectedPlace={selectedPlace}
       query={loaderData.state.query}
       category={loaderData.category}
       onSelect={(id) => setSearch({ selected: id })}
-      onClearSelection={() => setSearch({ selected: null })}
       onSearch={(q) => setSearch({ q, selected: null })}
       onCategory={(category) => setSearch({ category, selected: null })}
       onLocate={locate}
@@ -68,6 +67,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         onSelect={(id) => setSearch({ selected: id })}
         onBounds={setBounds}
       />
+      {selectedPlace && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} />}
     </section>
   </main>;
 }
