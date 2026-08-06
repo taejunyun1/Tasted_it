@@ -46,6 +46,9 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   const clusterSelectRef = useRef(onClusterSelect);
   const markersRef = useRef<naver.maps.Marker[]>([]);
   const suppressBoundsUntilRef = useRef(0);
+  const selectedPlace = selected ? places.find((candidate) => candidate.id === selected) : undefined;
+  const selectedLatitude = selectedPlace?.latitude;
+  const selectedLongitude = selectedPlace?.longitude;
   selectRef.current = onSelect;
   boundsRef.current = onBounds;
   zoomRef.current = onZoom;
@@ -195,10 +198,8 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   }, [locationBounds, map]);
 
   useEffect(() => {
-    if (!map || !window.naver?.maps || !selected) return;
-    const place = places.find((candidate) => candidate.id === selected);
-    if (!place) return;
-    const position = new window.naver.maps.LatLng(place.latitude, place.longitude);
+    if (!map || !window.naver?.maps || !selected || selectedLatitude === undefined || selectedLongitude === undefined) return;
+    const position = new window.naver.maps.LatLng(selectedLatitude, selectedLongitude);
     const focusZoom = getMarkerFocusZoom(map.getZoom()) ?? map.getZoom();
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     suppressBoundsUntilRef.current = Date.now() + 1_500;
@@ -208,7 +209,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     } else {
       map.morph(position, focusZoom, { duration: 520, easing: "easeOutCubic" });
     }
-  }, [map, places, selected]);
+  }, [map, selected, selectedLatitude, selectedLongitude]);
 
   const qaFallback = !clientId && qaMode;
   if (qaFallback) return <div
