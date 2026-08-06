@@ -10,11 +10,13 @@ test("a map pin opens place information in the explorer panel", async ({ page })
   await page.goto(qaPath());
   const pin = page.getByRole("button", { name: /지도 핀$/ }).first();
   await expect(pin).toBeVisible();
+  await expect(pin).toHaveAttribute("data-influence", /^(base|medium|high)$/);
   const placeName = (await pin.getAttribute("aria-label"))?.replace(/ 지도 핀$/, "");
 
   await pin.click();
 
   await expect(page).toHaveURL(/selected=/);
+  await expect(pin).toHaveClass(/is-selected/);
   await expect(page.getByRole("button", { name: "목록으로" })).toBeVisible();
   await expect(page.getByRole("heading", { name: placeName })).toBeVisible();
   await expect(page.getByRole("link", { name: "상세 보기" })).toBeVisible();

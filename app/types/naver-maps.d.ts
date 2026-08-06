@@ -10,7 +10,9 @@ declare namespace naver.maps {
   class Map {
     constructor(element: HTMLElement, options: { center: LatLng; zoom: number; zoomControl?: boolean; zoomControlOptions?: { position: Position } });
     getBounds(): LatLngBounds;
+    getZoom(): number;
     fitBounds(bounds: LatLngBounds): void;
+    panTo(position: LatLng): void;
     setCenter(position: LatLng): void;
     setZoom(zoom: number): void;
     destroy(): void;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadNaverMaps, toBoundsTuple } from "../../features/maps/naver-map-sdk";
+import { getMarkerFocusZoom, getMarkerInfluence } from "../../features/maps/place-marker-policy";
 import type { PlaceSummary } from "../../features/places/place.types";
 
 export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initialBounds, locateOnLoad = false }: {
@@ -96,16 +97,26 @@ export function PlaceMap({ places, selected, clientId, onSelect, onBounds, initi
     if (!map || !window.naver?.maps) return;
     const { maps } = window.naver;
     const markers = places.map((place) => {
+      const influence = getMarkerInfluence(place.positive, place.negative);
+      const isSelected = selected === place.id;
+      const markerSize = isSelected ? 36 : influence === "high" ? 34 : influence === "medium" ? 32 : 30;
+      const position = new maps.LatLng(place.latitude, place.longitude);
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `map-pin${selected === place.id ? " is-selected" : ""}`;
+      button.className = `map-pin influence-${influence}${isSelected ? " is-selected" : ""}`;
       button.setAttribute("aria-label", `${place.name} 지도 핀`);
+      button.dataset.influence = influence;
       button.textContent = place.primaryCategory.emoji;
-      button.onclick = () => selectRef.current(place.id);
+      button.onclick = () => {
+        map.panTo(position);
+        const focusZoom = getMarkerFocusZoom(map.getZoom());
+        if (focusZoom !== null) map.setZoom(focusZoom);
+        selectRef.current(place.id);
+      };
       return new maps.Marker({
         map,
-        position: new maps.LatLng(place.latitude, place.longitude),
-        icon: { content: button, anchor: new maps.Point(21, 21) },
+        position,
+        icon: { content: button, anchor: new maps.Point(markerSize / 2, markerSize / 2) },
       });
     });
     return () => markers.forEach((marker) => marker.setMap(null));
