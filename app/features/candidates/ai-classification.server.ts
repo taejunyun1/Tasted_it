@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, notExists, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { aiClassificationRuns, businessLicenses, categories } from "../../db/schema";
 import { recordOperationalAlert } from "../operations/alerts.server";
@@ -43,6 +43,7 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
 
   const conditions = [eq(businessLicenses.normalizedStatus, "OPEN"), eq(businessLicenses.reviewStatus, "PENDING")];
   if (input.candidateIds?.length) conditions.push(inArray(businessLicenses.id, [...new Set(input.candidateIds)].slice(0, limit)));
+  else conditions.push(notExists(db.select({ id: aiClassificationRuns.id }).from(aiClassificationRuns).where(and(eq(aiClassificationRuns.candidateId, businessLicenses.id), eq(aiClassificationRuns.status, "SUCCESS")))));
   const [candidateRows, categoryRows] = await Promise.all([
     db.select().from(businessLicenses).where(and(...conditions)).orderBy(asc(businessLicenses.updatedAt)).limit(limit),
     db.select({ slug: categories.slug, name: categories.name }).from(categories).where(and(eq(categories.isActive, true), isNotNull(categories.parentId))).orderBy(asc(categories.sortOrder)),

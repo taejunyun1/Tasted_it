@@ -51,4 +51,19 @@ describe("Workers AI candidate classification", () => {
     expect(result.processed).toBe(10);
     expect(run).toHaveBeenCalledTimes(10);
   });
+
+  it("skips candidates that already have a successful AI result when advancing the queue", async () => {
+    const db = createDb(env.DB); const now = "2026-08-11T10:00:00.000Z";
+    const completedId = `completed-${crypto.randomUUID()}`; const pendingId = `pending-${crypto.randomUUID()}`;
+    for (const id of [completedId, pendingId]) await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: `${id} 라멘`, businessSubtype: "일식", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: "1999-01-01T00:00:00.000Z" });
+    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: completedId, inputHash: crypto.randomUUID(), model: "test", promptVersion: "test", status: "SUCCESS", categorySlug: "ramen-detail", confidence: 0.9, reasonsJson: '["완료"]', createdAt: now });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "ramen-detail", confidence: 0.9, reasons: ["라멘"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { limit: 10, now });
+
+    expect(result.processed).toBeGreaterThanOrEqual(1);
+    expect(run).toHaveBeenCalled();
+    expect((await db.select().from(aiClassificationRuns)).filter((row) => row.candidateId === completedId)).toHaveLength(1);
+    expect((await db.select().from(aiClassificationRuns)).some((row) => row.candidateId === pendingId && row.status === "SUCCESS")).toBe(true);
+  });
 });

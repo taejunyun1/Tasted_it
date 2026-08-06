@@ -80,6 +80,18 @@ describe("bulk candidate review", () => {
     expect(rows.find((row) => row.id === candidates.at(-1)!.id)?.classificationSource).toBe("AI_RULE");
   });
 
+  it("moves a valid AI result out of manual review without marking an unsafe conflict eligible", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, {
+      ...license, sourceManagementNo: "ai-completed-conflict", businessName: "스시 충돌", businessSubtype: "한식",
+    }, now);
+    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "test", promptVersion: "place-category-v1", status: "SUCCESS", categorySlug: "sushi-sashimi", confidence: 0.96, reasonsJson: '["AI 분류 완료"]', createdAt: now });
+
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+
+    expect(row).toMatchObject({ reviewState: "AUTO", eligible: false, classificationSource: "AI_RULE" });
+  });
+
   it("approves safe candidates and skips unsafe selections", async () => {
     const db = createDb(env.DB);
     const safe = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "bulk-approve-safe" }, now);
