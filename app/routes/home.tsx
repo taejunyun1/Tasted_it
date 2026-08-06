@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router";
 import type { Route } from "./+types/home";
 import { MapExplorerPanel } from "../components/map/MapExplorerPanel";
 import { MapPlaceDetail } from "../components/map/MapPlaceDetail";
+import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
@@ -37,6 +38,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [mapZoom, setMapZoom] = useState(12);
   const [focusCluster, setFocusCluster] = useState<RegionCluster | null>(null);
   const selectedPlace = findSelectedPlace(loaderData.places, loaderData.state.selected);
+  const detailSlug = params.get("place");
   const clusterLevel = getRegionClusterLevel(mapZoom);
   const clusters = useMemo(() => buildRegionClusters(loaderData.places, mapZoom), [loaderData.places, mapZoom]);
   const regionGroups = useMemo(() => buildRegionGroups(loaderData.places, mapZoom), [loaderData.places, mapZoom]);
@@ -62,6 +64,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setFocusCluster(cluster);
     setMapZoom(cluster.level === "DISTRICT" ? 13 : 15);
   };
+  const openDetail = (slug: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("place", slug); return next; });
+  const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
 
   return <main id="main" className="map-explorer">
     <MapExplorerPanel
@@ -94,7 +98,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         onZoom={setMapZoom}
         onClusterSelect={focusRegion}
       />
-      {selectedPlace && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} />}
+      {selectedPlace && !detailSlug && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} onOpenDetail={openDetail} />}
+      <PlaceDetailSheet slug={detailSlug} onClose={closeDetail} />
     </section>
   </main>;
 }

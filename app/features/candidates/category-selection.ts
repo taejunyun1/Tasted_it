@@ -7,6 +7,11 @@ export function setCandidateCategory(
 }
 
 export function listSelectableCategories<T extends { id: string; parentId: string | null }>(categories: T[]) {
+  const terminalIds = getTerminalCategoryIds(categories);
+  return categories.filter((category) => terminalIds.has(category.id));
+}
+
+export function getTerminalCategoryIds<T extends { id: string; parentId: string | null }>(categories: T[]) {
   const parentIds = new Set(categories.flatMap((category) => category.parentId ? [category.parentId] : []));
-  return categories.filter((category) => category.parentId != null || !parentIds.has(category.id));
+  return new Set(categories.filter((category) => !parentIds.has(category.id)).map((category) => category.id));
 }

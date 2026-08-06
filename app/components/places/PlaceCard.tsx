@@ -1,11 +1,14 @@
 import { Link } from "react-router";
 import type { PlaceSummary } from "../../features/places/place.types";
 import { formatDistance, formatRatingSummary } from "../../features/places/place-discovery";
+import { shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
 
-export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel }: { place: PlaceSummary; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string }) {
+export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel, onOpenDetail }: { place: PlaceSummary; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; onOpenDetail?: (slug: string) => void }) {
   return (
     <article className="place-card" data-selected={selected || undefined} id={`place-${place.id}`}>
-      <Link to={`/places/${place.slug}`} aria-label={`${place.name} 상세 보기`}>
+      <Link to={`/places/${place.slug}`} aria-label={`${place.name} 상세 보기`} onClick={(event) => {
+        if (onOpenDetail && shouldOpenPlaceDetailSheet({ mobile: window.matchMedia("(max-width: 760px)").matches, button: event.button, metaKey: event.metaKey, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey })) { event.preventDefault(); onOpenDetail(place.slug); }
+      }}>
         <div className="place-image">
           {place.heroImageUrl ? <img src={place.heroImageUrl} alt="" /> : <span>RE:TASTE<br />NO IMAGE</span>}
           <b>{place.primaryCategory.emoji} {place.primaryCategory.name}</b>

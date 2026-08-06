@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { listSelectableCategories, setCandidateCategory } from "../../app/features/candidates/category-selection";
+import { getTerminalCategoryIds, listSelectableCategories, setCandidateCategory } from "../../app/features/candidates/category-selection";
 
 describe("setCandidateCategory", () => {
   it("stores the category value captured by the select change handler", () => {
@@ -15,5 +15,6 @@ describe("setCandidateCategory", () => {
     ];
 
     expect(listSelectableCategories(categories).map((category) => category.id)).toEqual(["gukbap", "chicken"]);
+    expect([...getTerminalCategoryIds(categories)]).toEqual(["gukbap", "chicken"]);
   });
 });

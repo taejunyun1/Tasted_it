@@ -14,6 +14,7 @@ import {
 import type { NormalizedLicense, PublicDataSource, RegionCode } from "./public-data";
 import { slugifyPlaceName } from "../places/place-slug";
 import { extractNeighborhood } from "./category-suggestion";
+import { getTerminalCategoryIds } from "./category-selection";
 
 export interface CandidateFilters {
   query?: string;
@@ -130,8 +131,8 @@ export async function approveCandidate(db: AppDb, input: {
   const candidate = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, input.candidateId) });
   if (!candidate || candidate.normalizedStatus !== "OPEN" || candidate.reviewStatus !== "PENDING") throw new Error("CANDIDATE_NOT_APPROVABLE");
   const categoryIds = [input.categoryId];
-  const categoryRows = await db.select().from(categories).where(and(inArray(categories.id, categoryIds), eq(categories.isActive, true)));
-  if (categoryRows.length !== categoryIds.length || categoryRows.some((category) => !category.parentId)) throw new Error("CATEGORY_NOT_FOUND");
+  const categoryRows = await db.select().from(categories).where(eq(categories.isActive, true));
+  if (!getTerminalCategoryIds(categoryRows).has(input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
   const category = categoryRows.find((row) => row.id === input.categoryId)!;
   const baseSlug = slugifyPlaceName(input.name);
   let slug = baseSlug;
