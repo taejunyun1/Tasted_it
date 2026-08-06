@@ -45,7 +45,7 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
         <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places">전체 장소</h2></div>
         <p>검수 승인된 영업 장소만 표시합니다.</p>
       </header>
-      <Form className="discovery-search">
+      <Form action="/places" className="discovery-search">
         <label htmlFor="place-query">장소 검색</label>
         <input id="place-query" name="q" defaultValue={loaderData.state.query} placeholder="장소 이름이나 주소 검색" />
         <input type="hidden" name="category" value={loaderData.category?.slug ?? ""} />

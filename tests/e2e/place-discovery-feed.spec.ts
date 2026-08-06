@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test("place list starts with discovery rails before search and the full list", async ({ page }) => {
+  const hydrationErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && message.text().includes("hydrated")) hydrationErrors.push(message.text());
+  });
   await page.goto("/places?bbox=126.80,35.10,127.00,35.25");
 
   await expect(page.getByRole("heading", { name: "내 주변 추천" })).toBeVisible();
@@ -14,6 +18,7 @@ test("place list starts with discovery rails before search and the full list", a
   const searchTop = await page.getByPlaceholder("장소 이름이나 주소 검색").boundingBox();
   const fullListTop = await page.getByRole("heading", { name: "전체 장소" }).boundingBox();
   expect(searchTop?.y).toBeGreaterThan(fullListTop?.y ?? 0);
+  expect(hydrationErrors).toEqual([]);
 });
 
 test("rating cards explain the eight-vote visibility boundary", async ({ page }) => {
