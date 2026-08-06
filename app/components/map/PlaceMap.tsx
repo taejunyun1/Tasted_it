@@ -35,7 +35,6 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   const zoomRef = useRef(onZoom);
   const clusterSelectRef = useRef(onClusterSelect);
   const suppressBoundsUntilRef = useRef(0);
-  const lastFocusedClusterIdRef = useRef<string | null>(null);
   selectRef.current = onSelect;
   boundsRef.current = onBounds;
   zoomRef.current = onZoom;
@@ -165,8 +164,6 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
 
   useEffect(() => {
     if (!map || !window.naver?.maps || !focusCluster) return;
-    if (lastFocusedClusterIdRef.current === focusCluster.id) return;
-    lastFocusedClusterIdRef.current = focusCluster.id;
     const targetZoom = getClusterFocusZoom(focusCluster.level);
     const position = new window.naver.maps.LatLng(focusCluster.latitude, focusCluster.longitude);
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
