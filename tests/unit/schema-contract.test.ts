@@ -26,6 +26,8 @@ import {
   placeSlugRedirects,
   placeRevisions,
   placeRevalidationCases,
+  aiClassificationRuns,
+  operationalAlerts,
   savedPlaces,
   users,
   voteEvents,
@@ -69,5 +71,11 @@ describe("week 1 schema", () => {
     expect(places.lastVerifiedAt).toBeDefined();
     expect(placeSuggestions.status).toBeDefined();
     expect(placeRevisions.action).toBeDefined();
+  });
+
+  it("exports AI classification history and operational alerts", () => {
+    expect([aiClassificationRuns, operationalAlerts]).toHaveLength(2);
+    expect(aiClassificationRuns.inputHash).toBeDefined();
+    expect(operationalAlerts.occurrenceCount).toBeDefined();
   });
 });

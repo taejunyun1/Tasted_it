@@ -10,6 +10,8 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
 
   await expect(page.getByRole("heading", { name: "장소 검수 목록" })).toBeVisible();
   await expect(page.getByRole("link", { name: "리뷰어 관리" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "AI 대기 후보 100곳 분류" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "운영 현황" })).toBeVisible();
   await expect(page.getByRole("link", { name: "전체" })).toBeVisible();
   await expect(page.getByRole("link", { name: "자동 승인" })).toBeVisible();
   await expect(page.getByRole("link", { name: "수동 확인" })).toBeVisible();
@@ -18,11 +20,22 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
   await expect(page.getByRole("textbox", { name: "동네" })).toHaveCount(0);
 
   await expect(page.getByRole("checkbox", { name: /QA 양평해장국/ })).toBeEnabled();
+  await page.getByRole("checkbox", { name: /QA 양평해장국/ }).check();
+  await expect(page.getByRole("button", { name: "선택 AI 분류" })).toBeEnabled();
   await expect(page.getByLabel("QA 스시하루 대표 카테고리")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /QA 카페봄/ })).toBeDisabled();
   await expect(page.getByRole("checkbox", { name: /Re:Taste 샘플 라멘 동명/ })).toBeDisabled();
   await expect(page.getByText("기존 공개 장소와 중복")).toBeVisible();
   await expect(page.getByText("QA 폐업국밥")).toHaveCount(0);
+});
+
+test("admin inspects operational metrics and alerts", async ({ page }) => {
+  await page.goto("/admin/operations");
+  await expect(page.getByRole("heading", { name: "운영 현황" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "24시간" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "7일" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "30일" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "열린 운영 알림" })).toBeVisible();
 });
 
 test("legacy bulk URL redirects to the unified review list", async ({ page }) => {

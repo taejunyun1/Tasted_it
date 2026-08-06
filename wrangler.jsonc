@@ -9,6 +9,7 @@
 	"main": "./workers/app.ts",
 	"triggers": { "crons": ["17 18 * * *"] },
 	"preview_urls": false,
+	"ai": { "binding": "AI" },
 	"d1_databases": [
 		{
 			"binding": "DB",

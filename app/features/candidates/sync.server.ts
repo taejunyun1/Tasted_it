@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { publicDataSyncRuns } from "../../db/schema";
 import { upsertBusinessLicense } from "./candidate.server";
+import { recordOperationalAlert } from "../operations/alerts.server";
 import {
   buildPublicDataUrl,
   normalizePublicDataItem,
@@ -82,7 +83,9 @@ export async function syncPublicDataBatch(db: AppDb, input: {
     }).where(eq(publicDataSyncRuns.id, runId));
     return { runId, completed, nextPage: page, totalCount, fetched, inserted, updated, skipped };
   } catch (error) {
-    await db.update(publicDataSyncRuns).set({ status: "FAILED", errorSummary: error instanceof Error ? error.message : "UNKNOWN", finishedAt: now, updatedAt: now }).where(eq(publicDataSyncRuns.id, runId));
+    const message = error instanceof Error ? error.message : "UNKNOWN";
+    await db.update(publicDataSyncRuns).set({ status: "FAILED", errorSummary: message, finishedAt: now, updatedAt: now }).where(eq(publicDataSyncRuns.id, runId));
+    await recordOperationalAlert(db, { alertType: "PUBLIC_DATA_SYNC", sourceId: runId, message, details: { sourceType: input.sourceType, addressField: input.addressField, page }, now });
     throw error;
   }
 }

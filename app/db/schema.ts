@@ -555,3 +555,17 @@ export const placeRevalidationCases = sqliteTable("place_revalidation_cases", {
   reviewedAt: text("reviewed_at"),
   ...timestamps,
 }, (table) => [index("place_revalidation_status_reason_idx").on(table.status, table.reasonType), index("place_revalidation_place_reason_idx").on(table.placeId, table.reasonType)]);
+
+export const aiClassificationRuns = sqliteTable("ai_classification_runs", {
+  id: text("id").primaryKey(), candidateId: text("candidate_id").notNull().references(() => businessLicenses.id, { onDelete: "cascade" }),
+  inputHash: text("input_hash").notNull(), model: text("model").notNull(), promptVersion: text("prompt_version").notNull(),
+  status: text("status", { enum: ["SUCCESS", "FAILED"] }).notNull(), categorySlug: text("category_slug"), confidence: real("confidence"), reasonsJson: text("reasons_json"),
+  validationError: text("validation_error"), cachedFromId: text("cached_from_id"), createdAt: text("created_at").notNull(),
+}, (table) => [index("ai_classification_candidate_created_idx").on(table.candidateId, table.createdAt), index("ai_classification_hash_created_idx").on(table.inputHash, table.createdAt), index("ai_classification_status_created_idx").on(table.status, table.createdAt)]);
+
+export const operationalAlerts = sqliteTable("operational_alerts", {
+  id: text("id").primaryKey(), alertType: text("alert_type", { enum: ["PUBLIC_DATA_SYNC", "AI_CLASSIFICATION", "RATING_RECOMPUTE"] }).notNull(),
+  severity: text("severity", { enum: ["WARNING", "ERROR"] }).notNull(), status: text("status", { enum: ["OPEN", "RESOLVED"] }).notNull().default("OPEN"), sourceId: text("source_id"),
+  message: text("message").notNull(), detailsJson: text("details_json").notNull(), occurrenceCount: integer("occurrence_count").notNull().default(1), firstOccurredAt: text("first_occurred_at").notNull(), lastOccurredAt: text("last_occurred_at").notNull(),
+  resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }), resolvedAt: text("resolved_at"), resolutionNote: text("resolution_note"),
+}, (table) => [index("operational_alerts_status_last_idx").on(table.status, table.lastOccurredAt)]);
