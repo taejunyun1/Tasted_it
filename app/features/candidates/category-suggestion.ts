@@ -52,9 +52,9 @@ const nameRules: Rule[] = [
   { pattern: /태국|타이/, slug: "thai", group: "world", label: "상호의 태국 음식 표현", kind: "FOOD" },
   { pattern: /인도|인디아|커리/, slug: "indian", group: "world", label: "상호의 인도 음식 표현", kind: "FOOD" },
   { pattern: /멕시칸|타코(?!야끼|야키)/, slug: "mexican", group: "world", label: "상호의 멕시칸 표현", kind: "FOOD" },
-  { pattern: /제과|베이커리|빵집/, slug: "bakery-detail", group: "cafe", label: "상호의 베이커리 표현", kind: "FOOD" },
+  { pattern: /제과|제빵|베이커리|빵집|식빵|케이크|도넛|도너츠|크루아상|쿠키|과자점/, slug: "bakery-detail", group: "cafe", label: "상호의 제과·제빵·베이커리 표현", kind: "FOOD" },
   { pattern: /아이스크림|빙수/, slug: "ice-dessert", group: "cafe", label: "상호의 아이스크림·빙수 표현", kind: "FOOD" },
-  { pattern: /디저트|케이크/, slug: "dessert", group: "cafe", label: "상호의 디저트 표현", kind: "FOOD" },
+  { pattern: /디저트/, slug: "dessert", group: "cafe", label: "상호의 디저트 표현", kind: "FOOD" },
   { pattern: /카페|커피|다방/, slug: "cafe", group: "cafe", label: "상호의 카페 표현", kind: "VENUE" },
   { pattern: /와인/, slug: "wine-bar", group: "bar", label: "상호의 와인 표현", kind: "VENUE" },
   { pattern: /칵테일/, slug: "cocktail-bar", group: "bar", label: "상호의 칵테일 표현", kind: "VENUE" },
@@ -74,7 +74,7 @@ const subtypeRules: Rule[] = [
   { pattern: /경양식|양식/, group: "western", slug: "pasta", label: "원천 업태의 양식 표현", kind: "CUISINE" },
   { pattern: /분식/, group: "bunsik", slug: "tteokbokki", label: "원천 업태의 분식 표현", kind: "CUISINE" },
   { pattern: /커피|카페|다방/, group: "cafe", slug: "cafe", label: "원천 업태의 카페 표현", kind: "VENUE" },
-  { pattern: /제과|베이커리/, group: "cafe", slug: "bakery-detail", label: "원천 업태의 제과 표현", kind: "FOOD" },
+  { pattern: /제과|제빵|베이커리|과자점/, group: "cafe", slug: "bakery-detail", label: "원천 업태의 제과·제빵 표현", kind: "FOOD" },
   { pattern: /호프|주점|펍/, group: "bar", slug: "pub", label: "원천 업태의 호프·주점 표현", kind: "VENUE" },
 ];
 
