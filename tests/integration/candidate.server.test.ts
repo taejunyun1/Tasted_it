@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { createDb } from "../../app/db/client.server";
-import { places } from "../../app/db/schema";
+import { placeRevalidationCases, places } from "../../app/db/schema";
 import { approveCandidate, listPendingCandidates, upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
 import type { NormalizedLicense } from "../../app/features/candidates/public-data";
 
@@ -40,7 +40,8 @@ describe("candidate review service", () => {
     const approved = await approveCandidate(db, { candidateId: candidate.id, actorUserId: "candidate-admin", categoryId: "candidate-category", slug: "approved-candidate", name: "승인식당", address: openLicense.roadAddress!, latitude: 35.15, longitude: 126.92, now });
     expect(await db.query.places.findFirst({ where: eq(places.id, approved.placeId) })).toMatchObject({ status: "PUBLISHED", neighborhood: "동명동" });
     await upsertBusinessLicense(db, { ...openLicense, sourceManagementNo: "approval-candidate", normalizedStatus: "CLOSED", salesStatusName: "폐업" }, "2026-08-05T11:00:00.000Z");
-    expect((await db.query.places.findFirst({ where: eq(places.id, approved.placeId) }))?.status).toBe("HIDDEN");
+    expect((await db.query.places.findFirst({ where: eq(places.id, approved.placeId) }))).toMatchObject({ status: "HIDDEN", closedAt: "2026-08-05T11:00:00.000Z" });
+    expect((await db.select().from(placeRevalidationCases)).some((item) => item.placeId === approved.placeId && item.reasonType === "CLOSED")).toBe(true);
   });
 
   it("creates unique slugs automatically from duplicate business names", async () => {

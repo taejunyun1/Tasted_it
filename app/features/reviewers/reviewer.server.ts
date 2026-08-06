@@ -1,14 +1,16 @@
 import { and, asc, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { adminAuditLogs, categories, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
+import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
 import { slugifyPlaceName } from "../places/place-slug";
 import { isDormantAt, type ReviewerApplicationInput, validateReviewerApplication } from "./reviewer-policy";
 
 const OPEN_APPLICATIONS = ["APPLIED", "REVIEWING"] as const;
 
-export async function countApprovedPlaceSuggestions(_db: AppDb, _userId: string) {
-  return 0;
+export async function countApprovedPlaceSuggestions(db: AppDb, userId: string) {
+  const rows = await db.select({ id: placeSuggestions.id }).from(placeSuggestions)
+    .where(and(eq(placeSuggestions.userId, userId), eq(placeSuggestions.status, "APPROVED")));
+  return rows.length;
 }
 
 export async function submitReviewerApplication(db: AppDb, input: ReviewerApplicationInput & { userId: string; now: string }) {

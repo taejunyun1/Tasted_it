@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, like, or } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -6,6 +7,7 @@ import {
   businessLicenses,
   categories,
   placeCategories,
+  placeRevalidationCases,
   places,
   placeSourceLinks,
 } from "../../db/schema";
@@ -93,14 +95,18 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
   if (input.normalizedStatus !== "OPEN") {
     const link = await db.query.placeSourceLinks.findFirst({ where: eq(placeSourceLinks.businessLicenseId, id) });
     if (link) {
-      await db.batch([
-        db.update(places).set({ status: "HIDDEN", updatedAt: now }).where(eq(places.id, link.placeId)),
+      const reasonType = input.normalizedStatus === "CLOSED" ? "CLOSED" as const : input.normalizedStatus === "TEMPORARILY_CLOSED" ? "TEMPORARILY_CLOSED" as const : "UNKNOWN" as const;
+      const openCase = await db.query.placeRevalidationCases.findFirst({ where: and(eq(placeRevalidationCases.placeId, link.placeId), eq(placeRevalidationCases.reasonType, reasonType), inArray(placeRevalidationCases.status, ["OPEN", "REVIEWING"])) });
+      const statements: BatchItem<"sqlite">[] = [
         db.insert(adminAuditLogs).values({
           id: crypto.randomUUID(), actorUserId: null, action: "AUTO_HIDE_SOURCE_STATUS",
           targetType: "PLACE", targetId: link.placeId,
           beforeState: "PUBLISHED", afterState: input.normalizedStatus, createdAt: now,
         }),
-      ]);
+      ];
+      if (input.normalizedStatus === "CLOSED") statements.unshift(db.update(places).set({ status: "HIDDEN", closedAt: now, updatedAt: now }).where(eq(places.id, link.placeId)));
+      if (!openCase) statements.push(db.insert(placeRevalidationCases).values({ id: crypto.randomUUID(), placeId: link.placeId, reasonType, status: "OPEN", evidenceJson: JSON.stringify({ businessLicenseId: id, normalizedStatus: input.normalizedStatus, salesStatusName: input.salesStatusName }), createdAt: now, updatedAt: now }));
+      const [first, ...rest] = statements; if (first) await db.batch([first, ...rest]);
     }
   }
   return { id, inserted: !existing };

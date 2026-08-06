@@ -83,6 +83,8 @@ export const places = sqliteTable(
     heroImageUrl: text("hero_image_url"),
     kakaoPlaceId: text("kakao_place_id"),
     searchText: text("search_text").notNull(),
+    lastVerifiedAt: text("last_verified_at"),
+    closedAt: text("closed_at"),
     ...timestamps,
   },
   (table) => [
@@ -467,3 +469,89 @@ export const invalidatedVoteEvents = sqliteTable("invalidated_vote_events", {
   invalidatedBy: text("invalidated_by").references(() => users.id, { onDelete: "set null" }),
   invalidatedAt: text("invalidated_at").notNull(),
 });
+
+export const placeSuggestions = sqliteTable("place_suggestions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  status: text("status", { enum: ["SUBMITTED", "NEEDS_INFO", "REVIEWING", "APPROVED", "REJECTED", "DUPLICATE"] }).notNull().default("SUBMITTED"),
+  name: text("name").notNull(),
+  normalizedName: text("normalized_name").notNull(),
+  address: text("address").notNull(),
+  normalizedAddress: text("normalized_address").notNull(),
+  neighborhood: text("neighborhood").notNull(),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  phone: text("phone"),
+  categoryId: text("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
+  description: text("description"),
+  duplicateOverrideReason: text("duplicate_override_reason"),
+  approvedPlaceId: text("approved_place_id").references(() => places.id, { onDelete: "set null" }),
+  reviewReason: text("review_reason"),
+  reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: text("reviewed_at"),
+  ...timestamps,
+}, (table) => [index("place_suggestions_user_status_idx").on(table.userId, table.status), index("place_suggestions_status_created_idx").on(table.status, table.createdAt)]);
+
+export const placeCorrectionRequests = sqliteTable("place_correction_requests", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").references(() => places.id, { onDelete: "set null" }),
+  requesterUserId: text("requester_user_id").references(() => users.id, { onDelete: "set null" }),
+  requesterEmail: text("requester_email").notNull(),
+  requesterRelation: text("requester_relation").notNull(),
+  requestType: text("request_type", { enum: ["INFORMATION", "MOVED", "TEMPORARILY_CLOSED", "CLOSED", "RIGHTS", "OTHER"] }).notNull(),
+  status: text("status", { enum: ["PENDING_VERIFICATION", "SUBMITTED", "REVIEWING", "APPLIED", "REJECTED"] }).notNull().default("PENDING_VERIFICATION"),
+  requestedChangesJson: text("requested_changes_json").notNull(),
+  evidenceNote: text("evidence_note"),
+  verificationTokenHash: text("verification_token_hash").unique(),
+  verificationExpiresAt: text("verification_expires_at"),
+  verifiedAt: text("verified_at"),
+  adminResponse: text("admin_response"),
+  reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: text("reviewed_at"),
+  ...timestamps,
+}, (table) => [index("place_corrections_status_created_idx").on(table.status, table.createdAt), index("place_corrections_place_idx").on(table.placeId)]);
+
+export const placeDuplicateCandidates = sqliteTable("place_duplicate_candidates", {
+  id: text("id").primaryKey(),
+  suggestionId: text("suggestion_id").references(() => placeSuggestions.id, { onDelete: "cascade" }),
+  leftPlaceId: text("left_place_id").references(() => places.id, { onDelete: "cascade" }),
+  rightPlaceId: text("right_place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  confidence: text("confidence", { enum: ["EXACT", "HIGH", "MEDIUM"] }).notNull(),
+  distanceMeters: real("distance_meters"),
+  reasonsJson: text("reasons_json").notNull(),
+  status: text("status", { enum: ["OPEN", "DISMISSED", "MERGED"] }).notNull().default("OPEN"),
+  resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }),
+  resolvedAt: text("resolved_at"),
+  ...timestamps,
+}, (table) => [index("place_duplicates_status_confidence_idx").on(table.status, table.confidence)]);
+
+export const placeSlugRedirects = sqliteTable("place_slug_redirects", {
+  oldSlug: text("old_slug").primaryKey(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+});
+
+export const placeRevisions = sqliteTable("place_revisions", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action", { enum: ["CREATE_FROM_SUGGESTION", "CORRECTION", "MERGE", "RESTORE", "STATUS_CHANGE"] }).notNull(),
+  reason: text("reason").notNull(),
+  beforeJson: text("before_json"),
+  afterJson: text("after_json").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceId: text("source_id"),
+  createdAt: text("created_at").notNull(),
+}, (table) => [index("place_revisions_place_created_idx").on(table.placeId, table.createdAt)]);
+
+export const placeRevalidationCases = sqliteTable("place_revalidation_cases", {
+  id: text("id").primaryKey(),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  reasonType: text("reason_type", { enum: ["CLOSED", "TEMPORARILY_CLOSED", "UNKNOWN", "SOURCE_CONFLICT", "STALE_90D"] }).notNull(),
+  status: text("status", { enum: ["OPEN", "REVIEWING", "RESOLVED"] }).notNull().default("OPEN"),
+  evidenceJson: text("evidence_json").notNull(),
+  resolution: text("resolution"),
+  reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: text("reviewed_at"),
+  ...timestamps,
+}, (table) => [index("place_revalidation_status_reason_idx").on(table.status, table.reasonType), index("place_revalidation_place_reason_idx").on(table.placeId, table.reasonType)]);
