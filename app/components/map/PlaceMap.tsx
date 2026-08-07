@@ -9,7 +9,17 @@ import {
 import type { RegionCluster } from "../../features/maps/region-cluster-policy";
 import type { PlaceSummary } from "../../features/places/place.types";
 
-export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, onSelect, onBounds, onZoom = () => undefined, onClusterSelect = () => undefined, initialBounds, locateOnLoad = false }: {
+function detachMarkers(markers: naver.maps.Marker[]) {
+  markers.forEach((marker) => {
+    try {
+      marker.setMap(null);
+    } catch {
+      // The NAVER SDK can already be torn down while React disposes effects during HMR.
+    }
+  });
+}
+
+export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, onSelect, onBounds, onZoom = () => undefined, onClusterSelect = () => undefined, initialBounds, locationBounds, locationNotice = null }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
@@ -22,19 +32,23 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   onZoom?: (zoom: number) => void;
   onClusterSelect?: (cluster: RegionCluster) => void;
   initialBounds?: [number, number, number, number];
-  locateOnLoad?: boolean;
+  locationBounds?: [number, number, number, number] | null;
+  locationNotice?: string | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [map, setMap] = useState<naver.maps.Map | null>(null);
   const initialClientId = useRef(clientId);
-  const initialLocateOnLoad = useRef(locateOnLoad);
   const initialBoundsRef = useRef(initialBounds);
   const selectRef = useRef(onSelect);
   const boundsRef = useRef(onBounds);
   const zoomRef = useRef(onZoom);
   const clusterSelectRef = useRef(onClusterSelect);
+  const markersRef = useRef<naver.maps.Marker[]>([]);
   const suppressBoundsUntilRef = useRef(0);
+  const selectedPlace = selected ? places.find((candidate) => candidate.id === selected) : undefined;
+  const selectedLatitude = selectedPlace?.latitude;
+  const selectedLongitude = selectedPlace?.longitude;
   selectRef.current = onSelect;
   boundsRef.current = onBounds;
   zoomRef.current = onZoom;
@@ -45,9 +59,9 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     let instance: naver.maps.Map | undefined;
+    let mapsApi: typeof naver.maps | undefined;
     let idleListener: unknown;
     let zoomListener: unknown;
-    let locationMarker: naver.maps.Marker | undefined;
 
     if (!initialClientId.current) {
       setError("NAVER Maps Client ID가 설정되지 않았습니다.");
@@ -57,6 +71,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     setError(null);
     void loadNaverMaps(initialClientId.current).then(({ maps }) => {
       if (disposed || !host.current) return;
+      mapsApi = maps;
       const created = new maps.Map(host.current, {
         center: new maps.LatLng(35.1595, 126.8526),
         zoom: 12,
@@ -73,17 +88,6 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
           new maps.LatLng(north, east),
         ));
       }
-
-      if (initialLocateOnLoad.current && navigator.geolocation) navigator.geolocation.getCurrentPosition(({ coords }) => {
-        if (disposed) return;
-        const position = new maps.LatLng(coords.latitude, coords.longitude);
-        created.setCenter(position);
-        created.setZoom(15);
-        const dot = document.createElement("span");
-        dot.className = "current-location-dot";
-        dot.setAttribute("aria-label", "내 위치");
-        locationMarker = new maps.Marker({ map: created, position, icon: { content: dot, anchor: new maps.Point(10, 10) } });
-      }, () => undefined, { enableHighAccuracy: true, timeout: 8_000 });
 
       idleListener = maps.Event.addListener(created, "idle", () => {
         clearTimeout(timer);
@@ -109,9 +113,10 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     return () => {
       disposed = true;
       clearTimeout(timer);
-      if (idleListener) naver.maps.Event.removeListener(idleListener);
-      if (zoomListener) naver.maps.Event.removeListener(zoomListener);
-      locationMarker?.setMap(null);
+      detachMarkers(markersRef.current);
+      markersRef.current = [];
+      if (idleListener && mapsApi) mapsApi.Event.removeListener(idleListener);
+      if (zoomListener && mapsApi) mapsApi.Event.removeListener(zoomListener);
       setMap((current) => current === instance ? null : current);
       instance?.destroy();
     };
@@ -159,7 +164,12 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
         icon: { content: button, anchor: new maps.Point(markerSize / 2, markerSize / 2) },
       });
     });
-    return () => markers.forEach((marker) => marker.setMap(null));
+    markersRef.current = markers;
+    return () => {
+      if (markersRef.current !== markers) return;
+      markersRef.current = [];
+      detachMarkers(markers);
+    };
   }, [clusters, map, places, selected]);
 
   useEffect(() => {
@@ -178,10 +188,18 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   }, [focusCluster, map]);
 
   useEffect(() => {
-    if (!map || !window.naver?.maps || !selected) return;
-    const place = places.find((candidate) => candidate.id === selected);
-    if (!place) return;
-    const position = new window.naver.maps.LatLng(place.latitude, place.longitude);
+    if (!map || !window.naver?.maps || !locationBounds) return;
+    const [west, south, east, north] = locationBounds;
+    suppressBoundsUntilRef.current = Date.now() + 1_500;
+    map.fitBounds(new window.naver.maps.LatLngBounds(
+      new window.naver.maps.LatLng(south, west),
+      new window.naver.maps.LatLng(north, east),
+    ));
+  }, [locationBounds, map]);
+
+  useEffect(() => {
+    if (!map || !window.naver?.maps || !selected || selectedLatitude === undefined || selectedLongitude === undefined) return;
+    const position = new window.naver.maps.LatLng(selectedLatitude, selectedLongitude);
     const focusZoom = getMarkerFocusZoom(map.getZoom()) ?? map.getZoom();
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     suppressBoundsUntilRef.current = Date.now() + 1_500;
@@ -191,7 +209,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     } else {
       map.morph(position, focusZoom, { duration: 520, easing: "easeOutCubic" });
     }
-  }, [map, places, selected]);
+  }, [map, selected, selectedLatitude, selectedLongitude]);
 
   const qaFallback = !clientId && qaMode;
   if (qaFallback) return <div
@@ -201,6 +219,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     data-focused-region={focusCluster?.label}
     data-map-zoom={zoom}
   >
+    {locationNotice && <p className="map-error" role="status" aria-live="polite">{locationNotice}</p>}
     <a href="#" aria-label="지도 확대" onClick={(event) => {
       event.preventDefault();
       const nextZoom = zoom + 1;
@@ -228,6 +247,6 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   </div>;
 
   return <div className="map-canvas" ref={host} aria-label="장소 지도" data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom}>
-    {error && <p className="map-error" role="status">{error}</p>}
+    {(error || locationNotice) && <p className="map-error" role="status" aria-live="polite">{error || locationNotice}</p>}
   </div>;
 }

@@ -86,6 +86,19 @@ test("region groups keep the explorer list and map focus in sync", async ({ page
   await expect(page.getByRole("button", { name: /.+(?:동|읍|면|리|지구) \d+곳, 지도에서 보기$/ }).first()).toBeVisible();
 });
 
+test("an outside current location falls back to the default Gwangju area", async ({ page, context }) => {
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 37.5665, longitude: 126.978, accuracy: 20 });
+  await page.goto(qaPath());
+
+  await page.getByRole("button", { name: /내 주변/ }).click();
+
+  await expect(page.getByRole("status")).toHaveText("현재 위치는 전라남도 범위 밖에 있습니다.");
+  await expect.poll(() => new URL(page.url()).searchParams.get("bbox"))
+    .toBe("126.72000,35.03000,127.02000,35.25000");
+  await expect(page.getByRole("complementary", { name: "장소 탐색" }).getByRole("button", { name: /선택$/ }).first()).toBeVisible();
+});
+
 test("mobile starts with the map panel collapsed", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium");
   await page.goto(qaPath());

@@ -8,6 +8,7 @@ import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
+import { resolveLocationViewport } from "../features/maps/location-policy";
 import { findSelectedPlace, updateMapSearch } from "../features/maps/map-selection";
 import {
   buildRegionClusters,
@@ -37,6 +38,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
   const [mapZoom, setMapZoom] = useState(12);
   const [focusCluster, setFocusCluster] = useState<RegionCluster | null>(null);
+  const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
+  const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const selectedPlace = findSelectedPlace(loaderData.places, loaderData.state.selected);
   const detailSlug = params.get("place");
   const clusterLevel = getRegionClusterLevel(mapZoom);
@@ -45,15 +48,16 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => setParams((current) => updateMapSearch(current, change), { replace: true });
   const setBounds = (bbox: [number, number, number, number]) => setSearch({ bbox: bbox.map((value) => value.toFixed(5)).join(",") });
   const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
-    const longitudeRadius = 0.025;
-    const latitudeRadius = 0.018;
+    const result = resolveLocationViewport(coords);
+    setLocationBounds(result.bbox);
+    setLocationNotice(result.notice);
     setParams((current) => {
       const next = new URLSearchParams(current);
-      next.set("bbox", [coords.longitude - longitudeRadius, coords.latitude - latitudeRadius, coords.longitude + longitudeRadius, coords.latitude + latitudeRadius].map((value) => value.toFixed(5)).join(","));
+      next.set("bbox", result.bbox.map((value) => value.toFixed(5)).join(","));
       next.delete("selected");
       return next;
     }, { replace: true });
-  });
+  }, () => undefined, { enableHighAccuracy: true, timeout: 8_000 });
 
   useEffect(() => {
     if (loaderData.state.selected && !selectedPlace) setSearch({ selected: null });
@@ -92,7 +96,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         clusters={clusters}
         focusCluster={focusCluster}
         initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined}
-        locateOnLoad={!params.has("bbox")}
+        locationBounds={locationBounds}
+        locationNotice={locationNotice}
         onSelect={(id) => setSearch({ selected: id })}
         onBounds={setBounds}
         onZoom={setMapZoom}
