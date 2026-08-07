@@ -23,7 +23,7 @@ export function PlaceDetailSheet({ slug, onClose }: { slug: string | null; onClo
       {!data ? <p className="place-detail-sheet__loading">장소 정보를 불러오는 중…</p> : <>
         <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>
         <div className="place-detail-sheet__body">
-          <p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p>
+          <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">검수 완료</span></div>
           <h2>{data.place.name}</h2>
           <address>{data.place.address}</address>
           <div className="place-detail-sheet__score"><strong>{data.rating.overallScore === null ? `${data.rating.overallSampleCount}/8` : `${data.rating.overallScore}%`}</strong><span>{data.rating.overallScore === null ? "평가 공개까지" : "추천 지표"}</span></div>

@@ -55,6 +55,11 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
       <button type="button" aria-pressed={mobileView === "list"} onClick={() => setMobileView("list")}>목록</button>
     </div>
     <div className="map-explorer-panel__content">
+      <header className="map-atlas-head">
+        <p>GWANGJU · JEONNAM FOOD ATLAS</p>
+        <h1>동네의 맛을<br />지도에서 찾기</h1>
+        <span>직접 확인한 지역의 음식과 장소를 기록합니다.</span>
+      </header>
       <div className="map-search-row">
         <form onSubmit={submitSearch} role="search">
           <label htmlFor="map-search">장소 검색</label>
@@ -70,7 +75,7 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
       {groupId && <div className="map-category-children" aria-label="세부 카테고리">
         {children.map((child) => <button type="button" key={child.id} aria-pressed={child.slug === category} data-active={child.slug === category || undefined} onClick={() => onCategory(child.slug)}>{child.emoji} {child.name} <small>{child.count}</small></button>)}
       </div>}
-      <div className="map-result-head"><strong>{places.length}</strong><span>현재 지도 안의 장소</span></div>
+      <div className="map-result-head"><span>현재 지도 안의 기록</span><strong>{places.length}</strong><small>곳</small></div>
       <MapPlaceList places={places} groups={regionGroups} level={clusterLevel} onSelect={onSelect} onGroupSelect={onGroupSelect} />
     </div>
   </aside>;

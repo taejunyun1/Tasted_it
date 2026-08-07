@@ -26,7 +26,17 @@ test("a map pin opens a quick bottom sheet while preserving the explorer list", 
   await expect(page.getByRole("dialog", { name: `${placeName} 빠른 정보` })).toBeVisible();
   await expect(page.getByRole("heading", { name: placeName })).toBeVisible();
   await expect(page.getByRole("progressbar", { name: "추천 지표" })).toBeVisible();
+  await expect(page.getByText("검수 완료", { exact: true }).last()).toBeVisible();
   await expect(page.getByRole("link", { name: "상세 보기" })).toBeVisible();
+});
+
+test("the explorer presents the local food atlas identity and verified places", async ({ page }) => {
+  await page.goto(qaPath());
+
+  const explorer = page.getByRole("complementary", { name: "장소 탐색" });
+  await expect(explorer.getByText("GWANGJU · JEONNAM FOOD ATLAS")).toBeVisible();
+  await expect(explorer.getByRole("heading", { name: "동네의 맛을 지도에서 찾기" })).toBeVisible();
+  await expect(explorer.getByText("검수 완료", { exact: true }).first()).toBeVisible();
 });
 
 test("a list item opens the same detail and returning preserves filters", async ({ page }) => {
@@ -122,4 +132,17 @@ test("mobile collapses the list when quick information opens and restores it on 
   await page.getByRole("button", { name: "목록", exact: true }).click();
   await expect(explorer).toHaveAttribute("data-mobile-view", "list");
   await expect(page.getByRole("button", { name: /선택$/ }).first()).toBeVisible();
+});
+
+test("mobile detail sheet keeps the verified place context", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium");
+  await page.goto(qaPath());
+
+  await page.getByRole("button", { name: "목록", exact: true }).click();
+  await page.getByRole("button", { name: /선택$/ }).first().click();
+  await page.getByRole("link", { name: "상세 보기" }).click();
+
+  const detail = page.getByRole("dialog", { name: /상세 정보$/ });
+  await expect(detail).toBeVisible();
+  await expect(detail.getByText("검수 완료", { exact: true })).toBeVisible();
 });
