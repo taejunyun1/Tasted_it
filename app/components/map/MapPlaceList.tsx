@@ -16,6 +16,7 @@ function PlaceRows({ places, onSelect, startIndex = 0 }: {
           <span className="map-place-summary">
             <strong>{place.name}</strong>
             <small>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</small>
+            <span className="place-verified-badge">검수 완료</span>
           </span>
           <span className="map-place-rating">{rating.sampleStatus === "VISIBLE" ? `${rating.displayScore}%` : "평가 대기"}</span>
         </button>

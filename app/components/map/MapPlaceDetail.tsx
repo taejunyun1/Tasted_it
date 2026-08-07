@@ -25,7 +25,7 @@ export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSu
       {place.heroImageUrl ? <img src={place.heroImageUrl} alt="" /> : <span>{place.primaryCategory.emoji}</span>}
     </div>
     <div className="map-place-sheet__identity">
-      <p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</p>
+      <div className="map-place-sheet__meta"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</p><span className="place-verified-badge">검수 완료</span></div>
       <h2>{place.name}</h2>
       <address>{place.address || "주소 확인 중"}</address>
     </div>
