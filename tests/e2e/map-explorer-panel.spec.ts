@@ -39,6 +39,20 @@ test("the explorer presents the local food atlas identity and verified places", 
   await expect(explorer.getByText("검수 완료", { exact: true }).first()).toBeVisible();
 });
 
+test("desktop keeps the explorer beside the map and gives the map priority", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium");
+  await page.goto(qaPath());
+
+  const explorerBox = await page.getByRole("complementary", { name: "장소 탐색" }).boundingBox();
+  const mapBox = await page.getByLabel("장소 지도").boundingBox();
+
+  expect(explorerBox).not.toBeNull();
+  expect(mapBox).not.toBeNull();
+  expect(explorerBox!.width).toBeLessThanOrEqual(420);
+  expect(explorerBox!.x + explorerBox!.width).toBeLessThanOrEqual(mapBox!.x + 1);
+  expect(mapBox!.width).toBeGreaterThan(explorerBox!.width);
+});
+
 test("a list item opens the same detail and returning preserves filters", async ({ page }) => {
   await page.goto(qaPath());
   const result = page.getByRole("button", { name: /선택$/ }).first();
@@ -115,6 +129,20 @@ test("mobile starts with the map panel collapsed", async ({ page }, testInfo) =>
 
   await expect(page.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "목록", exact: true })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("mobile overlays the explorer control on the full map", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium");
+  await page.goto(qaPath());
+
+  const explorerBox = await page.getByRole("complementary", { name: "장소 탐색" }).boundingBox();
+  const mapBox = await page.getByLabel("장소 지도").boundingBox();
+
+  expect(explorerBox).not.toBeNull();
+  expect(mapBox).not.toBeNull();
+  expect(explorerBox!.x).toBeGreaterThan(mapBox!.x);
+  expect(explorerBox!.x + explorerBox!.width).toBeLessThan(mapBox!.x + mapBox!.width);
+  expect(explorerBox!.y).toBeGreaterThan(mapBox!.y);
 });
 
 test("mobile collapses the list when quick information opens and restores it on demand", async ({ page }, testInfo) => {
