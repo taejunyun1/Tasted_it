@@ -39,6 +39,19 @@ test("the explorer presents the local food atlas identity and verified places", 
   await expect(explorer.getByText("검수 완료", { exact: true }).first()).toBeVisible();
 });
 
+test("tags and status badges use a friendly rounded shape", async ({ page }) => {
+  await page.goto(qaPath());
+
+  const categoryRadius = await page.getByRole("complementary", { name: "장소 탐색" })
+    .getByRole("button", { name: "전체", exact: true })
+    .evaluate((element) => getComputedStyle(element).borderRadius);
+  const verifiedRadius = await page.getByText("검수 완료", { exact: true }).first()
+    .evaluate((element) => getComputedStyle(element).borderRadius);
+
+  expect(Number.parseFloat(categoryRadius)).toBeGreaterThanOrEqual(12);
+  expect(Number.parseFloat(verifiedRadius)).toBeGreaterThanOrEqual(12);
+});
+
 test("desktop keeps the explorer beside the map and gives the map priority", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium");
   await page.goto(qaPath());
