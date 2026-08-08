@@ -144,38 +144,38 @@ git commit -m "2026-08-08 승인 불가 후보 전용 탭 격리"
 
 - [ ] **Step 1: 감사 SQL 작성**
 
-`scripts/audit-db-integrity.sql`은 여러 행의 `metric`, `value`만 반환한다. 필수 쿼리 형태는 다음과 같다.
+`scripts/audit-db-integrity.sql`은 D1의 복합 SELECT 항목 수 제한을 피하기 위해 한 행의 `audit_json`만 반환한다. 필수 쿼리 형태는 다음과 같다.
 
 ```sql
-SELECT 'foreign_key_violations' AS metric, count(*) AS value FROM pragma_foreign_key_check
-UNION ALL
-SELECT 'duplicate_source_keys', count(*) FROM (
-  SELECT source_type, source_management_no FROM business_licenses
-  GROUP BY source_type, source_management_no HAVING count(*) > 1
-)
-UNION ALL
-SELECT 'open_pending_missing_coordinates', count(*) FROM business_licenses
-WHERE normalized_status = 'OPEN' AND review_status = 'PENDING'
-  AND (latitude IS NULL OR longitude IS NULL)
-UNION ALL
-SELECT 'active_exclusion_approved_conflicts', count(*)
-FROM business_license_exclusions e JOIN business_licenses b ON b.id = e.business_license_id
-WHERE e.status = 'ACTIVE' AND b.review_status = 'APPROVED';
+SELECT json_object(
+  'foreign_key_violations', (SELECT count(*) FROM pragma_foreign_key_check),
+  'duplicate_source_keys', (SELECT count(*) FROM (
+    SELECT source_type, source_management_no FROM business_licenses
+    GROUP BY source_type, source_management_no HAVING count(*) > 1
+  )),
+  'open_pending_missing_coordinates', (SELECT count(*) FROM business_licenses
+    WHERE normalized_status = 'OPEN' AND review_status = 'PENDING'
+      AND (latitude IS NULL OR longitude IS NULL)),
+  'active_exclusion_approved_conflicts', (SELECT count(*)
+    FROM business_license_exclusions e
+    JOIN business_licenses b ON b.id = e.business_license_id
+    WHERE e.status = 'ACTIVE' AND b.review_status = 'APPROVED')
+) AS audit_json;
 ```
 
-같은 UNION에 좌표 범위, 승인-장소 링크, 카테고리 고아·비활성·비말단 연결, 제외 사유별 활성 건수, AI 분류 성공·실패 건수를 추가한다.
+같은 JSON 객체에 좌표 범위, 승인-장소 링크, 카테고리 고아·비활성·비말단 연결, 제외 사유별 활성 건수, AI 분류 성공·실패 건수를 추가한다.
 
 - [ ] **Step 2: SQL 안전성 검사**
 
-Run: `rg -n "business_name|road_address|lot_address|phone|email|raw_payload|UPDATE|INSERT|DELETE|ALTER|DROP" scripts/audit-db-integrity.sql`
+Run: `rg -n "business_name|phone|email|raw_payload|UPDATE|INSERT|DELETE|ALTER|DROP" scripts/audit-db-integrity.sql`
 
-Expected: 결과 없음.
+Expected: 결과 없음. 주소 열은 누락 여부의 조건식에서만 사용하고 실제 값을 반환하지 않는다.
 
 - [ ] **Step 3: 운영 읽기 전용 감사 실행**
 
 Run: `pnpm exec wrangler d1 execute DB --remote --command "$(<scripts/audit-db-integrity.sql)"`
 
-Expected: `rows_written = 0`, 집계 metric과 value만 출력.
+Expected: `rows_written = 0`, 집계 `audit_json`만 출력.
 
 - [ ] **Step 4: 결과 문서화**
 
