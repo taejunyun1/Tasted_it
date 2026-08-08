@@ -27,6 +27,8 @@ pnpm dev --host 127.0.0.1
 | `RESEND_API_KEY` | 가입 인증·비밀번호 재설정 메일 발송 | secret |
 | `RESEND_FROM_EMAIL` | Resend에서 인증한 발신 주소 | secret |
 | `APP_BASE_URL` | 이메일 링크의 공개 서비스 기준 URL | 환경별 변수 또는 secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth 웹 클라이언트 ID와 ID 토큰 audience 검증 | secret |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 승인 코드 교환 | secret |
 
 예시:
 
@@ -37,7 +39,28 @@ pnpm exec wrangler secret put ADMIN_EMAIL
 pnpm exec wrangler secret put RESEND_API_KEY
 pnpm exec wrangler secret put RESEND_FROM_EMAIL
 pnpm exec wrangler secret put APP_BASE_URL
+pnpm exec wrangler secret put GOOGLE_CLIENT_ID
+pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm exec wrangler secret list
 ```
+
+Google Cloud Console의 웹 OAuth 클라이언트에는 다음 주소를 정확히 등록합니다.
+
+승인된 JavaScript 원본:
+
+```text
+http://localhost:5173
+https://retaste-beta.retaste-beta.workers.dev
+```
+
+승인된 리디렉션 URI:
+
+```text
+http://localhost:5173/auth/google/callback
+https://retaste-beta.retaste-beta.workers.dev/auth/google/callback
+```
+
+Google 로그인은 `openid email profile` 권한만 사용합니다. 클라이언트 보안 비밀번호, 승인 코드, Google 토큰은 저장소·DB·로그에 남기지 않습니다.
 
 ## 검증
 

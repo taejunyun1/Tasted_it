@@ -4,8 +4,8 @@ import { safeReturnTo } from "../../app/features/auth/login";
 
 describe("safeReturnTo", () => {
   it.each([
-    ["/courses?meal=1", "/courses?meal=1"],
-    ["/places", "/places"],
+    ["/courses?meal=1", "/"],
+    ["/places", "/"],
     [undefined, "/"],
     ["", "/"],
     ["https://evil.example", "/"],

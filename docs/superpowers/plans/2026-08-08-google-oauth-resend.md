@@ -370,13 +370,13 @@ Expected: FAIL — `sendGoogleWelcomeEmail` 없음
 - [ ] **Step 3: 내부 복귀 경로 테스트와 구현**
 
 ```ts
-expect(safeReturnTo("/courses?meal=1")).toBe("/courses?meal=1");
+expect(safeReturnTo("/courses?meal=1")).toBe("/");
 expect(safeReturnTo("https://evil.example")).toBe("/");
 expect(safeReturnTo("//evil.example")).toBe("/");
 expect(safeReturnTo("/auth/google/callback")).toBe("/");
 ```
 
-`safeReturnTo`는 하나의 `/`로 시작하고 `//`가 아니며 인증 콜백 경로가 아닌 내부 경로만 허용한다.
+`safeReturnTo`는 기존 제품 계약대로 모든 입력을 회원 메인 지도 `/`로 보낸다.
 
 - [ ] **Step 4: Google 버튼·오류 문구 실패 테스트 작성**
 
@@ -419,8 +419,8 @@ git commit -m "2026-08-08 Google 로그인 UI 및 환영 메일 추가"
 **Files:**
 - Modify: `README.md`
 - Modify: `docs/superpowers/specs/2026-08-08-google-oauth-resend-design.md` only if implementation reveals an approved deviation
-- Create: `artifacts/google-auth-login-desktop.png`
-- Create: `artifacts/google-auth-login-mobile.png`
+- Create: `artifacts/google-auth-login-desktop.jpg`
+- Create: `artifacts/google-auth-login-mobile.jpg`
 
 **Interfaces:**
 - Consumes: 전체 Google OAuth 흐름
@@ -458,12 +458,12 @@ Expected: `0015_google_oauth.sql` 적용 성공
 Run: `pnpm run dev -- --host 127.0.0.1`
 Expected: 로그인·회원가입 페이지가 열리고 Google 버튼이 데스크톱·모바일에서 보이며 키보드 포커스 가능
 
-브라우저 증거를 `artifacts/google-auth-login-desktop.png`, `artifacts/google-auth-login-mobile.png`에 저장한다. 실제 Google 로그인은 로컬 callback 등록이 전파된 후 확인한다.
+브라우저 증거를 `artifacts/google-auth-login-desktop.jpg`, `artifacts/google-auth-login-mobile.jpg`에 저장한다. 실제 Google 로그인은 로컬 callback 등록이 전파된 후 확인한다.
 
 - [ ] **Step 4: 최종 문서 커밋**
 
 ```bash
-git add README.md docs/superpowers/specs/2026-08-08-google-oauth-resend-design.md docs/superpowers/plans/2026-08-08-google-oauth-resend.md artifacts/google-auth-login-desktop.png artifacts/google-auth-login-mobile.png
+git add README.md docs/superpowers/specs/2026-08-08-google-oauth-resend-design.md docs/superpowers/plans/2026-08-08-google-oauth-resend.md artifacts/google-auth-login-desktop.jpg artifacts/google-auth-login-mobile.jpg
 git commit -m "2026-08-08 Google 인증 운영 문서 및 검증 증거"
 ```
 
