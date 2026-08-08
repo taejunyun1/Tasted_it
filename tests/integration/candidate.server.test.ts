@@ -49,6 +49,39 @@ describe("candidate review service", () => {
     ]));
   });
 
+  it("stores a room salon candidate as an adult-entertainment exclusion", async () => {
+    const db = createDb(env.DB);
+    const result = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `adult-${crypto.randomUUID()}`,
+      businessName: "황제 룸싸롱",
+      businessSubtype: "유흥주점영업",
+    }, now);
+
+    expect(result.excluded).toBe(true);
+    expect((await listPendingCandidates(db)).map((candidate) => candidate.id)).not.toContain(result.id);
+    expect(await listExcludedCandidates(db)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: result.id,
+        exclusionReason: "ADULT_ENTERTAINMENT",
+        exclusionCategory: "ADULT_ENTERTAINMENT",
+      }),
+    ]));
+  });
+
+  it("keeps a karaoke bar candidate in the pending queue", async () => {
+    const db = createDb(env.DB);
+    const result = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `karaoke-${crypto.randomUUID()}`,
+      businessName: "동네 단란주점",
+      businessSubtype: "단란주점영업",
+    }, now);
+
+    expect(result.excluded).toBe(false);
+    expect((await listPendingCandidates(db)).map((candidate) => candidate.id)).toContain(result.id);
+  });
+
   it("keeps an admin-restored chain candidate in the pending queue after resync", async () => {
     const db = createDb(env.DB);
     const sourceManagementNo = `restored-chain-${crypto.randomUUID()}`;
