@@ -13,12 +13,19 @@ export interface CandidateClassification {
   categorySlug: string;
   candidateSlugs: string[];
   confidence: ClassificationConfidence;
+  confidenceScore: number;
   neighborhood: string | null;
   reasons: string[];
 }
 
 type SignalOrigin = "NAME" | "SUBTYPE" | "SOURCE";
-type Signal = CategoryRule & { score: number; origin: SignalOrigin };
+type Signal = CategoryRule & { baseScore: number; score: number; origin: SignalOrigin };
+type RankedCandidate = {
+  slug: string;
+  group: CategoryGroup;
+  score: number;
+  signals: Signal[];
+};
 
 const defaults: Record<PublicDataSource, { slug: string; group: CategoryGroup }> = {
   GENERAL_RESTAURANT: { slug: "home-meal", group: "korean" },
@@ -40,31 +47,64 @@ export function normalizeBusinessName(value: string) {
   return value.normalize("NFKC").replace(/[\s·.,()\-_&]/g, "").replaceAll("육계장", "육개장").replaceAll("타코야키", "타코야끼");
 }
 
+const baseSignalScores: Record<SignalOrigin, Partial<Record<SignalKind, number>>> = {
+  NAME: { FOOD: 80, VENUE: 74 },
+  SUBTYPE: { FOOD: 65, VENUE: 45, CUISINE: 35 },
+  SOURCE: { DEFAULT: 15 },
+};
+
 function signalScore(origin: SignalOrigin, kind: SignalKind, priority = 0) {
-  if (origin === "NAME") return (kind === "FOOD" ? 100 : 55) + priority;
-  if (origin === "SUBTYPE") return (kind === "FOOD" ? 70 : kind === "CUISINE" ? 30 : 20) + priority;
-  return 5;
+  const baseScore = baseSignalScores[origin][kind] ?? 0;
+  const priorityBonus = Math.min(10, Math.max(0, Math.round(priority / 4)));
+  return { baseScore, score: baseScore + priorityBonus };
+}
+
+function clampScore(score: number) {
+  return Math.min(100, Math.max(0, Math.round(score)));
+}
+
+export function confidenceFromScore(score: number) {
+  if (score >= 78) return "HIGH" as const;
+  if (score >= 50) return "MEDIUM" as const;
+  return "LOW" as const;
 }
 
 function collectSignals(input: { sourceType: PublicDataSource; businessSubtype?: string | null; businessName: string }) {
   const normalizedName = normalizeBusinessName(input.businessName);
   const subtype = input.businessSubtype?.normalize("NFKC").trim() ?? "";
   const signals: Signal[] = [
-    ...nameCategoryRules.filter((rule) => rule.pattern.test(normalizedName) && !rule.excludePattern?.test(normalizedName)).map((rule) => ({ ...rule, origin: "NAME" as const, score: signalScore("NAME", rule.kind, rule.priority) })),
-    ...subtypeCategoryRules.filter((rule) => rule.pattern.test(subtype) && !rule.excludePattern?.test(subtype)).map((rule) => ({ ...rule, origin: "SUBTYPE" as const, score: signalScore("SUBTYPE", rule.kind, rule.priority) })),
+    ...nameCategoryRules.filter((rule) => rule.pattern.test(normalizedName) && !rule.excludePattern?.test(normalizedName)).map((rule) => ({ ...rule, origin: "NAME" as const, ...signalScore("NAME", rule.kind, rule.priority) })),
+    ...subtypeCategoryRules.filter((rule) => rule.pattern.test(subtype) && !rule.excludePattern?.test(subtype)).map((rule) => ({ ...rule, origin: "SUBTYPE" as const, ...signalScore("SUBTYPE", rule.kind, rule.priority) })),
   ];
   const fallback = defaults[input.sourceType];
-  signals.push({ pattern: /(?:)/, slug: fallback.slug, group: fallback.group, label: "공공데이터 종류의 기본 분류", kind: "DEFAULT", origin: "SOURCE", score: 5 });
+  const sourceScore = signalScore("SOURCE", "DEFAULT");
+  signals.push({ pattern: /(?:)/, slug: fallback.slug, group: fallback.group, label: "공공데이터 종류의 기본 분류", kind: "DEFAULT", origin: "SOURCE", ...sourceScore });
   return signals;
 }
 
-function rankSignals(signals: Signal[]) {
+function strongestSignalsBySlug(signals: Signal[]) {
   const bySlug = new Map<string, Signal>();
   for (const signal of signals) {
     const current = bySlug.get(signal.slug);
     if (!current || signal.score > current.score) bySlug.set(signal.slug, signal);
   }
   return [...bySlug.values()].sort((left, right) => right.score - left.score);
+}
+
+function rankCandidates(signals: Signal[]): RankedCandidate[] {
+  const bySlug = new Map<string, Signal[]>();
+  for (const signal of signals) {
+    const current = bySlug.get(signal.slug) ?? [];
+    current.push(signal);
+    bySlug.set(signal.slug, current);
+  }
+  return [...bySlug.entries()].map(([slug, candidateSignals]) => {
+    const ordered = [...candidateSignals].sort((left, right) => right.score - left.score);
+    const evidenceScore = ordered.reduce((total, signal, index) => total + (index === 0 ? signal.score : Math.round(signal.baseScore * 0.3)), 0);
+    const group = ordered[0].group;
+    const cuisineSupport = signals.some((signal) => signal.origin === "SUBTYPE" && signal.kind === "CUISINE" && signal.group === group && signal.slug !== slug) ? 6 : 0;
+    return { slug, group, score: clampScore(evidenceScore + cuisineSupport), signals: ordered };
+  }).sort((left, right) => right.score - left.score);
 }
 
 export function classifyCandidate(input: {
@@ -74,34 +114,30 @@ export function classifyCandidate(input: {
   address?: string | null;
 }): CandidateClassification {
   const signals = collectSignals(input);
-  const ranked = rankSignals(signals);
+  const ranked = rankCandidates(signals);
   const primary = ranked[0];
   const neighborhood = extractNeighborhood(input.address);
-  const nameFoodSignals = rankSignals(signals.filter((signal) => signal.origin === "NAME" && signal.kind === "FOOD"));
-  const subtypeCuisine = signals.find((signal) => signal.origin === "SUBTYPE" && signal.kind === "CUISINE");
-  const hasFoodConflict = nameFoodSignals.length > 1 && nameFoodSignals[0].score === nameFoodSignals[1].score;
-  const isCrossCuisineSeafood = primary.group === "seafood";
-  const hasCuisineConflict = primary.origin === "NAME" && primary.kind === "FOOD" && subtypeCuisine != null && subtypeCuisine.group !== primary.group && !isCrossCuisineSeafood;
-  const hasSubtypeSupport = signals.some((signal) => signal.origin === "SUBTYPE" && signal.group === primary.group && signal.kind !== "DEFAULT")
-    || (isCrossCuisineSeafood && subtypeCuisine != null);
-  const confidence: ClassificationConfidence = hasFoodConflict || hasCuisineConflict
-    ? "CONFLICT"
-    : primary.score <= 5
-      ? "LOW"
-      : primary.origin === "NAME" && hasSubtypeSupport
-        ? "HIGH"
-        : "MEDIUM";
+  const concreteFoodSignals = strongestSignalsBySlug(signals.filter((signal) => signal.origin !== "SOURCE" && signal.kind === "FOOD"));
+  const hasExplicitPriorityWinner = concreteFoodSignals.length > 1
+    && (concreteFoodSignals[0].priority ?? 0) > (concreteFoodSignals[1].priority ?? 0);
+  const hasFoodConflict = concreteFoodSignals.length > 1
+    && concreteFoodSignals[0].score >= 65
+    && concreteFoodSignals[1].score >= 65
+    && concreteFoodSignals[0].score - concreteFoodSignals[1].score <= 20
+    && !hasExplicitPriorityWinner;
+  const confidence: ClassificationConfidence = hasFoodConflict ? "CONFLICT" : confidenceFromScore(primary.score);
   const reasons = signals
-    .filter((signal) => signal.slug === primary.slug || (hasFoodConflict && signal.origin === "NAME" && signal.kind === "FOOD"))
+    .filter((signal) => signal.slug === primary.slug || (hasFoodConflict && signal.kind === "FOOD" && signal.origin !== "SOURCE"))
     .sort((left, right) => right.score - left.score)
     .map((signal) => `${signal.label} (${signal.score}점)`);
   if (hasFoodConflict) reasons.push("상호에 서로 다른 구체 음식 신호가 함께 있음");
-  if (hasCuisineConflict) reasons.push(`구체 음식 신호가 원천 업태(${input.businessSubtype})와 불일치`);
-  if (primary.kind === "FOOD" && ranked.some((signal) => signal.kind === "VENUE" && signal.score < primary.score)) reasons.push("구체 음식 신호를 영업 형태보다 우선 적용");
+  if (primary.signals.some((signal) => signal.kind === "FOOD") && signals.some((signal) => signal.kind === "VENUE" && signal.slug !== primary.slug && signal.score < primary.score)) reasons.push("구체 음식 신호를 영업 형태보다 우선 적용");
+  reasons.push(`최종 규칙 점수 ${primary.score}점`);
   return {
     categorySlug: primary.slug,
-    candidateSlugs: ranked.slice(0, 4).map((signal) => signal.slug),
+    candidateSlugs: ranked.slice(0, 4).map((candidate) => candidate.slug),
     confidence,
+    confidenceScore: primary.score,
     neighborhood,
     reasons,
   };

@@ -17,12 +17,12 @@ describe("Workers AI candidate classification", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it("completes a high-confidence terminal rule without calling Workers AI", async () => {
+  it("completes a scheduled high-confidence terminal rule without calling Workers AI", async () => {
     const db = createDb(env.DB); const id = `ai-context-${crypto.randomUUID()}`; const now = "2026-08-06T09:00:00.000Z";
     await db.insert(businessLicenses).values({ id, sourceType: "ENTERTAINMENT_BAR", sourceManagementNo: id, businessName: "왕가네 치킨호프", businessSubtype: "호프/통닭", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
     const run = vi.fn().mockResolvedValue({ response: { categorySlug: "chicken", confidence: 0.96, evidence: ["치킨", "통닭"], reasons: ["구체 음식 표현을 우선"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
 
-    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { limit: 1, now });
     const storedRun = (await db.select().from(aiClassificationRuns)).find((row) => row.candidateId === id)!;
 
     expect(AI_CLASSIFICATION_PROMPT).toBe("place-category-v4");
@@ -30,6 +30,20 @@ describe("Workers AI candidate classification", () => {
     expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0, ruleCompleted: 1 });
     expect(run).not.toHaveBeenCalled();
     expect(storedRun).toMatchObject({ promptVersion: "place-category-v4", model: "RULE_ONLY", categorySlug: "chicken", status: "SUCCESS" });
+  });
+
+  it("calls Workers AI for an explicitly selected high-confidence terminal rule", async () => {
+    const db = createDb(env.DB); const id = `ai-explicit-${crypto.randomUUID()}`; const now = "2026-08-06T09:30:00.000Z";
+    await db.insert(businessLicenses).values({ id, sourceType: "ENTERTAINMENT_BAR", sourceManagementNo: id, businessName: "왕가네 치킨호프", businessSubtype: "호프/통닭", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "chicken", confidence: 0.96, evidence: ["치킨", "통닭"], reasons: ["구체 음식 표현을 우선"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
+    const storedRun = (await db.select().from(aiClassificationRuns)).find((row) => row.candidateId === id)!;
+
+    expect(storedRun.validationError).toBeNull();
+    expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0, ruleCompleted: 0 });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(storedRun).toMatchObject({ model: "@cf/meta/llama-3.1-8b-instruct-fast", categorySlug: "chicken", status: "SUCCESS" });
   });
 
   it("stores validated output and reuses the 30-day input cache", async () => {

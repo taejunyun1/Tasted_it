@@ -19,7 +19,7 @@ describe("classifyCandidate", () => {
     });
   });
 
-  it("detects conflicting cuisine signals", () => {
+  it("keeps a specific sushi name above a broad Korean subtype", () => {
     expect(classifyCandidate({
       sourceType: "GENERAL_RESTAURANT",
       businessSubtype: "한식",
@@ -27,11 +27,12 @@ describe("classifyCandidate", () => {
       address: "광주광역시 동구 동명동 1",
     })).toMatchObject({
       categorySlug: "sushi-sashimi",
-      confidence: "CONFLICT",
+      confidence: "HIGH",
+      confidenceScore: 80,
     });
   });
 
-  it("uses a specific name signal as medium confidence without a subtype", () => {
+  it("uses a specific name signal as high confidence without a subtype", () => {
     expect(classifyCandidate({
       sourceType: "GENERAL_RESTAURANT",
       businessSubtype: null,
@@ -39,7 +40,8 @@ describe("classifyCandidate", () => {
       address: "광주광역시 북구 용봉동 10",
     })).toMatchObject({
       categorySlug: "ramen-detail",
-      confidence: "MEDIUM",
+      confidence: "HIGH",
+      confidenceScore: 80,
     });
   });
 
@@ -52,7 +54,33 @@ describe("classifyCandidate", () => {
     })).toMatchObject({
       categorySlug: "home-meal",
       confidence: "LOW",
+      confidenceScore: 15,
     });
+  });
+
+  it.each([
+    ["사계순대", "tteokbokki"],
+    ["전주해장국", "gukbap-detail"],
+  ])("keeps a specific Korean food name %s above a broad Korean subtype", (businessName, categorySlug) => {
+    const result = classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "한식",
+      businessName,
+    });
+
+    expect(result).toMatchObject({ categorySlug, confidence: "HIGH" });
+    expect(result.confidenceScore).toBeGreaterThanOrEqual(78);
+  });
+
+  it("keeps broad subtype and source evidence below high confidence", () => {
+    const result = classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "한식",
+      businessName: "맛있는집",
+    });
+
+    expect(result).toMatchObject({ categorySlug: "home-meal", confidence: "LOW" });
+    expect(result.confidenceScore).toBeLessThan(50);
   });
 
   it("normalizes 육계장 and never suggests gimbap", () => {

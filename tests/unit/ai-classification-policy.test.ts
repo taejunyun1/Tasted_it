@@ -10,12 +10,52 @@ describe("AI category policy", () => {
     expect(() => validateAiClassification({ categorySlug: "ramen-detail", confidence: 1.2, reasons: [] }, slugs)).toThrow("AI_OUTPUT_INVALID");
   });
 
-  it("allows automatic review only when rule and high-confidence AI agree", () => {
-    expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "HIGH", ai: { categorySlug: "ramen-detail", confidence: 0.91, reasons: [] } })).toMatchObject({ eligible: true, confidence: "HIGH" });
-    expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "HIGH", ai: { categorySlug: "gukbap-detail", confidence: 0.99, reasons: [] } })).toMatchObject({ eligible: false, confidence: "CONFLICT" });
-    expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "HIGH", ai: { categorySlug: "ramen-detail", confidence: 0.7, reasons: [] } })).toMatchObject({ eligible: false, confidence: "MEDIUM" });
-    expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "HIGH", ai: null })).toMatchObject({ eligible: false, confidence: "MEDIUM" });
-    expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "MEDIUM", ai: { categorySlug: "ramen-detail", confidence: 0.99, reasons: [] } })).toMatchObject({ eligible: false, confidence: "MEDIUM" });
+  it("keeps the rule score and grade when AI is absent", () => {
+    expect(reconcileAiClassification({ ruleSlug: "ramen-detail", ruleConfidence: "HIGH", ruleScore: 82, ai: null }))
+      .toMatchObject({ categorySlug: "ramen-detail", confidence: "HIGH", confidenceScore: 82, eligible: false });
+  });
+
+  it("adds an AI agreement bonus and approves only a verified high result", () => {
+    expect(reconcileAiClassification({
+      ruleSlug: "ramen-detail",
+      ruleConfidence: "MEDIUM",
+      ruleScore: 70,
+      ai: { categorySlug: "ramen-detail", confidence: 0.9, reasons: [] },
+    })).toMatchObject({ categorySlug: "ramen-detail", confidence: "HIGH", confidenceScore: 79, eligible: true });
+
+    expect(reconcileAiClassification({
+      ruleSlug: "ramen-detail",
+      ruleConfidence: "MEDIUM",
+      ruleScore: 55,
+      ai: { categorySlug: "ramen-detail", confidence: 0.99, reasons: [] },
+    })).toMatchObject({ categorySlug: "ramen-detail", confidence: "MEDIUM", confidenceScore: 65, eligible: false });
+  });
+
+  it("keeps the rule slug and lowers the score for a weak AI disagreement", () => {
+    expect(reconcileAiClassification({
+      ruleSlug: "ramen-detail",
+      ruleConfidence: "HIGH",
+      ruleScore: 82,
+      ai: { categorySlug: "gukbap-detail", confidence: 0.7, reasons: [] },
+    })).toMatchObject({ categorySlug: "ramen-detail", confidence: "MEDIUM", confidenceScore: 72, eligible: false });
+  });
+
+  it("keeps the rule slug and marks a strong AI disagreement as conflict", () => {
+    expect(reconcileAiClassification({
+      ruleSlug: "ramen-detail",
+      ruleConfidence: "HIGH",
+      ruleScore: 82,
+      ai: { categorySlug: "gukbap-detail", confidence: 0.95, reasons: [] },
+    })).toMatchObject({ categorySlug: "ramen-detail", confidence: "CONFLICT", confidenceScore: 82, eligible: false });
+  });
+
+  it("does not let AI agreement resolve an existing rule conflict", () => {
+    expect(reconcileAiClassification({
+      ruleSlug: "ramen-detail",
+      ruleConfidence: "CONFLICT",
+      ruleScore: 82,
+      ai: { categorySlug: "ramen-detail", confidence: 0.99, reasons: [] },
+    })).toMatchObject({ categorySlug: "ramen-detail", confidence: "CONFLICT", confidenceScore: 82, eligible: false });
   });
 
   it("rejects AI evidence that is absent from the supplied business data", () => {
