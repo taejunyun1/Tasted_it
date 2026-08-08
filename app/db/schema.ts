@@ -26,6 +26,50 @@ export const users = sqliteTable("users", {
   ...timestamps,
 });
 
+export const authIdentities = sqliteTable(
+  "auth_identities",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["GOOGLE"] }).notNull(),
+    providerSubject: text("provider_subject").notNull(),
+    providerEmail: text("provider_email").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("auth_identities_provider_subject_uidx").on(
+      table.provider,
+      table.providerSubject,
+    ),
+    uniqueIndex("auth_identities_provider_user_uidx").on(
+      table.provider,
+      table.userId,
+    ),
+    index("auth_identities_user_idx").on(table.userId),
+  ],
+);
+
+export const oauthRequests = sqliteTable(
+  "oauth_requests",
+  {
+    id: text("id").primaryKey(),
+    stateHash: text("state_hash").notNull().unique(),
+    nonce: text("nonce").notNull(),
+    returnTo: text("return_to").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    consumedAt: text("consumed_at"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("oauth_requests_expiry_idx").on(
+      table.expiresAt,
+      table.consumedAt,
+    ),
+  ],
+);
+
 export const accountTokens = sqliteTable(
   "account_tokens",
   {
