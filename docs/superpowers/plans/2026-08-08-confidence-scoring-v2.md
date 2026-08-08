@@ -8,6 +8,14 @@
 
 **Tech Stack:** TypeScript 7, Vitest 4, React Router 8, Cloudflare Workers/D1
 
+## 실행 상태
+
+- 규칙 근거 점수와 충돌 판정: 완료
+- AI 점수 보정 정책: 완료
+- 서버 점수 전달과 `RULE_ONLY`/실제 AI 구분: 완료
+- 전체 회귀 검증: 완료
+- Pull Request: 저장소 워크플로에 따라 생성
+
 ## Global Constraints
 
 - UI, 데이터베이스 스키마·데이터, `category-taxonomy.ts`, 배포 설정은 변경하지 않는다.
