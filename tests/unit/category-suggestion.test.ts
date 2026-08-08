@@ -33,10 +33,38 @@ describe("public-data category suggestions", () => {
       .toBe("bakery-detail");
   });
 
-  it.each(["행복한빵", "추억의과자"])("does not force broad term %s into bakery", (businessName) => {
+  it("does not force the broad term 행복한빵 into bakery", () => {
+    const businessName = "행복한빵";
     expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName }).categorySlug)
       .not.toBe("bakery-detail");
   });
+
+  it.each([
+    ["남도순대국", "gukbap-detail"],
+    ["담양떡갈비", "grill"],
+    ["바다아구찜", "seafood-dish"],
+    ["연어연구소", "seafood-dish"],
+    ["멘야하루", "ramen-detail"],
+    ["마라공방", "mala-hotpot"],
+    ["오월브런치", "brunch"],
+    ["시장순대분식", "tteokbokki"],
+    ["서울닭강정", "chicken"],
+    ["사이공쌀국수", "vietnamese"],
+    ["오늘베이킹", "bakery-detail"],
+    ["추억의과자", "bakery-detail"],
+    ["달빛빙수", "ice-dessert"],
+    ["7080음악주점", "pub"],
+    ["초록비건", "vegan"],
+  ])("classifies %s as %s", (businessName, expected) => {
+    expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName }).categorySlug)
+      .toBe(expected);
+  });
+
+  it.each(["사과농장", "망고상회", "딸기마켓", "자연어린이집"])(
+    "does not infer a food category from ambiguous name %s",
+    (businessName) => expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName }).confidence)
+      .toBe("LOW"),
+  );
 
   it("prioritizes explicit bakery products over cafe and dessert wording", () => {
     expect(classifyCandidate({ sourceType: "REST_CAFE", businessName: "오월베이커리카페" }).categorySlug)
