@@ -5,7 +5,7 @@ test.beforeEach(async ({ context }, testInfo) => {
   await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: baseURL }]);
 });
 
-test("admin reviews automatic, manual, and blocked candidates in one list", async ({ page }) => {
+test("admin reviews only approvable automatic and manual candidates in the default list", async ({ page }) => {
   await page.goto("/admin/candidates");
 
   await expect(page.getByRole("heading", { name: "장소 검수 목록" })).toBeVisible();
@@ -35,9 +35,9 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
   await expect(page.getByLabel("QA 스시하루 대표 카테고리")).toBeVisible();
   await expect(page.getByLabel("오늘베이킹 대표 카테고리")).toHaveValue("cat-bakery");
   await expect(page.getByText("추천 · 베이커리", { exact: true })).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: /QA 카페봄/ })).toBeDisabled();
-  await expect(page.getByRole("checkbox", { name: /Re:Taste 샘플 라멘 동명/ })).toBeDisabled();
-  await expect(page.getByText("기존 공개 장소와 중복")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "QA 카페봄" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명" })).toHaveCount(0);
+  await expect(page.getByText("기존 공개 장소와 중복")).toHaveCount(0);
   await expect(page.getByText("QA 폐업국밥")).toHaveCount(0);
 });
 
@@ -50,6 +50,10 @@ test("admin excludes selected candidates with a reason and restores them from ex
   await expect(page.getByText("1곳을 승인 불가·예외로 이동했습니다.")).toBeVisible();
 
   await page.getByRole("link", { name: "승인 불가·예외" }).click();
+  await expect(page.getByRole("heading", { name: "QA 카페봄" })).toBeVisible();
+  await expect(page.getByText("좌표 확인 필요")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명" })).toBeVisible();
+  await expect(page.getByText("기존 공개 장소와 중복")).toBeVisible();
   await expect(page.getByRole("heading", { name: "QA 수동예외 대상" })).toBeVisible();
   await expect(page.getByText("운영 정책 제외", { exact: true })).toBeVisible();
   await expect(page.getByText("QA 운영 정책 제외", { exact: true })).toBeVisible();

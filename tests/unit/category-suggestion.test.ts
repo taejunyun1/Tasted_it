@@ -11,6 +11,27 @@ describe("public-data category suggestions", () => {
     expect(suggestCategorySlugs("ENTERTAINMENT_BAR", "호프/통닭")).toContain("pub");
   });
 
+  it("maps only the 경양식 subtype to donkatsu", () => {
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "경양식",
+      businessName: "동명식당",
+    }).categorySlug).toBe("donkatsu-detail");
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "양식",
+      businessName: "동명식당",
+    }).categorySlug).toBe("pasta");
+  });
+
+  it("keeps a concrete western food name above the 경양식 default", () => {
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "경양식",
+      businessName: "동명파스타",
+    }).categorySlug).toBe("pasta");
+  });
+
   it.each([
     "행복제과점",
     "우리동네제빵소",
