@@ -10,6 +10,8 @@ export default [
   route("terms", "routes/terms.tsx"),
   route("login", "routes/login.tsx"),
   route("signup", "routes/signup.tsx"),
+  route("auth/google", "routes/auth-google.tsx"),
+  route("auth/google/callback", "routes/auth-google-callback.tsx"),
   route("verify-email", "routes/verify-email.tsx"),
   route("forgot-password", "routes/forgot-password.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
