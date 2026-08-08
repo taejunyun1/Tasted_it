@@ -22,6 +22,9 @@ describe("public-data category suggestions", () => {
     "프렌치크루아상",
     "버터쿠키",
     "목포과자점",
+    "파리바게뜨 중흥점",
+    "파리바게트 연제점",
+    "빵쇼핑",
   ])("classifies explicit bakery name %s as bakery", (businessName) => {
     expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName }).categorySlug)
       .toBe("bakery-detail");
@@ -45,5 +48,12 @@ describe("public-data category suggestions", () => {
       businessSubtype: "제과점영업",
       businessName: "우리동네제빵소",
     })).toMatchObject({ categorySlug: "bakery-detail", confidence: "HIGH" });
+  });
+
+  it("keeps explicit sushi wording in Japanese while routing sashimi to seafood", () => {
+    expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName: "스시하루" }).categorySlug)
+      .toBe("sushi-sashimi");
+    expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName: "바다횟집" }).categorySlug)
+      .toBe("seafood-dish");
   });
 });

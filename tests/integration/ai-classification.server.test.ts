@@ -13,11 +13,11 @@ describe("Workers AI candidate classification", () => {
     const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
     const storedRun = (await db.select().from(aiClassificationRuns)).find((row) => row.candidateId === id)!;
 
-    expect(AI_CLASSIFICATION_PROMPT).toBe("place-category-v3");
+    expect(AI_CLASSIFICATION_PROMPT).toBe("place-category-v4");
     expect(storedRun.validationError).toBeNull();
     expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0, ruleCompleted: 1 });
     expect(run).not.toHaveBeenCalled();
-    expect(storedRun).toMatchObject({ promptVersion: "place-category-v3", model: "RULE_ONLY", categorySlug: "chicken", status: "SUCCESS" });
+    expect(storedRun).toMatchObject({ promptVersion: "place-category-v4", model: "RULE_ONLY", categorySlug: "chicken", status: "SUCCESS" });
   });
 
   it("stores validated output and reuses the 30-day input cache", async () => {
@@ -29,6 +29,10 @@ describe("Workers AI candidate classification", () => {
     expect(first).toMatchObject({ processed: 1, succeeded: 1, failed: 0, cached: 0 });
     expect(second).toMatchObject({ processed: 1, succeeded: 1, failed: 0, cached: 1 });
     expect(run).toHaveBeenCalledTimes(1);
+    const systemPrompt = run.mock.calls[0]?.[1]?.messages?.[0]?.content as string;
+    expect(systemPrompt).toContain("해산물");
+    expect(systemPrompt).toContain("라이브카페");
+    expect(systemPrompt).toContain("과일");
     const rows = (await db.select().from(aiClassificationRuns)).filter((item) => item.candidateId === id);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ inputTokens: 1_000, outputTokens: 100, estimatedNeurons: 34, attemptCount: 1 });

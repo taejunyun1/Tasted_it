@@ -9,7 +9,8 @@ import { getTerminalCategoryIds } from "./category-selection";
 import { mapWithConcurrency } from "../../lib/concurrency";
 
 export const AI_CLASSIFICATION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast" as const;
-export const AI_CLASSIFICATION_PROMPT = "place-category-v3";
+export const AI_CLASSIFICATION_PROMPT = "place-category-v4";
+export const AI_CLASSIFICATION_SYSTEM_PROMPT = "한국 음식점의 대표 카테고리를 제공된 후보에서만 선택하세요. 사용자가 실제로 찾는 구체 음식이 영업 형태와 넓은 행정 업태보다 우선합니다. 예: 호프/통닭·치킨호프는 치킨, 해장국·순대국·돼지국밥·설렁탕·곰탕은 국밥입니다. 연어·장어·크랩·대게·회처럼 생선과 해산물 음식이 분명하면 해산물 후보를 우선합니다. 라이브카페·음악주점처럼 공연과 주점 문맥이 함께 있으면 단순 카페가 아니라 주점 후보를 우선합니다. 사과·망고·딸기 같은 과일 이름만으로는 음식점 카테고리를 추론하지 마세요. evidence에는 반드시 입력 상호명 또는 원천 업태에 실제로 있는 한국어 문자열을 그대로 복사하세요. 근거가 없거나 후보가 맞지 않으면 낮은 confidence를 사용하세요. 개인정보를 추론하지 마세요.";
 export const AI_CLASSIFICATION_BATCH_SIZE = 10;
 const responseSchema = { type: "object", properties: { categorySlug: { type: "string" }, confidence: { type: "number", minimum: 0, maximum: 1 }, evidence: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 3 }, reasons: { type: "array", items: { type: "string" }, maxItems: 3 } }, required: ["categorySlug", "confidence", "evidence", "reasons"], additionalProperties: false } as const;
 
@@ -99,7 +100,7 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
       } else {
         let validationError: unknown;
         for (let attempt = 0; attempt < 2; attempt += 1) {
-          const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: "한국 음식점의 대표 카테고리를 제공된 후보에서만 선택하세요. 사용자가 실제로 찾는 구체 음식이 영업 형태와 넓은 행정 업태보다 우선합니다. 예: 호프/통닭·치킨호프는 치킨, 해장국·순대국·돼지국밥·설렁탕·곰탕은 국밥입니다. evidence에는 반드시 입력 상호명 또는 원천 업태에 실제로 있는 한국어 문자열을 그대로 복사하세요. 근거가 없거나 후보가 맞지 않으면 낮은 confidence를 사용하세요. 개인정보를 추론하지 마세요." }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 260, temperature: 0 }) as AiRunResponse;
+          const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: AI_CLASSIFICATION_SYSTEM_PROMPT }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 260, temperature: 0 }) as AiRunResponse;
           addUsage(usage, result.usage);
           try {
             parsed = validateGroundedAiClassification(result.response, allowed, evidenceText);
