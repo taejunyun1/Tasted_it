@@ -25,12 +25,12 @@ export function validateGroundedAiClassification(raw: unknown, allowedSlugs: Set
   const parsed = validateAiClassification(raw, allowedSlugs);
   if (!parsed.evidence?.length) throw new Error("AI_EVIDENCE_MISSING");
   const normalizedSource = normalizeEvidence(evidenceText);
-  const grounded = parsed.evidence.every((token) => {
+  const groundedEvidence = parsed.evidence.filter((token) => {
     const normalizedToken = normalizeEvidence(token);
     return normalizedToken.length >= 2 && normalizedSource.includes(normalizedToken);
   });
-  if (!grounded) throw new Error("AI_EVIDENCE_UNGROUNDED");
-  return parsed;
+  if (!groundedEvidence.length) throw new Error("AI_EVIDENCE_UNGROUNDED");
+  return { ...parsed, evidence: groundedEvidence };
 }
 
 export function reconcileAiClassification(input: { ruleSlug: string; ruleConfidence: ClassificationConfidence; ai: AiClassification | null }) {
