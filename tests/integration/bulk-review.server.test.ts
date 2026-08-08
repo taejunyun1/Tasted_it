@@ -60,7 +60,39 @@ describe("bulk candidate review", () => {
     const groups = await listBulkReviewGroups(db);
     const rows = groups.flatMap((group) => group.candidates);
     expect(rows.find((row) => row.id === safe.id)).toMatchObject({ confidence: "HIGH", eligible: true, neighborhood: "운림동" });
-    expect(rows.find((row) => row.id === unsafe.id)).toMatchObject({ confidence: "MEDIUM", eligible: false, classificationSource: "RULE_ONLY" });
+    expect(rows.find((row) => row.id === unsafe.id)).toMatchObject({ confidence: "LOW", eligible: false, classificationSource: "RULE_ONLY" });
+  });
+
+  it("keeps a RULE_ONLY success manual without lowering its rule score", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, {
+      ...license,
+      sourceManagementNo: "rule-only-high",
+      businessName: "전주해장국",
+      businessSubtype: "한식",
+    }, now);
+    await db.insert(aiClassificationRuns).values({
+      id: crypto.randomUUID(),
+      candidateId: candidate.id,
+      inputHash: crypto.randomUUID(),
+      model: "RULE_ONLY",
+      promptVersion: AI_CLASSIFICATION_PROMPT,
+      status: "SUCCESS",
+      categorySlug: "gukbap-detail",
+      confidence: 1,
+      reasonsJson: '["규칙 분류"]',
+      createdAt: now,
+    });
+
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+
+    expect(row).toMatchObject({
+      categorySlug: "gukbap-detail",
+      confidence: "HIGH",
+      classificationSource: "RULE_ONLY",
+      reviewState: "MANUAL",
+      eligible: false,
+    });
   });
 
   it("loads AI results when the pending queue exceeds the D1 bind parameter limit", async () => {
@@ -81,7 +113,7 @@ describe("bulk candidate review", () => {
     expect(rows.find((row) => row.id === candidates.at(-1)!.id)?.classificationSource).toBe("AI_RULE");
   });
 
-  it("moves a valid AI result out of manual review without marking an unsafe conflict eligible", async () => {
+  it("approves a specific sushi name when a high-confidence AI result agrees", async () => {
     const db = createDb(env.DB);
     const candidate = await upsertBusinessLicense(db, {
       ...license, sourceManagementNo: "ai-completed-conflict", businessName: "스시 충돌", businessSubtype: "한식",
@@ -90,7 +122,7 @@ describe("bulk candidate review", () => {
 
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
 
-    expect(row).toMatchObject({ reviewState: "AUTO", eligible: false, classificationSource: "AI_RULE" });
+    expect(row).toMatchObject({ categorySlug: "sushi-sashimi", confidence: "HIGH", reviewState: "AUTO", eligible: true, classificationSource: "AI_RULE" });
   });
 
   it("ignores a legacy AI result and returns the candidate to manual review", async () => {
@@ -109,7 +141,7 @@ describe("bulk candidate review", () => {
     const unsafe = await upsertBusinessLicense(db, {
       ...license,
       sourceManagementNo: "bulk-approve-unsafe",
-      businessName: "스시 충돌",
+      businessName: "타코야끼앤버거",
       businessSubtype: "한식",
     }, now);
     await addAiAgreement(safe.id);
@@ -139,7 +171,7 @@ describe("bulk candidate review", () => {
   it("approves a conflict candidate when an active child category is selected manually", async () => {
     const db = createDb(env.DB);
     const candidate = await upsertBusinessLicense(db, {
-      ...license, sourceManagementNo: "manual-conflict", businessName: "스시 충돌", businessSubtype: "한식",
+      ...license, sourceManagementNo: "manual-conflict", businessName: "타코야끼앤버거", businessSubtype: "한식",
     }, now);
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
     expect(row.reviewState).toBe("MANUAL");

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, ne, notExists, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { aiClassificationRuns, businessLicenseExclusions, businessLicenses, categories } from "../../db/schema";
 import { recordOperationalAlert } from "../operations/alerts.server";
@@ -80,12 +80,13 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
       regionCode: candidate.regionCode,
       ruleCategorySlug: rule.categorySlug,
       ruleConfidence: rule.confidence,
+      ruleConfidenceScore: rule.confidenceScore,
       ruleReasons: rule.reasons,
       categories: candidateCategories,
     };
     const inputHash = await sha256(JSON.stringify(payload));
     processed += 1;
-    if (rule.confidence === "HIGH" && terminalSlugs.has(rule.categorySlug)) {
+    if (!input.candidateIds?.length && rule.confidence === "HIGH" && terminalSlugs.has(rule.categorySlug)) {
       await db.insert(aiClassificationRuns).values({
         id: crypto.randomUUID(), candidateId: candidate.id, inputHash, model: "RULE_ONLY",
         promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: rule.categorySlug,
@@ -97,7 +98,7 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
       return;
     }
     const cutoff = new Date(new Date(input.now).getTime() - 30 * 86_400_000).toISOString();
-    const cachedRun = await db.query.aiClassificationRuns.findFirst({ where: and(eq(aiClassificationRuns.inputHash, inputHash), eq(aiClassificationRuns.status, "SUCCESS"), gte(aiClassificationRuns.createdAt, cutoff)), orderBy: desc(aiClassificationRuns.createdAt) });
+    const cachedRun = await db.query.aiClassificationRuns.findFirst({ where: and(eq(aiClassificationRuns.inputHash, inputHash), eq(aiClassificationRuns.status, "SUCCESS"), ne(aiClassificationRuns.model, "RULE_ONLY"), gte(aiClassificationRuns.createdAt, cutoff)), orderBy: desc(aiClassificationRuns.createdAt) });
     const usage: UsageTotal = { inputTokens: 0, outputTokens: 0, estimatedNeurons: 0, attempts: 0 };
     try {
       let parsed;

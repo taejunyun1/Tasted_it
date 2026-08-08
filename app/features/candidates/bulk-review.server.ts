@@ -59,8 +59,9 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       address,
     });
     const aiRun = latestAi.get(candidate.id); let ai = null;
-    if (aiRun?.status === "SUCCESS") try { ai = validateAiClassification({ categorySlug: aiRun.categorySlug, confidence: aiRun.confidence, reasons: JSON.parse(aiRun.reasonsJson ?? "[]") }, new Set(categoryRows.map((row) => row.slug))); } catch { ai = null; }
-    const combined = reconcileAiClassification({ ruleSlug: classification.categorySlug, ruleConfidence: classification.confidence, ai });
+    const isActualAiSuccess = aiRun?.status === "SUCCESS" && aiRun.model !== "RULE_ONLY";
+    if (isActualAiSuccess) try { ai = validateAiClassification({ categorySlug: aiRun.categorySlug, confidence: aiRun.confidence, reasons: JSON.parse(aiRun.reasonsJson ?? "[]") }, new Set(categoryRows.map((row) => row.slug))); } catch { ai = null; }
+    const combined = reconcileAiClassification({ ruleSlug: classification.categorySlug, ruleConfidence: classification.confidence, ruleScore: classification.confidenceScore, ai });
     const category = categoryBySlug.get(combined.categorySlug);
     const review = classifyReviewState({
       confidence: combined.confidence,
@@ -71,22 +72,23 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       longitude: candidate.longitude,
       duplicate: Boolean(address && duplicateKeys.has(duplicateKey(candidate.businessName, address))),
     });
-    const classificationCompleted = Boolean(ai && category && terminalCategoryIds.has(category.id));
-    const displayState = review.state === "BLOCKED" ? "BLOCKED" as const : classificationCompleted ? "AUTO" as const : review.state;
+    const classificationCompleted = Boolean(isActualAiSuccess && ai && category && terminalCategoryIds.has(category.id));
+    const displayState = review.state === "BLOCKED" ? "BLOCKED" as const : classificationCompleted ? "AUTO" as const : "MANUAL" as const;
     return {
       ...candidate,
       address,
       categoryId: category?.id ?? null,
       categorySlug: combined.categorySlug,
       confidence: combined.confidence,
+      confidenceScore: combined.confidenceScore,
       neighborhood: classification.neighborhood,
       reasons: [...classification.reasons, ...combined.reasons],
-      classificationSource: aiRun?.status === "SUCCESS" ? "AI_RULE" as const : aiRun?.status === "FAILED" ? "AI_FAILED" as const : "RULE_ONLY" as const,
+      classificationSource: isActualAiSuccess ? "AI_RULE" as const : aiRun?.status === "FAILED" ? "AI_FAILED" as const : "RULE_ONLY" as const,
       aiConfidence: aiRun?.confidence ?? null,
       blockers: review.blockers,
       reviewReasons: review.reviewReasons,
       reviewState: displayState,
-      eligible: review.state === "AUTO",
+      eligible: combined.eligible && review.state === "AUTO",
     };
   }
 
