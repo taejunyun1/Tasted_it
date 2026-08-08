@@ -32,6 +32,8 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 반려" })).toHaveCount(0);
   await expect(page.getByLabel("QA 스시하루 대표 카테고리")).toBeVisible();
+  await expect(page.getByLabel("오늘베이킹 대표 카테고리")).toHaveValue("cat-bakery");
+  await expect(page.getByText("추천 · 베이커리", { exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /QA 카페봄/ })).toBeDisabled();
   await expect(page.getByRole("checkbox", { name: /Re:Taste 샘플 라멘 동명/ })).toBeDisabled();
   await expect(page.getByText("기존 공개 장소와 중복")).toBeVisible();

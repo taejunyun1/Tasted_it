@@ -39,7 +39,7 @@ VALUES
 DELETE FROM places
 WHERE id IN (
   SELECT place_id FROM place_source_links
-  WHERE business_license_id IN ('qa-high','qa-conflict','qa-low','qa-no-coords','qa-duplicate','qa-closed','qa-chain')
+  WHERE business_license_id IN ('qa-high','qa-conflict','qa-low','qa-no-coords','qa-duplicate','qa-bakery','qa-closed','qa-chain')
 );
 
 INSERT OR REPLACE INTO business_licenses
@@ -50,6 +50,7 @@ VALUES
 ('qa-low','GENERAL_RESTAURANT','qa-low','QA 맛있는집',NULL,'OPEN','광주광역시 서구 치평로 1 (치평동)',35.152000,126.850000,'GWANGJU','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
 ('qa-no-coords','REST_CAFE','qa-no-coords','QA 카페봄','커피숍','OPEN','전라남도 여수시 여서1로 25 (여서동)',NULL,NULL,'JEONNAM','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
 ('qa-duplicate','GENERAL_RESTAURANT','qa-duplicate','Re:Taste 샘플 라멘 동명','일식','OPEN','광주광역시 동구 동명동',35.149000,126.923200,'GWANGJU','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
+('qa-bakery','BAKERY','qa-bakery','오늘베이킹','제과점영업','OPEN','광주광역시 남구 봉선로 1 (봉선동)',35.123000,126.912000,'GWANGJU','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
 ('qa-chain','BAKERY','qa-chain','파리바게뜨 QA점','제과점영업','OPEN','광주광역시 동구 충장로 1 (충장동)',35.147000,126.918000,'GWANGJU','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
 ('qa-closed','GENERAL_RESTAURANT','qa-closed','QA 폐업국밥','한식','CLOSED','광주광역시 북구 용봉로 1 (용봉동)',35.176000,126.911000,'GWANGJU','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z');
 
