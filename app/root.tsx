@@ -4,6 +4,7 @@ import { getOptionalUser } from "./features/auth/session.server";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
+  { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/sunn-us/SUIT/fonts/static/woff2/SUIT.css" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
   { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+KR:wght@400;500;600&display=swap" },
@@ -19,6 +20,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
       <nav className="site-head__nav" aria-label="주요 메뉴">
         <div className="site-head__primary">
           <Link to="/places">맛집 리스트</Link>
+          <Link to="/courses">코스 추천</Link>
           <Link to="/me">내 상태</Link>
         </div>
         <details className="site-menu" key={location.pathname}>

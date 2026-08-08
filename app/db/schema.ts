@@ -596,3 +596,68 @@ export const operationalAlerts = sqliteTable("operational_alerts", {
   message: text("message").notNull(), detailsJson: text("details_json").notNull(), occurrenceCount: integer("occurrence_count").notNull().default(1), firstOccurredAt: text("first_occurred_at").notNull(), lastOccurredAt: text("last_occurred_at").notNull(),
   resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }), resolvedAt: text("resolved_at"), resolutionNote: text("resolution_note"),
 }, (table) => [index("operational_alerts_status_last_idx").on(table.status, table.lastOccurredAt)]);
+
+export const parkingDataSnapshots = sqliteTable("parking_data_snapshots", {
+  id: text("id").primaryKey(),
+  source: text("source", { enum: ["PARKING", "EV"] }).notNull(),
+  status: text("status", { enum: ["STAGING", "ACTIVE", "RETIRED", "FAILED"] }).notNull(),
+  sourceReferenceDateMin: text("source_reference_date_min"),
+  sourceReferenceDateMax: text("source_reference_date_max"),
+  rowCount: integer("row_count").notNull().default(0),
+  activatedAt: text("activated_at"),
+  ...timestamps,
+}, (table) => [index("parking_snapshots_source_status_idx").on(table.source, table.status, table.activatedAt)]);
+
+export const parkingSyncRuns = sqliteTable("parking_sync_runs", {
+  id: text("id").primaryKey(),
+  source: text("source", { enum: ["PARKING", "EV"] }).notNull(),
+  status: text("status", { enum: ["RUNNING", "COMPLETED", "FAILED"] }).notNull(),
+  snapshotId: text("snapshot_id").references(() => parkingDataSnapshots.id, { onDelete: "set null" }),
+  nextPage: integer("next_page").notNull().default(1),
+  totalCount: integer("total_count"),
+  fetchedCount: integer("fetched_count").notNull().default(0),
+  acceptedCount: integer("accepted_count").notNull().default(0),
+  skippedCount: integer("skipped_count").notNull().default(0),
+  startedAt: text("started_at").notNull(),
+  finishedAt: text("finished_at"),
+  errorSummary: text("error_summary"),
+  ...timestamps,
+}, (table) => [index("parking_sync_runs_source_status_idx").on(table.source, table.status, table.finishedAt)]);
+
+export const parkingFacilities = sqliteTable("parking_facilities", {
+  id: text("id").primaryKey(),
+  snapshotId: text("snapshot_id").notNull().references(() => parkingDataSnapshots.id, { onDelete: "cascade" }),
+  sourceManagementNo: text("source_management_no").notNull(),
+  name: text("name").notNull(),
+  ownershipType: text("ownership_type", { enum: ["PUBLIC", "PRIVATE", "STORE_FREE", "UNKNOWN"] }).notNull(),
+  facilityType: text("facility_type", { enum: ["ON_STREET", "OFF_STREET", "ATTACHED", "UNKNOWN"] }).notNull(),
+  roadAddress: text("road_address"), lotAddress: text("lot_address"),
+  regionCode: text("region_code", { enum: ["GWANGJU", "JEONNAM"] }).notNull(),
+  latitude: real("latitude").notNull(), longitude: real("longitude").notNull(), capacity: integer("capacity"), disabledSpaces: integer("disabled_spaces"),
+  weekdayOpen: text("weekday_open"), weekdayClose: text("weekday_close"), saturdayOpen: text("saturday_open"), saturdayClose: text("saturday_close"), holidayOpen: text("holiday_open"), holidayClose: text("holiday_close"),
+  feeStatus: text("fee_status", { enum: ["FREE", "PAID", "MIXED", "UNKNOWN"] }).notNull(),
+  baseMinutes: integer("base_minutes"), baseFee: integer("base_fee"), additionalMinutes: integer("additional_minutes"), additionalFee: integer("additional_fee"), dailyMaxFee: integer("daily_max_fee"),
+  paymentMethods: text("payment_methods"),
+  publicAccessStatus: text("public_access_status", { enum: ["PUBLIC", "RESTRICTED", "UNKNOWN"] }).notNull(),
+  reliabilityGrade: text("reliability_grade", { enum: ["A", "B", "C"] }).notNull(),
+  referenceDate: text("reference_date").notNull(), rawPayload: text("raw_payload").notNull(),
+  ...timestamps,
+}, (table) => [
+  uniqueIndex("parking_facilities_snapshot_source_idx").on(table.snapshotId, table.sourceManagementNo),
+  index("parking_facilities_snapshot_region_geo_idx").on(table.snapshotId, table.regionCode, table.latitude, table.longitude),
+  index("parking_facilities_snapshot_grade_idx").on(table.snapshotId, table.reliabilityGrade),
+]);
+
+export const evChargingStations = sqliteTable("ev_charging_stations", {
+  id: text("id").primaryKey(), snapshotId: text("snapshot_id").notNull().references(() => parkingDataSnapshots.id, { onDelete: "cascade" }), sourceStationId: text("source_station_id").notNull(),
+  name: text("name").notNull(), address: text("address"), latitude: real("latitude").notNull(), longitude: real("longitude").notNull(),
+  fastChargerCount: integer("fast_charger_count").notNull().default(0), slowChargerCount: integer("slow_charger_count").notNull().default(0), connectorSummary: text("connector_summary"), availableHours: text("available_hours"), userRestriction: text("user_restriction"),
+  parkingFeeFree: integer("parking_fee_free", { mode: "boolean" }), isDeleted: integer("is_deleted", { mode: "boolean" }).notNull().default(false), referenceDate: text("reference_date").notNull(), rawPayload: text("raw_payload").notNull(),
+  ...timestamps,
+}, (table) => [uniqueIndex("ev_stations_snapshot_source_idx").on(table.snapshotId, table.sourceStationId), index("ev_stations_snapshot_geo_idx").on(table.snapshotId, table.latitude, table.longitude)]);
+
+export const parkingEvLinks = sqliteTable("parking_ev_links", {
+  parkingFacilityId: text("parking_facility_id").notNull().references(() => parkingFacilities.id, { onDelete: "cascade" }),
+  evStationId: text("ev_station_id").notNull().references(() => evChargingStations.id, { onDelete: "cascade" }),
+  relationship: text("relationship", { enum: ["ONSITE_CONFIRMED", "NEARBY_ONLY"] }).notNull(), matchMethod: text("match_method").notNull(), confidence: real("confidence").notNull(), createdAt: text("created_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.parkingFacilityId, table.evStationId] }), index("parking_ev_links_relationship_idx").on(table.parkingFacilityId, table.relationship)]);

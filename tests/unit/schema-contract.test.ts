@@ -31,6 +31,11 @@ import {
   savedPlaces,
   users,
   voteEvents,
+  parkingDataSnapshots,
+  parkingSyncRuns,
+  parkingFacilities,
+  evChargingStations,
+  parkingEvLinks,
 } from "../../app/db/schema";
 
 describe("week 1 schema", () => {
@@ -77,5 +82,11 @@ describe("week 1 schema", () => {
     expect([aiClassificationRuns, operationalAlerts]).toHaveLength(2);
     expect(aiClassificationRuns.inputHash).toBeDefined();
     expect(operationalAlerts.occurrenceCount).toBeDefined();
+  });
+
+  it("exports parking snapshot and facility tables", () => {
+    expect([parkingDataSnapshots, parkingSyncRuns, parkingFacilities, evChargingStations, parkingEvLinks]).toHaveLength(5);
+    expect(parkingFacilities.reliabilityGrade).toBeDefined();
+    expect(parkingDataSnapshots.status).toBeDefined();
   });
 });
