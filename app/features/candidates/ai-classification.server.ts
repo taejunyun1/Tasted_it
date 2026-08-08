@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, lt, notExists, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
-import { aiClassificationRuns, businessLicenses, categories } from "../../db/schema";
+import { aiClassificationRuns, businessLicenseExclusions, businessLicenses, categories } from "../../db/schema";
 import { recordOperationalAlert } from "../operations/alerts.server";
 import { validateGroundedAiClassification } from "./ai-classification-policy";
 import { AI_DAILY_BLOCK_NEURONS, estimateNeurons, getAiQuotaState, type AiTokenUsage } from "./ai-usage-policy";
@@ -45,7 +45,14 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
   let quota = await getDailyAiQuota(db, input.now);
   if (quota.blocked) return { processed: 0, succeeded: 0, failed: 0, cached: 0, limited: true, quota };
 
-  const conditions = [eq(businessLicenses.normalizedStatus, "OPEN"), eq(businessLicenses.reviewStatus, "PENDING")];
+  const conditions = [
+    eq(businessLicenses.normalizedStatus, "OPEN"),
+    eq(businessLicenses.reviewStatus, "PENDING"),
+    notExists(db.select({ id: businessLicenseExclusions.businessLicenseId }).from(businessLicenseExclusions).where(and(
+      eq(businessLicenseExclusions.businessLicenseId, businessLicenses.id),
+      eq(businessLicenseExclusions.status, "ACTIVE"),
+    ))),
+  ];
   if (input.candidateIds?.length) conditions.push(inArray(businessLicenses.id, [...new Set(input.candidateIds)].slice(0, limit)));
   else conditions.push(notExists(db.select({ id: aiClassificationRuns.id }).from(aiClassificationRuns).where(and(
     eq(aiClassificationRuns.candidateId, businessLicenses.id),

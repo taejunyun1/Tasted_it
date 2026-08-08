@@ -207,6 +207,23 @@ export const businessLicenses = sqliteTable(
   ],
 );
 
+export const businessLicenseExclusions = sqliteTable(
+  "business_license_exclusions",
+  {
+    businessLicenseId: text("business_license_id").primaryKey().references(() => businessLicenses.id, { onDelete: "cascade" }),
+    reason: text("reason", { enum: ["CHAIN_STORE"] }).notNull(),
+    matchedRule: text("matched_rule").notNull(),
+    chainName: text("chain_name").notNull(),
+    matchedTerm: text("matched_term").notNull(),
+    status: text("status", { enum: ["ACTIVE", "OVERRIDDEN", "CLEARED"] }).notNull(),
+    excludedAt: text("excluded_at").notNull(),
+    overriddenBy: text("overridden_by").references(() => users.id, { onDelete: "set null" }),
+    overriddenAt: text("overridden_at"),
+    ...timestamps,
+  },
+  (table) => [index("business_license_exclusions_status_idx").on(table.status, table.updatedAt)],
+);
+
 export const placeSourceLinks = sqliteTable(
   "place_source_links",
   {

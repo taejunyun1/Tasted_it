@@ -17,6 +17,7 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
   await expect(page.getByRole("link", { name: "분류 완료" })).toBeVisible();
   await expect(page.getByRole("link", { name: "수동 확인" })).toBeVisible();
   await expect(page.getByRole("link", { name: "승인 불가" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "체인점 제외" })).toBeVisible();
   await expect(page.getByLabel("후보 네이버 지도")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "동네" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "상단 페이지 이동" })).toBeVisible();
@@ -35,6 +36,18 @@ test("admin reviews automatic, manual, and blocked candidates in one list", asyn
   await expect(page.getByRole("checkbox", { name: /Re:Taste 샘플 라멘 동명/ })).toBeDisabled();
   await expect(page.getByText("기존 공개 장소와 중복")).toBeVisible();
   await expect(page.getByText("QA 폐업국밥")).toHaveCount(0);
+});
+
+test("admin inspects chain exclusions without review controls", async ({ page }) => {
+  await page.goto("/admin/candidates?state=EXCLUDED");
+
+  await expect(page.getByRole("link", { name: "체인점 제외" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "파리바게뜨 QA점" })).toBeVisible();
+  await expect(page.getByText("체인점 자동 제외")).toBeVisible();
+  await expect(page.getByText("파리바게뜨", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "검수 대기로 복원" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 장소 다시 분류" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toHaveCount(0);
 });
 
 test("admin inspects operational metrics and alerts", async ({ page }) => {

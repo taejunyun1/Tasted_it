@@ -1,10 +1,22 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import { createDb } from "../../app/db/client.server";
-import { aiClassificationRuns, businessLicenses } from "../../app/db/schema";
+import { aiClassificationRuns, businessLicenseExclusions, businessLicenses } from "../../app/db/schema";
 import { AI_CLASSIFICATION_PROMPT, classifyPendingCandidatesWithAi } from "../../app/features/candidates/ai-classification.server";
 
 describe("Workers AI candidate classification", () => {
+  it("does not classify an actively excluded chain candidate", async () => {
+    const db = createDb(env.DB); const id = `ai-chain-${crypto.randomUUID()}`; const now = "2026-08-06T08:00:00.000Z";
+    await db.insert(businessLicenses).values({ id, sourceType: "BAKERY", sourceManagementNo: id, businessName: "파리바게뜨 AI제외점", businessSubtype: "제과점영업", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
+    await db.insert(businessLicenseExclusions).values({ businessLicenseId: id, reason: "CHAIN_STORE", matchedRule: "PARIS_BAGUETTE", chainName: "파리바게뜨", matchedTerm: "파리바게뜨", status: "ACTIVE", excludedAt: now, createdAt: now, updatedAt: now });
+    const run = vi.fn();
+
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
+
+    expect(result.processed).toBe(0);
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("completes a high-confidence terminal rule without calling Workers AI", async () => {
     const db = createDb(env.DB); const id = `ai-context-${crypto.randomUUID()}`; const now = "2026-08-06T09:00:00.000Z";
     await db.insert(businessLicenses).values({ id, sourceType: "ENTERTAINMENT_BAR", sourceManagementNo: id, businessName: "왕가네 치킨호프", businessSubtype: "호프/통닭", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });

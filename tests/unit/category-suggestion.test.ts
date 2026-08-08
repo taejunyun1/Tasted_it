@@ -25,6 +25,9 @@ describe("public-data category suggestions", () => {
     "파리바게뜨 중흥점",
     "파리바게트 연제점",
     "빵쇼핑",
+    "시장꽈배기",
+    "오월브레드",
+    "동네브래드",
   ])("classifies explicit bakery name %s as bakery", (businessName) => {
     expect(classifyCandidate({ sourceType: "GENERAL_RESTAURANT", businessName }).categorySlug)
       .toBe("bakery-detail");

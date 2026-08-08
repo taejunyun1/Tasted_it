@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, like, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, notExists, or } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
 import {
   adminAuditLogs,
+  businessLicenseExclusions,
   businessLicenses,
   categories,
   placeCategories,
@@ -15,6 +16,7 @@ import type { NormalizedLicense, PublicDataSource, RegionCode } from "./public-d
 import { slugifyPlaceName } from "../places/place-slug";
 import { extractNeighborhood } from "./category-suggestion";
 import { getTerminalCategoryIds } from "./category-selection";
+import { matchChainStore } from "./chain-store-policy";
 
 export interface CandidateFilters {
   query?: string;
@@ -29,6 +31,10 @@ export async function listPendingCandidates(db: AppDb, filters: CandidateFilters
   const conditions = [
     eq(businessLicenses.normalizedStatus, "OPEN"),
     eq(businessLicenses.reviewStatus, "PENDING"),
+    notExists(db.select({ id: businessLicenseExclusions.businessLicenseId }).from(businessLicenseExclusions).where(and(
+      eq(businessLicenseExclusions.businessLicenseId, businessLicenses.id),
+      eq(businessLicenseExclusions.status, "ACTIVE"),
+    ))),
   ];
   if (filters.sourceType) conditions.push(eq(businessLicenses.sourceType, filters.sourceType));
   if (filters.regionCode) conditions.push(eq(businessLicenses.regionCode, filters.regionCode));
@@ -51,6 +57,56 @@ export async function listCandidateSubtypes(db: AppDb) {
     .where(and(eq(businessLicenses.normalizedStatus, "OPEN"), eq(businessLicenses.reviewStatus, "PENDING")))
     .orderBy(asc(businessLicenses.businessSubtype));
   return rows.flatMap((row) => row.value ? [row.value] : []);
+}
+
+export async function listExcludedCandidates(db: AppDb, filters: CandidateFilters = {}) {
+  const conditions = [
+    eq(businessLicenses.normalizedStatus, "OPEN"),
+    eq(businessLicenses.reviewStatus, "PENDING"),
+    eq(businessLicenseExclusions.status, "ACTIVE"),
+  ];
+  if (filters.sourceType) conditions.push(eq(businessLicenses.sourceType, filters.sourceType));
+  if (filters.regionCode) conditions.push(eq(businessLicenses.regionCode, filters.regionCode));
+  if (filters.businessSubtype) conditions.push(eq(businessLicenses.businessSubtype, filters.businessSubtype));
+  if (filters.coordinates === "present") conditions.push(isNotNull(businessLicenses.latitude));
+  if (filters.coordinates === "missing") conditions.push(isNull(businessLicenses.latitude));
+  if (filters.query?.trim()) {
+    const value = `%${filters.query.trim()}%`;
+    conditions.push(or(like(businessLicenses.businessName, value), like(businessLicenses.roadAddress, value), like(businessLicenses.lotAddress, value))!);
+  }
+  return db.select({
+    id: businessLicenses.id,
+    businessName: businessLicenses.businessName,
+    businessSubtype: businessLicenses.businessSubtype,
+    sourceType: businessLicenses.sourceType,
+    regionCode: businessLicenses.regionCode,
+    roadAddress: businessLicenses.roadAddress,
+    lotAddress: businessLicenses.lotAddress,
+    latitude: businessLicenses.latitude,
+    longitude: businessLicenses.longitude,
+    exclusionReason: businessLicenseExclusions.reason,
+    matchedRule: businessLicenseExclusions.matchedRule,
+    chainName: businessLicenseExclusions.chainName,
+    matchedTerm: businessLicenseExclusions.matchedTerm,
+    excludedAt: businessLicenseExclusions.excludedAt,
+  }).from(businessLicenses)
+    .innerJoin(businessLicenseExclusions, eq(businessLicenseExclusions.businessLicenseId, businessLicenses.id))
+    .where(and(...conditions))
+    .orderBy(asc(businessLicenseExclusions.chainName), asc(businessLicenses.businessName))
+    .limit(300);
+}
+
+export async function restoreExcludedCandidate(db: AppDb, input: { candidateId: string; actorUserId: string; now: string }) {
+  const exclusion = await db.query.businessLicenseExclusions.findFirst({ where: and(
+    eq(businessLicenseExclusions.businessLicenseId, input.candidateId),
+    eq(businessLicenseExclusions.status, "ACTIVE"),
+  ) });
+  if (!exclusion) throw new Error("CANDIDATE_EXCLUSION_NOT_ACTIVE");
+  await db.batch([
+    db.update(businessLicenseExclusions).set({ status: "OVERRIDDEN", overriddenBy: input.actorUserId, overriddenAt: input.now, updatedAt: input.now })
+      .where(and(eq(businessLicenseExclusions.businessLicenseId, input.candidateId), eq(businessLicenseExclusions.status, "ACTIVE"))),
+    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "RESTORE_CHAIN_EXCLUSION", targetType: "BUSINESS_LICENSE", targetId: input.candidateId, beforeState: "EXCLUDED", afterState: "PENDING", createdAt: input.now }),
+  ]);
 }
 
 export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense, now: string) {
@@ -93,6 +149,36 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
     },
   });
 
+  const match = matchChainStore(input.businessName);
+  const exclusion = await db.query.businessLicenseExclusions.findFirst({ where: eq(businessLicenseExclusions.businessLicenseId, id) });
+  const canExclude = input.normalizedStatus === "OPEN" && (existing?.reviewStatus ?? "PENDING") === "PENDING";
+  let excluded = false;
+  if (match && canExclude && exclusion?.status !== "OVERRIDDEN") {
+    await db.insert(businessLicenseExclusions).values({
+      businessLicenseId: id,
+      reason: "CHAIN_STORE",
+      matchedRule: match.chainId,
+      chainName: match.chainName,
+      matchedTerm: match.matchedTerm,
+      status: "ACTIVE",
+      excludedAt: exclusion?.excludedAt ?? now,
+      overriddenBy: null,
+      overriddenAt: null,
+      createdAt: exclusion?.createdAt ?? now,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: businessLicenseExclusions.businessLicenseId,
+      set: { reason: "CHAIN_STORE", matchedRule: match.chainId, chainName: match.chainName, matchedTerm: match.matchedTerm, status: "ACTIVE", updatedAt: now },
+    });
+    if (exclusion?.status !== "ACTIVE") await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: "AUTO_EXCLUDE_CHAIN_STORE", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: exclusion?.status ?? "PENDING", afterState: "EXCLUDED", createdAt: now });
+    excluded = true;
+  } else if (!match && exclusion?.status === "ACTIVE") {
+    await db.batch([
+      db.update(businessLicenseExclusions).set({ status: "CLEARED", updatedAt: now }).where(eq(businessLicenseExclusions.businessLicenseId, id)),
+      db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: "AUTO_CLEAR_CHAIN_EXCLUSION", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: "EXCLUDED", afterState: "PENDING", createdAt: now }),
+    ]);
+  }
+
   if (input.normalizedStatus !== "OPEN") {
     const link = await db.query.placeSourceLinks.findFirst({ where: eq(placeSourceLinks.businessLicenseId, id) });
     if (link) {
@@ -110,7 +196,7 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
       const [first, ...rest] = statements; if (first) await db.batch([first, ...rest]);
     }
   }
-  return { id, inserted: !existing };
+  return { id, inserted: !existing, excluded };
 }
 
 export async function approveCandidate(db: AppDb, input: {
@@ -128,8 +214,14 @@ export async function approveCandidate(db: AppDb, input: {
   const neighborhood = extractNeighborhood(input.address);
   if (!neighborhood) throw new Error("PLACE_NEIGHBORHOOD_NOT_FOUND");
   if (!Number.isFinite(input.latitude) || input.latitude < 33 || input.latitude > 39 || !Number.isFinite(input.longitude) || input.longitude < 124 || input.longitude > 132) throw new Error("INVALID_PLACE_COORDINATES");
-  const candidate = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, input.candidateId) });
-  if (!candidate || candidate.normalizedStatus !== "OPEN" || candidate.reviewStatus !== "PENDING") throw new Error("CANDIDATE_NOT_APPROVABLE");
+  const [candidate, activeExclusion] = await Promise.all([
+    db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, input.candidateId) }),
+    db.query.businessLicenseExclusions.findFirst({ where: and(
+      eq(businessLicenseExclusions.businessLicenseId, input.candidateId),
+      eq(businessLicenseExclusions.status, "ACTIVE"),
+    ) }),
+  ]);
+  if (!candidate || activeExclusion || candidate.normalizedStatus !== "OPEN" || candidate.reviewStatus !== "PENDING") throw new Error("CANDIDATE_NOT_APPROVABLE");
   const categoryIds = [input.categoryId];
   const categoryRows = await db.select().from(categories).where(eq(categories.isActive, true));
   if (!getTerminalCategoryIds(categoryRows).has(input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");

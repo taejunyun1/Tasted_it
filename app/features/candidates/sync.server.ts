@@ -42,6 +42,7 @@ export async function syncPublicDataBatch(db: AppDb, input: {
   let inserted = 0;
   let updated = 0;
   let skipped = 0;
+  let excluded = 0;
   let totalCount = existing?.totalCount ?? 0;
   if (!existing) {
     await db.insert(publicDataSyncRuns).values({
@@ -67,6 +68,7 @@ export async function syncPublicDataBatch(db: AppDb, input: {
         const item = normalizePublicDataItem(input.sourceType, raw);
         if (!item) { skipped += 1; continue; }
         const result = await upsertBusinessLicense(db, item, now);
+        if (result.excluded) excluded += 1;
         if (result.inserted) inserted += 1; else updated += 1;
       }
       page += 1;
@@ -81,7 +83,7 @@ export async function syncPublicDataBatch(db: AppDb, input: {
       skippedCount: (existing?.skippedCount ?? 0) + skipped,
       finishedAt: completed ? now : null, updatedAt: now, errorSummary: null,
     }).where(eq(publicDataSyncRuns.id, runId));
-    return { runId, completed, nextPage: page, totalCount, fetched, inserted, updated, skipped };
+    return { runId, completed, nextPage: page, totalCount, fetched, inserted, updated, skipped, excluded };
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
     await db.update(publicDataSyncRuns).set({ status: "FAILED", errorSummary: message, finishedAt: now, updatedAt: now }).where(eq(publicDataSyncRuns.id, runId));

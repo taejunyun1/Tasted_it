@@ -9,7 +9,7 @@ import { categories } from "../db/schema";
 import { requireAdmin } from "../features/auth/session.server";
 import { approveCandidateSelections, listBulkReviewGroups } from "../features/candidates/bulk-review.server";
 import { reconcileCandidateSelection, selectCurrentPageCandidates } from "../features/candidates/bulk-selection";
-import { listCandidateSubtypes } from "../features/candidates/candidate.server";
+import { listCandidateSubtypes, listExcludedCandidates, restoreExcludedCandidate } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
@@ -35,18 +35,20 @@ export async function loader({ request }: Route.LoaderArgs) {
   const coordinates = url.searchParams.get("coordinates");
   const sort = url.searchParams.get("sort");
   const now = new Date().toISOString();
-  const [groups, categoryRows, subtypes, aiQuota] = await Promise.all([
-    listBulkReviewGroups(db, {
-      query: url.searchParams.get("q") || undefined,
-      sourceType: (url.searchParams.get("source") || undefined) as PublicDataSource | undefined,
-      regionCode: (url.searchParams.get("region") || undefined) as RegionCode | undefined,
-      businessSubtype: url.searchParams.get("subtype") || undefined,
-      coordinates: coordinates === "present" || coordinates === "missing" ? coordinates : undefined,
-      sort: sort === "updated" || sort === "name" || sort === "region" || sort === "source" ? sort : "source",
-    }),
+  const filters = {
+    query: url.searchParams.get("q") || undefined,
+    sourceType: (url.searchParams.get("source") || undefined) as PublicDataSource | undefined,
+    regionCode: (url.searchParams.get("region") || undefined) as RegionCode | undefined,
+    businessSubtype: url.searchParams.get("subtype") || undefined,
+    coordinates: coordinates === "present" || coordinates === "missing" ? coordinates : undefined,
+    sort: sort === "updated" || sort === "name" || sort === "region" || sort === "source" ? sort : "source",
+  } as const;
+  const [groups, categoryRows, subtypes, aiQuota, excludedRows] = await Promise.all([
+    listBulkReviewGroups(db, filters),
     db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
     listCandidateSubtypes(db),
     getDailyAiQuota(db, now),
+    listExcludedCandidates(db, filters),
   ]);
   const allRows = groups.flatMap((group) => group.candidates);
   const requestedState = url.searchParams.get("state");
@@ -55,23 +57,42 @@ export async function loader({ request }: Route.LoaderArgs) {
   const filteredRows = allRows.filter((row) =>
     (!states.includes(requestedState as (typeof states)[number]) || row.reviewState === requestedState)
     && (!categoryId || row.categoryId === categoryId)
-    && (!confidence || row.confidence === confidence));
+    && (!confidence || row.confidence === confidence))
+    .map((row) => ({ ...row, isExcluded: false as const, exclusionReason: null, chainName: null, matchedTerm: null, excludedAt: null }));
+  const excludedReviewRows = excludedRows.map((row) => ({
+    ...row,
+    address: row.roadAddress ?? row.lotAddress ?? "",
+    categoryId: null,
+    categorySlug: "",
+    confidence: "LOW" as const,
+    neighborhood: null,
+    reasons: [`${row.chainName} 체인명과 일치`],
+    classificationSource: "RULE_ONLY" as const,
+    aiConfidence: null,
+    blockers: [],
+    reviewReasons: ["체인점 자동 제외"],
+    reviewState: "BLOCKED" as const,
+    eligible: false,
+    isExcluded: true as const,
+  }));
+  const displayedRows = requestedState === "EXCLUDED" ? excludedReviewRows : filteredRows;
   const requestedSize = Number(url.searchParams.get("pageSize"));
   const pageSize = [25, 50, 100].includes(requestedSize) ? requestedSize : 25;
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(displayedRows.length / pageSize));
   const page = Math.min(Math.max(1, Number(url.searchParams.get("page")) || 1), totalPages);
   return {
-    rows: filteredRows.slice((page - 1) * pageSize, page * pageSize),
+    rows: displayedRows.slice((page - 1) * pageSize, page * pageSize),
     counts: {
       ALL: allRows.length,
       AUTO: allRows.filter((row) => row.reviewState === "AUTO").length,
       MANUAL: allRows.filter((row) => row.reviewState === "MANUAL").length,
       BLOCKED: allRows.filter((row) => row.reviewState === "BLOCKED").length,
+      EXCLUDED: excludedRows.length,
     },
     categories: categoryRows,
     subtypes,
     filters: Object.fromEntries(url.searchParams),
-    pagination: { page, pageSize, total: filteredRows.length, totalPages },
+    pagination: { page, pageSize, total: displayedRows.length, totalPages },
     aiQuota,
   };
 }
@@ -79,10 +100,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const user = await requireAdmin(request);
   const form = await request.formData();
+  const restoreCandidateId = String(form.get("restoreCandidateId") ?? "");
   const candidateIds = [...new Set(form.getAll("candidateIds").map(String).filter(Boolean))];
   if (candidateIds.length > 25) throw new Response("한 번에 최대 25곳까지 처리할 수 있습니다.", { status: 400 });
   const db = createDb(env.DB);
   const now = new Date().toISOString();
+  if (restoreCandidateId) {
+    await restoreExcludedCandidate(db, { candidateId: restoreCandidateId, actorUserId: user.id, now });
+    return { approved: [], skipped: [], rejected: 0, error: null, ai: null, restored: 1 };
+  }
   if (form.get("intent") === "runAi") {
     try {
       const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 10, now });
@@ -105,6 +131,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const autoClassification = useFetcher<typeof action>();
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const excludedMode = params.get("state") === "EXCLUDED";
   const autoClassificationStarted = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [chosenCategories, setChosenCategories] = useState<Record<string, string>>(() =>
@@ -115,7 +142,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const leafParents = selectableCategories.filter((category) => !category.parentId);
   const isSubmitting = navigation.state === "submitting";
   const selectedRows = loaderData.rows.filter((row) => selected.has(row.id));
-  const selectableIds = useMemo(() => loaderData.rows.filter((row) => row.reviewState !== "BLOCKED").map((row) => row.id), [loaderData.rows]);
+  const selectableIds = useMemo(() => loaderData.rows.filter((row) => !row.isExcluded && row.reviewState !== "BLOCKED").map((row) => row.id), [loaderData.rows]);
   const pageSelectionIds = selectableIds.slice(0, 25);
   const pageSelected = pageSelectionIds.length > 0 && pageSelectionIds.every((id) => selected.has(id));
 
@@ -128,6 +155,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   }, [loaderData.rows]);
 
   useEffect(() => {
+    if (excludedMode) return;
     if (!shouldAutoClassify(params, autoClassification.state, autoClassificationStarted.current)) return;
     autoClassificationStarted.current = true;
     const candidateIds = selectAutomaticClassificationCandidateIds(loaderData.rows);
@@ -139,7 +167,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
     form.set("intent", "runAi");
     for (const candidateId of candidateIds) form.append("candidateIds", candidateId);
     void autoClassification.submit(form, { method: "post" });
-  }, [autoClassification, loaderData.rows, navigate, params]);
+  }, [autoClassification, excludedMode, loaderData.rows, navigate, params]);
 
   useEffect(() => {
     if (!autoClassificationStarted.current || autoClassification.state !== "idle" || !autoClassification.data || params.get("autoClassify") !== "1") return;
@@ -174,22 +202,24 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-[1500px] grid-cols-2 border-x border-b border-neutral-300 bg-white md:grid-cols-4">
+      <section className="mx-auto grid max-w-[1500px] grid-cols-2 border-x border-b border-neutral-300 bg-white md:grid-cols-5">
         <Summary label="전체 대기" value={loaderData.counts.ALL} />
         <Summary label="분류 완료" value={loaderData.counts.AUTO} tone="text-emerald-800" />
         <Summary label="수동 확인" value={loaderData.counts.MANUAL} tone="text-amber-700" />
         <Summary label="승인 불가" value={loaderData.counts.BLOCKED} tone="text-rose-700" />
+        <Summary label="체인점 제외" value={loaderData.counts.EXCLUDED} tone="text-violet-700" />
       </section>
 
       <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-10">
-        <section className={`mb-5 border px-4 py-3 ${loaderData.aiQuota.blocked ? "border-amber-600 bg-amber-50" : "border-neutral-300 bg-white"}`} aria-label="AI 일일 사용량">
+        {!excludedMode && <section className={`mb-5 border px-4 py-3 ${loaderData.aiQuota.blocked ? "border-amber-600 bg-amber-50" : "border-neutral-300 bg-white"}`} aria-label="AI 일일 사용량">
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><p><strong>Workers AI 오늘 사용량 {loaderData.aiQuota.used.toLocaleString()} / {loaderData.aiQuota.limit.toLocaleString()} Neurons</strong> <span className="text-neutral-500">({loaderData.aiQuota.percent}% · 앱 집계 기준)</span></p><span className="text-xs text-neutral-500">매일 UTC 00:00 초기화</span></div>
           <div className="mt-2 h-2 overflow-hidden bg-neutral-200"><div className={`h-full ${loaderData.aiQuota.blocked ? "bg-amber-600" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, loaderData.aiQuota.percent)}%` }} /></div>
           {loaderData.aiQuota.blocked && <p className="mt-2 text-sm font-medium text-amber-900">무료 한도의 90%에 도달했습니다. 과금 방지를 위해 AI 분류 버튼을 비활성화했습니다.</p>}
-        </section>
+        </section>}
         <nav aria-label="검수 상태" className="mb-5 flex overflow-x-auto border-b border-neutral-900 text-sm font-medium">
           <Tab to={tabHref()} active={!params.get("state")} label="전체" count={loaderData.counts.ALL} />
           {states.map((state) => <Tab key={state} to={tabHref(state)} active={params.get("state") === state} label={stateMeta[state].label} count={loaderData.counts[state]} />)}
+          <Tab to={tabHref("EXCLUDED")} active={excludedMode} label="체인점 제외" count={loaderData.counts.EXCLUDED} />
         </nav>
 
         <Form method="get" className="mb-6 grid gap-2 border border-neutral-300 bg-white p-4 md:grid-cols-4 xl:grid-cols-8">
@@ -197,18 +227,18 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <Filter label="지역"><select name="region" defaultValue={loaderData.filters.region ?? ""}><option value="">광주·전남 전체</option><option value="GWANGJU">광주</option><option value="JEONNAM">전남</option></select></Filter>
           <Filter label="공공데이터"><select name="source" defaultValue={loaderData.filters.source ?? ""}><option value="">전체</option>{sources.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Filter>
           <Filter label="원천 세부업태"><select name="subtype" defaultValue={loaderData.filters.subtype ?? ""}><option value="">전체</option>{loaderData.subtypes.map((value) => <option key={value}>{value}</option>)}</select></Filter>
-          <Filter label="추천 카테고리"><select name="category" defaultValue={loaderData.filters.category ?? ""}><option value="">전체</option>{selectableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Filter>
-          <Filter label="신뢰도"><select name="confidence" defaultValue={loaderData.filters.confidence ?? ""}><option value="">전체</option>{Object.entries(confidenceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Filter>
+          {!excludedMode && <Filter label="추천 카테고리"><select name="category" defaultValue={loaderData.filters.category ?? ""}><option value="">전체</option>{selectableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Filter>}
+          {!excludedMode && <Filter label="신뢰도"><select name="confidence" defaultValue={loaderData.filters.confidence ?? ""}><option value="">전체</option>{Object.entries(confidenceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Filter>}
           <Filter label="페이지 크기"><select name="pageSize" defaultValue={String(loaderData.pagination.pageSize)}><option>25</option><option>50</option><option>100</option></select></Filter>
           {params.get("state") && <input type="hidden" name="state" value={params.get("state")!} />}
           <div className="flex items-end gap-2"><button className="h-10 flex-1 whitespace-nowrap bg-neutral-950 px-3 text-xs font-semibold text-white">필터 적용</button><Link className="grid h-10 place-items-center whitespace-nowrap border border-neutral-300 px-3 text-xs" to="/admin/candidates">초기화</Link></div>
         </Form>
 
-        {autoClassification.state !== "idle" && <div className="mb-5 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm">규칙 분류를 먼저 적용하고, 애매한 후보만 최대 3곳씩 AI로 확인하고 있습니다.</div>}
+        {!excludedMode && autoClassification.state !== "idle" && <div className="mb-5 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm">규칙 분류를 먼저 적용하고, 애매한 후보만 최대 3곳씩 AI로 확인하고 있습니다.</div>}
         {(() => {
           const feedback = autoClassification.data ?? actionData;
           return feedback && <div className={`mb-5 border px-4 py-3 text-sm ${feedback.error || feedback.skipped.length ? "border-amber-600 bg-amber-50" : "border-emerald-700 bg-emerald-50"}`}>
-            <p>{feedback.error ?? (feedback.ai ? `${feedback.ai.processed}곳 처리 · 규칙 즉시 완료 ${feedback.ai.ruleCompleted}곳 · 전체 성공 ${feedback.ai.succeeded}곳 · 실패 ${feedback.ai.failed}` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</p>
+            <p>{feedback.error ?? ("restored" in feedback && feedback.restored ? "검수 대기로 복원했습니다." : feedback.ai ? `${feedback.ai.processed}곳 처리 · 규칙 즉시 완료 ${feedback.ai.ruleCompleted}곳 · 전체 성공 ${feedback.ai.succeeded}곳 · 실패 ${feedback.ai.failed}` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</p>
             {feedback.skipped.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{feedback.skipped.map((item) => <li key={item.candidateId}><strong>{loaderData.rows.find((row) => row.id === item.candidateId)?.businessName ?? item.candidateId}</strong> · {item.reason}</li>)}</ul>}
           </div>;
         })()}
@@ -218,19 +248,26 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         <Form method="post">
           {[...selected].map((id) => <input key={id} type="hidden" name="candidateIds" value={id} />)}
           {selectedRows.map((row) => <input key={`category-${row.id}`} type="hidden" name={`category:${row.id}`} value={chosenCategories[row.id] ?? ""} />)}
-          <div className="sticky top-0 z-20 mb-3 flex flex-col gap-3 border border-neutral-900 bg-[#1f2a24] px-4 py-3 text-white shadow-sm md:flex-row md:items-center md:justify-between">
+          {!excludedMode && <div className="sticky top-0 z-20 mb-3 flex flex-col gap-3 border border-neutral-900 bg-[#1f2a24] px-4 py-3 text-white shadow-sm md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-3"><p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보 제외</p><button type="button" className="border border-neutral-500 px-3 py-2 text-xs text-neutral-200" onClick={() => setSelected(pageSelected ? new Set() : selectCurrentPageCandidates(selectableIds))}>{pageSelected ? "현재 페이지 선택 해제" : "현재 페이지 선택"}</button></div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <button className="border border-white px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting || loaderData.aiQuota.blocked}>선택 장소 다시 분류</button>
               <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 장소 승인·공개"}</button>
             </div>
-          </div>
+          </div>}
 
           <section aria-label="검수 후보 목록" className="overflow-hidden border border-neutral-300 bg-white">
-            <div className="hidden grid-cols-[42px_120px_minmax(210px,1fr)_minmax(260px,1.3fr)_220px_150px] border-b border-neutral-900 bg-neutral-100 px-4 py-3 text-[11px] font-semibold text-neutral-600 xl:grid">
-              <span>선택</span><span>상태</span><span>장소</span><span>주소·동네</span><span>대표 카테고리</span><span>신뢰도</span>
+            <div className={`hidden border-b border-neutral-900 bg-neutral-100 px-4 py-3 text-[11px] font-semibold text-neutral-600 xl:grid ${excludedMode ? "grid-cols-[150px_minmax(220px,1fr)_minmax(260px,1.3fr)_200px_160px]" : "grid-cols-[42px_120px_minmax(210px,1fr)_minmax(260px,1.3fr)_220px_150px]"}`}>
+              {excludedMode ? <><span>제외 상태</span><span>장소</span><span>주소</span><span>판정 체인</span><span>관리</span></> : <><span>선택</span><span>상태</span><span>장소</span><span>주소·동네</span><span>대표 카테고리</span><span>신뢰도</span></>}
             </div>
             {loaderData.rows.map((row) => {
+              if (row.isExcluded) return <article key={row.id} className="grid gap-3 border-b border-neutral-200 bg-violet-50/30 px-4 py-4 last:border-b-0 xl:grid-cols-[150px_minmax(220px,1fr)_minmax(260px,1.3fr)_200px_160px]">
+                <div><span className="inline-flex rounded-full border border-violet-500 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-800">체인점 자동 제외</span></div>
+                <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
+                <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">제외일 {row.excludedAt.slice(0, 10)}</p></div>
+                <div><p className="font-semibold text-violet-900">{row.chainName}</p><p className="mt-1 text-xs text-neutral-600">일치 표현: {row.matchedTerm}</p></div>
+                <div><button name="restoreCandidateId" value={row.id} className="border border-neutral-900 bg-white px-3 py-2 text-xs font-semibold">검수 대기로 복원</button></div>
+              </article>;
               const blocked = row.reviewState === "BLOCKED";
               return <article key={row.id} className={`grid gap-3 border-b border-neutral-200 px-4 py-3 last:border-b-0 xl:grid-cols-[42px_110px_minmax(200px,1fr)_minmax(250px,1.3fr)_210px_140px] ${blocked ? "bg-neutral-50" : "bg-white"}`}>
                 <div><input type="checkbox" aria-label={`${row.businessName} 선택`} checked={selected.has(row.id)} disabled={blocked} onChange={() => toggle(row.id)} className="h-5 w-5 accent-emerald-800" /></div>

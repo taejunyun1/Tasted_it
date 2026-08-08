@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { createDb } from "../../app/db/client.server";
-import { placeRevalidationCases, places } from "../../app/db/schema";
-import { approveCandidate, listPendingCandidates, upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
+import { businessLicenseExclusions, placeRevalidationCases, places } from "../../app/db/schema";
+import { approveCandidate, listExcludedCandidates, listPendingCandidates, restoreExcludedCandidate, upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
 import type { NormalizedLicense } from "../../app/features/candidates/public-data";
 
 const now = "2026-08-05T10:00:00.000Z";
@@ -32,6 +32,76 @@ describe("candidate review service", () => {
     const candidates = await listPendingCandidates(db);
     expect(candidates.map((candidate) => candidate.businessName)).toContain("후보식당");
     expect(candidates.map((candidate) => candidate.businessName)).not.toContain("폐업식당");
+  });
+
+  it("stores a new chain candidate as an active exclusion", async () => {
+    const db = createDb(env.DB);
+    const result = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `chain-${crypto.randomUUID()}`,
+      businessName: "파리바게뜨 광주점",
+    }, now);
+
+    expect(result.excluded).toBe(true);
+    expect((await listPendingCandidates(db)).map((candidate) => candidate.id)).not.toContain(result.id);
+    expect(await listExcludedCandidates(db)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: result.id, exclusionReason: "CHAIN_STORE", chainName: "파리바게뜨" }),
+    ]));
+  });
+
+  it("keeps an admin-restored chain candidate in the pending queue after resync", async () => {
+    const db = createDb(env.DB);
+    const sourceManagementNo = `restored-chain-${crypto.randomUUID()}`;
+    const item = { ...openLicense, sourceManagementNo, businessName: "뚜레쥬르 동명점" };
+    const candidate = await upsertBusinessLicense(db, item, now);
+
+    await restoreExcludedCandidate(db, { candidateId: candidate.id, actorUserId: "candidate-admin", now: "2026-08-05T11:00:00.000Z" });
+    const resynced = await upsertBusinessLicense(db, item, "2026-08-05T12:00:00.000Z");
+
+    expect(resynced.excluded).toBe(false);
+    expect((await listPendingCandidates(db)).map((row) => row.id)).toContain(candidate.id);
+    expect(await db.query.businessLicenseExclusions.findFirst({ where: eq(businessLicenseExclusions.businessLicenseId, candidate.id) }))
+      .toMatchObject({ status: "OVERRIDDEN", overriddenBy: "candidate-admin" });
+  });
+
+  it("clears an active exclusion when the business name no longer matches a chain", async () => {
+    const db = createDb(env.DB);
+    const sourceManagementNo = `renamed-chain-${crypto.randomUUID()}`;
+    const candidate = await upsertBusinessLicense(db, { ...openLicense, sourceManagementNo, businessName: "파리바게트 충장점" }, now);
+
+    const renamed = await upsertBusinessLicense(db, { ...openLicense, sourceManagementNo, businessName: "충장로 독립빵집" }, "2026-08-05T13:00:00.000Z");
+
+    expect(renamed.excluded).toBe(false);
+    expect(await db.query.businessLicenseExclusions.findFirst({ where: eq(businessLicenseExclusions.businessLicenseId, candidate.id) }))
+      .toMatchObject({ status: "CLEARED" });
+    expect((await listPendingCandidates(db)).map((row) => row.id)).toContain(candidate.id);
+  });
+
+  it("does not exclude a closed chain license or approve an active exclusion", async () => {
+    const db = createDb(env.DB);
+    const closed = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `closed-chain-${crypto.randomUUID()}`,
+      businessName: "뚜레쥬르 폐업점",
+      normalizedStatus: "CLOSED",
+    }, now);
+    const active = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `active-chain-${crypto.randomUUID()}`,
+      businessName: "파리바게뜨 승인차단점",
+    }, now);
+
+    expect(closed.excluded).toBe(false);
+    await expect(approveCandidate(db, {
+      candidateId: active.id,
+      actorUserId: "candidate-admin",
+      categoryId: "candidate-category",
+      name: "파리바게뜨 승인차단점",
+      address: openLicense.roadAddress!,
+      latitude: 35.15,
+      longitude: 126.92,
+      now,
+    })).rejects.toThrow("CANDIDATE_NOT_APPROVABLE");
   });
 
   it("publishes after approval and hides the place when the license closes", async () => {
