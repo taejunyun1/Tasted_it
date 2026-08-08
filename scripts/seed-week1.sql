@@ -1,8 +1,8 @@
 INSERT OR IGNORE INTO categories (id, slug, name, emoji, sort_order, created_at, updated_at) VALUES
-  ('cat-ramen', 'ramen', '라멘', '🍜', 10, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z'),
-  ('cat-donkatsu', 'donkatsu', '돈까스', '🍛', 20, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z'),
-  ('cat-gukbap', 'gukbap', '국밥', '🍲', 30, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z'),
-  ('cat-bakery', 'bakery', '베이커리', '🥐', 40, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z');
+  ('cat-ramen', 'ramen-detail', '라멘', '🍜', 10, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z'),
+  ('cat-donkatsu', 'donkatsu-detail', '돈가스', '🍛', 20, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z'),
+  ('cat-gukbap', 'gukbap-detail', '국밥·해장국', '🍲', 30, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z'),
+  ('cat-bakery', 'bakery-detail', '베이커리', '🥐', 40, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z');
 
 INSERT OR IGNORE INTO places (
   id, slug, name, status, address, neighborhood, latitude, longitude,

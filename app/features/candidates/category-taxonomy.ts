@@ -14,7 +14,7 @@ export type CategoryRule = {
 export const nameCategoryRules: CategoryRule[] = [
   { pattern: /(?<!자)연어|장어|킹크랩|크랩|대게|꽃게|홍게|랍스터|바닷가재|전복|굴(?:밥|국밥|구이|전|찜|탕|보쌈|세상|나라|마을|집|요리|전문|향|$)|꼬막|조개|가리비|낙지|주꾸미|쭈꾸미|문어|오징어|갑오징어|아귀|아구|생선|고등어|갈치|복어|복집|물회|해물|해산물|횟집|회집|사시미/, slug: "seafood-dish", group: "seafood", label: "상호의 해산물·생선 음식 표현", kind: "FOOD", priority: 25 },
   { pattern: /해장국|순대국|돼지국밥|국밥|설렁탕|곰탕/, slug: "gukbap-detail", group: "korean", label: "상호의 국밥·해장국·탕반 표현", kind: "FOOD" },
-  { pattern: /육개장|찌개|전골|감자탕/, slug: "stew", group: "korean", label: "상호의 육개장·찌개·전골 표현", kind: "FOOD" },
+  { pattern: /육개장|찌개|전골|감자탕/, slug: "stew", group: "korean", label: "상호의 육계장·육개장·찌개·전골 표현", kind: "FOOD" },
   { pattern: /삼겹|갈비|떡갈비|구이|고기|정육/, slug: "grill", group: "korean", label: "상호의 고기·구이 표현", kind: "FOOD" },
   { pattern: /족발|보쌈/, slug: "jokbal-bossam", group: "korean", label: "상호의 족발·보쌈 표현", kind: "FOOD" },
   { pattern: /한정식/, slug: "hanjeongsik", group: "korean", label: "상호의 한정식 표현", kind: "FOOD" },
