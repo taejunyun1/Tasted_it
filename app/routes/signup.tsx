@@ -5,6 +5,7 @@ import type { Route } from "./+types/signup";
 import { createDb } from "../db/client.server";
 import { registerAccount } from "../features/auth/account.server";
 import { sendAccountEmail } from "../features/auth/email.server";
+import { AuthDivider, GoogleAuthButton } from "../features/auth/google-auth-ui";
 import { describeSignupFailure } from "../features/auth/signup-failure";
 import { AuthInput, AuthPage } from "./login";
 
@@ -25,5 +26,5 @@ export async function action({ request }: Route.ActionArgs) {
   return { ok: true, message: "가입 가능 여부와 관계없이 인증 안내가 등록된 이메일로 전송됩니다." };
 }
 export default function Signup({ actionData }: Route.ComponentProps) {
-  return <AuthPage eyebrow="JOIN RE:TASTE" title="취향 기록을 시작하세요." description="이름, 이메일, 비밀번호만 입력합니다.">{actionData?.message ? <p className={`mt-8 border px-4 py-3 text-sm ${actionData.ok ? "border-emerald-600 bg-emerald-50" : "border-red-500 bg-red-50"}`}>{actionData.message}</p> : <Form method="post" className="mt-10 grid gap-5"><AuthInput label="이름" name="displayName" type="text" autoComplete="name" /><AuthInput label="이메일" name="email" type="email" autoComplete="email" /><AuthInput label="비밀번호 · 10자 이상" name="password" type="password" autoComplete="new-password" /><button className="bg-neutral-950 px-5 py-3 font-semibold text-white">인증 메일 받고 가입하기</button></Form>}<p className="mt-5 text-sm"><Link className="underline" to="/login">이미 계정이 있어요</Link></p></AuthPage>;
+  return <AuthPage eyebrow="JOIN RE:TASTE" title="취향 기록을 시작하세요." description="Google 계정 또는 이메일로 간단하게 시작합니다."><div className="mt-8"><GoogleAuthButton /></div><AuthDivider />{actionData?.message ? <p className={`rounded-2xl border px-4 py-3 text-sm ${actionData.ok ? "border-emerald-600 bg-emerald-50" : "border-red-500 bg-red-50"}`}>{actionData.message}</p> : <Form method="post" className="grid gap-5"><AuthInput label="이름" name="displayName" type="text" autoComplete="name" /><AuthInput label="이메일" name="email" type="email" autoComplete="email" /><AuthInput label="비밀번호 · 10자 이상" name="password" type="password" autoComplete="new-password" /><button className="rounded-full bg-neutral-950 px-5 py-3 font-semibold text-white">인증 메일 받고 가입하기</button></Form>}<p className="mt-5 text-sm"><Link className="underline" to="/login">이미 계정이 있어요</Link></p></AuthPage>;
 }

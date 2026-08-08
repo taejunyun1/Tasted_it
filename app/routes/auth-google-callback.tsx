@@ -3,6 +3,7 @@ import { redirect } from "react-router";
 
 import type { Route } from "./+types/auth-google-callback";
 import { createDb } from "../db/client.server";
+import { sendGoogleWelcomeIfNeeded } from "../features/auth/email.server";
 import { resolveGoogleAccount } from "../features/auth/google-account.server";
 import {
   completeGoogleLogin,
@@ -74,6 +75,15 @@ export async function loader({ request }: Route.LoaderArgs) {
         now,
       },
     );
+    await sendGoogleWelcomeIfNeeded({
+      isNewUser: result.isNewUser,
+      apiKey: env.RESEND_API_KEY,
+      from: env.RESEND_FROM_EMAIL,
+      to: result.email,
+      displayName: result.displayName,
+      appBaseUrl: env.APP_BASE_URL || url.origin,
+      onError: () => console.error("GOOGLE_WELCOME_EMAIL_FAILED"),
+    });
     const headers = new Headers();
     headers.append(
       "Set-Cookie",
