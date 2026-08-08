@@ -38,14 +38,14 @@ function badges(first: PlaceSummary, second: PlaceSummary, score: number, expand
 export function rankCoursePairs(input: {
   places: PlaceSummary[];
   center: { latitude: number; longitude: number };
-  mealCategory: string;
+  mealCategories: string[];
   second: "cafe" | "dessert";
   radiusKm: number;
   limit?: number;
 }) {
   const radiusMeters = input.radiusKm * 1_000;
   const meals = input.places.filter((place) => !allSecondSlugs.has(place.primaryCategory.slug)
-    && (input.mealCategory === "all" || place.primaryCategory.slug === input.mealCategory)
+    && (!input.mealCategories.length || input.mealCategories.includes(place.primaryCategory.slug))
     && estimateWalkingMeters(input.center, place) <= radiusMeters);
   const seconds = input.places.filter((place) => categoryMatchesSecond(place, input.second));
   const direct: Array<{ first: PlaceSummary; second: PlaceSummary; between: number; expanded: boolean }> = [];

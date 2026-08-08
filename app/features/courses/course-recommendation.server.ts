@@ -25,7 +25,7 @@ export async function recommendCourses(db: AppDb, input: { options: CourseOption
   const pairs = rankCoursePairs({
     places,
     center: { latitude: input.context.latitude, longitude: input.context.longitude },
-    mealCategory: input.options.mealCategory,
+    mealCategories: input.options.mealCategories,
     second: input.options.second,
     radiusKm: input.options.radiusKm,
     limit: 3,

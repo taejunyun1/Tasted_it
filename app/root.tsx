@@ -4,6 +4,7 @@ import { getOptionalUser } from "./features/auth/session.server";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
+  { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/sunn-us/SUIT/fonts/static/woff2/SUIT.css" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
   { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+KR:wght@400;500;600&display=swap" },

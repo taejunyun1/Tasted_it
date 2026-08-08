@@ -15,4 +15,15 @@ describe("course page contract", () => {
     expect(page).toContain("주차 정보 준비 중");
     expect(page).toContain("예상 도보거리");
   });
+
+  it("uses toggle badges instead of dropdowns and explains the two-item limit", () => {
+    const page = readFileSync("app/routes/course-recommendation.tsx", "utf8");
+    expect(page).not.toContain("<select");
+    expect(page).toContain('type="radio"');
+    expect(page).toContain('type="checkbox"');
+    expect(page).toContain("최대 2개까지 선택할 수 있어요");
+    expect(page).toContain("aria-pressed={!mealCategories.length}");
+    expect(page).toContain('role={isCompact ? "dialog" : undefined}');
+    expect(page).toContain("if (!loaderData.hasSelection) setFiltersOpen(true)");
+  });
 });

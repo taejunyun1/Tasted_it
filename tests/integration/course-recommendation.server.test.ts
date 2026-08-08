@@ -17,7 +17,7 @@ describe("course recommendation service", () => {
     await env.DB.prepare("INSERT INTO place_categories (place_id, category_id, is_primary) VALUES (?, 'cat-grill', 1), (?, 'cat-cafe-shop', 1), (?, 'cat-cafe-shop', 1)").bind(mealId, cafeId, hiddenId).run();
 
     const result = await recommendCourses(createDb(env.DB), {
-      options: { time: "auto", mealCategory: "grill", second: "cafe", radiusKm: 3, parkingMode: "auto", ev: "none", weather: "normal", child: false },
+      options: { time: "auto", mealCategories: ["grill"], second: "cafe", radiusKm: 3, parkingMode: "auto", ev: "none", weather: "normal", child: false },
       context: { latitude: 35.15, longitude: 126.85, locationSource: "USER", resolvedTime: "afternoon" },
       now: new Date(now),
     });

@@ -6,7 +6,7 @@ export type CourseWeather = "normal" | "rain";
 
 export interface CourseOptions {
   time: CourseTime;
-  mealCategory: string;
+  mealCategories: string[];
   second: CourseSecond;
   radiusKm: 1 | 3 | 5 | 8;
   parkingMode: CourseParkingMode;
@@ -41,12 +41,15 @@ export function parseCourseOptions(search: string, now = new Date()) {
     && rawLat >= 33 && rawLat <= 39 && rawLng >= 124 && rawLng <= 132;
   const time = allowed(params.get("time"), ["auto", "lunch", "afternoon", "dinner", "late"] as const, "auto");
   const rawRadius = Number(params.get("radiusKm"));
+  const mealCategories = [...new Set(params.getAll("mealCategory")
+    .filter((value) => value !== "all" && /^[a-z0-9-]{1,80}$/.test(value)))]
+    .slice(0, 2);
   const radiusKm: CourseOptions["radiusKm"] = ([1, 3, 5, 8] as const).includes(rawRadius as CourseOptions["radiusKm"])
     ? rawRadius as CourseOptions["radiusKm"]
     : 3;
   const options: CourseOptions = {
     time,
-    mealCategory: /^[a-z0-9-]{1,80}$/.test(params.get("mealCategory") ?? "") ? params.get("mealCategory")! : "all",
+    mealCategories,
     second: allowed(params.get("second"), ["cafe", "dessert"] as const, "cafe"),
     radiusKm,
     parkingMode: allowed(params.get("parkingMode"), ["auto", "shared", "separate"] as const, "auto"),
@@ -70,7 +73,6 @@ export function toCourseSearchParams(options: CourseOptions) {
   const params = new URLSearchParams({
     apply: "1",
     time: options.time,
-    mealCategory: options.mealCategory,
     second: options.second,
     radiusKm: String(options.radiusKm),
     parkingMode: options.parkingMode,
@@ -78,5 +80,6 @@ export function toCourseSearchParams(options: CourseOptions) {
     weather: options.weather,
     child: options.child ? "1" : "0",
   });
+  for (const mealCategory of options.mealCategories) params.append("mealCategory", mealCategory);
   return params;
 }
