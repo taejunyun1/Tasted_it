@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { authIdentities, users } from "../../db/schema";
@@ -121,6 +121,15 @@ export async function resolveGoogleAccount(
       user = await db.query.users.findFirst({ where: eq(users.email, email) });
       if (!user) throw new Error("GOOGLE_ACCOUNT_CREATE_FAILED");
     }
+  }
+
+  if (!user.emailVerifiedAt) {
+    const timestamp = input.now.toISOString();
+    await db
+      .update(users)
+      .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
+      .where(and(eq(users.id, user.id), isNull(users.emailVerifiedAt)));
+    user = { ...user, emailVerifiedAt: timestamp, updatedAt: timestamp };
   }
 
   try {

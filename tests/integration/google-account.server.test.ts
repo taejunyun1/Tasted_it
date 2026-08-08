@@ -112,6 +112,38 @@ describe("resolveGoogleAccount", () => {
     expect(result.role).toBe("ADMIN");
   });
 
+  it("marks a pending email account verified when Google verifies the same email", async () => {
+    const db = createDb(env.DB);
+    const key = crypto.randomUUID();
+    const userId = `pending-${key}`;
+    const email = `pending-${key}@example.com`;
+    await db.insert(users).values({
+      id: userId,
+      email,
+      displayName: "인증 대기 회원",
+      role: "USER",
+      passwordHash: "pending-hash",
+      passwordSalt: "pending-salt",
+      emailVerifiedAt: null,
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+
+    const result = await resolveGoogleAccount(db, {
+      providerSubject: `pending-sub-${key}`,
+      email,
+      emailVerified: true,
+      displayName: "Google 이름",
+      adminEmail: env.ADMIN_EMAIL,
+      now,
+    });
+
+    expect(result).toMatchObject({ userId, isNewUser: false });
+    const stored = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    expect(stored?.emailVerifiedAt).toBe(now.toISOString());
+    expect(stored?.passwordHash).toBe("pending-hash");
+  });
+
   it("rejects Google accounts whose email is not verified", async () => {
     const db = createDb(env.DB);
     await expect(

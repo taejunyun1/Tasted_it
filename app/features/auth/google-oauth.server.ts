@@ -125,7 +125,7 @@ export async function verifyGoogleIdToken(
       typeof payload.sub !== "string" ||
       !payload.sub ||
       typeof payload.email !== "string" ||
-      payload.email_verified !== true ||
+      typeof payload.email_verified !== "boolean" ||
       payload.nonce !== input.nonce ||
       typeof payload.iat !== "number" ||
       payload.iat > nowSeconds + 60 ||
@@ -134,6 +134,7 @@ export async function verifyGoogleIdToken(
     ) {
       throw new Error("GOOGLE_ID_TOKEN_INVALID");
     }
+    if (!payload.email_verified) throw new Error("GOOGLE_EMAIL_UNVERIFIED");
 
     const fallbackName = payload.email.split("@")[0];
     const displayName =
@@ -146,7 +147,13 @@ export async function verifyGoogleIdToken(
       emailVerified: true as const,
       displayName,
     };
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "GOOGLE_EMAIL_UNVERIFIED"
+    ) {
+      throw error;
+    }
     throw new Error("GOOGLE_ID_TOKEN_INVALID");
   }
 }
@@ -175,7 +182,13 @@ export function readOAuthRequestCookie(request: Request) {
   if (!cookie) return null;
   for (const part of cookie.split(";")) {
     const [key, ...value] = part.trim().split("=");
-    if (key === OAUTH_COOKIE) return decodeURIComponent(value.join("="));
+    if (key === OAUTH_COOKIE) {
+      try {
+        return decodeURIComponent(value.join("="));
+      } catch {
+        return null;
+      }
+    }
   }
   return null;
 }

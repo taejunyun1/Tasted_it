@@ -59,6 +59,13 @@ describe("Google OAuth protocol", () => {
       headers: { Cookie: "other=1; retaste_oauth_request=request-1" },
     });
     expect(readOAuthRequestCookie(request)).toBe("request-1");
+    expect(
+      readOAuthRequestCookie(
+        new Request("https://example.com/auth/google/callback", {
+          headers: { Cookie: "retaste_oauth_request=%E0%A4%A" },
+        }),
+      ),
+    ).toBeNull();
     expect(expireOAuthRequestCookie(request.url)).toContain("Max-Age=0");
     expect(expireOAuthRequestCookie(request.url)).not.toContain("Secure");
   });
@@ -146,7 +153,6 @@ describe("Google OAuth protocol", () => {
 
   it.each([
     ["wrong nonce", { nonce: "other" }],
-    ["unverified email", { email_verified: false }],
     ["expired token", { exp: 1 }],
     ["future-issued token", { iat: 9_999_999_999 }],
     ["missing subject", { sub: undefined }],
@@ -173,5 +179,29 @@ describe("Google OAuth protocol", () => {
         verifier,
       ),
     ).rejects.toThrow("GOOGLE_ID_TOKEN_INVALID");
+  });
+
+  it("reports an unverified Google email separately", async () => {
+    const now = new Date("2026-08-08T15:00:00.000Z");
+    const verifier = async () => ({
+      sub: "google-subject",
+      email: "user@example.com",
+      email_verified: false,
+      nonce: "nonce-1",
+      iat: Math.floor(now.getTime() / 1000) - 10,
+      exp: Math.floor(now.getTime() / 1000) + 300,
+    });
+
+    await expect(
+      verifyGoogleIdToken(
+        {
+          idToken: "signed-id-token",
+          clientId: "client-id",
+          nonce: "nonce-1",
+          now,
+        },
+        verifier,
+      ),
+    ).rejects.toThrow("GOOGLE_EMAIL_UNVERIFIED");
   });
 });
