@@ -78,24 +78,27 @@ export function rankSharedParking(input: {
   return [...cohort, ...outside];
 }
 
-function rankPlaceCandidates(candidates: SeparateParkingCandidate[], ev: EvRequirement) {
-  const eligible = candidates
-    .filter((candidate) => ev !== "REQUIRED" || candidate.hasOnsiteEv)
-    .filter((candidate) => candidate.placeMeters <= 800)
+function rankPlaceCandidates(candidates: SeparateParkingCandidate[], input: { ev: EvRequirement; weather: ParkingWeather; childAccompanied: boolean }) {
+  const strictLimit = input.weather === "RAIN" || input.childAccompanied ? 500 : 800;
+  const strict = candidates.filter((candidate) => candidate.placeMeters <= strictLimit);
+  const eligible = (strict.length ? strict : candidates.filter((candidate) => candidate.placeMeters <= 1_200))
     .sort((left, right) => left.placeMeters - right.placeMeters || left.id.localeCompare(right.id));
   const best = eligible[0];
   if (!best) return eligible;
   const cohort = eligible.filter((candidate) => candidate.placeMeters <= best.placeMeters + 150);
-  return [...cohort.sort((left, right) => compareAuxiliary(left, right, ev) || left.placeMeters - right.placeMeters), ...eligible.filter((item) => !cohort.includes(item))];
+  return [...cohort.sort((left, right) => compareAuxiliary(left, right, input.ev) || left.placeMeters - right.placeMeters), ...eligible.filter((item) => !cohort.includes(item))];
 }
 
 export function rankSeparateParking(input: {
   firstCandidates: SeparateParkingCandidate[];
   secondCandidates: SeparateParkingCandidate[];
   evRequirement: EvRequirement;
+  weather: ParkingWeather;
+  childAccompanied: boolean;
 }) {
-  const first = rankPlaceCandidates(input.firstCandidates, input.evRequirement).slice(0, 10);
-  const second = rankPlaceCandidates(input.secondCandidates, input.evRequirement).slice(0, 10);
+  const context = { ev: input.evRequirement, weather: input.weather, childAccompanied: input.childAccompanied };
+  const first = rankPlaceCandidates(input.firstCandidates, context).slice(0, 10);
+  const second = rankPlaceCandidates(input.secondCandidates, context).slice(0, 10);
   const plans: SeparateParkingPlan[] = [];
   for (const firstCandidate of first) for (const secondCandidate of second) {
     if (input.evRequirement === "REQUIRED" && !firstCandidate.hasOnsiteEv && !secondCandidate.hasOnsiteEv) continue;

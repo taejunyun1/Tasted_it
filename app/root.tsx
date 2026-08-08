@@ -19,6 +19,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
       <nav className="site-head__nav" aria-label="주요 메뉴">
         <div className="site-head__primary">
           <Link to="/places">맛집 리스트</Link>
+          <Link to="/courses">코스 추천</Link>
           <Link to="/me">내 상태</Link>
         </div>
         <details className="site-menu" key={location.pathname}>

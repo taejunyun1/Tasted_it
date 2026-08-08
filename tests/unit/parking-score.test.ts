@@ -55,8 +55,32 @@ describe("parking ranking", () => {
       firstCandidates: [{ ...base, id: "first", placeMeters: 100 }],
       secondCandidates: [{ ...base, id: "second", placeMeters: 200 }],
       evRequirement: "NONE",
+      weather: "NORMAL",
+      childAccompanied: false,
     });
     expect(plans[0]).toMatchObject({ totalWalkingMeters: 600, parkingOverheadMinutes: 7 });
+  });
+
+  it("accepts a separate plan when EV is installed at either stop", () => {
+    const plans = rankSeparateParking({
+      firstCandidates: [{ ...base, id: "first", hasOnsiteEv: true, placeMeters: 120 }],
+      secondCandidates: [{ ...base, id: "second", hasOnsiteEv: false, placeMeters: 120 }],
+      evRequirement: "REQUIRED",
+      weather: "NORMAL",
+      childAccompanied: false,
+    });
+    expect(plans).toHaveLength(1);
+  });
+
+  it("tightens separate-parking access for rain and children before using fallback", () => {
+    const plans = rankSeparateParking({
+      firstCandidates: [{ ...base, id: "near", placeMeters: 480 }, { ...base, id: "far", placeMeters: 760 }],
+      secondCandidates: [{ ...base, id: "second", placeMeters: 480 }],
+      evRequirement: "NONE",
+      weather: "RAIN",
+      childAccompanied: true,
+    });
+    expect(plans[0]?.first.id).toBe("near");
   });
 
   it("returns BOTH_SIMILAR when normalized mode scores differ by less than five", () => {
