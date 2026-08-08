@@ -12,7 +12,7 @@ describe("matchChainStore", () => {
     expect(matchChainStore(businessName)).toMatchObject({ chainId: "PARIS_BAGUETTE", chainName: "파리바게뜨" });
   });
 
-  it.each(["뚜레쥬르 동명점", "뜌레쥬르 광주역점"])(
+  it.each(["뚜레쥬르 동명점", "뜌레쥬르 광주역점", "뚜레쥬르 여수무선점", "뚜레쥬르광주첨단점"])(
     "matches Tous les Jours variant %s",
     (businessName) => {
       expect(matchChainStore(businessName)).toMatchObject({ chainId: "TOUS_LES_JOURS", chainName: "뚜레쥬르" });
