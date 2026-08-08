@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { createDb } from "../../app/db/client.server";
 import { businessLicenseExclusions, placeRevalidationCases, places } from "../../app/db/schema";
-import { approveCandidate, listExcludedCandidates, listPendingCandidates, restoreExcludedCandidate, upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
+import { approveCandidate, excludeCandidates, listExcludedCandidates, listPendingCandidates, restoreExcludedCandidate, upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
 import type { NormalizedLicense } from "../../app/features/candidates/public-data";
 
 const now = "2026-08-05T10:00:00.000Z";
@@ -47,6 +47,70 @@ describe("candidate review service", () => {
     expect(await listExcludedCandidates(db)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: result.id, exclusionReason: "CHAIN_STORE", chainName: "파리바게뜨" }),
     ]));
+  });
+
+  it("stores a room salon candidate as an adult-entertainment exclusion", async () => {
+    const db = createDb(env.DB);
+    const result = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `adult-${crypto.randomUUID()}`,
+      businessName: "황제 룸싸롱",
+      businessSubtype: "유흥주점영업",
+    }, now);
+
+    expect(result.excluded).toBe(true);
+    expect((await listPendingCandidates(db)).map((candidate) => candidate.id)).not.toContain(result.id);
+    expect(await listExcludedCandidates(db)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: result.id,
+        exclusionReason: "ADULT_ENTERTAINMENT",
+        exclusionCategory: "ADULT_ENTERTAINMENT",
+      }),
+    ]));
+  });
+
+  it("keeps a karaoke bar candidate in the pending queue", async () => {
+    const db = createDb(env.DB);
+    const result = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `karaoke-${crypto.randomUUID()}`,
+      businessName: "동네 단란주점",
+      businessSubtype: "단란주점영업",
+    }, now);
+
+    expect(result.excluded).toBe(false);
+    expect((await listPendingCandidates(db)).map((candidate) => candidate.id)).toContain(result.id);
+  });
+
+  it("moves selected pending candidates to an admin exception and restores them", async () => {
+    const db = createDb(env.DB);
+    const first = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `manual-first-${crypto.randomUUID()}`,
+      businessName: "수동 예외 식당 1",
+    }, now);
+    const second = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `manual-second-${crypto.randomUUID()}`,
+      businessName: "수동 예외 식당 2",
+    }, now);
+
+    const result = await excludeCandidates(db, {
+      candidateIds: [first.id, second.id],
+      category: "POLICY",
+      note: "지도 운영 정책",
+      actorUserId: "candidate-admin",
+      now,
+    });
+
+    expect(result).toEqual({ excludedIds: [first.id, second.id], skippedIds: [] });
+    expect(await listExcludedCandidates(db, {}, ["ADMIN_EXCEPTION"])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: first.id, exclusionCategory: "POLICY", note: "지도 운영 정책", excludedBy: "candidate-admin" }),
+      expect.objectContaining({ id: second.id, exclusionCategory: "POLICY", note: "지도 운영 정책", excludedBy: "candidate-admin" }),
+    ]));
+
+    await restoreExcludedCandidate(db, { candidateId: first.id, actorUserId: "candidate-admin", now });
+    expect((await listPendingCandidates(db)).map((row) => row.id)).toContain(first.id);
   });
 
   it("keeps an admin-restored chain candidate in the pending queue after resync", async () => {

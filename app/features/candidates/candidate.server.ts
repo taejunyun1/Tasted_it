@@ -16,7 +16,8 @@ import type { NormalizedLicense, PublicDataSource, RegionCode } from "./public-d
 import { slugifyPlaceName } from "../places/place-slug";
 import { extractNeighborhood } from "./category-suggestion";
 import { getTerminalCategoryIds } from "./category-selection";
-import { matchChainStore } from "./chain-store-policy";
+import { classifyAutomaticExclusion } from "./exclusion-policy";
+import { validateManualExclusion } from "./manual-exclusion";
 
 export interface CandidateFilters {
   query?: string;
@@ -59,12 +60,17 @@ export async function listCandidateSubtypes(db: AppDb) {
   return rows.flatMap((row) => row.value ? [row.value] : []);
 }
 
-export async function listExcludedCandidates(db: AppDb, filters: CandidateFilters = {}) {
+export async function listExcludedCandidates(
+  db: AppDb,
+  filters: CandidateFilters = {},
+  reasons?: Array<"CHAIN_STORE" | "ADULT_ENTERTAINMENT" | "ADMIN_EXCEPTION">,
+) {
   const conditions = [
     eq(businessLicenses.normalizedStatus, "OPEN"),
     eq(businessLicenses.reviewStatus, "PENDING"),
     eq(businessLicenseExclusions.status, "ACTIVE"),
   ];
+  if (reasons?.length) conditions.push(inArray(businessLicenseExclusions.reason, reasons));
   if (filters.sourceType) conditions.push(eq(businessLicenses.sourceType, filters.sourceType));
   if (filters.regionCode) conditions.push(eq(businessLicenses.regionCode, filters.regionCode));
   if (filters.businessSubtype) conditions.push(eq(businessLicenses.businessSubtype, filters.businessSubtype));
@@ -85,14 +91,22 @@ export async function listExcludedCandidates(db: AppDb, filters: CandidateFilter
     latitude: businessLicenses.latitude,
     longitude: businessLicenses.longitude,
     exclusionReason: businessLicenseExclusions.reason,
+    exclusionCategory: businessLicenseExclusions.exclusionCategory,
     matchedRule: businessLicenseExclusions.matchedRule,
     chainName: businessLicenseExclusions.chainName,
     matchedTerm: businessLicenseExclusions.matchedTerm,
+    matchedBrand: businessLicenseExclusions.matchedBrand,
+    matchedAlias: businessLicenseExclusions.matchedAlias,
+    chainScope: businessLicenseExclusions.chainScope,
+    matchMethod: businessLicenseExclusions.matchMethod,
+    matchConfidence: businessLicenseExclusions.matchConfidence,
+    note: businessLicenseExclusions.note,
+    excludedBy: businessLicenseExclusions.excludedBy,
     excludedAt: businessLicenseExclusions.excludedAt,
   }).from(businessLicenses)
     .innerJoin(businessLicenseExclusions, eq(businessLicenseExclusions.businessLicenseId, businessLicenses.id))
     .where(and(...conditions))
-    .orderBy(asc(businessLicenseExclusions.chainName), asc(businessLicenses.businessName))
+    .orderBy(asc(businessLicenseExclusions.reason), asc(businessLicenses.businessName))
     .limit(300);
 }
 
@@ -105,8 +119,92 @@ export async function restoreExcludedCandidate(db: AppDb, input: { candidateId: 
   await db.batch([
     db.update(businessLicenseExclusions).set({ status: "OVERRIDDEN", overriddenBy: input.actorUserId, overriddenAt: input.now, updatedAt: input.now })
       .where(and(eq(businessLicenseExclusions.businessLicenseId, input.candidateId), eq(businessLicenseExclusions.status, "ACTIVE"))),
-    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "RESTORE_CHAIN_EXCLUSION", targetType: "BUSINESS_LICENSE", targetId: input.candidateId, beforeState: "EXCLUDED", afterState: "PENDING", createdAt: input.now }),
+    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "RESTORE_CANDIDATE_EXCLUSION", targetType: "BUSINESS_LICENSE", targetId: input.candidateId, beforeState: "EXCLUDED", afterState: "PENDING", createdAt: input.now }),
   ]);
+}
+
+export async function excludeCandidates(db: AppDb, input: {
+  candidateIds: string[];
+  category: string;
+  note: string;
+  actorUserId: string;
+  now: string;
+}) {
+  const validated = validateManualExclusion(input.category, input.note, input.candidateIds);
+  const [candidates, activeExclusions] = await Promise.all([
+    db.select({ id: businessLicenses.id }).from(businessLicenses).where(and(
+      inArray(businessLicenses.id, validated.candidateIds),
+      eq(businessLicenses.normalizedStatus, "OPEN"),
+      eq(businessLicenses.reviewStatus, "PENDING"),
+    )),
+    db.select({ id: businessLicenseExclusions.businessLicenseId }).from(businessLicenseExclusions).where(and(
+      inArray(businessLicenseExclusions.businessLicenseId, validated.candidateIds),
+      eq(businessLicenseExclusions.status, "ACTIVE"),
+    )),
+  ]);
+  const candidateSet = new Set(candidates.map((candidate) => candidate.id));
+  const activeSet = new Set(activeExclusions.map((exclusion) => exclusion.id));
+  const excludedIds = validated.candidateIds.filter((id) => candidateSet.has(id) && !activeSet.has(id));
+  const skippedIds = validated.candidateIds.filter((id) => !excludedIds.includes(id));
+
+  for (const candidateId of excludedIds) {
+    await db.batch([
+      db.insert(businessLicenseExclusions).values({
+        businessLicenseId: candidateId,
+        reason: "ADMIN_EXCEPTION",
+        exclusionCategory: validated.category,
+        matchedRule: "ADMIN_SELECTED",
+        chainName: null,
+        matchedTerm: null,
+        matchedBrand: null,
+        matchedAlias: null,
+        chainScope: null,
+        matchMethod: "ADMIN_SELECTED",
+        matchConfidence: 1,
+        note: validated.note,
+        excludedBy: input.actorUserId,
+        status: "ACTIVE",
+        excludedAt: input.now,
+        overriddenBy: null,
+        overriddenAt: null,
+        createdAt: input.now,
+        updatedAt: input.now,
+      }).onConflictDoUpdate({
+        target: businessLicenseExclusions.businessLicenseId,
+        set: {
+          reason: "ADMIN_EXCEPTION",
+          exclusionCategory: validated.category,
+          matchedRule: "ADMIN_SELECTED",
+          chainName: null,
+          matchedTerm: null,
+          matchedBrand: null,
+          matchedAlias: null,
+          chainScope: null,
+          matchMethod: "ADMIN_SELECTED",
+          matchConfidence: 1,
+          note: validated.note,
+          excludedBy: input.actorUserId,
+          status: "ACTIVE",
+          excludedAt: input.now,
+          overriddenBy: null,
+          overriddenAt: null,
+          updatedAt: input.now,
+        },
+      }),
+      db.insert(adminAuditLogs).values({
+        id: crypto.randomUUID(),
+        actorUserId: input.actorUserId,
+        action: "ADMIN_EXCLUDE_CANDIDATE",
+        targetType: "BUSINESS_LICENSE",
+        targetId: candidateId,
+        beforeState: "PENDING",
+        afterState: `EXCLUDED:${validated.category}`,
+        createdAt: input.now,
+      }),
+    ]);
+  }
+
+  return { excludedIds, skippedIds };
 }
 
 export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense, now: string) {
@@ -149,17 +247,28 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
     },
   });
 
-  const match = matchChainStore(input.businessName);
+  const match = classifyAutomaticExclusion({
+    businessName: input.businessName,
+    businessSubtype: input.businessSubtype,
+  });
   const exclusion = await db.query.businessLicenseExclusions.findFirst({ where: eq(businessLicenseExclusions.businessLicenseId, id) });
   const canExclude = input.normalizedStatus === "OPEN" && (existing?.reviewStatus ?? "PENDING") === "PENDING";
   let excluded = false;
   if (match && canExclude && exclusion?.status !== "OVERRIDDEN") {
     await db.insert(businessLicenseExclusions).values({
       businessLicenseId: id,
-      reason: "CHAIN_STORE",
-      matchedRule: match.chainId,
-      chainName: match.chainName,
-      matchedTerm: match.matchedTerm,
+      reason: match.reason,
+      exclusionCategory: match.exclusionCategory,
+      matchedRule: match.matchedRule,
+      chainName: match.matchedBrand,
+      matchedTerm: match.matchedAlias ?? match.matchedBrand,
+      matchedBrand: match.matchedBrand,
+      matchedAlias: match.matchedAlias,
+      chainScope: match.chainScope,
+      matchMethod: match.matchMethod,
+      matchConfidence: match.confidence,
+      note: null,
+      excludedBy: null,
       status: "ACTIVE",
       excludedAt: exclusion?.excludedAt ?? now,
       overriddenBy: null,
@@ -168,14 +277,29 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
       updatedAt: now,
     }).onConflictDoUpdate({
       target: businessLicenseExclusions.businessLicenseId,
-      set: { reason: "CHAIN_STORE", matchedRule: match.chainId, chainName: match.chainName, matchedTerm: match.matchedTerm, status: "ACTIVE", updatedAt: now },
+      set: {
+        reason: match.reason,
+        exclusionCategory: match.exclusionCategory,
+        matchedRule: match.matchedRule,
+        chainName: match.matchedBrand,
+        matchedTerm: match.matchedAlias ?? match.matchedBrand,
+        matchedBrand: match.matchedBrand,
+        matchedAlias: match.matchedAlias,
+        chainScope: match.chainScope,
+        matchMethod: match.matchMethod,
+        matchConfidence: match.confidence,
+        note: null,
+        excludedBy: null,
+        status: "ACTIVE",
+        updatedAt: now,
+      },
     });
-    if (exclusion?.status !== "ACTIVE") await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: "AUTO_EXCLUDE_CHAIN_STORE", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: exclusion?.status ?? "PENDING", afterState: "EXCLUDED", createdAt: now });
+    if (exclusion?.status !== "ACTIVE") await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: match.reason === "CHAIN_STORE" ? "AUTO_EXCLUDE_CHAIN_STORE" : "AUTO_EXCLUDE_ADULT_ENTERTAINMENT", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: exclusion?.status ?? "PENDING", afterState: "EXCLUDED", createdAt: now });
     excluded = true;
-  } else if (!match && exclusion?.status === "ACTIVE") {
+  } else if (!match && exclusion?.status === "ACTIVE" && exclusion.reason !== "ADMIN_EXCEPTION") {
     await db.batch([
       db.update(businessLicenseExclusions).set({ status: "CLEARED", updatedAt: now }).where(eq(businessLicenseExclusions.businessLicenseId, id)),
-      db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: "AUTO_CLEAR_CHAIN_EXCLUSION", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: "EXCLUDED", afterState: "PENDING", createdAt: now }),
+      db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: "AUTO_CLEAR_CANDIDATE_EXCLUSION", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: "EXCLUDED", afterState: "PENDING", createdAt: now }),
     ]);
   }
 
