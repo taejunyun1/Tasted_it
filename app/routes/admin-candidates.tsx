@@ -54,7 +54,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const requestedState = url.searchParams.get("state");
   const categoryId = url.searchParams.get("category") ?? "";
   const confidence = url.searchParams.get("confidence") ?? "";
-  const filteredRows = allRows.filter((row) =>
+  const blockedRows = allRows.filter((row) => row.reviewState === "BLOCKED")
+    .map((row) => ({ ...row, isExcluded: false as const, exclusionReason: null, chainName: null, matchedTerm: null, excludedAt: null }));
+  const reviewableRows = allRows.filter((row) => row.reviewState !== "BLOCKED");
+  const filteredRows = reviewableRows.filter((row) =>
     (!states.includes(requestedState as (typeof states)[number]) || row.reviewState === requestedState)
     && (!categoryId || row.categoryId === categoryId)
     && (!confidence || row.confidence === confidence))
@@ -79,8 +82,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   }));
   const chainRows = excludedReviewRows.filter((row) => row.exclusionReason === "CHAIN_STORE");
   const exceptionRows = excludedReviewRows.filter((row) => row.exclusionReason !== "CHAIN_STORE");
-  const blockedRows = allRows.filter((row) => row.reviewState === "BLOCKED")
-    .map((row) => ({ ...row, isExcluded: false as const, exclusionReason: null, chainName: null, matchedTerm: null, excludedAt: null }));
   const displayedRows = requestedState === "EXCLUDED"
     ? chainRows
     : requestedState === "EXCEPTION"
@@ -93,9 +94,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   return {
     rows: displayedRows.slice((page - 1) * pageSize, page * pageSize),
     counts: {
-      ALL: allRows.length,
-      AUTO: allRows.filter((row) => row.reviewState === "AUTO").length,
-      MANUAL: allRows.filter((row) => row.reviewState === "MANUAL").length,
+      ALL: reviewableRows.length,
+      AUTO: reviewableRows.filter((row) => row.reviewState === "AUTO").length,
+      MANUAL: reviewableRows.filter((row) => row.reviewState === "MANUAL").length,
       EXCEPTION: blockedRows.length + exceptionRows.length,
       EXCLUDED: chainRows.length,
     },
