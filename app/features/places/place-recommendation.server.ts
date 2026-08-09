@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
+import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import { ratingSnapshots, userTasteBadges } from "../../db/schema";
 import { listActiveGoldenPicks } from "../ratings/golden-pick.server";
 import {
@@ -52,9 +53,9 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
       .from(userTasteBadges).where(eq(userTasteBadges.userId, input.userId)).orderBy(desc(userTasteBadges.score)) : Promise.resolve([]),
   ]);
   const placeIds = places.map((place) => place.id);
-  const snapshots = placeIds.length ? await db.select().from(ratingSnapshots)
-    .where(and(inArray(ratingSnapshots.placeId, placeIds), eq(ratingSnapshots.isStale, false)))
-    .orderBy(desc(ratingSnapshots.computedAt)) : [];
+  const snapshots = await loadInD1Chunks(placeIds, (placeIdChunk) => db.select().from(ratingSnapshots)
+    .where(and(inArray(ratingSnapshots.placeId, placeIdChunk), eq(ratingSnapshots.isStale, false)))
+    .orderBy(desc(ratingSnapshots.computedAt)), { reservedBindings: 1 });
   const latestSnapshot = new Map<string, typeof snapshots[number]>();
   snapshots.forEach((snapshot) => {
     if (!latestSnapshot.has(snapshot.placeId)) latestSnapshot.set(snapshot.placeId, snapshot);
