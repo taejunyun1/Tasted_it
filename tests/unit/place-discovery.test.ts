@@ -87,8 +87,51 @@ describe("place discovery", () => {
 
     const counts = result.reduce((map, item) => map.set(item.primaryCategory.slug, (map.get(item.primaryCategory.slug) ?? 0) + 1), new Map<string, number>());
     expect(Math.max(...counts.values())).toBeLessThanOrEqual(2);
-    expect(result.filter((item) => item.discoveryMode === "EXPLORATION")).toHaveLength(2);
+    expect(result.filter((item) => item.discoveryMode === "EXPLORATION").length).toBeGreaterThanOrEqual(2);
     expect(result.filter((item) => item.neighborhood === "A동")).toHaveLength(2);
+  });
+
+  it("fills the rail for discovery-only directions instead of stopping after two", () => {
+    const places = Array.from({ length: 8 }, (_, index) => place(`explore-${index}`, {
+      name: `새로운 메뉴 ${index}`,
+      neighborhood: `${index}동`,
+      latitude: 35 + index * 0.001,
+      longitude: 126.9,
+      positive: 8,
+      negative: 2,
+      primaryCategory: { slug: `category-${index}`, name: `분류 ${index}`, emoji: "🍽️" },
+    }));
+
+    const result = rankPersonalDiscovery({
+      places,
+      selectedBadges: ["discovery-new-taste"],
+      userBadgeIds: [],
+      center: { latitude: 35, longitude: 126.9 },
+      month: 8,
+      limit: 8,
+    });
+
+    expect(result).toHaveLength(8);
+    expect(result.every((item) => item.discoveryMode === "EXPLORATION")).toBe(true);
+  });
+
+  it("uses search text and a quality-gated seasonal boost when ranking", () => {
+    const result = rankPersonalDiscovery({
+      places: [
+        { ...place("summer", { name: "여름식당", latitude: 35, longitude: 126.9, primaryCategory: { slug: "korean", name: "한식", emoji: "🍚" } }), searchText: "평양냉면 메밀", ratingScore: 80, ratingSampleCount: 20 },
+        { ...place("plain", { name: "일반식당", latitude: 35, longitude: 126.9, primaryCategory: { slug: "western", name: "양식", emoji: "🍝" } }), ratingScore: 80, ratingSampleCount: 20 },
+        { ...place("poor-season", { name: "저평가 냉면", latitude: 35, longitude: 126.9, primaryCategory: { slug: "noodle", name: "면", emoji: "🍜" } }), ratingScore: 20, ratingSampleCount: 8 },
+      ],
+      selectedBadges: [],
+      userBadgeIds: [],
+      center: { latitude: 35, longitude: 126.9 },
+      month: 8,
+      limit: 3,
+    });
+
+    expect(result[0]).toMatchObject({ id: "summer", discoveryMode: "EXPLORATION" });
+    expect(result[0].recommendationReasons).toContain("지금 먹기 좋은 메뉴");
+    expect(result.findIndex((item) => item.id === "poor-season")).toBeGreaterThan(0);
   });
 
   it("ranks Re:Taste places from precomputed trust signals", () => {

@@ -12,7 +12,7 @@ import { parseMapState } from "../features/maps/map-state";
 import { getPlaceRecommendationPage } from "../features/places/place-recommendation.server";
 import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -36,12 +36,19 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
   const recommendationFetcher = useFetcher<typeof recommendationLoader>();
   const [selectedBadges, setSelectedBadges] = useState(loaderData.recommendations.selectedBadges);
+  const [recommendations, setRecommendations] = useState(loaderData.recommendations);
   const [limitReached, setLimitReached] = useState(false);
+  useEffect(() => setRecommendations(loaderData.recommendations), [loaderData.recommendations]);
+  useEffect(() => setSelectedBadges(loaderData.recommendations.selectedBadges), [loaderData.recommendations.selectedBadges]);
+  useEffect(() => {
+    if (recommendationFetcher.data?.ok) setRecommendations(recommendationFetcher.data.recommendations);
+  }, [recommendationFetcher.data]);
   const detailSlug = params.get("place");
   const openDetail = (slug: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("place", slug); return next; });
   const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
-  const recommendations = recommendationFetcher.data ?? loaderData.recommendations;
+  const recommendationError = recommendationFetcher.data && !recommendationFetcher.data.ok
+    ? recommendationFetcher.data.message : null;
   const toggleBadge = (id: string) => {
     const next = toggleRecommendationSelection(selectedBadges, id);
     setLimitReached(next.limitReached);
@@ -70,6 +77,7 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
       pending={recommendationFetcher.state !== "idle"}
       onToggle={toggleBadge}
     />
+    {recommendationError && <p className="discovery-resource-error" role="status">{recommendationError}</p>}
 
     <section className="discovery-recommendations" aria-live="polite" aria-busy={recommendationFetcher.state !== "idle"}>
       <header className="discovery-recommendations__title"><p className="eyebrow">FOR YOUR MOMENT</p><h2>{recommendations.title}</h2></header>

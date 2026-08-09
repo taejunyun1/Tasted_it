@@ -1,6 +1,6 @@
 import { calculateRating } from "../ratings/rating-v1";
 import type { PlaceSummary } from "./place.types";
-import { TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
+import { seasonForMonth, TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
 
 export interface DiscoveryCenter {
   latitude: number;
@@ -97,7 +97,7 @@ export function buildDiscoverySections(
 }
 
 function normalizedPlaceText(place: PlaceSummary) {
-  return `${place.name} ${place.primaryCategory.slug} ${place.primaryCategory.name}`.toLocaleLowerCase("ko-KR").replace(/\s+/g, "");
+  return `${place.name} ${place.primaryCategory.slug} ${place.primaryCategory.name} ${place.searchText ?? ""}`.toLocaleLowerCase("ko-KR").replace(/\s+/g, "");
 }
 
 function matchesTerms(place: PlaceSummary, terms: string[]) {
@@ -143,25 +143,39 @@ export function rankPersonalDiscovery(input: {
 }) {
   const limit = input.limit ?? 8;
   const tasteIds = input.selectedBadges.length ? input.selectedBadges : input.userBadgeIds.slice(0, 3);
-  const directTerms = tasteIds.flatMap(termsForBadge);
   const adjacentTerms = tasteIds.flatMap((id) => TASTE_ADJACENCY[id] ?? []);
+  const seasonalTerms = termsForBadge(`season-${seasonForMonth(input.month).toLocaleLowerCase()}`);
+  const wantsDiscovery = input.selectedBadges.includes("discovery-new-taste");
+  const wantsNeighborhood = input.selectedBadges.includes("discovery-neighborhood");
+  const wantsTrusted = input.selectedBadges.includes("general-trusted");
   const scored = input.places.map((place) => {
-    const mode = matchesTerms(place, directTerms) ? "FAMILIAR" : matchesTerms(place, adjacentTerms) ? "ADJACENT" : "EXPLORATION";
+    const matchedTasteId = tasteIds.find((id) => matchesTerms(place, termsForBadge(id)));
+    const mode = matchedTasteId ? "FAMILIAR" : matchesTerms(place, adjacentTerms) ? "ADJACENT" : "EXPLORATION";
     const modeBoost = mode === "FAMILIAR" ? 0.35 : mode === "ADJACENT" ? 0.22 : 0.08;
-    const score = qualityScore(place) * 0.45 + distanceScore(input.center, place) * 0.2 + modeBoost;
-    const recommendationReasons = mode === "FAMILIAR"
-      ? [`${tasteIds.map((id) => termsForBadge(id)[0]).find(Boolean) ?? "선택한"} 취향과 가까움`]
-      : mode === "ADJACENT" ? ["평소 취향에서 한 발짝"] : ["오늘의 새로운 메뉴"];
+    const quality = qualityScore(place);
+    const distance = distanceScore(input.center, place);
+    const seasonalMatch = matchesTerms(place, seasonalTerms);
+    const seasonalBoost = seasonalMatch && quality >= 0.55 ? Math.min(0.15, 0.08 + quality * 0.07) : 0;
+    const directionBoost = (wantsDiscovery && mode === "EXPLORATION" ? 0.12 : 0)
+      + (wantsNeighborhood ? distance * 0.12 : 0)
+      + (wantsTrusted ? quality * 0.12 : 0);
+    const score = quality * 0.45 + distance * 0.2 + modeBoost + seasonalBoost + directionBoost;
+    const recommendationReasons = [
+      mode === "FAMILIAR"
+        ? `${termsForBadge(matchedTasteId!)[0] ?? "선택한"} 취향과 가까움`
+        : mode === "ADJACENT" ? "평소 취향에서 한 발짝" : "오늘의 새로운 메뉴",
+      ...(seasonalBoost > 0 ? ["지금 먹기 좋은 메뉴"] : []),
+    ].slice(0, 2);
     return { ...place, distanceMeters: distanceInMeters(input.center, place), discoveryMode: mode as DiscoveryPlace["discoveryMode"], recommendationReasons, _score: score };
   }).sort((left, right) => right._score - left._score || left.name.localeCompare(right.name, "ko"));
   const familiar = scored.filter((item) => item.discoveryMode === "FAMILIAR");
   const adjacent = scored.filter((item) => item.discoveryMode === "ADJACENT");
   const exploration = scored.filter((item) => item.discoveryMode === "EXPLORATION");
   const output: typeof scored = [];
-  takeDiverse(output, familiar, Math.max(0, limit - 4));
+  takeDiverse(output, familiar, Math.max(0, limit - Math.min(4, Math.ceil(limit / 2))));
   takeDiverse(output, adjacent, Math.max(output.length, limit - 2));
   takeDiverse(output, exploration, Math.min(limit, output.length + 2));
-  takeDiverse(output, [...familiar, ...adjacent], limit);
+  takeDiverse(output, [...familiar, ...adjacent, ...exploration], limit);
   return output.map(({ _score: _, ...place }) => place);
 }
 

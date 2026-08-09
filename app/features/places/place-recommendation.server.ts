@@ -81,8 +81,11 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
   const trustedAll = rankTrustedPlaces({ places: candidates, limit: Math.max(limit * 3, limit) });
   const trusted = withFallback(trustedAll.filter((place) => !goldenIds.has(place.id)), trustedAll, limit);
   const reserved = new Set([...goldenIds, ...trusted.map((place) => place.id)]);
-  const personalAll = rankPersonalDiscovery({ places: candidates, selectedBadges, userBadgeIds, center: input.center, month, limit: Math.max(limit * 3, limit) });
-  const personal = withFallback(personalAll.filter((place) => !reserved.has(place.id)), personalAll, limit);
+  const personalPreferred = rankPersonalDiscovery({
+    places: candidates.filter((place) => !reserved.has(place.id)), selectedBadges, userBadgeIds, center: input.center, month, limit,
+  });
+  const personalFallback = rankPersonalDiscovery({ places: candidates, selectedBadges, userBadgeIds, center: input.center, month, limit });
+  const personal = withFallback(personalPreferred, personalFallback, limit);
 
   return {
     chips: buildRecommendationChips({ userBadges: userBadgeIds, month }),

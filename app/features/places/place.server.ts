@@ -160,6 +160,7 @@ async function selectPublicPlaces(
       phone: places.phone,
       parkingSummary: places.parkingSummary,
       heroImageUrl: places.heroImageUrl,
+      searchText: places.searchText,
       kakaoPlaceId: places.kakaoPlaceId,
       categorySlug: categories.slug,
       categoryName: categories.name,
@@ -189,6 +190,7 @@ async function selectPublicPlaces(
     phone: row.phone,
     parkingSummary: row.parkingSummary,
     heroImageUrl: row.heroImageUrl,
+    searchText: row.searchText,
     kakaoPlaceId: row.kakaoPlaceId,
     primaryCategory: {
       slug: row.categorySlug,

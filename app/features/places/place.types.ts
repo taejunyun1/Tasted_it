@@ -36,6 +36,7 @@ export interface PlaceSummary {
   latitude: number;
   longitude: number;
   heroImageUrl: string | null;
+  searchText?: string;
   primaryCategory: { slug: string; name: string; emoji: string };
   positive: number;
   negative: number;
