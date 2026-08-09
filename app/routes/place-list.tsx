@@ -57,8 +57,8 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
     <header className="discovery-hero">
       <div>
         <p className="eyebrow">PLACES / DISCOVERY</p>
-        <h1>오늘의 한 끼를<br />먼저 골라봤어요</h1>
-        <p>현재 지도 범위와 Re:Taste 평가를 바탕으로 구성했습니다.</p>
+        <h1>좋아하는 맛과<br />낯선 한 끼 사이.</h1>
+        <p>광주·전남의 검수된 장소를 취향, 평가 신뢰도, 리뷰어 선택으로 다시 엮었습니다.</p>
       </div>
       <Link className="discovery-map-link" to={`/${loaderData.search}`}>지도에서 보기</Link>
     </header>
@@ -73,8 +73,8 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
 
     <section className="discovery-recommendations" aria-live="polite" aria-busy={recommendationFetcher.state !== "idle"}>
       <header className="discovery-recommendations__title"><p className="eyebrow">FOR YOUR MOMENT</p><h2>{recommendations.title}</h2></header>
-      <PlaceDiscoveryRail title="취향과 새로운 발견" description="익숙한 취향과 평소와 다른 메뉴를 함께 구성했습니다." places={recommendations.personal} kind="nearby" onOpenDetail={openDetail} />
-      <PlaceDiscoveryRail title="Re:Taste 추천" description="평가 표본과 회원·리뷰어 신뢰 신호를 함께 봅니다." places={recommendations.trusted} kind="service" onOpenDetail={openDetail} />
+      <PlaceDiscoveryRail title="취향과 새로운 발견" description="익숙한 취향 네 곳, 이어지는 맛 두 곳, 평소와 다른 선택 두 곳을 섞었습니다." places={recommendations.personal} kind="personal" onOpenDetail={openDetail} />
+      <PlaceDiscoveryRail title="Re:Taste 추천" description="높은 추천률보다 충분한 평가와 회원·리뷰어의 의견 일치를 먼저 봅니다." places={recommendations.trusted} kind="trusted" onOpenDetail={openDetail} />
       <PlaceDiscoveryRail title="Golden Pick 취향 릴레이" description="서로 다른 리뷰어와 메뉴의 선택을 이어봅니다." places={recommendations.golden} kind="golden" onOpenDetail={openDetail} />
     </section>
 
