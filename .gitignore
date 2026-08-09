@@ -11,5 +11,6 @@ build/
 worker-configuration.d.ts
 playwright-report/
 test-results/
+output/playwright/
 .playwright-cli/
 .superpowers/
