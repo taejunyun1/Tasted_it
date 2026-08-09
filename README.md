@@ -29,6 +29,8 @@ pnpm dev --host 127.0.0.1
 | `APP_BASE_URL` | 이메일 링크의 공개 서비스 기준 URL | 환경별 변수 또는 secret |
 | `GOOGLE_CLIENT_ID` | Google OAuth 웹 클라이언트 ID와 ID 토큰 audience 검증 | secret |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 승인 코드 교환 | secret |
+| `NAVER_LOGIN_CLIENT_ID` | 네이버 로그인 OIDC Client ID | secret |
+| `NAVER_LOGIN_CLIENT_SECRET` | 네이버 로그인 승인 코드 교환·연동 해제 | secret |
 
 예시:
 
@@ -41,6 +43,8 @@ pnpm exec wrangler secret put RESEND_FROM_EMAIL
 pnpm exec wrangler secret put APP_BASE_URL
 pnpm exec wrangler secret put GOOGLE_CLIENT_ID
 pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm exec wrangler secret put NAVER_LOGIN_CLIENT_ID
+pnpm exec wrangler secret put NAVER_LOGIN_CLIENT_SECRET
 pnpm exec wrangler secret list
 ```
 
@@ -61,6 +65,17 @@ https://retaste-beta.retaste-beta.workers.dev/auth/google/callback
 ```
 
 Google 로그인은 `openid email profile` 권한만 사용합니다. 클라이언트 보안 비밀번호, 승인 코드, Google 토큰은 저장소·DB·로그에 남기지 않습니다.
+
+네이버 개발자센터의 네이버 로그인 애플리케이션에는 다음 Callback URL을 정확히 등록합니다.
+
+```text
+http://localhost:5173/auth/naver/callback
+https://retaste-beta.retaste-beta.workers.dev/auth/naver/callback
+```
+
+네이버 로그인은 `openid` 권한과 이메일·이름/닉네임만 사용합니다. `NAVER_MAPS_CLIENT_ID`와 로그인 Client ID는 서로 다른 값입니다. 승인 코드, 액세스 토큰, 갱신 토큰은 저장소·DB·로그에 남기지 않습니다. 전체 이용자에게 공개하기 전 네이버 개발자센터 검수를 완료해야 하며, 검수 전에는 등록된 개발 계정으로만 확인합니다.
+
+운영 반영 순서는 `0016_naver_oidc_auth.sql` 원격 D1 migration 적용, 네이버 비밀값 등록, 병합된 `main` 배포, 지정 개발 계정 로그인·연결·해제 스모크 확인입니다.
 
 ## 검증
 

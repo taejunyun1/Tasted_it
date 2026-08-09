@@ -7,6 +7,8 @@ test("login uses verified email credentials and ignores external return targets"
   await expect(page.getByLabel("비밀번호")).toBeVisible();
   await expect(page.getByRole("link", { name: "회원가입" })).toBeVisible();
   await expect(page.getByRole("link", { name: "비밀번호 재설정" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Google로 계속하기" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "네이버로 계속하기" })).toBeVisible();
 });
 
 test("an authenticated member skips login and logout returns to the map", async ({ context, page }, testInfo) => {
