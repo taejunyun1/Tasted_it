@@ -15,7 +15,7 @@ test("header keeps two primary links and places secondary actions in a hamburger
   await page.goto("/");
 
   await expect(page.getByRole("link", { name: "맛집 리스트", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "내 상태", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "나의 취향", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "로그인", exact: true })).toBeHidden();
 
   await page.getByRole("button", { name: "메뉴" }).click();

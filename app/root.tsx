@@ -21,7 +21,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <div className="site-head__primary">
           <Link to="/places">맛집 리스트</Link>
           <Link to="/courses">코스 추천</Link>
-          <Link to="/me">내 상태</Link>
+          <Link to="/me">나의 취향</Link>
         </div>
         <details className="site-menu" key={location.pathname}>
           <summary role="button" aria-label="메뉴"><span aria-hidden="true">☰</span></summary>
