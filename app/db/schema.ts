@@ -26,6 +26,37 @@ export const users = sqliteTable("users", {
   ...timestamps,
 });
 
+export const tasteBadges = sqliteTable(
+  "taste_badges",
+  {
+    id: text("id").primaryKey(),
+    category: text("category", { enum: ["FOOD", "TASTE", "STYLE"] }).notNull(),
+    label: text("label").notNull().unique(),
+    headlineNoun: text("headline_noun").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [index("taste_badges_category_active_idx").on(table.category, table.isActive, table.sortOrder)],
+);
+
+export const userTasteBadges = sqliteTable(
+  "user_taste_badges",
+  {
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    badgeId: text("badge_id").notNull().references(() => tasteBadges.id, { onDelete: "restrict" }),
+    source: text("source", { enum: ["USER", "NAVER", "GOOGLE", "INFERRED"] }).notNull(),
+    score: real("score").notNull(),
+    evidenceJson: text("evidence_json").notNull().default("{}"),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.badgeId, table.source] }),
+    index("user_taste_badges_user_score_idx").on(table.userId, table.score),
+    index("user_taste_badges_badge_idx").on(table.badgeId),
+  ],
+);
+
 export const authIdentities = sqliteTable(
   "auth_identities",
   {

@@ -2,6 +2,16 @@ INSERT OR IGNORE INTO users (id,email,display_name,role,email_verified_at,create
 VALUES ('qa-admin','qa-admin@retaste.local','QA 관리자','ADMIN','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z');
 INSERT OR REPLACE INTO sessions (id,user_id,expires_at,created_at)
 VALUES ('qa-admin-session','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z');
+
+DELETE FROM user_taste_badges WHERE user_id = 'qa-admin';
+INSERT INTO user_taste_badges
+(user_id,badge_id,source,score,evidence_json,created_at,updated_at)
+VALUES
+('qa-admin','food-tteokbokki','USER',0.92,'{"fixture":"profile-ui"}','2026-08-09T00:00:00Z','2026-08-09T00:00:00Z'),
+('qa-admin','food-gukbap','USER',0.88,'{"fixture":"profile-ui"}','2026-08-09T00:00:00Z','2026-08-09T00:00:00Z'),
+('qa-admin','taste-broth','USER',0.86,'{"fixture":"profile-ui"}','2026-08-09T00:00:00Z','2026-08-09T00:00:00Z'),
+('qa-admin','style-old-school','USER',0.81,'{"fixture":"profile-ui"}','2026-08-09T00:00:00Z','2026-08-09T00:00:00Z'),
+('qa-admin','style-local','USER',0.79,'{"fixture":"profile-ui"}','2026-08-09T00:00:00Z','2026-08-09T00:00:00Z');
 INSERT OR REPLACE INTO sessions (id,user_id,expires_at,created_at) VALUES
 ('qa-login-flow-desktop','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
 ('qa-login-flow-mobile','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z');

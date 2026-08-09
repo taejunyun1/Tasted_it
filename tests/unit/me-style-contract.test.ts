@@ -8,9 +8,13 @@ describe("me style contract", () => {
     for (const selector of [
       ".member-hub",
       ".member-profile",
-      ".member-signal-list",
+      ".member-profile__avatar",
+      ".member-taste-badges",
+      '[data-category="FOOD"]',
+      '[data-category="TASTE"]',
+      '[data-category="STYLE"]',
       ".member-activity-grid",
-      ".member-account-card",
+      ".member-connection-badges",
     ]) expect(css).toContain(selector);
     expect(css).toContain("#e7ff55");
     expect(css).toMatch(/@media\(max-width:900px\)[\s\S]*\.member-/);

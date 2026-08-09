@@ -11,6 +11,7 @@ import { authIdentities, users } from "../db/schema";
 import { naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
 import { requireUser } from "../features/auth/session.server";
 import { listMemberTaste } from "../features/members/member.server";
+import { getMemberTasteProfile } from "../features/members/profile-taste.server";
 import { getMemberTasteGraph } from "../features/ratings/flavor-print.server";
 import { setSaved } from "../features/saves/save.server";
 
@@ -29,14 +30,22 @@ export async function loader({ request }: Route.LoaderArgs) {
     getMemberTasteGraph(db, user.id),
   ]);
   const naverConnected = identities.some((identity) => identity.provider === "NAVER");
-  const hasAlternativeLogin = Boolean(account?.passwordHash || identities.some((identity) => identity.provider !== "NAVER"));
+  const googleConnected = identities.some((identity) => identity.provider === "GOOGLE");
+  const tasteProfile = await getMemberTasteProfile(db, {
+    userId: user.id,
+    displayName: user.displayName,
+    saved: taste.saved,
+    rated: taste.rated,
+    tasteGraph,
+  });
 
   return {
     user,
     ...taste,
     tasteGraph,
+    tasteProfile,
     naverConnected,
-    hasAlternativeLogin,
+    googleConnected,
     emailVerified: Boolean(account?.emailVerifiedAt),
     oauthError: url.searchParams.get("oauthProvider") === "naver"
       ? naverOAuthErrorMessage(url.searchParams.get("oauthError"))
@@ -61,28 +70,33 @@ export default function Me({ loaderData }: Route.ComponentProps) {
   return <main id="main" className="member-hub">
     <div className="shell">
       <header className="member-profile">
-        <div className="member-profile__identity">
-          <p className="eyebrow">MY TASTE / PROFILE</p>
-          <h1>{loaderData.user.displayName}님의 취향</h1>
-          <p className="member-profile__email">
-            {loaderData.user.email}
-            <span data-verified={loaderData.emailVerified || undefined}>{loaderData.emailVerified ? "이메일 확인됨" : "이메일 확인 필요"}</span>
-          </p>
+        <div className="member-profile__person">
+          <span className="member-profile__avatar" aria-hidden="true">{loaderData.user.displayName.trim().slice(0, 1)}</span>
+          <div>
+            <strong>{loaderData.user.displayName}</strong>
+            <p className="member-profile__email">
+              {loaderData.user.email}
+              <span data-verified={loaderData.emailVerified || undefined}>{loaderData.emailVerified ? "이메일 확인됨" : "이메일 확인 필요"}</span>
+            </p>
+          </div>
+        </div>
+
+        <TasteSignals profile={loaderData.tasteProfile} placeCount={loaderData.tasteGraph.placeCount} />
+
+        <div className="member-profile__footer">
           <div className="member-profile__stats" aria-label="나의 활동 요약">
             <span><strong>{loaderData.saved.length}</strong> 저장</span>
             <span><strong>{loaderData.rated.length}</strong> 평가</span>
-            <span><strong>{loaderData.tasteGraph.placeCount}</strong> 취향 반영</span>
+            <span><strong>{loaderData.tasteProfile.vector.length}</strong> 취향 신호</span>
           </div>
+          <Link className="member-reviewer-link" to="/reviewer/apply">리뷰어 신청·상태</Link>
         </div>
-        <Link className="member-reviewer-link" to="/reviewer/apply">리뷰어 신청·상태</Link>
       </header>
 
       {loaderData.oauthError && <p role="alert" className="member-notice member-notice--error">{loaderData.oauthError}</p>}
       {loaderData.oauthSuccess && <p role="status" className="member-notice">
         {loaderData.oauthSuccess === "naver_connected" ? "네이버 계정을 연결했습니다." : "네이버 연동을 해제했습니다."}
       </p>}
-
-      <TasteSignals graph={loaderData.tasteGraph} />
 
       <section className="member-activity" aria-labelledby="member-activity-title">
         <div className="member-activity__heading">
@@ -125,7 +139,7 @@ export default function Me({ loaderData }: Route.ComponentProps) {
         </div>
       </section>
 
-      <AccountConnections naverConnected={loaderData.naverConnected} hasAlternativeLogin={loaderData.hasAlternativeLogin} />
+      <AccountConnections naverConnected={loaderData.naverConnected} googleConnected={loaderData.googleConnected} />
     </div>
   </main>;
 }

@@ -1,35 +1,25 @@
 import { Link } from "react-router";
 
-import { selectTasteSignals, type TasteGraph } from "../../features/members/taste-signals";
+import type { DisplayTasteBadge } from "../../features/members/profile-taste-badges";
 
-export function TasteSignals({ graph }: { graph: TasteGraph }) {
-  const summary = selectTasteSignals(graph);
-
-  return <section className="member-signals" aria-labelledby="taste-signals-title">
-    <header className="member-section-heading">
-      <div>
-        <p className="eyebrow">MY TASTE SIGNALS</p>
-        <h2 id="taste-signals-title">나의 취향 신호</h2>
-      </div>
-      <span>{graph.placeCount}곳 반영</span>
-    </header>
-
-    {summary.status === "VISIBLE" ? <>
-      <ul className="member-signal-list" aria-label="대표 취향">
-        {summary.signals.map((signal, index) => <li data-primary={index === 0 || undefined} key={signal.key}>{signal.label}</li>)}
-      </ul>
-      <div className="member-taste-meters">
-        {graph.dimensions.map((dimension) => <div key={dimension.key}>
-          <span>{dimension.key}</span>
-          <meter aria-label={`${dimension.key} 취향 값`} min="1" max="5" value={dimension.value}>{dimension.value.toFixed(1)}</meter>
-          <strong>{dimension.value.toFixed(1)}</strong>
-        </div>)}
-      </div>
-    </> : <div className="member-learning">
-      <span className="member-learning-badge">취향 학습 중 {summary.placeCount}/{summary.requiredPlaceCount}</span>
-      <progress aria-label="취향 학습 진행도" max={summary.requiredPlaceCount} value={summary.placeCount}>{summary.placeCount}/{summary.requiredPlaceCount}</progress>
-      <p>장소를 평가할수록 코스 추천이 더 선명해져요.</p>
+export function TasteSignals({ profile, placeCount }: {
+  profile: { headline: string; badges: DisplayTasteBadge[] };
+  placeCount: number;
+}) {
+  return <div className="member-profile__taste">
+    <p className="eyebrow">MY TASTE / PROFILE</p>
+    <h1>{profile.headline}</h1>
+    {profile.badges.length > 0 ? <ul className="member-taste-badges" aria-label="대표 취향">
+      {profile.badges.map((badge, index) => <li
+        data-category={badge.category}
+        data-primary={index === 0 || undefined}
+        key={badge.id}
+      >{badge.label}</li>)}
+    </ul> : <div className="member-learning member-learning--compact">
+      <span className="member-learning-badge">취향 학습 중 {placeCount}/5</span>
+      <progress aria-label="취향 학습 진행도" max={5} value={Math.min(placeCount, 5)}>{placeCount}/5</progress>
+      <p>좋아하는 장소를 저장하고 평가하면 음식·맛·식당 스타일 배지가 생겨요.</p>
       <Link to="/places">맛집 둘러보기</Link>
     </div>}
-  </section>;
+  </div>;
 }

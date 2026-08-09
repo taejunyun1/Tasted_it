@@ -38,6 +38,8 @@ import {
   parkingEvLinks,
   authIdentities,
   oauthRequests,
+  tasteBadges,
+  userTasteBadges,
 } from "../../app/db/schema";
 
 describe("week 1 schema", () => {
@@ -98,5 +100,12 @@ describe("week 1 schema", () => {
     expect(oauthRequests.flow).toBeDefined();
     expect(oauthRequests.codeVerifier).toBeDefined();
     expect(oauthRequests.userId).toBeDefined();
+  });
+
+  it("exports profile taste badge and source score tables", () => {
+    expect(tasteBadges.category).toBeDefined();
+    expect(tasteBadges.headlineNoun).toBeDefined();
+    expect(userTasteBadges.score).toBeDefined();
+    expect(userTasteBadges.source).toBeDefined();
   });
 });
