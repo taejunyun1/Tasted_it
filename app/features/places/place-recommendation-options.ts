@@ -42,6 +42,12 @@ export function parseRecommendationSelection(values: string[]) {
   return [...new Set(values)].filter((value) => knownIds.has(value)).slice(0, 2);
 }
 
+export function toggleRecommendationSelection(selected: string[], id: string) {
+  if (selected.includes(id)) return { selected: selected.filter((value) => value !== id), limitReached: false };
+  if (selected.length >= 2) return { selected, limitReached: true };
+  return { selected: [...selected, id], limitReached: false };
+}
+
 export function buildRecommendationChips(input: { userBadges: string[]; month: number }): RecommendationChip[] {
   const chips: RecommendationChip[] = [];
   const add = (chip: RecommendationChip | null) => {
@@ -89,4 +95,3 @@ export function termsForBadge(id: string) {
   const badge = catalog.get(id);
   return badge ? [...(badge.matchTerms ?? []), badge.headlineNoun, badge.label] : [];
 }
-

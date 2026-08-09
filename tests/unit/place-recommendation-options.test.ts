@@ -4,6 +4,7 @@ import {
   buildRecommendationChips,
   buildRecommendationTitle,
   parseRecommendationSelection,
+  toggleRecommendationSelection,
 } from "../../app/features/places/place-recommendation-options";
 
 describe("place recommendation options", () => {
@@ -31,5 +32,16 @@ describe("place recommendation options", () => {
     expect(buildRecommendationTitle(["food-gukbap", "style-old-school"], 1)).toBe("오래된 집에서 뜨끈하게");
     expect(buildRecommendationTitle(["discovery-new-taste"], 8)).toBe("평소와 다른 한 끼");
   });
-});
 
+  it("toggles at most two recommendation directions", () => {
+    expect(toggleRecommendationSelection(["food-gukbap"], "style-old-school")).toEqual({
+      selected: ["food-gukbap", "style-old-school"], limitReached: false,
+    });
+    expect(toggleRecommendationSelection(["food-gukbap", "style-old-school"], "taste-spicy")).toEqual({
+      selected: ["food-gukbap", "style-old-school"], limitReached: true,
+    });
+    expect(toggleRecommendationSelection(["food-gukbap", "style-old-school"], "food-gukbap")).toEqual({
+      selected: ["style-old-school"], limitReached: false,
+    });
+  });
+});

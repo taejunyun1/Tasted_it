@@ -38,6 +38,7 @@ function withFallback<T extends { id: string }>(preferred: T[], all: T[], limit:
 export async function getPlaceRecommendationPage(db: AppDb, input: {
   userId?: string | null;
   bbox: [number, number, number, number];
+  categorySlug?: string;
   center: DiscoveryCenter;
   selectedBadges: string[];
   now: string;
@@ -45,7 +46,7 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
 }): Promise<PlaceRecommendationPage> {
   const limit = input.limit ?? 8;
   const [places, goldenPicks, storedTaste] = await Promise.all([
-    listRecommendationCandidates(db, { bbox: input.bbox, limit: 500 }),
+    listRecommendationCandidates(db, { bbox: input.bbox, categorySlug: input.categorySlug, limit: 500 }),
     listActiveGoldenPicks(db, input.now),
     input.userId ? db.select({ badgeId: userTasteBadges.badgeId, score: userTasteBadges.score })
       .from(userTasteBadges).where(eq(userTasteBadges.userId, input.userId)).orderBy(desc(userTasteBadges.score)) : Promise.resolve([]),
@@ -92,4 +93,3 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
     golden,
   };
 }
-
