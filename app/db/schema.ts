@@ -33,7 +33,7 @@ export const authIdentities = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    provider: text("provider", { enum: ["GOOGLE"] }).notNull(),
+    provider: text("provider", { enum: ["GOOGLE", "NAVER"] }).notNull(),
     providerSubject: text("provider_subject").notNull(),
     providerEmail: text("provider_email").notNull(),
     ...timestamps,
@@ -55,8 +55,18 @@ export const oauthRequests = sqliteTable(
   "oauth_requests",
   {
     id: text("id").primaryKey(),
+    provider: text("provider", { enum: ["GOOGLE", "NAVER"] })
+      .notNull()
+      .default("GOOGLE"),
+    flow: text("flow", { enum: ["LOGIN", "CONNECT", "DISCONNECT"] })
+      .notNull()
+      .default("LOGIN"),
     stateHash: text("state_hash").notNull().unique(),
     nonce: text("nonce").notNull(),
+    codeVerifier: text("code_verifier"),
+    userId: text("user_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
     returnTo: text("return_to").notNull(),
     expiresAt: text("expires_at").notNull(),
     consumedAt: text("consumed_at"),

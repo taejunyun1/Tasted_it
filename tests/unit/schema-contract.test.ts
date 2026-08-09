@@ -36,6 +36,8 @@ import {
   parkingFacilities,
   evChargingStations,
   parkingEvLinks,
+  authIdentities,
+  oauthRequests,
 } from "../../app/db/schema";
 
 describe("week 1 schema", () => {
@@ -88,5 +90,13 @@ describe("week 1 schema", () => {
     expect([parkingDataSnapshots, parkingSyncRuns, parkingFacilities, evChargingStations, parkingEvLinks]).toHaveLength(5);
     expect(parkingFacilities.reliabilityGrade).toBeDefined();
     expect(parkingDataSnapshots.status).toBeDefined();
+  });
+
+  it("exports provider-aware OAuth identity and request fields", () => {
+    expect(authIdentities.provider).toBeDefined();
+    expect(oauthRequests.provider).toBeDefined();
+    expect(oauthRequests.flow).toBeDefined();
+    expect(oauthRequests.codeVerifier).toBeDefined();
+    expect(oauthRequests.userId).toBeDefined();
   });
 });

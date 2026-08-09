@@ -8,5 +8,7 @@ declare namespace Cloudflare {
     APP_BASE_URL: string;
     GOOGLE_CLIENT_ID: string;
     GOOGLE_CLIENT_SECRET: string;
+    NAVER_LOGIN_CLIENT_ID: string;
+    NAVER_LOGIN_CLIENT_SECRET: string;
   }
 }
