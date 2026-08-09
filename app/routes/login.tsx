@@ -10,6 +10,7 @@ import {
   oauthErrorMessage,
 } from "../features/auth/google-auth-ui";
 import { safeReturnTo } from "../features/auth/login";
+import { NaverAuthButton, naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
 import { createUserSession, getOptionalUser } from "../features/auth/session.server";
 
 const schema = z.object({ email: z.email(), password: z.string().min(1), returnTo: z.string().optional() });
@@ -19,7 +20,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   return {
     returnTo: safeReturnTo(url.searchParams.get("returnTo")),
-    oauthError: oauthErrorMessage(url.searchParams.get("oauthError")),
+    oauthError:
+      url.searchParams.get("oauthProvider") === "naver"
+        ? naverOAuthErrorMessage(url.searchParams.get("oauthError"))
+        : oauthErrorMessage(url.searchParams.get("oauthError")),
   };
 }
 export async function action({ request }: Route.ActionArgs) {
@@ -37,7 +41,7 @@ export async function action({ request }: Route.ActionArgs) {
 export default function Login({ actionData, loaderData }: Route.ComponentProps) {
   return <AuthPage eyebrow="WELCOME BACK" title="다시 취향을 이어가세요." description="가입한 이메일과 비밀번호로 로그인합니다.">
     {loaderData.oauthError && <p className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{loaderData.oauthError}</p>}
-    <div className="mt-8"><GoogleAuthButton returnTo={loaderData.returnTo} /></div>
+    <div className="mt-8 grid gap-3"><GoogleAuthButton returnTo={loaderData.returnTo} /><NaverAuthButton returnTo={loaderData.returnTo} /></div>
     <AuthDivider />
     <Form method="post" action="/login" className="grid gap-5">
       <input type="hidden" name="returnTo" value={loaderData.returnTo} />

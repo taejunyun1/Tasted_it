@@ -23,7 +23,7 @@ import { createUserSession } from "../features/auth/session.server";
 
 function errorRedirect(requestUrl: string, target: string, code: NaverFailureCode | "cancelled") {
   const separator = target.includes("?") ? "&" : "?";
-  return redirect(`${target}${separator}oauthError=${code}`, {
+  return redirect(`${target}${separator}oauthError=${code}&oauthProvider=naver`, {
     headers: { "Set-Cookie": expireNaverOAuthRequestCookie(requestUrl) },
   });
 }
