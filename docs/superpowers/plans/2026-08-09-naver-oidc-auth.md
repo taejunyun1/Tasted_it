@@ -121,4 +121,3 @@
 - [x] **Step 2: Run `pnpm test`, `pnpm test:integration`, `pnpm run typecheck`, `pnpm run build`, and relevant Playwright tests.**
 - [x] **Step 3: Run `git diff --check`, review `git diff origin/main...HEAD`, and confirm no token/secret strings are tracked.**
 - [x] **Step 4: Commit** with `git commit -m "2026-08-09 네이버 인증 운영 문서 정리"`.
-
