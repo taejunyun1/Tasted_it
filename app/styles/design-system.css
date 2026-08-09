@@ -208,3 +208,99 @@
     margin-top:var(--page-section-gap);
   }
 }
+
+/* Shared admin frame: same brand system, denser operational rhythm */
+:where(.admin-page,.admin-candidates,.admin-rating-shell,.place-ops,.operation-list,.operation-form){
+  --admin-section-gap:var(--space-12);
+  color:var(--color-ink);
+}
+
+.admin-page{
+  background:var(--surface-page);
+}
+
+.admin-page-frame,
+:is(.admin-candidates,.admin-rating-shell,.place-ops,.operation-list,.operation-form){
+  width:min(var(--layout-max),calc(100% - (var(--layout-gutter) * 2)));
+  max-width:var(--layout-max);
+  margin-inline:auto;
+}
+
+:is(.admin-candidates,.admin-rating-shell,.place-ops){
+  padding-top:var(--page-start-admin);
+  padding-bottom:var(--space-24);
+}
+
+.admin-page.admin-page-frame,
+.operation-list,
+.operation-form{
+  padding-top:var(--page-start-admin);
+  padding-bottom:var(--space-24);
+}
+
+.admin-page>header>.admin-page-frame{
+  padding-block:var(--page-start-admin) var(--space-6);
+  padding-inline:0;
+}
+
+.admin-page>header+.admin-page-frame,
+.admin-page>header~.admin-page-frame{
+  padding-inline:0;
+}
+
+:is(.admin-head,.place-ops-head,.admin-rating-shell>header){
+  padding-bottom:var(--space-6);
+}
+
+:is(.admin-rating-section,.place-ops-section){
+  padding:var(--space-8) 0;
+}
+
+:is(.candidate-filters,.sync-form){
+  gap:var(--space-2);
+  padding:var(--space-6) 0;
+}
+
+:is(.admin-page,.admin-candidates,.admin-rating-shell,.place-ops) :is(button,input,select,textarea),
+:is(.operation-list,.operation-form) :is(button,input,select,textarea){
+  min-height:var(--control-height-compact);
+  border-radius:var(--radius-control);
+}
+
+:is(.admin-page,.admin-candidates,.admin-rating-shell,.place-ops) :is(.admin-notice,.sync-result),
+.ops-dashboard-grid>article{
+  border-radius:var(--radius-control);
+}
+
+:is(.admin-rating-table article,.candidate-row,.ops-card,.ops-revision){
+  padding-block:var(--space-4);
+}
+
+:is(.admin-page,.admin-candidates,.admin-rating-shell,.place-ops) table :is(th,td){
+  padding:var(--space-3);
+}
+
+@media(max-width:760px){
+  .admin-page-frame,
+  :is(.admin-candidates,.admin-rating-shell,.place-ops,.operation-list,.operation-form){
+    width:min(var(--layout-max),calc(100% - (var(--layout-gutter-mobile) * 2)));
+  }
+
+  :is(.admin-candidates,.admin-rating-shell,.place-ops,.admin-page.admin-page-frame,.operation-list,.operation-form){
+    padding-top:var(--page-start-admin);
+    padding-bottom:var(--space-16);
+  }
+
+  .admin-page>header>.admin-page-frame{
+    padding-block:var(--page-start-admin) var(--space-5);
+  }
+
+  :is(.admin-page,.admin-candidates,.admin-rating-shell,.place-ops) :is(button,input,select,textarea),
+  :is(.operation-list,.operation-form) :is(button,input,select,textarea){
+    min-height:var(--control-height);
+  }
+
+  :is(.admin-rating-section,.place-ops-section){
+    padding:var(--space-6) 0;
+  }
+}

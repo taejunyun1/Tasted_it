@@ -88,7 +88,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function AdminImport({ actionData }: Route.ComponentProps) {
   return (
-    <main className="mx-auto max-w-4xl px-6 py-16">
+    <main className="admin-page admin-page-frame mx-auto max-w-4xl px-6 py-16">
       <Link className="text-sm underline" to="/admin/places">
         ← 장소 관리
       </Link>

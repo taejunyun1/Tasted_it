@@ -223,9 +223,9 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f6f2] text-neutral-950">
+    <main className="admin-page min-h-screen bg-[#f5f6f2] text-neutral-950">
       <header className="border-b border-neutral-300 bg-white">
-        <div className="mx-auto max-w-[1500px] px-5 py-8 md:px-10">
+        <div className="admin-page-frame mx-auto max-w-[1500px] px-5 py-8 md:px-10">
           <div>
             <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-emerald-800">ADMIN / PLACE REVIEW</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">장소 검수 목록</h1>
@@ -234,7 +234,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-[1500px] grid-cols-2 border-x border-b border-neutral-300 bg-white md:grid-cols-5">
+      <section className="admin-page-frame mx-auto grid max-w-[1500px] grid-cols-2 border-x border-b border-neutral-300 bg-white md:grid-cols-5">
         <Summary label="전체 대기" value={loaderData.counts.ALL} />
         <Summary label="분류 완료" value={loaderData.counts.AUTO} tone="text-emerald-800" />
         <Summary label="수동 확인" value={loaderData.counts.MANUAL} tone="text-amber-700" />
@@ -242,7 +242,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         <Summary label="체인점 제외" value={loaderData.counts.EXCLUDED} tone="text-violet-700" />
       </section>
 
-      <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-10">
+      <div className="admin-page-frame mx-auto max-w-[1500px] px-5 py-7 md:px-10">
         {reviewMode && <section className={`mb-5 border px-4 py-3 ${loaderData.aiQuota.blocked ? "border-amber-600 bg-amber-50" : "border-neutral-300 bg-white"}`} aria-label="AI 일일 사용량">
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><p><strong>Workers AI 오늘 사용량 {loaderData.aiQuota.used.toLocaleString()} / {loaderData.aiQuota.limit.toLocaleString()} Neurons</strong> <span className="text-neutral-500">({loaderData.aiQuota.percent}% · 앱 집계 기준)</span></p><span className="text-xs text-neutral-500">매일 UTC 00:00 초기화</span></div>
           <div className="mt-2 h-2 overflow-hidden bg-neutral-200"><div className={`h-full ${loaderData.aiQuota.blocked ? "bg-amber-600" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, loaderData.aiQuota.percent)}%` }} /></div>
