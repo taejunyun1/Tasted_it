@@ -20,4 +20,11 @@ describe("Re:Taste design system", () => {
       root.indexOf('import "./styles/design-system.css"'),
     );
   });
+
+  it("사용자 핵심 화면에 공통 페이지 리듬을 적용한다", () => {
+    expect(css).toContain(":where(.course-page,.discovery-page,.member-hub)");
+    expect(css).toContain("padding-top:var(--page-start-user)");
+    expect(css).toContain("--page-section-gap:var(--space-20)");
+    expect(css).toContain("padding:var(--space-8)");
+  });
 });
