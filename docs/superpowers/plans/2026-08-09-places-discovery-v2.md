@@ -116,4 +116,3 @@
 - [ ] 콘솔 오류, 수평 오버플로, 키보드 포커스와 reduced motion을 확인한다.
 - [ ] `git diff --check origin/main...HEAD`와 `git status --short`를 확인한다.
 - [ ] `git add` 후 `git commit -m "2026-08-09 맛집 발견 추천 검증 완료"`로 커밋한다.
-

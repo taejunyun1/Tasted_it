@@ -25,4 +25,3 @@ describe("place discovery visual contract", () => {
     expect(css).toContain("@media(prefers-reduced-motion:reduce){.discovery-page");
   });
 });
-

@@ -18,4 +18,3 @@ describe("place recommendation interaction contract", () => {
     expect(controls).toContain("최대 2개까지 선택할 수 있어요");
   });
 });
-

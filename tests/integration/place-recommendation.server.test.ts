@@ -55,4 +55,3 @@ describe("place recommendation server", () => {
     expect(result.golden[0]).toMatchObject({ id: goldenId, reviewerUserId: reviewerId });
   });
 });
-
