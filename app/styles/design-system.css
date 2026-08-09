@@ -1,0 +1,39 @@
+:root{
+  --layout-max:1280px;
+  --layout-gutter:20px;
+  --layout-gutter-mobile:14px;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-6:24px;
+  --space-8:32px;
+  --space-12:48px;
+  --space-14:56px;
+  --space-16:64px;
+  --space-20:80px;
+  --space-24:96px;
+  --page-start-user:var(--space-16);
+  --page-start-admin:var(--space-12);
+  --radius-control:12px;
+  --radius-card:20px;
+  --radius-feature:28px;
+  --radius-pill:999px;
+  --control-height:44px;
+  --control-height-compact:36px;
+  --surface-page:var(--atlas-paper,#f3f4ed);
+  --surface-card:#fff;
+  --surface-soft:var(--atlas-forest-soft,#dfe9df);
+  --color-ink:var(--atlas-ink,#17221c);
+  --color-accent:var(--atlas-forest,#2d674d);
+  --color-signal:var(--signal,#e7ff55);
+  --color-line:var(--atlas-line,#c8cdc2);
+}
+
+@media(max-width:760px){
+  :root{
+    --layout-gutter:var(--layout-gutter-mobile);
+    --page-start-user:var(--space-8);
+    --page-start-admin:28px;
+  }
+}

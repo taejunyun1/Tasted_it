@@ -2,6 +2,7 @@ import { Form, isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollR
 import type { Route } from "./+types/root";
 import { getOptionalUser } from "./features/auth/session.server";
 import "./app.css";
+import "./styles/design-system.css";
 
 export const links: Route.LinksFunction = () => [
   { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/sunn-us/SUIT/fonts/static/woff2/SUIT.css" },
