@@ -12,6 +12,8 @@ export default [
   route("signup", "routes/signup.tsx"),
   route("auth/google", "routes/auth-google.tsx"),
   route("auth/google/callback", "routes/auth-google-callback.tsx"),
+  route("auth/naver", "routes/auth-naver.tsx"),
+  route("auth/naver/callback", "routes/auth-naver-callback.tsx"),
   route("verify-email", "routes/verify-email.tsx"),
   route("forgot-password", "routes/forgot-password.tsx"),
   route("reset-password", "routes/reset-password.tsx"),

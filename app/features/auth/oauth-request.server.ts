@@ -52,7 +52,7 @@ export async function consumeOAuthRequest(
     id: string;
     state: string;
     provider: OAuthProvider;
-    flow: OAuthFlow;
+    flow?: OAuthFlow;
     now: Date;
   },
 ) {
@@ -61,7 +61,7 @@ export async function consumeOAuthRequest(
     where: and(
       eq(oauthRequests.id, input.id),
       eq(oauthRequests.provider, input.provider),
-      eq(oauthRequests.flow, input.flow),
+      ...(input.flow ? [eq(oauthRequests.flow, input.flow)] : []),
       eq(oauthRequests.stateHash, await sha256Hex(input.state)),
       isNull(oauthRequests.consumedAt),
       gt(oauthRequests.expiresAt, now),
@@ -90,4 +90,18 @@ export async function consumeOAuthRequest(
     provider: row.provider,
     flow: row.flow,
   };
+}
+
+export async function peekOAuthRequestContext(
+  db: AppDb,
+  input: { id: string; provider: OAuthProvider },
+) {
+  const row = await db.query.oauthRequests.findFirst({
+    where: and(
+      eq(oauthRequests.id, input.id),
+      eq(oauthRequests.provider, input.provider),
+    ),
+    columns: { flow: true, userId: true, returnTo: true },
+  });
+  return row ?? null;
 }
