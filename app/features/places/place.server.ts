@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
@@ -146,6 +146,7 @@ async function selectPublicPlaces(
   db: AppDb,
   filters: PlaceFilters,
   slug?: string,
+  options: { maxLimit?: number; recommendationOrder?: boolean } = {},
 ): Promise<PlaceDetail[]> {
   const rows = await db
     .select({
@@ -172,8 +173,10 @@ async function selectPublicPlaces(
     .leftJoin(currentVotes, eq(currentVotes.placeId, places.id))
     .where(publicConditions(filters, slug))
     .groupBy(places.id, categories.id)
-    .orderBy(asc(places.name), asc(places.id))
-    .limit(slug ? 1 : Math.min(filters.limit ?? 100, 100));
+    .orderBy(...(options.recommendationOrder
+      ? [desc(places.lastVerifiedAt), desc(places.updatedAt), asc(places.id)]
+      : [asc(places.name), asc(places.id)]))
+    .limit(slug ? 1 : Math.min(filters.limit ?? 100, options.maxLimit ?? 100));
 
   return rows.map((row) => ({
     id: row.id,
@@ -202,6 +205,16 @@ export async function listPlaces(
   filters: PlaceFilters = {},
 ): Promise<PlaceSummary[]> {
   return selectPublicPlaces(db, filters);
+}
+
+export async function listRecommendationCandidates(
+  db: AppDb,
+  filters: PlaceFilters = {},
+): Promise<PlaceSummary[]> {
+  return selectPublicPlaces(db, { ...filters, limit: Math.min(filters.limit ?? 500, 500) }, undefined, {
+    maxLimit: 500,
+    recommendationOrder: true,
+  });
 }
 
 export async function listPublicCategoryGroups(db: AppDb) {

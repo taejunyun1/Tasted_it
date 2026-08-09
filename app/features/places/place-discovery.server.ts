@@ -2,6 +2,7 @@ import type { AppDb } from "../../db/client.server";
 import { listActiveGoldenPicks } from "../ratings/golden-pick.server";
 import { buildDiscoverySections, type DiscoveryCenter } from "./place-discovery";
 import { listPlaces } from "./place.server";
+export { getPlaceRecommendationPage } from "./place-recommendation.server";
 
 export async function getPlaceDiscovery(
   db: AppDb,
