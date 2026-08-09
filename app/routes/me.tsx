@@ -1,16 +1,131 @@
 import { env } from "cloudflare:workers";
-import { Form, Link, redirect } from "react-router";
-import type { Route } from "./+types/me";
-import { createDb } from "../db/client.server";
-import { requireUser } from "../features/auth/session.server";
-import { listMemberTaste } from "../features/members/member.server";
-import { setSaved } from "../features/saves/save.server";
-import { getMemberTasteGraph } from "../features/ratings/flavor-print.server";
 import { eq } from "drizzle-orm";
+import { Form, Link, redirect } from "react-router";
+
+import type { Route } from "./+types/me";
+import { AccountConnections } from "../components/me/AccountConnections";
+import { ActivityCollection } from "../components/me/ActivityCollection";
+import { TasteSignals } from "../components/me/TasteSignals";
+import { createDb } from "../db/client.server";
 import { authIdentities, users } from "../db/schema";
 import { naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
-export async function loader({ request }: Route.LoaderArgs) { const user = await requireUser(request); const db = createDb(env.DB); const url = new URL(request.url); const identities = await db.select({ provider: authIdentities.provider }).from(authIdentities).where(eq(authIdentities.userId, user.id)); const account = await db.query.users.findFirst({ where: eq(users.id, user.id) }); const naverConnected = identities.some((identity) => identity.provider === "NAVER"); const hasAlternativeLogin = Boolean(account?.passwordHash || identities.some((identity) => identity.provider !== "NAVER")); return { user, ...(await listMemberTaste(db, user.id)), tasteGraph: await getMemberTasteGraph(db, user.id), naverConnected, hasAlternativeLogin, oauthError: url.searchParams.get("oauthProvider") === "naver" ? naverOAuthErrorMessage(url.searchParams.get("oauthError")) : null, oauthSuccess: url.searchParams.get("oauthSuccess") }; }
-export async function action({ request }: Route.ActionArgs) { const user = await requireUser(request); const form = await request.formData(); await setSaved(createDb(env.DB), { userId: user.id, placeId: String(form.get("placeId") ?? ""), saved: false, now: new Date().toISOString() }); return redirect("/me"); }
-export default function Me({ loaderData }: Route.ComponentProps) { return <main id="main" className="shell py-14"><p className="eyebrow">MY TASTE LOG</p><div className="flex flex-col gap-3 border-b border-neutral-300 pb-7 md:flex-row md:items-end md:justify-between"><div><h1 className="text-4xl font-semibold tracking-tight">{loaderData.user.displayName}님의 취향</h1><span className="mt-2 block text-sm font-normal text-neutral-500">{loaderData.user.email}</span></div><Link className="border border-neutral-900 px-4 py-2 text-sm font-medium" to="/reviewer/apply">리뷰어 신청·상태</Link></div>{loaderData.oauthError && <p role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loaderData.oauthError}</p>}{loaderData.oauthSuccess && <p className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{loaderData.oauthSuccess === "naver_connected" ? "네이버 계정을 연결했습니다." : "네이버 연동을 해제했습니다."}</p>}<section className="mt-8 rounded-3xl border border-neutral-300 bg-white p-6"><p className="eyebrow">LOGIN CONNECTIONS</p><div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-lg font-semibold">네이버 로그인</h2><p className="mt-1 text-sm text-neutral-500">{loaderData.naverConnected ? "연결됨" : "연결되지 않음"}</p></div>{loaderData.naverConnected ? loaderData.hasAlternativeLogin ? <a className="rounded-full border border-neutral-900 px-4 py-2 text-center text-sm font-semibold" href="/auth/naver?flow=disconnect">네이버 연동 해제</a> : <p className="text-sm text-neutral-500">다른 로그인 수단을 먼저 등록해 주세요.</p> : <a className="rounded-full bg-[#03C75A] px-4 py-2 text-center text-sm font-semibold text-white" href="/auth/naver?flow=connect">네이버 연결</a>}</div></section><section className="taste-graph"><h2>나의 취향 그래프</h2>{loaderData.tasteGraph.status === "VISIBLE" ? loaderData.tasteGraph.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.value}/><strong>{dimension.value.toFixed(1)}</strong></div>) : <p>학습 중 · Flavor Print가 있는 추천 장소 {loaderData.tasteGraph.placeCount}/5</p>}</section><div className="mt-8 grid gap-6 md:grid-cols-2"><TasteSection title="저장한 장소" count={loaderData.saved.length}>{loaderData.saved.map((place) => <article className="border-b border-neutral-200 py-4" key={place.id}><Link className="font-medium" to={`/places/${place.slug}`}>{place.name}</Link><p className="mt-1 text-sm font-normal text-neutral-500">{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p><Form method="post" className="mt-2"><input type="hidden" name="placeId" value={place.id}/><button className="text-xs font-medium text-emerald-800 underline">저장 해제</button></Form></article>)}{!loaderData.saved.length && <Empty text="지도에서 다시 보고 싶은 장소를 저장해 보세요." />}</TasteSection><TasteSection title="내가 평가한 장소" count={loaderData.rated.length}>{loaderData.rated.map((place) => <article className="border-b border-neutral-200 py-4" key={place.id}><Link className="font-medium" to={`/places/${place.slug}`}>{place.name}</Link><p className="mt-1 text-sm font-normal text-neutral-500">{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p><strong className={`mt-2 block text-xs font-medium ${place.value === 1 ? "text-emerald-800" : "text-red-700"}`}>{place.value === 1 ? "추천했어요" : "비추천했어요"}</strong></article>)}{!loaderData.rated.length && <Empty text="방문한 장소에 추천 또는 비추천을 남겨보세요." />}</TasteSection></div></main>; }
-function TasteSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) { return <section className="border border-neutral-300 bg-white p-5"><header className="flex justify-between border-b border-neutral-300 pb-3"><h2 className="text-lg font-semibold">{title}</h2><span className="text-sm text-neutral-500">{count}곳</span></header>{children}</section>; }
-function Empty({ text }: { text: string }) { return <p className="py-10 text-center text-sm font-normal text-neutral-500">{text}</p>; }
+import { requireUser } from "../features/auth/session.server";
+import { listMemberTaste } from "../features/members/member.server";
+import { getMemberTasteGraph } from "../features/ratings/flavor-print.server";
+import { setSaved } from "../features/saves/save.server";
+
+export function meta() {
+  return [{ title: "나의 취향 — Re:Taste" }, { name: "description", content: "저장과 평가를 바탕으로 쌓이는 나의 맛 취향 기록" }];
+}
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const user = await requireUser(request);
+  const db = createDb(env.DB);
+  const url = new URL(request.url);
+  const [identities, account, taste, tasteGraph] = await Promise.all([
+    db.select({ provider: authIdentities.provider }).from(authIdentities).where(eq(authIdentities.userId, user.id)),
+    db.query.users.findFirst({ where: eq(users.id, user.id) }),
+    listMemberTaste(db, user.id),
+    getMemberTasteGraph(db, user.id),
+  ]);
+  const naverConnected = identities.some((identity) => identity.provider === "NAVER");
+  const hasAlternativeLogin = Boolean(account?.passwordHash || identities.some((identity) => identity.provider !== "NAVER"));
+
+  return {
+    user,
+    ...taste,
+    tasteGraph,
+    naverConnected,
+    hasAlternativeLogin,
+    emailVerified: Boolean(account?.emailVerifiedAt),
+    oauthError: url.searchParams.get("oauthProvider") === "naver"
+      ? naverOAuthErrorMessage(url.searchParams.get("oauthError"))
+      : null,
+    oauthSuccess: url.searchParams.get("oauthSuccess"),
+  };
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const user = await requireUser(request);
+  const form = await request.formData();
+  await setSaved(createDb(env.DB), {
+    userId: user.id,
+    placeId: String(form.get("placeId") ?? ""),
+    saved: false,
+    now: new Date().toISOString(),
+  });
+  return redirect("/me");
+}
+
+export default function Me({ loaderData }: Route.ComponentProps) {
+  return <main id="main" className="member-hub">
+    <div className="shell">
+      <header className="member-profile">
+        <div className="member-profile__identity">
+          <p className="eyebrow">MY TASTE / PROFILE</p>
+          <h1>{loaderData.user.displayName}님의 취향</h1>
+          <p className="member-profile__email">
+            {loaderData.user.email}
+            <span data-verified={loaderData.emailVerified || undefined}>{loaderData.emailVerified ? "이메일 확인됨" : "이메일 확인 필요"}</span>
+          </p>
+          <div className="member-profile__stats" aria-label="나의 활동 요약">
+            <span><strong>{loaderData.saved.length}</strong> 저장</span>
+            <span><strong>{loaderData.rated.length}</strong> 평가</span>
+            <span><strong>{loaderData.tasteGraph.placeCount}</strong> 취향 반영</span>
+          </div>
+        </div>
+        <Link className="member-reviewer-link" to="/reviewer/apply">리뷰어 신청·상태</Link>
+      </header>
+
+      {loaderData.oauthError && <p role="alert" className="member-notice member-notice--error">{loaderData.oauthError}</p>}
+      {loaderData.oauthSuccess && <p role="status" className="member-notice">
+        {loaderData.oauthSuccess === "naver_connected" ? "네이버 계정을 연결했습니다." : "네이버 연동을 해제했습니다."}
+      </p>}
+
+      <TasteSignals graph={loaderData.tasteGraph} />
+
+      <section className="member-activity" aria-labelledby="member-activity-title">
+        <div className="member-activity__heading">
+          <p className="eyebrow">TASTE LOG</p>
+          <h2 id="member-activity-title">내가 남긴 맛의 기록</h2>
+        </div>
+        <div className="member-activity-grid">
+          <ActivityCollection
+            title="저장한 장소"
+            count={loaderData.saved.length}
+            emptyText="지도에서 다시 보고 싶은 장소를 저장해 보세요."
+            emptyHref="/places"
+          >
+            {loaderData.saved.map((place) => <article className="member-place-row" key={place.id}>
+              <div>
+                <p>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p>
+                <h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3>
+              </div>
+              <Form method="post">
+                <input type="hidden" name="placeId" value={place.id} />
+                <button>저장 해제</button>
+              </Form>
+            </article>)}
+          </ActivityCollection>
+
+          <ActivityCollection
+            title="내가 평가한 장소"
+            count={loaderData.rated.length}
+            emptyText="방문한 장소에 추천 또는 비추천을 남겨보세요."
+            emptyHref="/places"
+          >
+            {loaderData.rated.map((place) => <article className="member-place-row" key={place.id}>
+              <div>
+                <p>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p>
+                <h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3>
+              </div>
+              <span className="member-rating-state" data-positive={place.value === 1 || undefined}>{place.value === 1 ? "추천했어요" : "비추천했어요"}</span>
+            </article>)}
+          </ActivityCollection>
+        </div>
+      </section>
+
+      <AccountConnections naverConnected={loaderData.naverConnected} hasAlternativeLogin={loaderData.hasAlternativeLogin} />
+    </div>
+  </main>;
+}

@@ -1,0 +1,15 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const source = readFileSync("app/routes/me.tsx", "utf8");
+
+describe("me page contract", () => {
+  it("취향 허브 컴포넌트와 활동 요약을 사용한다", () => {
+    expect(source).toContain('className="member-hub"');
+    expect(source).toContain("<TasteSignals graph={loaderData.tasteGraph}");
+    expect(source).toContain("<ActivityCollection");
+    expect(source).toContain("<AccountConnections");
+    expect(source).toContain("loaderData.saved.length");
+    expect(source).toContain("loaderData.rated.length");
+  });
+});
