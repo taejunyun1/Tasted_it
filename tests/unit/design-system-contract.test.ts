@@ -40,4 +40,11 @@ describe("Re:Taste design system", () => {
       expect(route).toContain("admin-page");
     });
   });
+
+  it("디자인 가이드가 실제 핵심 토큰을 참조한다", () => {
+    const guide = readFileSync("docs/design-system/retaste-design-guide.md", "utf8");
+    ["--layout-max", "--space-20", "--radius-card", "--control-height"].forEach(
+      (token) => expect(guide).toContain(token),
+    );
+  });
 });
