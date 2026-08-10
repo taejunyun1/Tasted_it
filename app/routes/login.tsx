@@ -12,6 +12,7 @@ import {
 import { safeReturnTo } from "../features/auth/login";
 import { NaverAuthButton, naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
 import { createUserSession, getOptionalUser } from "../features/auth/session.server";
+import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 
 const schema = z.object({ email: z.email(), password: z.string().min(1), returnTo: z.string().optional() });
 export function meta() { return [{ title: "로그인 — Re:Taste" }]; }
@@ -31,9 +32,18 @@ export async function action({ request }: Route.ActionArgs) {
   if (!parsed.success) return data({ error: "이메일과 비밀번호를 확인해 주세요." }, { status: 400 });
   try {
     const now = new Date();
-    const user = await authenticateAccount(createDb(env.DB), parsed.data);
-    const cookie = await createUserSession({ userId: user.id, now, requestUrl: request.url });
-    return redirect(safeReturnTo(parsed.data.returnTo), { headers: { "Set-Cookie": cookie } });
+    const db = createDb(env.DB);
+    const user = await authenticateAccount(db, parsed.data);
+    const headers = new Headers();
+    headers.append("Set-Cookie", await createUserSession({ userId: user.id, now, requestUrl: request.url }));
+    await appendGuestTasteMergeCookie({
+      headers,
+      db,
+      request,
+      userId: user.id,
+      now: now.toISOString(),
+    });
+    return redirect(safeReturnTo(parsed.data.returnTo), { headers });
   } catch (error) {
     return data({ error: error instanceof Error && error.message === "EMAIL_NOT_VERIFIED" ? "이메일 인증을 먼저 완료해 주세요." : "이메일 또는 비밀번호가 올바르지 않습니다." }, { status: 400 });
   }

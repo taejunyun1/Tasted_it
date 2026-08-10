@@ -20,6 +20,7 @@ import {
 } from "../features/auth/naver-oauth.server";
 import { consumeOAuthRequest, peekOAuthRequestContext } from "../features/auth/oauth-request.server";
 import { createUserSession } from "../features/auth/session.server";
+import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 
 function errorRedirect(requestUrl: string, target: string, code: NaverFailureCode | "cancelled") {
   const separator = target.includes("?") ? "&" : "?";
@@ -90,6 +91,13 @@ export async function loader({ request }: Route.LoaderArgs) {
         onError: () => console.error("NAVER_WELCOME_EMAIL_FAILED"),
       });
       headers.append("Set-Cookie", await createUserSession({ userId: result.userId, now, requestUrl: request.url }));
+      await appendGuestTasteMergeCookie({
+        headers,
+        db,
+        request,
+        userId: result.userId,
+        now: now.toISOString(),
+      });
       return redirect(result.returnTo, { headers });
     }
     const success = result.flow === "CONNECT" ? "naver_connected" : "naver_disconnected";

@@ -18,6 +18,7 @@ import {
   verifyGoogleIdToken,
 } from "../features/auth/google-oauth.server";
 import { createUserSession } from "../features/auth/session.server";
+import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 
 function errorRedirect(
   requestUrl: string,
@@ -94,6 +95,13 @@ export async function loader({ request }: Route.LoaderArgs) {
       }),
     );
     headers.append("Set-Cookie", expireOAuthRequestCookie(request.url));
+    await appendGuestTasteMergeCookie({
+      headers,
+      db,
+      request,
+      userId: result.userId,
+      now: now.toISOString(),
+    });
     return redirect(result.returnTo, { headers });
   } catch (error) {
     const publicCode = oauthFailureCode(error);
