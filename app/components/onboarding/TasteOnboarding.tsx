@@ -14,6 +14,7 @@ import { PlaceCard } from "../places/PlaceCard";
 
 type InitialState = {
   step: OnboardingStep;
+  selectionRevision: number;
   locationMode: "DEVICE" | "DEFAULT";
   foodBadgeIds: string[];
   styleBadgeIds: string[];
@@ -85,14 +86,20 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
   const returnToInput = useRef<HTMLInputElement>(null);
   const targetStepInput = useRef<HTMLInputElement>(null);
   const directionInput = useRef<HTMLInputElement>(null);
+  const selectionRevisionInput = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const previewLocation = useRef<OnboardingLocation | null>(null);
   const announcedStep = useRef(initialState.step);
   const selectionDirty = useRef(false);
+  const selectionRevision = useRef(initialState.selectionRevision);
   const step = initialState.step;
   const progress = onboardingProgress(step);
   const stepIndex = STEPS.indexOf(step);
+
+  useEffect(() => {
+    selectionRevision.current = Math.max(selectionRevision.current, initialState.selectionRevision);
+  }, [initialState.selectionRevision]);
 
   useEffect(() => {
     if (announcedStep.current !== step) headingRef.current?.focus();
@@ -116,7 +123,12 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
       form.set("intent", "SAVE_SELECTION");
       form.set("targetStep", step);
       form.set("direction", "FORWARD");
-      if (navigator.sendBeacon(window.location.href, form)) selectionDirty.current = false;
+      const nextRevision = selectionRevision.current + 1;
+      form.set("selectionRevision", String(nextRevision));
+      if (navigator.sendBeacon(window.location.href, form)) {
+        selectionRevision.current = nextRevision;
+        selectionDirty.current = false;
+      }
     };
     const persistWhenHidden = () => {
       if (document.visibilityState === "hidden") persistCurrentSelection();
@@ -192,11 +204,18 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
         ref={formRef}
         method="post"
         className="taste-onboarding__form"
-        onSubmit={() => { selectionDirty.current = false; }}
+        onSubmit={() => {
+          selectionRevision.current += 1;
+          if (selectionRevisionInput.current) {
+            selectionRevisionInput.current.value = String(selectionRevision.current);
+          }
+          selectionDirty.current = false;
+        }}
       >
         <input type="hidden" name="currentStep" value={forwardNavigation.currentStep} />
         <input ref={targetStepInput} type="hidden" name="targetStep" value={forwardNavigation.targetStep} />
         <input ref={directionInput} type="hidden" name="direction" value={forwardNavigation.direction} />
+        <input ref={selectionRevisionInput} type="hidden" name="selectionRevision" defaultValue={initialState.selectionRevision} />
         <input type="hidden" name="locationMode" value={locationMode} />
         <input ref={returnToInput} type="hidden" name="returnTo" defaultValue={returnTo} />
         {foodBadgeIds.map((id) => <input key={id} type="hidden" name="foodBadgeId" value={id} />)}

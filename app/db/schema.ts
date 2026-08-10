@@ -751,6 +751,7 @@ export const parkingEvLinks = sqliteTable("parking_ev_links", {
 export const guestTasteSessions = sqliteTable("guest_taste_sessions", {
   id: text("id").primaryKey(),
   onboardingVersion: integer("onboarding_version").notNull().default(1),
+  selectionRevision: integer("selection_revision").notNull().default(0),
   locationMode: text("location_mode", { enum: ["DEVICE", "DEFAULT"] }).notNull().default("DEFAULT"),
   completedStepsJson: text("completed_steps_json").notNull().default("[]"),
   completedAt: text("completed_at"),

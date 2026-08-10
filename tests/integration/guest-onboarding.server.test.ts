@@ -27,7 +27,9 @@ describe("guest onboarding", () => {
 
     await saveGuestOnboarding(db, {
       sessionId: created.id,
+      expectedStep: "LOCATION",
       step: "STYLE",
+      selectionRevision: 1,
       locationMode: "DEVICE",
       foodBadgeIds: ["food-gukbap"],
       styleBadgeIds: ["style-old-school"],
@@ -40,7 +42,9 @@ describe("guest onboarding", () => {
 
     await saveGuestOnboarding(db, {
       sessionId: created.id,
+      expectedStep: "STYLE",
       step: "PREVIEW",
+      selectionRevision: 2,
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-ramen"],
       styleBadgeIds: ["taste-spicy", "style-market"],
@@ -86,7 +90,9 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: created.id,
+      expectedStep: "LOCATION",
       step: "FOOD",
+      selectionRevision: 1,
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-not-in-catalog"],
       styleBadgeIds: [],
@@ -95,7 +101,9 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: created.id,
+      expectedStep: "LOCATION",
       step: "STYLE",
+      selectionRevision: 1,
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-gukbap"],
       styleBadgeIds: ["style-old-school", "style-market", "taste-spicy", "taste-rich"],
@@ -113,7 +121,9 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: expired.id,
+      expectedStep: "LOCATION",
       step: "FOOD",
+      selectionRevision: 1,
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-gukbap"],
       styleBadgeIds: [],
@@ -135,7 +145,9 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: merged.id,
+      expectedStep: "LOCATION",
       step: "FOOD",
+      selectionRevision: 1,
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-gukbap"],
       styleBadgeIds: [],
@@ -174,7 +186,9 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(racedDb, {
       sessionId: session.id,
+      expectedStep: "LOCATION",
       step: "FOOD",
+      selectionRevision: 1,
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-ramen"],
       styleBadgeIds: [],

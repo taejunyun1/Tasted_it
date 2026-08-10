@@ -1,4 +1,4 @@
-import { and, eq, exists, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, exists, gt, isNull, lt, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
@@ -17,6 +17,7 @@ const badgeById = new Map(TASTE_BADGE_CATALOG.map((badge) => [badge.id, badge]))
 
 export type GuestOnboardingState = {
   sessionId: string;
+  selectionRevision: number;
   step: OnboardingStep;
   locationMode: "DEVICE" | "DEFAULT";
   foodBadgeIds: string[];
@@ -28,11 +29,14 @@ export type GuestOnboardingState = {
 
 export type SaveGuestOnboardingInput = {
   sessionId: string;
+  expectedStep: OnboardingStep;
   step: OnboardingStep;
+  selectionRevision: number;
   locationMode: "DEVICE" | "DEFAULT";
   foodBadgeIds: string[];
   styleBadgeIds: string[];
   now: string;
+  terminalState?: "COMPLETE" | "SKIP";
 };
 
 function guestSessionCookieAttributes(requestUrl: string, maxAge: number) {
@@ -84,11 +88,28 @@ function activeGuestSessionConditions(sessionId: string, now: string) {
   );
 }
 
-function activeGuestSessionExists(db: AppDb, sessionId: string, now: string) {
+function currentStepConditions(step: OnboardingStep) {
+  const current = eq(guestTasteSessions.completedStepsJson, JSON.stringify([step]));
+  return step === "LOCATION"
+    ? or(current, eq(guestTasteSessions.completedStepsJson, "[]"))
+    : current;
+}
+
+function writableGuestSessionConditions(input: SaveGuestOnboardingInput) {
+  return and(
+    activeGuestSessionConditions(input.sessionId, input.now),
+    isNull(guestTasteSessions.completedAt),
+    isNull(guestTasteSessions.skippedAt),
+    currentStepConditions(input.expectedStep),
+    lt(guestTasteSessions.selectionRevision, input.selectionRevision),
+  );
+}
+
+function writableGuestSessionExists(db: AppDb, input: SaveGuestOnboardingInput) {
   return exists(
     db.select({ id: guestTasteSessions.id })
       .from(guestTasteSessions)
-      .where(activeGuestSessionConditions(sessionId, now)),
+      .where(writableGuestSessionConditions(input)),
   );
 }
 
@@ -153,6 +174,22 @@ export async function getOrCreateGuestSession(
   return { session, setCookie: guestSessionCookie(session.id, request.url) };
 }
 
+export async function getWritableGuestSessionFromRequest(
+  db: AppDb,
+  request: Request,
+  now: string,
+): Promise<typeof guestTasteSessions.$inferSelect | null> {
+  const sessionId = readGuestSessionId(request);
+  if (!sessionId) return null;
+  return await db.query.guestTasteSessions.findFirst({
+    where: and(
+      activeGuestSessionConditions(sessionId, now),
+      isNull(guestTasteSessions.completedAt),
+      isNull(guestTasteSessions.skippedAt),
+    ),
+  }) ?? null;
+}
+
 export async function getGuestOnboarding(
   db: AppDb,
   sessionId: string,
@@ -181,6 +218,7 @@ export async function getGuestOnboarding(
 
   return {
     sessionId: session.id,
+    selectionRevision: session.selectionRevision,
     step: stepFromCompletedSteps(session.completedStepsJson),
     locationMode: session.locationMode,
     foodBadgeIds,
@@ -210,20 +248,23 @@ export async function saveGuestOnboarding(
   const statements: BatchItem<"sqlite">[] = [
     db.delete(guestTasteBadges).where(and(
       eq(guestTasteBadges.sessionId, input.sessionId),
-      activeGuestSessionExists(db, input.sessionId, input.now),
+      writableGuestSessionExists(db, input),
     )),
     ...selectedBadgeIds.map((badgeId) => db.insert(guestTasteBadges).select(
       db.select({
         sessionId: guestTasteSessions.id,
         badgeId: sql<string>`${badgeId}`.as("badge_id"),
         selectedAt: sql<string>`${input.now}`.as("selected_at"),
-      }).from(guestTasteSessions).where(activeGuestSessionConditions(input.sessionId, input.now)),
+      }).from(guestTasteSessions).where(writableGuestSessionConditions(input)),
     )),
     db.update(guestTasteSessions).set({
+      selectionRevision: input.selectionRevision,
       locationMode: input.locationMode,
       completedStepsJson: JSON.stringify([input.step]),
+      ...(input.terminalState === "COMPLETE" ? { completedAt: input.now } : {}),
+      ...(input.terminalState === "SKIP" ? { skippedAt: input.now } : {}),
       updatedAt: input.now,
-    }).where(activeGuestSessionConditions(input.sessionId, input.now)),
+    }).where(writableGuestSessionConditions(input)),
   ];
   const [first, ...rest] = statements;
   if (!first) throw new Error("GUEST_SESSION_UNAVAILABLE");

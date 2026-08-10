@@ -8,8 +8,10 @@ const mocks = vi.hoisted(() => ({
   env: { DB: {}, ONBOARDING_ENABLED: "true" },
   getOptionalUser: vi.fn(async () => null),
   getOrCreateGuestSession: vi.fn(async () => ({ session: { id: "guest-1" }, setCookie: null })),
+  getWritableGuestSessionFromRequest: vi.fn(async () => ({ id: "guest-1" })),
   getGuestOnboarding: vi.fn(async () => ({
     sessionId: "guest-1",
+    selectionRevision: 0,
     step: "LOCATION",
     locationMode: "DEFAULT",
     foodBadgeIds: [],
@@ -27,14 +29,18 @@ vi.mock("../../app/db/client.server", () => ({ createDb: () => mocks.db }));
 vi.mock("../../app/features/auth/session.server", () => ({ getOptionalUser: mocks.getOptionalUser }));
 vi.mock("../../app/features/onboarding/guest-session.server", () => ({
   getOrCreateGuestSession: mocks.getOrCreateGuestSession,
+  getWritableGuestSessionFromRequest: mocks.getWritableGuestSessionFromRequest,
   getGuestOnboarding: mocks.getGuestOnboarding,
   saveGuestOnboarding: mocks.saveGuestOnboarding,
 }));
 
 afterEach(() => {
   mocks.env.ONBOARDING_ENABLED = "true";
+  mocks.getOrCreateGuestSession.mockClear();
   mocks.saveGuestOnboarding.mockReset();
   mocks.saveGuestOnboarding.mockResolvedValue(undefined);
+  mocks.getWritableGuestSessionFromRequest.mockReset();
+  mocks.getWritableGuestSessionFromRequest.mockResolvedValue({ id: "guest-1" });
 });
 
 describe("taste onboarding contract", () => {
@@ -65,12 +71,14 @@ describe("taste onboarding contract", () => {
     expect(source).toContain('name="currentStep"');
     expect(source).toContain('name="targetStep"');
     expect(source).toContain('name="direction"');
+    expect(source).toContain('name="selectionRevision"');
 
     const router = createMemoryRouter([{
       path: "/onboarding/taste",
       element: createElement(component.TasteOnboarding, {
         initialState: {
           step: "FOOD",
+          selectionRevision: 0,
           locationMode: "DEFAULT",
           foodBadgeIds: [],
           styleBadgeIds: [],
@@ -131,6 +139,7 @@ describe("taste onboarding contract", () => {
     form.set("currentStep", "STYLE");
     form.set("targetStep", "STYLE");
     form.set("direction", "FORWARD");
+    form.set("selectionRevision", "1");
     form.set("locationMode", "DEFAULT");
     form.append("foodBadgeId", "food-gukbap");
     form.append("styleBadgeId", "style-old-school");
@@ -150,6 +159,24 @@ describe("taste onboarding contract", () => {
         styleBadgeIds: ["style-old-school"],
       }),
     );
+    expect(mocks.getOrCreateGuestSession).not.toHaveBeenCalled();
+  });
+
+  it("does not create a guest session for a beacon without an existing writable cookie session", async () => {
+    mocks.getWritableGuestSessionFromRequest.mockResolvedValueOnce(null);
+    const form = new FormData();
+    form.set("intent", "SAVE_SELECTION");
+    form.set("currentStep", "STYLE");
+    form.set("targetStep", "STYLE");
+    form.set("direction", "FORWARD");
+    form.set("selectionRevision", "1");
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    await expect(action({
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+    } as never)).resolves.toMatchObject({ data: { ok: true, ignored: true } });
+    expect(mocks.getOrCreateGuestSession).not.toHaveBeenCalled();
+    expect(mocks.saveGuestOnboarding).not.toHaveBeenCalled();
   });
 
   it.each(["//evil.example/path", "/\\evil.example/path", "/%5Cevil.example/path", "https://evil.example/path"])(
@@ -170,6 +197,7 @@ describe("taste onboarding contract", () => {
     form.set("currentStep", "PREVIEW");
     form.set("targetStep", "PREVIEW");
     form.set("direction", "FORWARD");
+    form.set("selectionRevision", "1");
     form.set("returnTo", "/%5Cevil.example/path");
     const response = await action({ request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }) } as never);
     expect(response).toBeInstanceOf(Response);
@@ -184,6 +212,7 @@ describe("taste onboarding contract", () => {
       form.set("currentStep", "FOOD");
       form.set("targetStep", "STYLE");
       form.set("direction", "FORWARD");
+      form.set("selectionRevision", "1");
       form.append("foodBadgeId", "food-outdated");
       return new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form });
     };

@@ -1,5 +1,4 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import { data, redirect } from "react-router";
 import { z } from "zod";
 
@@ -9,11 +8,11 @@ import {
   onboardingNavigation,
 } from "../components/onboarding/TasteOnboarding";
 import { createDb, type AppDb } from "../db/client.server";
-import { guestTasteSessions } from "../db/schema";
 import { getOptionalUser } from "../features/auth/session.server";
 import {
   getGuestOnboarding,
   getOrCreateGuestSession,
+  getWritableGuestSessionFromRequest,
   saveGuestOnboarding,
 } from "../features/onboarding/guest-session.server";
 import {
@@ -28,6 +27,7 @@ const onboardingAction = z.object({
   currentStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
   targetStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
   direction: z.enum(["FORWARD", "BACK"]),
+  selectionRevision: z.coerce.number().int().min(1),
   locationMode: z.enum(["DEVICE", "DEFAULT"]).default("DEFAULT"),
   foodBadgeIds: z.array(z.string()).max(5).default([]),
   styleBadgeIds: z.array(z.string()).max(3).default([]),
@@ -113,6 +113,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const payload = {
     initialState: {
       step: state.step,
+      selectionRevision: state.selectionRevision,
       locationMode: state.locationMode,
       foodBadgeIds: state.foodBadgeIds,
       styleBadgeIds: state.styleBadgeIds,
@@ -131,6 +132,7 @@ export async function action({ request }: Route.ActionArgs) {
     currentStep: form.get("currentStep"),
     targetStep: form.get("targetStep"),
     direction: form.get("direction"),
+    selectionRevision: form.get("selectionRevision"),
     locationMode: form.get("locationMode") ?? undefined,
     foodBadgeIds: form.getAll("foodBadgeId").filter((value): value is string => typeof value === "string"),
     styleBadgeIds: form.getAll("styleBadgeId").filter((value): value is string => typeof value === "string"),
@@ -140,15 +142,28 @@ export async function action({ request }: Route.ActionArgs) {
 
   const db = createDb(env.DB);
   const now = new Date().toISOString();
-  const { session, setCookie } = await getOrCreateGuestSession(db, request, now);
+  const existingSession = parsed.data.intent === "SAVE_SELECTION"
+    ? await getWritableGuestSessionFromRequest(db, request, now)
+    : null;
+  if (parsed.data.intent === "SAVE_SELECTION" && !existingSession) {
+    return data({ ok: true, ignored: true });
+  }
+  const { session, setCookie } = existingSession
+    ? { session: existingSession, setCookie: null }
+    : await getOrCreateGuestSession(db, request, now);
   try {
     await saveGuestOnboarding(db, {
       sessionId: session.id,
+      expectedStep: parsed.data.currentStep,
       step: parsed.data.intent === "SAVE_STEP" ? parsed.data.targetStep : parsed.data.currentStep,
+      selectionRevision: parsed.data.selectionRevision,
       locationMode: parsed.data.locationMode,
       foodBadgeIds: parsed.data.foodBadgeIds,
       styleBadgeIds: parsed.data.styleBadgeIds,
       now,
+      terminalState: parsed.data.intent === "COMPLETE"
+        ? "COMPLETE"
+        : parsed.data.intent === "SKIP" ? "SKIP" : undefined,
     });
   } catch (error) {
     if (error instanceof Error && error.message === "GUEST_ONBOARDING_BADGES_INVALID") {
@@ -157,15 +172,15 @@ export async function action({ request }: Route.ActionArgs) {
         { status: 400, headers: setCookie ? { "Set-Cookie": setCookie } : undefined },
       );
     }
+    if (error instanceof Error && error.message === "GUEST_SESSION_UNAVAILABLE") {
+      return data({ ok: parsed.data.intent === "SAVE_SELECTION", ignored: true }, {
+        status: parsed.data.intent === "SAVE_SELECTION" ? 200 : 409,
+      });
+    }
     throw error;
   }
 
   if (parsed.data.intent === "SKIP" || parsed.data.intent === "COMPLETE") {
-    await db.update(guestTasteSessions).set(
-      parsed.data.intent === "SKIP"
-        ? { skippedAt: now, updatedAt: now }
-        : { completedAt: now, updatedAt: now },
-    ).where(eq(guestTasteSessions.id, session.id));
     await recordOnboardingProductEvent(db, {
       eventName: parsed.data.intent === "SKIP" ? "ONBOARDING_SKIPPED" : "ONBOARDING_COMPLETED",
       guestSessionId: session.id,

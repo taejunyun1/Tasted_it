@@ -34,18 +34,28 @@
 - 위치 거부는 init script가 geolocation error callback을 호출하고 `getCurrentPosition` 호출 횟수가 정확히 1인지 확인한 뒤 fallback을 assert하도록 바꿨다.
 - 로그인 fixture는 server-start seed에 둔 두 합성 회원을 사용한다. 로그인·returnTo 후 같은 브라우저의 `/me`에서 병합된 `국밥러`를 확인하므로 브라우저와 assertion이 같은 worktree 서버·DB를 사용한다.
 
+## 독립 재리뷰 수정
+
+- 재리뷰 RED는 실제 D1 action 순서로 네 건을 고정했다. 최신 SAVE_STEP 뒤 늦은 선택은 step/배지를 되돌렸고, COMPLETE와 SKIP 뒤 늦은 선택은 최신 STYLE 배지를 지웠으며, merge 뒤 stale cookie는 새 30일 guest session을 만들었다.
+- `guest_taste_sessions.selection_revision`을 forward migration으로 추가했다. loader revision을 기준으로 client가 정상 submit과 beacon 모두 단조 증가시키며, server batch의 badge delete/insert와 session update는 같은 `현재 server step + 더 큰 revision + 미완료 + 미건너뜀 + 미병합 + 미만료` CAS 조건을 공유한다.
+- COMPLETE/SKIP timestamp는 선택·step·revision과 같은 D1 batch에서 기록된다. 이전 revision뿐 아니라 이미 지난 server step에서 온 더 큰 revision도 no-op이므로 오래된 snapshot이 최신 상태를 덮지 못한다.
+- `SAVE_SELECTION` action은 기존 writable cookie session만 조회한다. cookie가 없거나 세션이 완료·건너뜀·병합·만료됐으면 `getOrCreateGuestSession`에 진입하지 않고 no-op하므로 orphan guest data를 만들지 않는다. 기존 30일 TTL과 개인정보 최소화 경계는 유지했다.
+- 재리뷰 TDD GREEN은 old selection → newer step/COMPLETE/SKIP/merge → delayed selection 순서를 실제 D1로 검증하며 step, revision, terminal timestamp, badge, session 개수와 Set-Cookie 무생성을 확인한다.
+- 하나의 local D1을 공유하는 전체 E2E는 Playwright worker를 항상 `1`로 고정했다. 정확한 전체 명령 2회 모두 기존 4개 실패 외 추가 D1 오류 없이 같은 결과를 냈다.
+
 ## 검증 결과
 
 - 변경 전 전체 E2E 기준선: 88개 통과, 8개 의도적 건너뜀, 4개 실패.
   - `browse.spec.ts`: desktop/mobile에서 신규 온보딩이 `/places.data`를 return path로 받아 기존 URL 기대가 실패했다.
   - `map-zoom.spec.ts`: desktop/mobile에서 선택 후 기대 zoom 16 대신 12를 유지했다.
   - 두 실패 묶음은 Task 8 변경 전 재현됐으며 집중 spec 회귀와 분리했다.
-- 관련 unit: `pnpm vitest run tests/unit/onboarding.test.ts tests/unit/taste-onboarding-contract.test.ts tests/unit/auth-login.test.ts tests/unit/login-return-to.test.ts` — 4개 파일, 30개 테스트 통과.
-- 관련 Workers integration: `pnpm vitest run tests/integration/guest-onboarding.server.test.ts tests/integration/guest-merge.server.test.ts tests/integration/onboarding-events.server.test.ts --config vitest.workers.config.ts` — 3개 파일, 65개 테스트 통과. AI binding 경고는 표시됐지만 테스트가 AI API를 호출하지 않았다.
+- 관련 unit: `pnpm vitest run tests/unit/onboarding.test.ts tests/unit/taste-onboarding-contract.test.ts tests/unit/auth-login.test.ts tests/unit/login-return-to.test.ts` — 4개 파일, 31개 테스트 통과.
+- 관련 Workers integration: `pnpm vitest run tests/integration/guest-onboarding.server.test.ts tests/integration/guest-merge.server.test.ts tests/integration/onboarding-events.server.test.ts --config vitest.workers.config.ts` — 3개 파일, 70개 테스트 통과. AI binding 경고는 표시됐지만 테스트가 AI API를 호출하지 않았다.
 - desktop Task 8 E2E: 7개 통과.
 - mobile Task 8 E2E: 7개 통과.
-- 집중 E2E: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts` — desktop 7개 + mobile 7개, 합계 14개 통과 (`18.9s`).
-- 전체 E2E: `pnpm run test:e2e` (간결 집계 재확인: `--reporter=dot`) — 114개 중 102개 통과, 8개 의도적 건너뜀, 기존 4개 실패 (`37.8s`). 실패는 `browse.spec.ts` desktop/mobile과 `map-zoom.spec.ts` desktop/mobile의 기존 서명뿐이며 `SQLITE_BUSY`나 Task 8 신규 실패는 없다.
+- 집중 E2E: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts` — desktop 7개 + mobile 7개, 합계 14개 통과 (`28.2s`, 1 worker).
+- 전체 E2E 1회차: 정확한 `pnpm run test:e2e` — 114개 중 102개 통과, 8개 의도적 건너뜀, 기존 4개 실패 (`2.2m`).
+- 전체 E2E 2회차: 정확한 `pnpm run test:e2e` — 114개 중 102개 통과, 8개 의도적 건너뜀, 동일한 기존 4개 실패 (`2.1m`). 두 실행 모두 `browse.spec.ts` desktop/mobile과 `map-zoom.spec.ts` desktop/mobile의 기존 서명뿐이며 D1 internal error, timeout, `SQLITE_BUSY`, Task 8 신규 실패는 없다.
 - `pnpm run typecheck`: Wrangler types, React Router typegen, `tsc -b` 통과.
 - `git diff --check`: 통과.
 - Workers integration은 종료 코드 0 이후 저장소의 기존 Vite 종료 지연 경고를 출력했지만 이어진 Playwright까지 정상 실행됐다.
@@ -60,7 +70,11 @@
 - `tests/integration/guest-merge.server.test.ts`
 - `app/components/onboarding/TasteOnboarding.tsx`
 - `app/routes/taste-onboarding.tsx`
+- `app/features/onboarding/guest-session.server.ts`
+- `app/db/schema.ts`
+- `drizzle/0021_guest_onboarding_selection_revision.sql`
 - `tests/unit/taste-onboarding-contract.test.ts`
+- `tests/integration/guest-onboarding.server.test.ts`
 - `tests/integration/onboarding-events.server.test.ts`
 - `scripts/seed-admin-qa.sql`
 - `playwright.config.ts`
@@ -69,6 +83,6 @@
 
 ## 운영 영향과 남은 확인
 
-- migration, 의존성, lockfile, 환경 변수 변경은 없다. Playwright는 local server 재사용만 비활성화했고 QA seed에는 합성 test-only 회원 두 행을 추가했다.
+- forward migration 1개가 `selection_revision INTEGER NOT NULL DEFAULT 0`을 추가한다. 기존 TTL, 의존성, lockfile, 환경 변수는 바뀌지 않았다. Playwright는 server 재사용을 비활성화하고 shared-D1 worker를 1로 제한했으며 QA seed에는 합성 test-only 회원 두 행만 둔다.
 - 원격 D1, 외부 인증 제공자, 이메일 발송, Workers AI, 유료 API, push, PR, merge, deploy를 실행하지 않았다.
 - 변경 전 전체 E2E의 기존 4개 실패는 Task 9 전체 회귀 또는 해당 소유 작업에서 별도로 조정해야 한다.

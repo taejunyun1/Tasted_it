@@ -5,7 +5,7 @@ const remoteBaseUrl = process.env.BASE_URL;
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
-  workers: remoteBaseUrl ? 2 : undefined,
+  workers: 1,
   retries: 0,
   reporter: "line",
   use: {

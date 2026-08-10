@@ -105,14 +105,14 @@ async function seedUser(db: AppDb, id = `member-${crypto.randomUUID()}`) {
 async function seedGuestTaste(
   db: AppDb,
   badgeIds: string[],
-  input: { id?: string; expiresAt?: string; mergedUserId?: string | null } = {},
+  input: { id?: string; expiresAt?: string; mergedUserId?: string | null; completedAt?: string | null } = {},
 ) {
   const id = input.id ?? `guest-${crypto.randomUUID()}`;
   await db.insert(guestTasteSessions).values({
     id,
     locationMode: "DEFAULT",
     completedStepsJson: "[\"PREVIEW\"]",
-    completedAt: CREATED_AT,
+    completedAt: input.completedAt === undefined ? CREATED_AT : input.completedAt,
     mergedUserId: input.mergedUserId ?? null,
     expiresAt: input.expiresAt ?? "2026-09-09T00:00:00.000Z",
     createdAt: CREATED_AT,
@@ -367,14 +367,16 @@ describe("mergeGuestTasteSessionFromRequest", () => {
   it("merges the latest selection when a save replaces A with B before the merge batch", async () => {
     const db = createDb(env.DB);
     const userId = await seedUser(db);
-    const guestId = await seedGuestTaste(db, ["food-gukbap"]);
+    const guestId = await seedGuestTaste(db, ["food-gukbap"], { completedAt: null });
     const racedDb = new Proxy(db, {
       get(target, property, receiver) {
         if (property === "batch") {
           return async (...input: Parameters<AppDb["batch"]>) => {
             await saveGuestOnboarding(target, {
               sessionId: guestId,
+              expectedStep: "PREVIEW",
               step: "PREVIEW",
+              selectionRevision: 1,
               locationMode: "DEFAULT",
               foodBadgeIds: ["food-ramen"],
               styleBadgeIds: [],
@@ -396,7 +398,9 @@ describe("mergeGuestTasteSessionFromRequest", () => {
     expect(rows).toEqual([{ badgeId: "food-ramen" }]);
     await expect(saveGuestOnboarding(db, {
       sessionId: guestId,
+      expectedStep: "PREVIEW",
       step: "PREVIEW",
+      selectionRevision: 2,
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-gukbap"],
       styleBadgeIds: [],

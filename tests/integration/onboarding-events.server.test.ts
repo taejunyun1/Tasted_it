@@ -109,14 +109,19 @@ import {
   recommendationPlacePath,
   recommendationRequestPath,
 } from "../../app/components/places/PlaceCard";
+import { mergeGuestTasteSessionFromRequest } from "../../app/features/onboarding/guest-merge.server";
 
 const NOW = "2026-08-10T00:00:00.000Z";
 
-async function seedGuest(db: AppDb, id = `guest-${crypto.randomUUID()}`) {
+async function seedGuest(
+  db: AppDb,
+  id = `guest-${crypto.randomUUID()}`,
+  step: "LOCATION" | "FOOD" | "STYLE" | "PREVIEW" = "LOCATION",
+) {
   await db.insert(guestTasteSessions).values({
     id,
     locationMode: "DEFAULT",
-    completedStepsJson: "[]",
+    completedStepsJson: JSON.stringify([step]),
     expiresAt: "2026-09-09T00:00:00.000Z",
     createdAt: NOW,
     updatedAt: NOW,
@@ -349,6 +354,7 @@ function cookiePair(setCookie: string) {
 function onboardingForm(input: {
   intent: "SAVE_STEP" | "SAVE_SELECTION" | "SKIP" | "COMPLETE";
   currentStep: "LOCATION" | "FOOD" | "STYLE" | "PREVIEW";
+  selectionRevision?: number;
   direction?: OnboardingNavigationDirection;
   foodBadgeIds?: string[];
   styleBadgeIds?: string[];
@@ -359,11 +365,18 @@ function onboardingForm(input: {
   form.set("currentStep", navigation.currentStep);
   form.set("targetStep", input.intent === "SAVE_SELECTION" ? navigation.currentStep : navigation.targetStep);
   form.set("direction", navigation.direction);
+  form.set("selectionRevision", String(input.selectionRevision ?? 1));
   form.set("locationMode", "DEFAULT");
   form.set("returnTo", "/places");
   for (const badgeId of input.foodBadgeIds ?? []) form.append("foodBadgeId", badgeId);
   for (const badgeId of input.styleBadgeIds ?? []) form.append("styleBadgeId", badgeId);
   return form;
+}
+
+async function selectedGuestBadges(db: AppDb, guestSessionId: string) {
+  return db.select({ badgeId: guestTasteBadges.badgeId })
+    .from(guestTasteBadges)
+    .where(eq(guestTasteBadges.sessionId, guestSessionId));
 }
 
 describe("product event route wiring", () => {
@@ -433,7 +446,7 @@ describe("product event route wiring", () => {
     ["COMPLETE", "PREVIEW", "ONBOARDING_COMPLETED", { step: "PREVIEW", selectedCount: 0 }, ["food-gukbap"], ["style-old-school"]],
   ] as const)("records a successful %s onboarding action", async (intent, currentStep, eventName, metadata, foodBadgeIds, styleBadgeIds) => {
     const db = createDb(env.DB);
-    const guestSessionId = await seedGuest(db);
+    const guestSessionId = await seedGuest(db, undefined, currentStep);
     const { action } = await import("../../app/routes/taste-onboarding");
 
     await action({
@@ -452,7 +465,7 @@ describe("product event route wiring", () => {
 
   it("does not record a completed step when the actual component contract navigates back", async () => {
     const db = createDb(env.DB);
-    const guestSessionId = await seedGuest(db);
+    const guestSessionId = await seedGuest(db, undefined, "STYLE");
     const { action } = await import("../../app/routes/taste-onboarding");
 
     await action({
@@ -477,7 +490,7 @@ describe("product event route wiring", () => {
 
   it("saves a page-exit selection without advancing or recording a completion event", async () => {
     const db = createDb(env.DB);
-    const guestSessionId = await seedGuest(db);
+    const guestSessionId = await seedGuest(db, undefined, "STYLE");
     const { action } = await import("../../app/routes/taste-onboarding");
 
     await action({
@@ -506,9 +519,195 @@ describe("product event route wiring", () => {
       ]));
   });
 
-  it("keeps a successful onboarding mutation when event storage fails and logs only the fixed code", async () => {
+  it("does not let an older page-exit selection overwrite a newer step", async () => {
     const db = createDb(env.DB);
     const guestSessionId = await seedGuest(db);
+    await db.update(guestTasteSessions)
+      .set({ completedStepsJson: JSON.stringify(["STYLE"]) })
+      .where(eq(guestTasteSessions.id, guestSessionId));
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        body: onboardingForm({
+          intent: "SAVE_STEP",
+          currentStep: "STYLE",
+          selectionRevision: 2,
+          foodBadgeIds: ["food-gukbap"],
+          styleBadgeIds: ["style-old-school", "style-market"],
+        }),
+      }),
+    } as never);
+    await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        body: onboardingForm({
+          intent: "SAVE_SELECTION",
+          currentStep: "STYLE",
+          selectionRevision: 1,
+          foodBadgeIds: ["food-gukbap"],
+          styleBadgeIds: ["style-old-school"],
+        }),
+      }),
+    } as never);
+    await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        body: onboardingForm({
+          intent: "SAVE_SELECTION",
+          currentStep: "STYLE",
+          selectionRevision: 3,
+          foodBadgeIds: ["food-gukbap"],
+          styleBadgeIds: ["style-old-school"],
+        }),
+      }),
+    } as never);
+
+    await expect(db.query.guestTasteSessions.findFirst({ where: eq(guestTasteSessions.id, guestSessionId) }))
+      .resolves.toMatchObject({
+        completedStepsJson: JSON.stringify(["PREVIEW"]),
+        selectionRevision: 2,
+      });
+    await expect(selectedGuestBadges(db, guestSessionId)).resolves.toEqual(expect.arrayContaining([
+      { badgeId: "food-gukbap" },
+      { badgeId: "style-old-school" },
+      { badgeId: "style-market" },
+    ]));
+  });
+
+  it.each(["COMPLETE", "SKIP"] as const)(
+    "keeps %s terminal state and its newer selection when an older beacon arrives late",
+    async (intent) => {
+      const db = createDb(env.DB);
+      const guestSessionId = await seedGuest(db);
+      const currentStep = intent === "COMPLETE" ? "PREVIEW" : "STYLE";
+      await db.update(guestTasteSessions)
+        .set({ completedStepsJson: JSON.stringify([currentStep]) })
+        .where(eq(guestTasteSessions.id, guestSessionId));
+      const sessionsBefore = await db.select({ id: guestTasteSessions.id }).from(guestTasteSessions);
+      const { action } = await import("../../app/routes/taste-onboarding");
+
+      await action({
+        request: new Request("https://retaste.test/onboarding/taste", {
+          method: "POST",
+          headers: { Cookie: `retaste_guest=${guestSessionId}` },
+          body: onboardingForm({
+            intent,
+            currentStep,
+            selectionRevision: 2,
+            foodBadgeIds: ["food-gukbap"],
+            styleBadgeIds: ["style-old-school", "style-market"],
+          }),
+        }),
+      } as never);
+      await action({
+        request: new Request("https://retaste.test/onboarding/taste", {
+          method: "POST",
+          headers: { Cookie: `retaste_guest=${guestSessionId}` },
+          body: onboardingForm({
+            intent: "SAVE_SELECTION",
+            currentStep,
+            selectionRevision: 1,
+            foodBadgeIds: ["food-gukbap"],
+            styleBadgeIds: ["style-old-school"],
+          }),
+        }),
+      } as never);
+
+      const session = await db.query.guestTasteSessions.findFirst({
+        where: eq(guestTasteSessions.id, guestSessionId),
+      });
+      expect(intent === "COMPLETE" ? session?.completedAt : session?.skippedAt).toEqual(expect.any(String));
+      expect(session?.selectionRevision).toBe(2);
+      await expect(db.select({ id: guestTasteSessions.id }).from(guestTasteSessions))
+        .resolves.toHaveLength(sessionsBefore.length);
+      await expect(selectedGuestBadges(db, guestSessionId)).resolves.toEqual(expect.arrayContaining([
+        { badgeId: "food-gukbap" },
+        { badgeId: "style-old-school" },
+        { badgeId: "style-market" },
+      ]));
+    },
+  );
+
+  it("does not create an orphan session when an old beacon arrives after merge", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db);
+    const userId = await seedUser(db);
+    await db.update(guestTasteSessions)
+      .set({ completedStepsJson: JSON.stringify(["STYLE"]) })
+      .where(eq(guestTasteSessions.id, guestSessionId));
+    await db.insert(guestTasteBadges).values([
+      { sessionId: guestSessionId, badgeId: "food-gukbap", selectedAt: NOW },
+      { sessionId: guestSessionId, badgeId: "style-market", selectedAt: NOW },
+    ]);
+    await mergeGuestTasteSessionFromRequest(
+      db,
+      new Request("https://retaste.test/login", { headers: { Cookie: `retaste_guest=${guestSessionId}` } }),
+      userId,
+      "2026-08-10T00:10:00.000Z",
+    );
+    const sessionsBefore = await db.select({ id: guestTasteSessions.id }).from(guestTasteSessions);
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    const response = await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        body: onboardingForm({
+          intent: "SAVE_SELECTION",
+          currentStep: "STYLE",
+          selectionRevision: 1,
+          foodBadgeIds: ["food-gukbap"],
+          styleBadgeIds: ["style-old-school"],
+        }),
+      }),
+    } as never) as unknown as { init?: ResponseInit };
+
+    await expect(db.select({ id: guestTasteSessions.id }).from(guestTasteSessions))
+      .resolves.toHaveLength(sessionsBefore.length);
+    await expect(selectedGuestBadges(db, guestSessionId)).resolves.toEqual(expect.arrayContaining([
+      { badgeId: "food-gukbap" },
+      { badgeId: "style-market" },
+    ]));
+    expect(new Headers(response.init?.headers).get("Set-Cookie")).toBeNull();
+  });
+
+  it("does not create an orphan session for an expired beacon cookie", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db, undefined, "STYLE");
+    await db.update(guestTasteSessions)
+      .set({ expiresAt: "2026-08-10T00:01:00.000Z" })
+      .where(eq(guestTasteSessions.id, guestSessionId));
+    const sessionsBefore = await db.select({ id: guestTasteSessions.id }).from(guestTasteSessions);
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    const response = await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        body: onboardingForm({
+          intent: "SAVE_SELECTION",
+          currentStep: "STYLE",
+          selectionRevision: 1,
+          foodBadgeIds: ["food-gukbap"],
+          styleBadgeIds: ["style-old-school"],
+        }),
+      }),
+    } as never) as unknown as { init?: ResponseInit };
+
+    await expect(db.select({ id: guestTasteSessions.id }).from(guestTasteSessions))
+      .resolves.toHaveLength(sessionsBefore.length);
+    await expect(selectedGuestBadges(db, guestSessionId)).resolves.toEqual([]);
+    expect(new Headers(response.init?.headers).get("Set-Cookie")).toBeNull();
+  });
+
+  it("keeps a successful onboarding mutation when event storage fails and logs only the fixed code", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db, undefined, "PREVIEW");
     const triggerName = `force_product_event_failure_${crypto.randomUUID().replaceAll("-", "")}`;
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     await env.DB.exec(
