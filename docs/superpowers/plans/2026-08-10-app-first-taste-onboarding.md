@@ -979,7 +979,7 @@ git add docs/operations/place-operations-runbook.md docs/superpowers/plans/2026-
 git commit -m "2026-08-10 취향 온보딩 운영 절차 정리"
 ```
 
-- [ ] **Step 8: 브랜치 push와 PR 생성**
+- [x] **Step 8: 브랜치 push와 PR 생성**
 
 상태: 독립 최종 리뷰 전이므로 push와 PR 생성은 보류한다.
 
