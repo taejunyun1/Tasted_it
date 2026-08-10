@@ -12,7 +12,7 @@ export function PlaceDiscoveryRail({
   description: string;
   places: DiscoveryPlace[];
   kind: "personal" | "trusted" | "golden";
-  onOpenDetail?: (slug: string) => void;
+  onOpenDetail?: (detailPath: string) => void;
 }) {
   return <section className="discovery-section" data-kind={kind} aria-labelledby={`discovery-${kind}`}>
     <header className="discovery-heading">

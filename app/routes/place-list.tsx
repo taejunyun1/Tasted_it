@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { Form, Link, redirect, useFetcher, useSearchParams } from "react-router";
 import type { Route } from "./+types/place-list";
 import type { loader as recommendationLoader } from "./place-recommendations-resource";
-import { PlaceCard } from "../components/places/PlaceCard";
+import { PlaceCard, safePlaceDetailRequestPath } from "../components/places/PlaceCard";
 import { PlaceDiscoveryRail } from "../components/places/PlaceDiscoveryRail";
 import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
 import { PlaceRecommendationControls } from "../components/places/PlaceRecommendationControls";
@@ -59,8 +59,12 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
   useEffect(() => {
     if (recommendationFetcher.data?.ok) setRecommendations(recommendationFetcher.data.recommendations);
   }, [recommendationFetcher.data]);
-  const detailSlug = params.get("place");
-  const openDetail = (slug: string) => setParams((current) => { const next = new URLSearchParams(current); next.set("place", slug); return next; });
+  const detailPath = safePlaceDetailRequestPath(params.get("place"));
+  const openDetail = (requestPath: string) => {
+    const safeRequestPath = safePlaceDetailRequestPath(requestPath);
+    if (!safeRequestPath) return;
+    setParams((current) => { const next = new URLSearchParams(current); next.set("place", safeRequestPath); return next; });
+  };
   const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
   const recommendationError = recommendationFetcher.data && !recommendationFetcher.data.ok
@@ -118,6 +122,6 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
       <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
       {!loaderData.places.length && <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>}
     </section>
-    <PlaceDetailSheet slug={detailSlug} onClose={closeDetail} />
+    <PlaceDetailSheet detailPath={detailPath} onClose={closeDetail} />
   </main>;
 }

@@ -11,6 +11,8 @@
 - 온보딩 폼은 `currentStep`, `targetStep`, `direction`을 구분한다. 서버는 실제 인접 이동을 검증하고 전진 성공에만 현재 단계를 완료로 기록한다. 뒤로 가기에는 완료 이벤트가 없으며, 건너뛰기는 현재 단계, 선택 개수는 FOOD 또는 STYLE 해당 단계만 기록한다.
 - 최초 원자적 비회원 취향 병합이 성공한 경계에서만 `GUEST_CONVERTED`를 insert-if-absent로 기록한다. 반복·동시 병합은 중복을 만들지 않으며 이벤트 실패도 병합과 비회원 쿠키 만료를 취소하지 않는다.
 - 추천 `PlaceCard`는 PERSONAL/TRUSTED/GOLDEN rail과 해당 rail에서 가능한 discovery mode 조합만 상세 URL에 전달한다. 클릭 시 개인정보 없는 UUID 요청 ID를 추가한다. 서버는 세 값을 함께 검증하고 성공한 상세 loader에서 `RECOMMENDATION_DETAIL_OPENED`를 요청당 한 번 기록한다.
+- 모바일 추천 card도 slug가 아니라 같은 recommendation request path 전체를 sheet callback에 전달한다. 목록 URL 상태, sheet loader, 회원 save form action, 비회원 login `returnTo`까지 동일한 검증된 same-origin 상대 경로를 유지한다.
+- sheet가 수용하는 경로는 query 없는 단일 `/places/:slug` 또는 source rail·discovery mode·UUID 요청 ID가 모두 있는 정확한 추천 경로뿐이다. 외부 origin, protocol-relative URL, 경로 정규화 우회, 알 수 없는·중복·부분 query, 허용되지 않은 rail/mode 조합을 거절한다. 지도와 전체 목록의 직접 경로는 계속 query가 없다.
 - 추천 출처가 검증된 상세 action의 저장·긍정·부정 성공만 추천 이벤트로 기록한다. 직접 URL, 지도·전체 목록, 잘못된 출처 조합, 저장 해제와 핵심 동작 실패에는 추천 이벤트를 만들지 않는다.
 - 이벤트 쓰기 실패는 성공한 사용자 동작을 취소하지 않으며 예외, ID 또는 개인정보를 로그에 포함하지 않고 `PRODUCT_EVENT_WRITE_FAILED` 고정 코드만 남긴다.
 
@@ -30,12 +32,21 @@
 - RED/GREEN: 같은 기존 비회원 세션의 동시 loader revalidation이 시작 이벤트를 0건 남기는 상태를 재현했다. 모든 성공 loader의 insert-if-absent로 한 건을 보장하고, 쿠키 없는 동시 요청은 서로 다른 세션임을 별도 회귀로 고정했다.
 - RED/GREEN: detail loader 후반 실패 전에 상세 열람이 먼저 기록되는 상태와 불가능한 GOLDEN/EXPLORATION 조합 수용을 재현했다. 전체 loader 성공 뒤 기록하고 `PlaceCard`가 만들 수 있는 조합만 허용하도록 수정했다.
 
+## 모바일 sheet 재리뷰 수정 TDD 기록
+
+- RED/GREEN: Pixel 7 viewport에서 실제 PERSONAL rail card를 눌렀을 때 UUID 추천 경로가 취소되고 `place=<slug>`만 남아 상세·저장 이벤트가 누락되는 흐름을 브라우저로 재현했다. callback과 목록 상태가 검증된 전체 request path를 전달하도록 수정하고 실제 D1에 `RECOMMENDATION_DETAIL_OPENED`, `RECOMMENDATION_SAVED`가 정확한 metadata로 각각 한 건 남는지 검증했다.
+- RED/GREEN: 외부 URL과 query 없는 경로도 recommendation request ID helper가 수용하고, `/places/a/../b`가 정규화되어 허용되는 결함을 단위 테스트로 재현했다. canonical same-origin 상대 경로와 정확한 query key·값·조합만 허용하도록 차단했다.
+- RED/GREEN: sheet save 성공 응답이 detail fetcher data를 덮어 `data.place` 렌더 오류를 만드는 실제 브라우저 실패를 재현했다. loader와 save fetcher를 분리해 성공 action이 상세 내용을 깨뜨리지 않도록 했다.
+- 실제 모바일 전체 목록 save, 직접 상세 loader, 지도 pin→sheet loader가 query 없는 경로를 사용하고 추천 이벤트를 한 건도 만들지 않는 회귀를 추가했다. 완료한 비회원 세션의 추천 rail→sheet 로그인 링크도 동일 추천 경로를 인코딩한 `returnTo`로 유지하는지 실행 검증했다.
+
 ## 검증 결과
 
 - 집중 제품 이벤트 통합: `tests/integration/onboarding-events.server.test.ts` 41개 테스트 통과
 - 관련 통합: 5개 파일, 78개 테스트 통과
 - 관련 단위·계약: 5개 파일, 34개 테스트 통과
-- 전체 단위: 75개 파일, 404개 테스트 통과
+- 모바일 경로 단위·계약: 2개 파일, 8개 테스트 통과
+- 관련 Playwright 전체 spec: 9개 통과, desktop에서 mobile 전용 3개 의도적 skip
+- 전체 단위: 75개 파일, 406개 테스트 통과
 - 전체 Workers 통합: 40개 파일, 175개 테스트 통과
 - `pnpm run typecheck`: 통과
 - `git diff --check`: 통과

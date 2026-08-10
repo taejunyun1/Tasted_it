@@ -1,20 +1,29 @@
 import { useEffect } from "react";
 import { useFetcher } from "react-router";
 import type { loader as placeDetailLoader } from "../../routes/place-detail";
+import { safePlaceDetailRequestPath } from "./PlaceCard";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
 
-export function PlaceDetailSheet({ slug, onClose }: { slug: string | null; onClose: () => void }) {
+export function PlaceDetailSheet({ detailPath, slug, onClose }: {
+  detailPath?: string | null;
+  slug?: string | null;
+  onClose: () => void;
+}) {
   const detail = useFetcher<DetailData>();
-  useEffect(() => { if (slug) detail.load(`/places/${slug}`); }, [slug]);
+  const save = useFetcher<{ ok: true }>();
+  const requestPath = detailPath === undefined
+    ? safePlaceDetailRequestPath(slug ? `/places/${slug}` : null)
+    : safePlaceDetailRequestPath(detailPath);
+  useEffect(() => { if (requestPath) detail.load(requestPath); }, [requestPath]);
   useEffect(() => {
-    if (!slug) return;
+    if (!requestPath) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", close);
     return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", close); };
-  }, [slug, onClose]);
-  if (!slug) return null;
+  }, [requestPath, onClose]);
+  if (!requestPath) return null;
   const data = detail.data;
   return <div className="place-detail-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="place-detail-sheet" role="dialog" aria-modal="true" aria-label={data ? `${data.place.name} 상세 정보` : "장소 상세 불러오는 중"}>
@@ -31,7 +40,7 @@ export function PlaceDetailSheet({ slug, onClose }: { slug: string | null; onClo
           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
           <dl><div><dt>주소</dt><dd>{data.place.address}</dd></div><div><dt>주차</dt><dd>{data.place.parkingSummary ?? "정보 확인 중"}</dd></div>{data.place.phone && <div><dt>전화</dt><dd>{data.place.phone}</dd></div>}</dl>
           <div className="place-detail-sheet__actions">
-            {data.user ? <detail.Form method="post" action={`/places/${slug}`}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save">{data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></detail.Form> : <a className="place-detail-sheet__save" href="/login">로그인하고 맛집지도에 추가</a>}
+            {data.user ? <save.Form method="post" action={requestPath}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save">{data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></save.Form> : <a className="place-detail-sheet__save" href={`/login?returnTo=${encodeURIComponent(requestPath)}`}>로그인하고 맛집지도에 추가</a>}
             <a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
           </div>
         </div>
