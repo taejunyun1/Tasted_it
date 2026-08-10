@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
+import type { AppDb } from "../../app/db/client.server";
 import {
   guestTasteBadges,
   guestTasteSessions,
@@ -142,5 +143,61 @@ describe("guest onboarding", () => {
     })).rejects.toThrow("GUEST_SESSION_UNAVAILABLE");
     const badges = await db.select().from(guestTasteBadges).where(eq(guestTasteBadges.sessionId, merged.id));
     expect(badges).toEqual([]);
+  });
+
+  it("does not change badges when a session is merged after validation but before its batch", async () => {
+    const db = createDb(env.DB);
+    const now = "2026-08-10T00:01:00Z";
+    const session = await createGuestSession(db, { id: `guest-${crypto.randomUUID()}`, now: "2026-08-10T00:00:00Z" });
+    await db.insert(guestTasteBadges).values({ sessionId: session.id, badgeId: "food-gukbap", selectedAt: now });
+    const userId = `user-${crypto.randomUUID()}`;
+    await db.insert(users).values({
+      id: userId,
+      email: `${userId}@example.com`,
+      displayName: "경쟁 사용자",
+      role: "USER",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const racedDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === "batch") {
+          return async (...input: Parameters<AppDb["batch"]>) => {
+            await target.update(guestTasteSessions).set({ mergedUserId: userId }).where(eq(guestTasteSessions.id, session.id));
+            return target.batch(...input);
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }) as AppDb;
+
+    await expect(saveGuestOnboarding(racedDb, {
+      sessionId: session.id,
+      step: "FOOD",
+      locationMode: "DEFAULT",
+      foodBadgeIds: ["food-ramen"],
+      styleBadgeIds: [],
+      now,
+    })).rejects.toThrow("GUEST_SESSION_UNAVAILABLE");
+
+    const badges = await db.select({ badgeId: guestTasteBadges.badgeId }).from(guestTasteBadges)
+      .where(eq(guestTasteBadges.sessionId, session.id));
+    expect(badges).toEqual([{ badgeId: "food-gukbap" }]);
+  });
+
+  it("restores completed and skipped timestamps for downstream re-entry checks", async () => {
+    const db = createDb(env.DB);
+    const session = await createGuestSession(db, { id: `guest-${crypto.randomUUID()}`, now: "2026-08-10T00:00:00Z" });
+    await db.update(guestTasteSessions).set({
+      completedAt: "2026-08-10T00:05:00.000Z",
+      skippedAt: "2026-08-10T00:06:00.000Z",
+    }).where(eq(guestTasteSessions.id, session.id));
+
+    await expect(getGuestOnboarding(db, session.id, "2026-08-10T00:07:00Z"))
+      .resolves.toMatchObject({
+        completedAt: "2026-08-10T00:05:00.000Z",
+        skippedAt: "2026-08-10T00:06:00.000Z",
+      });
   });
 });

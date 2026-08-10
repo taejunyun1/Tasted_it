@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, exists, gt, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
@@ -22,6 +22,8 @@ export type GuestOnboardingState = {
   foodBadgeIds: string[];
   styleBadgeIds: string[];
   expiresAt: string;
+  completedAt: string | null;
+  skippedAt: string | null;
 };
 
 export type SaveGuestOnboardingInput = {
@@ -79,6 +81,14 @@ function activeGuestSessionConditions(sessionId: string, now: string) {
     eq(guestTasteSessions.id, sessionId),
     isNull(guestTasteSessions.mergedUserId),
     gt(guestTasteSessions.expiresAt, now),
+  );
+}
+
+function activeGuestSessionExists(db: AppDb, sessionId: string, now: string) {
+  return exists(
+    db.select({ id: guestTasteSessions.id })
+      .from(guestTasteSessions)
+      .where(activeGuestSessionConditions(sessionId, now)),
   );
 }
 
@@ -176,6 +186,8 @@ export async function getGuestOnboarding(
     foodBadgeIds,
     styleBadgeIds,
     expiresAt: session.expiresAt,
+    completedAt: session.completedAt,
+    skippedAt: session.skippedAt,
   };
 }
 
@@ -194,26 +206,28 @@ export async function saveGuestOnboarding(
 ): Promise<void> {
   if (!isValidBadgeSelection(input)) throw new Error("GUEST_ONBOARDING_BADGES_INVALID");
 
-  const session = await db.query.guestTasteSessions.findFirst({
-    where: activeGuestSessionConditions(input.sessionId, input.now),
-    columns: { id: true },
-  });
-  if (!session) throw new Error("GUEST_SESSION_UNAVAILABLE");
-
   const selectedBadgeIds = [...input.foodBadgeIds, ...input.styleBadgeIds];
   const statements: BatchItem<"sqlite">[] = [
-    db.delete(guestTasteBadges).where(eq(guestTasteBadges.sessionId, session.id)),
-    ...selectedBadgeIds.map((badgeId) => db.insert(guestTasteBadges).values({
-      sessionId: session.id,
-      badgeId,
-      selectedAt: input.now,
-    })),
+    db.delete(guestTasteBadges).where(and(
+      eq(guestTasteBadges.sessionId, input.sessionId),
+      activeGuestSessionExists(db, input.sessionId, input.now),
+    )),
+    ...selectedBadgeIds.map((badgeId) => db.insert(guestTasteBadges).select(
+      db.select({
+        sessionId: guestTasteSessions.id,
+        badgeId: sql<string>`${badgeId}`.as("badge_id"),
+        selectedAt: sql<string>`${input.now}`.as("selected_at"),
+      }).from(guestTasteSessions).where(activeGuestSessionConditions(input.sessionId, input.now)),
+    )),
     db.update(guestTasteSessions).set({
       locationMode: input.locationMode,
       completedStepsJson: JSON.stringify([input.step]),
       updatedAt: input.now,
-    }).where(activeGuestSessionConditions(session.id, input.now)),
+    }).where(activeGuestSessionConditions(input.sessionId, input.now)),
   ];
   const [first, ...rest] = statements;
-  if (first) await db.batch([first, ...rest]);
+  if (!first) throw new Error("GUEST_SESSION_UNAVAILABLE");
+  const results = await db.batch([first, ...rest]);
+  const sessionUpdate = results.at(-1) as { meta?: { changes?: number } } | undefined;
+  if (sessionUpdate?.meta?.changes !== 1) throw new Error("GUEST_SESSION_UNAVAILABLE");
 }
