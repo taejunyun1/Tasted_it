@@ -11,6 +11,7 @@ import {
   expiredGuestSessionCookie,
   readGuestSessionId,
 } from "./guest-session.server";
+import { recordProductEvent } from "./onboarding-events.server";
 
 const ONBOARDING_EVIDENCE = JSON.stringify({ source: "ONBOARDING", version: 1 });
 const VALID_BADGE_IDS_JSON = JSON.stringify(TASTE_BADGE_CATALOG.map((badge) => badge.id));
@@ -69,6 +70,17 @@ export async function mergeGuestTasteSessionFromRequest(
   const [, sessionUpdate] = await db.batch([copyCurrentBadges, markMerged]);
   if (sessionUpdate?.meta?.changes !== 1) {
     return { merged: false, expireCookie: null };
+  }
+
+  try {
+    await recordProductEvent(db, {
+      eventName: "GUEST_CONVERTED",
+      guestSessionId: sessionId,
+      userId,
+      occurredAt: now,
+    });
+  } catch {
+    console.error("PRODUCT_EVENT_WRITE_FAILED");
   }
 
   return {

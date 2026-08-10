@@ -14,6 +14,11 @@ import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
 import { recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
 import { recordProductEvent, type ProductEventMetadata, type ProductEventName } from "../features/onboarding/onboarding-events.server";
+import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
+import {
+  RECOMMENDATION_DISCOVERY_MODES,
+  RECOMMENDATION_SOURCE_RAILS,
+} from "../components/places/PlaceCard";
 import { VoteControl } from "../components/ratings/VoteControl";
 
 const actionSchema = z.discriminatedUnion("intent", [
@@ -25,16 +30,39 @@ const actionSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("save"), saved: z.enum(["true", "false"]).transform((value) => value === "true") }),
 ]);
 
-async function recordMemberProductEvent(db: ReturnType<typeof createDb>, input: {
+const recommendationProvenanceSchema = z.object({
+  sourceRail: z.enum(RECOMMENDATION_SOURCE_RAILS),
+  discoveryMode: z.enum(RECOMMENDATION_DISCOVERY_MODES),
+  recommendationRequestId: z.uuid(),
+}).refine((value) => {
+  if (value.sourceRail === "TRUSTED") return value.discoveryMode === "QUALITY";
+  if (value.sourceRail === "GOLDEN") return value.discoveryMode === "REVIEWER";
+  return ["FAMILIAR", "ADJACENT", "EXPLORATION", "ONBOARDING"].includes(value.discoveryMode);
+});
+
+function recommendationProvenance(request: Request) {
+  const url = new URL(request.url);
+  const parsed = recommendationProvenanceSchema.safeParse({
+    sourceRail: url.searchParams.get("sourceRail"),
+    discoveryMode: url.searchParams.get("discoveryMode"),
+    recommendationRequestId: url.searchParams.get("recommendationRequestId"),
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+async function recordPlaceProductEvent(db: ReturnType<typeof createDb>, input: {
   eventName: ProductEventName;
-  userId: string;
+  eventId?: string;
+  userId: string | null;
+  guestSessionId?: string | null;
   metadata?: ProductEventMetadata;
   occurredAt: string;
 }) {
   try {
     await recordProductEvent(db, {
       eventName: input.eventName,
-      guestSessionId: null,
+      eventId: input.eventId,
+      guestSessionId: input.guestSessionId ?? null,
       userId: input.userId,
       metadata: input.metadata,
       occurredAt: input.occurredAt,
@@ -49,11 +77,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const redirectedSlug = await resolvePlaceSlugRedirect(db, params.placeSlug);
   if (redirectedSlug) throw redirect(`/places/${redirectedSlug}`, 301);
   const [place, user] = await Promise.all([getPlaceBySlug(db, params.placeSlug), getOptionalUser(request)]);
+  const now = new Date().toISOString();
+  const provenance = recommendationProvenance(request);
+  const guest = provenance && !user ? await getGuestOnboardingFromRequest(db, request, now) : null;
   const [vote, saved] = user ? await Promise.all([
     getCurrentVote(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const now = new Date().toISOString();
   await recordPlaceDetailView(db, { placeId: place.id, now });
   const [snapshot, flavorPrint, goldenPicks, hiddenGem] = await Promise.all([
     getLatestRatingSnapshot(db, place.id),
@@ -81,7 +111,23 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     isStale: false,
     algorithmVersion: "rating-v1-fallback",
   };
-  return { place, rating, flavorPrint, hiddenGem, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote, saved };
+  if (provenance) {
+    await recordPlaceProductEvent(db, {
+      eventName: "RECOMMENDATION_DETAIL_OPENED",
+      eventId: provenance.recommendationRequestId,
+      userId: user?.id ?? null,
+      guestSessionId: guest?.sessionId ?? null,
+      metadata: {
+        sourceRail: provenance.sourceRail,
+        discoveryMode: provenance.discoveryMode,
+      },
+      occurredAt: now,
+    });
+  }
+  const returnTo = provenance
+    ? `${new URL(request.url).pathname}${new URL(request.url).search}`
+    : `/places/${place.slug}`;
+  return { place, rating, flavorPrint, hiddenGem, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -93,6 +139,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (redirectedSlug) throw redirect(`/places/${redirectedSlug}`, 308);
   const place = await getPlaceBySlug(db, params.placeSlug);
   const now = new Date().toISOString();
+  const provenance = recommendationProvenance(request);
   if (parsed.data.intent === "vote") {
     await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now });
     try {
@@ -107,18 +154,26 @@ export async function action({ request, params }: Route.ActionArgs) {
     } catch {
       console.error("TASTE_LEARNING_REFRESH_FAILED");
     }
-    await recordMemberProductEvent(db, {
+    if (provenance) await recordPlaceProductEvent(db, {
       eventName: parsed.data.value === 1 ? "RECOMMENDATION_LIKED" : "RECOMMENDATION_DISLIKED",
       userId: user.id,
-      metadata: parsed.data.value === -1 && parsed.data.reason ? { reason: parsed.data.reason } : {},
+      metadata: {
+        sourceRail: provenance.sourceRail,
+        discoveryMode: provenance.discoveryMode,
+        ...(parsed.data.value === -1 && parsed.data.reason ? { reason: parsed.data.reason } : {}),
+      },
       occurredAt: now,
     });
   } else {
     await setSavedAndRefreshTaste(db, { placeId: place.id, userId: user.id, saved: parsed.data.saved, now });
-    if (parsed.data.saved) {
-      await recordMemberProductEvent(db, {
+    if (parsed.data.saved && provenance) {
+      await recordPlaceProductEvent(db, {
         eventName: "RECOMMENDATION_SAVED",
         userId: user.id,
+        metadata: {
+          sourceRail: provenance.sourceRail,
+          discoveryMode: provenance.discoveryMode,
+        },
         occurredAt: now,
       });
     }
@@ -144,7 +199,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
-          <VoteControl vote={loaderData.vote} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={`/places/${place.slug}`} />
+          <VoteControl vote={loaderData.vote} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
         </article>
       </div>

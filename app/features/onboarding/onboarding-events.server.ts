@@ -35,6 +35,7 @@ export type RecordProductEventResult =
 
 const eventNameAllowlist = new Set<string>(PRODUCT_EVENT_NAMES);
 const metadataKeyAllowlist = new Set<string>(PRODUCT_EVENT_METADATA_KEYS);
+const eventIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function serializeMetadata(metadata: ProductEventMetadata | undefined): string {
   if (metadata === undefined) return "{}";
@@ -61,6 +62,7 @@ export async function recordProductEvent<
   db: AppDb,
   input: {
     eventName: ProductEventName;
+    eventId?: string;
     guestSessionId: string | null;
     userId: string | null;
     metadata?: ExactProductEventMetadata<Metadata>;
@@ -70,17 +72,21 @@ export async function recordProductEvent<
   if (!eventNameAllowlist.has(input.eventName)) {
     throw new Error("PRODUCT_EVENT_NAME_NOT_ALLOWED");
   }
+  if (input.eventId !== undefined && !eventIdPattern.test(input.eventId)) {
+    throw new Error("PRODUCT_EVENT_ID_NOT_ALLOWED");
+  }
   const metadataJson = serializeMetadata(input.metadata);
   if (!input.guestSessionId && !input.userId) return { recorded: false, id: null };
 
-  const id = crypto.randomUUID();
-  await db.insert(productEvents).values({
+  const id = input.eventId ?? crypto.randomUUID();
+  const result = await db.insert(productEvents).values({
     id,
     eventName: input.eventName,
     guestSessionId: input.guestSessionId,
     userId: input.userId,
     metadataJson,
     occurredAt: input.occurredAt,
-  });
+  }).onConflictDoNothing();
+  if (result.meta.changes !== 1) return { recorded: false, id: null };
   return { recorded: true, id };
 }

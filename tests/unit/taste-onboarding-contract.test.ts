@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createMemoryRouter, RouterProvider } from "react-router";
 
 const mocks = vi.hoisted(() => ({
   env: { DB: {}, ONBOARDING_ENABLED: "true" },
@@ -45,16 +48,42 @@ describe("taste onboarding contract", () => {
 
   it("submits and restores exactly one onboarding step at a time", async () => {
     const component = await import("../../app/components/onboarding/TasteOnboarding");
-    expect(component.nextOnboardingStep).toBeTypeOf("function");
+    expect(component.onboardingNavigation).toBeTypeOf("function");
 
-    const submitted = new FormData();
-    submitted.set("step", component.nextOnboardingStep("LOCATION"));
-    expect(submitted.get("step")).toBe("FOOD");
+    expect(component.onboardingNavigation("LOCATION", "FORWARD")).toEqual({
+      currentStep: "LOCATION",
+      targetStep: "FOOD",
+      direction: "FORWARD",
+    });
+    expect(component.onboardingNavigation("STYLE", "BACK")).toEqual({
+      currentStep: "STYLE",
+      targetStep: "FOOD",
+      direction: "BACK",
+    });
 
-    const reenteredStep = submitted.get("step") as "FOOD";
-    expect(component.nextOnboardingStep(reenteredStep)).toBe("STYLE");
-    expect(fs.readFileSync("app/components/onboarding/TasteOnboarding.tsx", "utf8"))
-      .not.toContain("onClick={() => setStep(nextStep)}");
+    const source = fs.readFileSync("app/components/onboarding/TasteOnboarding.tsx", "utf8");
+    expect(source).toContain('name="currentStep"');
+    expect(source).toContain('name="targetStep"');
+    expect(source).toContain('name="direction"');
+
+    const router = createMemoryRouter([{
+      path: "/onboarding/taste",
+      element: createElement(component.TasteOnboarding, {
+        initialState: {
+          step: "FOOD",
+          locationMode: "DEFAULT",
+          foodBadgeIds: [],
+          styleBadgeIds: [],
+        },
+        foodBadges: [],
+        styleBadges: [],
+        returnTo: "/places",
+      }),
+    }], { initialEntries: ["/onboarding/taste"] });
+    const html = renderToStaticMarkup(createElement(RouterProvider, { router }));
+    expect(html).toContain('name="currentStep" value="FOOD"');
+    expect(html).toContain('name="targetStep" value="STYLE"');
+    expect(html).toContain('name="direction" value="FORWARD"');
   });
 
   it("announces step progress with progressbar semantics", () => {
@@ -107,7 +136,9 @@ describe("taste onboarding contract", () => {
     const { action } = await import("../../app/routes/taste-onboarding");
     const form = new FormData();
     form.set("intent", "COMPLETE");
-    form.set("step", "PREVIEW");
+    form.set("currentStep", "PREVIEW");
+    form.set("targetStep", "PREVIEW");
+    form.set("direction", "FORWARD");
     form.set("returnTo", "/%5Cevil.example/path");
     const response = await action({ request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }) } as never);
     expect(response).toBeInstanceOf(Response);
@@ -119,7 +150,9 @@ describe("taste onboarding contract", () => {
     const request = () => {
       const form = new FormData();
       form.set("intent", "SAVE_STEP");
-      form.set("step", "FOOD");
+      form.set("currentStep", "FOOD");
+      form.set("targetStep", "STYLE");
+      form.set("direction", "FORWARD");
       form.append("foodBadgeId", "food-outdated");
       return new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form });
     };

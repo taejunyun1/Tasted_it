@@ -1,10 +1,11 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeMocks = vi.hoisted(() => ({
   castVote: vi.fn(async () => undefined),
   getOptionalUser: vi.fn(async () => null),
+  getLatestRatingSnapshot: vi.fn(async () => null),
   getPlaceBySlug: vi.fn(async () => ({ id: "place-event-test", slug: "place-event-test" })),
   recordRecommendationFeedback: vi.fn(async () => undefined),
   refreshInferredTasteSignals: vi.fn(async () => undefined),
@@ -68,6 +69,23 @@ vi.mock("../../app/features/members/taste-learning.server", () => ({
   refreshInferredTasteSignals: routeMocks.refreshInferredTasteSignals,
 }));
 
+vi.mock("../../app/features/ratings/rating-v1", () => ({
+  calculateRating: () => ({ sampleStatus: "COLLECTING", displayScore: null }),
+}));
+vi.mock("../../app/features/ratings/recompute.server", () => ({
+  getLatestRatingSnapshot: routeMocks.getLatestRatingSnapshot,
+}));
+vi.mock("../../app/features/ratings/flavor-print.server", () => ({
+  getPlaceFlavorPrint: vi.fn(async () => ({ status: "COLLECTING", ratingCount: 0 })),
+}));
+vi.mock("../../app/features/ratings/golden-pick.server", () => ({
+  listActiveGoldenPicks: vi.fn(async () => []),
+}));
+vi.mock("../../app/features/ratings/rating-badges.server", () => ({
+  getHiddenGemStatus: vi.fn(async () => ({ eligible: false })),
+  recordPlaceDetailView: vi.fn(async () => undefined),
+}));
+
 import { createDb, type AppDb } from "../../app/db/client.server";
 import {
   guestTasteSessions,
@@ -82,6 +100,14 @@ import {
   type ProductEventMetadataKey,
   type ProductEventName,
 } from "../../app/features/onboarding/onboarding-events.server";
+import {
+  onboardingNavigation,
+  type OnboardingNavigationDirection,
+} from "../../app/components/onboarding/TasteOnboarding";
+import {
+  recommendationPlacePath,
+  recommendationRequestPath,
+} from "../../app/components/places/PlaceCard";
 
 const NOW = "2026-08-10T00:00:00.000Z";
 
@@ -129,6 +155,8 @@ beforeEach(() => {
   routeMocks.castVote.mockResolvedValue(undefined);
   routeMocks.getOptionalUser.mockReset();
   routeMocks.getOptionalUser.mockResolvedValue(null);
+  routeMocks.getLatestRatingSnapshot.mockReset();
+  routeMocks.getLatestRatingSnapshot.mockResolvedValue(null);
   routeMocks.getPlaceBySlug.mockReset();
   routeMocks.getPlaceBySlug.mockResolvedValue({ id: "place-event-test", slug: "place-event-test" });
   routeMocks.recordRecommendationFeedback.mockReset();
@@ -280,6 +308,37 @@ describe("recordProductEvent", () => {
       occurredAt: NOW,
     })).rejects.toThrow();
   });
+
+  it("atomically records at most one unique guest lifecycle event", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db);
+
+    const results = await Promise.all(Array.from({ length: 8 }, () => recordProductEvent(db, {
+      eventName: "ONBOARDING_STARTED",
+      guestSessionId,
+      userId: null,
+      occurredAt: NOW,
+    })));
+
+    expect(results.filter((result) => result.recorded)).toHaveLength(1);
+    await expect(db.select().from(productEvents).where(and(
+      eq(productEvents.guestSessionId, guestSessionId),
+      eq(productEvents.eventName, "ONBOARDING_STARTED"),
+    ))).resolves.toHaveLength(1);
+  });
+
+  it("rejects a caller-provided event ID unless it is an opaque UUID", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db);
+
+    await expect(recordProductEvent(db, {
+      eventId: "member@example.com-35.1-name",
+      eventName: "RECOMMENDATION_DETAIL_OPENED",
+      guestSessionId,
+      userId: null,
+      occurredAt: NOW,
+    } as never)).rejects.toThrow("PRODUCT_EVENT_ID_NOT_ALLOWED");
+  });
 });
 
 function cookiePair(setCookie: string) {
@@ -288,13 +347,17 @@ function cookiePair(setCookie: string) {
 
 function onboardingForm(input: {
   intent: "SAVE_STEP" | "SKIP" | "COMPLETE";
-  step: "LOCATION" | "FOOD" | "STYLE" | "PREVIEW";
+  currentStep: "LOCATION" | "FOOD" | "STYLE" | "PREVIEW";
+  direction?: OnboardingNavigationDirection;
   foodBadgeIds?: string[];
   styleBadgeIds?: string[];
 }) {
+  const navigation = onboardingNavigation(input.currentStep, input.direction ?? "FORWARD");
   const form = new FormData();
   form.set("intent", input.intent);
-  form.set("step", input.step);
+  form.set("currentStep", navigation.currentStep);
+  form.set("targetStep", navigation.targetStep);
+  form.set("direction", navigation.direction);
   form.set("locationMode", "DEFAULT");
   form.set("returnTo", "/places");
   for (const badgeId of input.foodBadgeIds ?? []) form.append("foodBadgeId", badgeId);
@@ -325,22 +388,58 @@ describe("product event route wiring", () => {
     ]);
   });
 
+  it("records one onboarding start across concurrent revalidation of the same guest session", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db);
+    const { loader } = await import("../../app/routes/taste-onboarding");
+    const request = () => new Request("https://retaste.test/onboarding/taste", {
+      headers: { Cookie: `retaste_guest=${guestSessionId}` },
+    });
+
+    await Promise.all(Array.from({ length: 8 }, () => loader({ request: request() } as never)));
+
+    await expect(db.select().from(productEvents).where(and(
+      eq(productEvents.guestSessionId, guestSessionId),
+      eq(productEvents.eventName, "ONBOARDING_STARTED"),
+    ))).resolves.toHaveLength(1);
+  });
+
+  it("treats simultaneous requests without a cookie as distinct server-issued guest sessions", async () => {
+    const { loader } = await import("../../app/routes/taste-onboarding");
+    const responses = await Promise.all([
+      loader({ request: new Request("https://retaste.test/onboarding/taste") } as never),
+      loader({ request: new Request("https://retaste.test/onboarding/taste") } as never),
+    ]) as unknown as Array<{ init?: ResponseInit }>;
+    const guestSessionIds = responses.map((response) => {
+      const setCookie = new Headers(response.init?.headers).get("Set-Cookie")!;
+      return decodeURIComponent(cookiePair(setCookie).split("=")[1]!);
+    });
+
+    expect(new Set(guestSessionIds)).toHaveLength(2);
+    const rows = await createDb(env.DB).select().from(productEvents);
+    for (const guestSessionId of guestSessionIds) {
+      expect(rows).toContainEqual(expect.objectContaining({
+        guestSessionId,
+        eventName: "ONBOARDING_STARTED",
+      }));
+    }
+  });
+
   it.each([
-    ["SAVE_STEP", "FOOD", "ONBOARDING_STEP_COMPLETED", { step: "FOOD", selectedCount: 1 }],
-    ["SKIP", "STYLE", "ONBOARDING_SKIPPED", { step: "STYLE", selectedCount: 1 }],
-    ["COMPLETE", "PREVIEW", "ONBOARDING_COMPLETED", { step: "PREVIEW", selectedCount: 2 }],
-  ] as const)("records a successful %s onboarding action", async (intent, step, eventName, metadata) => {
+    ["SAVE_STEP", "LOCATION", "ONBOARDING_STEP_COMPLETED", { step: "LOCATION", selectedCount: 0 }, [], []],
+    ["SAVE_STEP", "FOOD", "ONBOARDING_STEP_COMPLETED", { step: "FOOD", selectedCount: 2 }, ["food-gukbap", "food-ramen"], ["style-old-school"]],
+    ["SKIP", "STYLE", "ONBOARDING_SKIPPED", { step: "STYLE", selectedCount: 1 }, ["food-gukbap"], ["style-old-school"]],
+    ["COMPLETE", "PREVIEW", "ONBOARDING_COMPLETED", { step: "PREVIEW", selectedCount: 0 }, ["food-gukbap"], ["style-old-school"]],
+  ] as const)("records a successful %s onboarding action", async (intent, currentStep, eventName, metadata, foodBadgeIds, styleBadgeIds) => {
     const db = createDb(env.DB);
     const guestSessionId = await seedGuest(db);
     const { action } = await import("../../app/routes/taste-onboarding");
-    const foodBadgeIds = ["food-gukbap"];
-    const styleBadgeIds = metadata.selectedCount === 2 ? ["style-old-school"] : [];
 
     await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
         headers: { Cookie: `retaste_guest=${guestSessionId}` },
-        body: onboardingForm({ intent, step, foodBadgeIds, styleBadgeIds }),
+        body: onboardingForm({ intent, currentStep, foodBadgeIds: [...foodBadgeIds], styleBadgeIds: [...styleBadgeIds] }),
       }),
     } as never);
 
@@ -348,6 +447,31 @@ describe("product event route wiring", () => {
       .resolves.toEqual([
         expect.objectContaining({ eventName, metadataJson: JSON.stringify(metadata) }),
       ]);
+  });
+
+  it("does not record a completed step when the actual component contract navigates back", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db);
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        body: onboardingForm({
+          intent: "SAVE_STEP",
+          currentStep: "STYLE",
+          direction: "BACK",
+          foodBadgeIds: ["food-gukbap"],
+          styleBadgeIds: ["style-old-school"],
+        }),
+      }),
+    } as never);
+
+    await expect(db.select().from(productEvents).where(eq(productEvents.guestSessionId, guestSessionId)))
+      .resolves.toEqual([]);
+    await expect(db.query.guestTasteSessions.findFirst({ where: eq(guestTasteSessions.id, guestSessionId) }))
+      .resolves.toMatchObject({ completedStepsJson: JSON.stringify(["FOOD"]) });
   });
 
   it("keeps a successful onboarding mutation when event storage fails and logs only the fixed code", async () => {
@@ -365,7 +489,7 @@ describe("product event route wiring", () => {
         request: new Request("https://retaste.test/onboarding/taste", {
           method: "POST",
           headers: { Cookie: `retaste_guest=${guestSessionId}` },
-          body: onboardingForm({ intent: "COMPLETE", step: "PREVIEW" }),
+          body: onboardingForm({ intent: "COMPLETE", currentStep: "PREVIEW" }),
         }),
       } as never)).resolves.toBeInstanceOf(Response);
 
@@ -395,24 +519,36 @@ describe("product event route wiring", () => {
     }
 
     const { action } = await import("../../app/routes/place-detail");
+    const cardPath = recommendationPlacePath("place-event-test", {
+      variant: "personal",
+      discoveryMode: "EXPLORATION",
+    });
+    const requestPath = recommendationRequestPath(cardPath, crypto.randomUUID());
     await action({
-      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", body: form }),
+      request: new Request(`https://retaste.test${requestPath}`, { method: "POST", body: form }),
       params: { placeSlug: "place-event-test" },
     } as never);
 
     await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
       .resolves.toEqual([
-        expect.objectContaining({ eventName, metadataJson: JSON.stringify(metadata) }),
+        expect.objectContaining({
+          eventName,
+          metadataJson: JSON.stringify({
+            sourceRail: "PERSONAL",
+            discoveryMode: "EXPLORATION",
+            ...metadata,
+          }),
+        }),
       ]);
   });
 
-  it("does not invent saved, detail-opened, or guest-converted events for an unsave", async () => {
+  it("does not emit recommendation action events for direct detail actions or unsave", async () => {
     const db = createDb(env.DB);
     const userId = await seedUser(db);
     routeMocks.requireUser.mockResolvedValue({ id: userId });
     const form = new FormData();
     form.set("intent", "save");
-    form.set("saved", "false");
+    form.set("saved", "true");
 
     const { action } = await import("../../app/routes/place-detail");
     await action({
@@ -420,6 +556,78 @@ describe("product event route wiring", () => {
       params: { placeSlug: "place-event-test" },
     } as never);
 
+    await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
+      .resolves.toEqual([]);
+
+    form.set("saved", "false");
+    await action({
+      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", body: form }),
+      params: { placeSlug: "place-event-test" },
+    } as never);
+    await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
+      .resolves.toEqual([]);
+  });
+
+  it("records one detail-opened event for one validated recommendation card request", async () => {
+    const db = createDb(env.DB);
+    const userId = await seedUser(db);
+    routeMocks.getOptionalUser.mockResolvedValue({ id: userId });
+    const requestId = crypto.randomUUID();
+    const cardPath = recommendationPlacePath("place-event-test", {
+      variant: "trusted",
+    });
+    const requestPath = recommendationRequestPath(cardPath, requestId);
+    const request = new Request(`https://retaste.test${requestPath}`);
+    const { loader } = await import("../../app/routes/place-detail");
+
+    await loader({ request, params: { placeSlug: "place-event-test" } } as never);
+    await loader({ request, params: { placeSlug: "place-event-test" } } as never);
+
+    await expect(db.select().from(productEvents).where(and(
+      eq(productEvents.userId, userId),
+      eq(productEvents.eventName, "RECOMMENDATION_DETAIL_OPENED"),
+    ))).resolves.toEqual([
+      expect.objectContaining({
+        id: requestId,
+        metadataJson: JSON.stringify({ sourceRail: "TRUSTED", discoveryMode: "QUALITY" }),
+      }),
+    ]);
+  });
+
+  it.each([
+    "/places/place-event-test",
+    "/places/place-event-test?sourceRail=MAP&discoveryMode=EXPLORATION&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f",
+    "/places/place-event-test?sourceRail=PERSONAL&discoveryMode=member%40example.com&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f",
+    "/places/place-event-test?sourceRail=GOLDEN&discoveryMode=EXPLORATION&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f",
+    "/places/place-event-test?sourceRail=PERSONAL&discoveryMode=EXPLORATION&recommendationRequestId=not-a-uuid",
+  ])("does not record detail-opened for unvalidated provenance %s", async (path) => {
+    const db = createDb(env.DB);
+    const userId = await seedUser(db);
+    routeMocks.getOptionalUser.mockResolvedValue({ id: userId });
+    const { loader } = await import("../../app/routes/place-detail");
+
+    await loader({
+      request: new Request(`https://retaste.test${path}`),
+      params: { placeSlug: "place-event-test" },
+    } as never);
+
+    await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
+      .resolves.toEqual([]);
+  });
+
+  it("does not record detail-opened when the detail loader fails", async () => {
+    const db = createDb(env.DB);
+    const userId = await seedUser(db);
+    routeMocks.getOptionalUser.mockResolvedValue({ id: userId });
+    routeMocks.getLatestRatingSnapshot.mockRejectedValueOnce(new Error("DETAIL_LOADER_FAILED"));
+    const cardPath = recommendationPlacePath("place-event-test", { variant: "personal" });
+    const requestPath = recommendationRequestPath(cardPath, crypto.randomUUID());
+    const { loader } = await import("../../app/routes/place-detail");
+
+    await expect(loader({
+      request: new Request(`https://retaste.test${requestPath}`),
+      params: { placeSlug: "place-event-test" },
+    } as never)).rejects.toThrow("DETAIL_LOADER_FAILED");
     await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
       .resolves.toEqual([]);
   });
@@ -457,8 +665,10 @@ describe("product event route wiring", () => {
       form.set("intent", "save");
       form.set("saved", "true");
       const { action } = await import("../../app/routes/place-detail");
+      const cardPath = recommendationPlacePath("place-event-test", { variant: "golden" });
+      const requestPath = recommendationRequestPath(cardPath, crypto.randomUUID());
       await expect(action({
-        request: new Request("https://retaste.test/places/place-event-test", { method: "POST", body: form }),
+        request: new Request(`https://retaste.test${requestPath}`, { method: "POST", body: form }),
         params: { placeSlug: "place-event-test" },
       } as never)).resolves.toEqual({ ok: true });
 

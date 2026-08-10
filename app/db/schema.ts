@@ -7,6 +7,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 const timestamps = {
   createdAt: text("created_at").notNull(),
@@ -793,4 +794,7 @@ export const productEvents = sqliteTable("product_events", {
   index("product_events_name_time_idx").on(table.eventName, table.occurredAt),
   index("product_events_guest_idx").on(table.guestSessionId, table.occurredAt),
   index("product_events_user_idx").on(table.userId, table.occurredAt),
+  uniqueIndex("product_events_guest_event_uidx")
+    .on(table.guestSessionId, table.eventName)
+    .where(sql`${table.guestSessionId} is not null and ${table.eventName} in ('ONBOARDING_STARTED', 'GUEST_CONVERTED')`),
 ]);

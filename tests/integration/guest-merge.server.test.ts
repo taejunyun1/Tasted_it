@@ -75,6 +75,7 @@ import { createDb, type AppDb } from "../../app/db/client.server";
 import {
   guestTasteBadges,
   guestTasteSessions,
+  productEvents,
   sessions,
   tasteBadges,
   userTasteBadges,
@@ -169,6 +170,64 @@ describe("mergeGuestTasteSessionFromRequest", () => {
     const [session] = await db.select().from(guestTasteSessions)
       .where(eq(guestTasteSessions.id, guestId));
     expect(session).toMatchObject({ mergedUserId: userId, updatedAt: MERGED_AT });
+    await expect(db.select().from(productEvents).where(and(
+      eq(productEvents.guestSessionId, guestId),
+      eq(productEvents.eventName, "GUEST_CONVERTED"),
+    ))).resolves.toEqual([
+      expect.objectContaining({ guestSessionId: guestId, userId, metadataJson: "{}" }),
+    ]);
+  });
+
+  it("emits one conversion event when concurrent merge attempts race", async () => {
+    const db = createDb(env.DB);
+    const userId = await seedUser(db);
+    const guestId = await seedGuestTaste(db, ["food-gukbap"]);
+    const request = guestRequest(guestId);
+
+    const results = await Promise.all([
+      mergeGuestTasteSessionFromRequest(db, request, userId, MERGED_AT),
+      mergeGuestTasteSessionFromRequest(db, request, userId, MERGED_AT),
+      mergeGuestTasteSessionFromRequest(db, request, userId, MERGED_AT),
+    ]);
+
+    expect(results.filter((result) => result.merged)).toHaveLength(1);
+    await expect(db.select().from(productEvents).where(and(
+      eq(productEvents.guestSessionId, guestId),
+      eq(productEvents.eventName, "GUEST_CONVERTED"),
+    ))).resolves.toHaveLength(1);
+  });
+
+  it("keeps the successful merge and cookie expiry when conversion event storage fails", async () => {
+    const db = createDb(env.DB);
+    const userId = await seedUser(db);
+    const guestId = await seedGuestTaste(db, ["food-gukbap"]);
+    const triggerName = `force_conversion_event_failure_${crypto.randomUUID().replaceAll("-", "")}`;
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await env.DB.exec(
+      `CREATE TRIGGER ${triggerName} BEFORE INSERT ON product_events BEGIN SELECT RAISE(ABORT, 'member@example.com 35.1 name'); END`,
+    );
+
+    try {
+      const headers = new Headers();
+      await expect(appendGuestTasteMergeCookie({
+        headers,
+        db,
+        request: guestRequest(guestId),
+        userId,
+        now: MERGED_AT,
+      })).resolves.toBeUndefined();
+
+      expect(setCookieText(headers)).toContain("retaste_guest=");
+      expect(setCookieText(headers)).toContain("Max-Age=0");
+      await expect(db.query.guestTasteSessions.findFirst({
+        where: eq(guestTasteSessions.id, guestId),
+      })).resolves.toMatchObject({ mergedUserId: userId });
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith("PRODUCT_EVENT_WRITE_FAILED");
+    } finally {
+      errorSpy.mockRestore();
+      await env.DB.exec(`DROP TRIGGER IF EXISTS ${triggerName}`);
+    }
   });
 
   it("never lowers an existing USER score or overwrites another source", async () => {

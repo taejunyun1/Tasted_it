@@ -4,7 +4,10 @@ import { data, redirect } from "react-router";
 import { z } from "zod";
 
 import type { Route } from "./+types/taste-onboarding";
-import { TasteOnboarding } from "../components/onboarding/TasteOnboarding";
+import {
+  TasteOnboarding,
+  onboardingNavigation,
+} from "../components/onboarding/TasteOnboarding";
 import { createDb, type AppDb } from "../db/client.server";
 import { guestTasteSessions } from "../db/schema";
 import { getOptionalUser } from "../features/auth/session.server";
@@ -22,12 +25,27 @@ import { TASTE_BADGE_CATALOG } from "../features/members/profile-taste-badges";
 
 const onboardingAction = z.object({
   intent: z.enum(["SAVE_STEP", "SKIP", "COMPLETE"]),
-  step: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
+  currentStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
+  targetStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
+  direction: z.enum(["FORWARD", "BACK"]),
   locationMode: z.enum(["DEVICE", "DEFAULT"]).default("DEFAULT"),
   foodBadgeIds: z.array(z.string()).max(5).default([]),
   styleBadgeIds: z.array(z.string()).max(3).default([]),
   returnTo: z.string().default("/places"),
-});
+}).refine(
+  (value) => onboardingNavigation(value.currentStep, value.direction).targetStep === value.targetStep,
+  { message: "INVALID_ONBOARDING_NAVIGATION" },
+);
+
+function selectedCountForStep(
+  step: "LOCATION" | "FOOD" | "STYLE" | "PREVIEW",
+  foodBadgeIds: string[],
+  styleBadgeIds: string[],
+) {
+  if (step === "FOOD") return foodBadgeIds.length;
+  if (step === "STYLE") return styleBadgeIds.length;
+  return 0;
+}
 
 async function recordOnboardingProductEvent(db: AppDb, input: {
   eventName: ProductEventName;
@@ -84,13 +102,11 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { session, setCookie } = await getOrCreateGuestSession(db, request, now);
   const state = await getGuestOnboarding(db, session.id, now);
   if (!state) throw new Response("온보딩 세션을 준비하지 못했습니다.", { status: 500 });
-  if (setCookie) {
-    await recordOnboardingProductEvent(db, {
-      eventName: "ONBOARDING_STARTED",
-      guestSessionId: session.id,
-      occurredAt: now,
-    });
-  }
+  await recordOnboardingProductEvent(db, {
+    eventName: "ONBOARDING_STARTED",
+    guestSessionId: session.id,
+    occurredAt: now,
+  });
 
   const payload = {
     initialState: {
@@ -110,7 +126,9 @@ export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const parsed = onboardingAction.safeParse({
     intent: form.get("intent"),
-    step: form.get("step"),
+    currentStep: form.get("currentStep"),
+    targetStep: form.get("targetStep"),
+    direction: form.get("direction"),
     locationMode: form.get("locationMode") ?? undefined,
     foodBadgeIds: form.getAll("foodBadgeId").filter((value): value is string => typeof value === "string"),
     styleBadgeIds: form.getAll("styleBadgeId").filter((value): value is string => typeof value === "string"),
@@ -124,7 +142,7 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     await saveGuestOnboarding(db, {
       sessionId: session.id,
-      step: parsed.data.step,
+      step: parsed.data.intent === "SAVE_STEP" ? parsed.data.targetStep : parsed.data.currentStep,
       locationMode: parsed.data.locationMode,
       foodBadgeIds: parsed.data.foodBadgeIds,
       styleBadgeIds: parsed.data.styleBadgeIds,
@@ -150,8 +168,12 @@ export async function action({ request }: Route.ActionArgs) {
       eventName: parsed.data.intent === "SKIP" ? "ONBOARDING_SKIPPED" : "ONBOARDING_COMPLETED",
       guestSessionId: session.id,
       metadata: {
-        step: parsed.data.step,
-        selectedCount: parsed.data.foodBadgeIds.length + parsed.data.styleBadgeIds.length,
+        step: parsed.data.currentStep,
+        selectedCount: selectedCountForStep(
+          parsed.data.currentStep,
+          parsed.data.foodBadgeIds,
+          parsed.data.styleBadgeIds,
+        ),
       },
       occurredAt: now,
     });
@@ -159,15 +181,21 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect(safeOnboardingReturnTo(parsed.data.returnTo), { headers });
   }
 
-  await recordOnboardingProductEvent(db, {
-    eventName: "ONBOARDING_STEP_COMPLETED",
-    guestSessionId: session.id,
-    metadata: {
-      step: parsed.data.step,
-      selectedCount: parsed.data.foodBadgeIds.length + parsed.data.styleBadgeIds.length,
-    },
-    occurredAt: now,
-  });
+  if (parsed.data.direction === "FORWARD") {
+    await recordOnboardingProductEvent(db, {
+      eventName: "ONBOARDING_STEP_COMPLETED",
+      guestSessionId: session.id,
+      metadata: {
+        step: parsed.data.currentStep,
+        selectedCount: selectedCountForStep(
+          parsed.data.currentStep,
+          parsed.data.foodBadgeIds,
+          parsed.data.styleBadgeIds,
+        ),
+      },
+      occurredAt: now,
+    });
+  }
 
   return data({ ok: true }, setCookie ? { headers: { "Set-Cookie": setCookie } } : undefined);
 }

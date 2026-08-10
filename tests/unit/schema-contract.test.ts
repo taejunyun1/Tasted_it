@@ -121,6 +121,12 @@ describe("week 1 schema", () => {
     expect(guestTasteBadges.badgeId).toBeDefined();
     expect(recommendationFeedback.reason).toBeDefined();
     expect(productEvents.eventName).toBeDefined();
+    expect(getTableConfig(productEvents).indexes.map((eventIndex) => ({
+      name: eventIndex.config.name,
+      unique: eventIndex.config.unique,
+    }))).toEqual(expect.arrayContaining([
+      { name: "product_events_guest_event_uidx", unique: true },
+    ]));
   });
 
   it("exports dedicated per-user taste learning concurrency state", () => {

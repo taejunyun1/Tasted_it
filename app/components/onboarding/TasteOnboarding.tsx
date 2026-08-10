@@ -27,10 +27,22 @@ type Props = {
 };
 
 const STEPS: OnboardingStep[] = ["LOCATION", "FOOD", "STYLE", "PREVIEW"];
+export type OnboardingNavigationDirection = "FORWARD" | "BACK";
 
 export function nextOnboardingStep(step: OnboardingStep): OnboardingStep {
   const index = STEPS.indexOf(step);
   return STEPS[Math.min(index + 1, STEPS.length - 1)];
+}
+
+export function onboardingNavigation(
+  currentStep: OnboardingStep,
+  direction: OnboardingNavigationDirection,
+) {
+  const index = STEPS.indexOf(currentStep);
+  const targetIndex = direction === "FORWARD"
+    ? Math.min(index + 1, STEPS.length - 1)
+    : Math.max(index - 1, 0);
+  return { currentStep, targetStep: STEPS[targetIndex], direction };
 }
 
 export function onboardingRecommendationPath(location: Pick<OnboardingLocation, "bbox">) {
@@ -71,7 +83,8 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
   const [styleBadgeIds, setStyleBadgeIds] = useState(initialState.styleBadgeIds);
   const [limitMessage, setLimitMessage] = useState("");
   const returnToInput = useRef<HTMLInputElement>(null);
-  const stepInput = useRef<HTMLInputElement>(null);
+  const targetStepInput = useRef<HTMLInputElement>(null);
+  const directionInput = useRef<HTMLInputElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const previewLocation = useRef<OnboardingLocation | null>(null);
   const announcedStep = useRef(initialState.step);
@@ -107,9 +120,11 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
     const location = await requestOnboardingLocation();
     setLocationMode(location.mode);
   };
-  const nextStep = nextOnboardingStep(step);
+  const forwardNavigation = onboardingNavigation(step, "FORWARD");
   const preparePreviousStep = () => {
-    if (stepInput.current && stepIndex > 0) stepInput.current.value = STEPS[stepIndex - 1];
+    const previousNavigation = onboardingNavigation(step, "BACK");
+    if (targetStepInput.current) targetStepInput.current.value = previousNavigation.targetStep;
+    if (directionInput.current) directionInput.current.value = previousNavigation.direction;
   };
   const prepareRecommendationRequest = () => {
     if (!returnToInput.current) return;
@@ -149,7 +164,9 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
       </header>
 
       <Form method="post" className="taste-onboarding__form">
-        <input ref={stepInput} type="hidden" name="step" value={nextStep} />
+        <input type="hidden" name="currentStep" value={forwardNavigation.currentStep} />
+        <input ref={targetStepInput} type="hidden" name="targetStep" value={forwardNavigation.targetStep} />
+        <input ref={directionInput} type="hidden" name="direction" value={forwardNavigation.direction} />
         <input type="hidden" name="locationMode" value={locationMode} />
         <input ref={returnToInput} type="hidden" name="returnTo" defaultValue={returnTo} />
         {foodBadgeIds.map((id) => <input key={id} type="hidden" name="foodBadgeId" value={id} />)}
@@ -190,7 +207,7 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
             </button>
           </div>}
           {previewPlaces.length > 0 && <div className="place-grid">
-            {previewPlaces.map((place) => <PlaceCard key={place.id} place={place} variant="personal" />)}
+            {previewPlaces.map((place) => <PlaceCard key={place.id} place={place} variant="personal" recommendationDiscoveryMode="ONBOARDING" />)}
           </div>}
         </div>}
 
