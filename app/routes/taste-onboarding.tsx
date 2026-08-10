@@ -24,7 +24,7 @@ import {
 import { TASTE_BADGE_CATALOG } from "../features/members/profile-taste-badges";
 
 const onboardingAction = z.object({
-  intent: z.enum(["SAVE_STEP", "SKIP", "COMPLETE"]),
+  intent: z.enum(["SAVE_STEP", "SAVE_SELECTION", "SKIP", "COMPLETE"]),
   currentStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
   targetStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
   direction: z.enum(["FORWARD", "BACK"]),
@@ -33,7 +33,9 @@ const onboardingAction = z.object({
   styleBadgeIds: z.array(z.string()).max(3).default([]),
   returnTo: z.string().default("/places"),
 }).refine(
-  (value) => onboardingNavigation(value.currentStep, value.direction).targetStep === value.targetStep,
+  (value) => value.intent === "SAVE_SELECTION"
+    ? value.targetStep === value.currentStep
+    : onboardingNavigation(value.currentStep, value.direction).targetStep === value.targetStep,
   { message: "INVALID_ONBOARDING_NAVIGATION" },
 );
 
@@ -179,6 +181,10 @@ export async function action({ request }: Route.ActionArgs) {
     });
     const headers = setCookie ? { "Set-Cookie": setCookie } : undefined;
     return redirect(safeOnboardingReturnTo(parsed.data.returnTo), { headers });
+  }
+
+  if (parsed.data.intent === "SAVE_SELECTION") {
+    return data({ ok: true }, setCookie ? { headers: { "Set-Cookie": setCookie } } : undefined);
   }
 
   if (parsed.data.direction === "FORWARD") {

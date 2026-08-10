@@ -87,28 +87,33 @@ final result: passed
 
 ### 검증 환경
 
-- 검증 시각: `2026-08-10 18:01 KST`
+- 최종 검증 시각: `2026-08-10 18:27 KST`
 - 데스크톱: Playwright `Desktop Chrome`, CSS viewport `1280 × 720`
 - 모바일: Playwright `Pixel 7`, CSS viewport `412 × 839`, device scale factor `2.625`
-- 데이터 경계: 로컬 D1과 로컬 시드만 사용했다. 운영 DB, 원격 인증 제공자, 유료 API는 호출하지 않았다.
+- 데이터 경계: 로컬 D1과 로컬 시드만 사용했다. 합성 로그인 회원은 테스트 서버 시작 전에 한 번 seed하고, 브라우저 실행 중에는 해당 서버의 loader/action만 사용한다. 테스트 프로세스에서 `wrangler d1`을 별도 실행하지 않는다.
+- 서버 경계: `reuseExistingServer: false`로 현재 worktree가 시작한 서버만 사용한다. 다른 worktree의 `127.0.0.1:5173` 서버가 있으면 재사용하지 않고 실행을 실패시킨다.
 - 개인정보 경계: 로그인 검증은 프로젝트별 합성 식별자와 로컬 전용 자격 증명만 사용했다. 실제 이메일, 계정 ID, 이름, 원본 위치 좌표를 문서·로그·증거에 남기지 않았다.
 
 ### 사용자 흐름 증거
 
-- 완료: 위치 기본값 → FOOD 2개 → STYLE 1개 → 추천 미리보기 → `/places` 개인 추천 레일까지 이동했다. 서버의 완료 시각과 세 선택 행도 로컬 D1에서 확인했다.
+- 완료: 위치 기본값 → FOOD 2개 → STYLE 1개 → 추천 미리보기 → `/places` 개인 추천 레일까지 이동했다.
 - 건너뛰기: 첫 단계에서 건너뛴 뒤 `/places`를 새로고침해도 온보딩으로 다시 가두지 않았다.
 - 선택 제한: FOOD 여섯 번째와 STYLE 네 번째 선택이 기존 선택을 교체하지 않았고 각각 `5/5`, `3/3`을 유지했다. STYLE 제한 안내도 상태 메시지로 전달됐다.
-- 복원: STYLE 단계에서 이탈 후 재진입했을 때 현재 단계가 복원됐고, 이전 FOOD 단계의 선택과 제목 포커스도 유지됐다.
+- 복원: STYLE에서 `노포파`를 선택하고 제출하지 않은 채 이탈했다. 재진입 직후 STYLE 단계와 `노포파[aria-pressed=true]`가 복원됐고, 이전 FOOD 단계의 `국밥러`와 제목 포커스도 유지됐다. 현재 단계의 마지막 선택 snapshot을 `visibilitychange/pagehide`에서 한 번 저장하되 단계 전진이나 완료 이벤트를 만들지 않는다.
 - 키보드: `Enter`로 단계 제출, `Space`로 FOOD/STYLE 배지 선택, 단계 전환 뒤 제목 포커스 이동을 확인했다.
-- 위치 거부: 권한이 없는 상태에서 위치 요청 후 `광주 중심` 기본값을 유지했고 추천 미리보기까지 막힘없이 진행했다. 원본 위치 좌표는 수집·검증 증거에 사용하지 않았다.
+- 위치 거부: init script가 `getCurrentPosition`의 error callback을 결정적으로 호출하도록 했고 API 호출 횟수 `1`을 먼저 확인했다. 이후 `광주 중심` 기본값과 추천 미리보기를 확인했으며 원본 위치 좌표는 사용하지 않았다.
 - 추천 미리보기: 실제 로컬 추천 카드가 데스크톱과 모바일에서 렌더링됐다. 오류 시 `다시 불러오기` 계약은 `tests/unit/taste-onboarding-contract.test.ts`에서 고정돼 있다. React Router 데이터 응답 형식을 우회하는 가짜 네트워크 응답은 실제 사용자 실패를 재현하지 않아 E2E 증거로 채택하지 않았다.
-- 로그인 복귀·병합: 장소 상세의 로그인 링크가 정확한 내부 `returnTo`를 유지했고, 비밀번호 로그인 뒤 같은 상세 화면으로 복귀했다. 비회원 FOOD 선택은 USER 출처로 한 번만 병합됐고 전환 이벤트도 한 건만 기록됐다.
+- 로그인 복귀·병합: 장소 상세의 로그인 링크가 정확한 내부 `returnTo`를 유지했고, 비밀번호 로그인 뒤 같은 상세 화면으로 복귀했다. 같은 브라우저로 `/me`에서 병합된 `국밥러`를 확인했다. 단일 병합과 전환 이벤트 한 건 계약은 관련 Workers integration에서 확인했다.
 
 ### 결과와 기준선 분리
 
-- Task 8 집중 E2E: 데스크톱 7개, 모바일 7개 통과.
+- 정확한 집중 명령: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts`
+- Task 8 집중 E2E: 데스크톱 7개, 모바일 7개, 합계 14개 통과 (`18.9s`).
+- 전체 명령: `pnpm run test:e2e`
+- 전체 E2E: 114개 중 102개 통과, 8개 의도적 건너뜀, 기존 4개 실패 (`37.8s`). `browse.spec.ts`의 온보딩 `.data` 반환 경로 2건과 `map-zoom.spec.ts`의 확대 상태 2건만 같은 서명으로 남았고 Task 8 신규 실패와 `SQLITE_BUSY`는 없었다.
+- 관련 unit: 4개 파일, 30개 통과. 관련 Workers integration: 3개 파일, 65개 통과. `pnpm run typecheck`, `git diff --check` 통과.
 - 제품 수정: 로그인 helper가 검증된 `/places` 내부 경로만 보존하도록 수정했다. 외부 URL, protocol-relative URL, 역슬래시 우회, `/admin`, `/auth` 목적지는 계속 `/`로 제한한다.
-- 변경 전 전체 E2E 기준선: 88개 통과, 8개 건너뜀, 4개 실패. 기존 실패는 `browse.spec.ts`의 온보딩 `.data` 반환 경로 2건과 `map-zoom.spec.ts`의 확대 상태 2건이며 Task 8 집중 spec의 회귀로 계산하지 않았다.
+- 검증 중 Vite 개발 서버의 manifest patch fetch 종료 경고와 Workers 테스트 종료 지연 경고가 있었지만 각 테스트 결과와 프로세스 실행은 위 수치로 완료됐다.
 - 화면 스타일 수정은 필요하지 않았다. 두 viewport 모두 동일한 기능 흐름을 통과했다.
 
 Task 8 final result: passed

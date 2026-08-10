@@ -19,7 +19,7 @@ export default defineConfig({
   webServer: remoteBaseUrl ? undefined : {
     command: "pnpm run db:migrate:local && pnpm run db:seed:local && pnpm exec wrangler d1 execute DB --local --file scripts/seed-admin-qa.sql && pnpm dev --host 127.0.0.1",
     url: "http://127.0.0.1:5173",
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

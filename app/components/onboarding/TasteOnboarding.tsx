@@ -85,9 +85,11 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
   const returnToInput = useRef<HTMLInputElement>(null);
   const targetStepInput = useRef<HTMLInputElement>(null);
   const directionInput = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const previewLocation = useRef<OnboardingLocation | null>(null);
   const announcedStep = useRef(initialState.step);
+  const selectionDirty = useRef(false);
   const step = initialState.step;
   const progress = onboardingProgress(step);
   const stepIndex = STEPS.indexOf(step);
@@ -107,18 +109,41 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
     if (step === "PREVIEW") loadPreviewRecommendations();
   }, [step]);
 
+  useEffect(() => {
+    const persistCurrentSelection = () => {
+      if (!selectionDirty.current || !formRef.current) return;
+      const form = new FormData(formRef.current);
+      form.set("intent", "SAVE_SELECTION");
+      form.set("targetStep", step);
+      form.set("direction", "FORWARD");
+      if (navigator.sendBeacon(window.location.href, form)) selectionDirty.current = false;
+    };
+    const persistWhenHidden = () => {
+      if (document.visibilityState === "hidden") persistCurrentSelection();
+    };
+    window.addEventListener("pagehide", persistCurrentSelection);
+    document.addEventListener("visibilitychange", persistWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", persistCurrentSelection);
+      document.removeEventListener("visibilitychange", persistWhenHidden);
+    };
+  }, [step]);
+
   const toggleFood = (badgeId: string) => {
     const result = toggleOnboardingBadge({ selected: foodBadgeIds, badgeId, maximum: 5 });
     setFoodBadgeIds(result.selected);
+    if (result.selected !== foodBadgeIds) selectionDirty.current = true;
   };
   const toggleStyle = (badgeId: string) => {
     const result = toggleOnboardingBadge({ selected: styleBadgeIds, badgeId, maximum: 3 });
     setStyleBadgeIds(result.selected);
     setLimitMessage(result.limitReached ? "최대 3개까지 선택할 수 있어요." : "");
+    if (result.selected !== styleBadgeIds) selectionDirty.current = true;
   };
   const useDeviceLocation = async () => {
     const location = await requestOnboardingLocation();
     setLocationMode(location.mode);
+    if (location.mode !== locationMode) selectionDirty.current = true;
   };
   const forwardNavigation = onboardingNavigation(step, "FORWARD");
   const preparePreviousStep = () => {
@@ -163,7 +188,12 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
         </h1>
       </header>
 
-      <Form method="post" className="taste-onboarding__form">
+      <Form
+        ref={formRef}
+        method="post"
+        className="taste-onboarding__form"
+        onSubmit={() => { selectionDirty.current = false; }}
+      >
         <input type="hidden" name="currentStep" value={forwardNavigation.currentStep} />
         <input ref={targetStepInput} type="hidden" name="targetStep" value={forwardNavigation.targetStep} />
         <input ref={directionInput} type="hidden" name="direction" value={forwardNavigation.direction} />

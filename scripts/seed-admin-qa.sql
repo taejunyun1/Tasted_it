@@ -16,6 +16,17 @@ INSERT OR REPLACE INTO sessions (id,user_id,expires_at,created_at) VALUES
 ('qa-login-flow-desktop','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
 ('qa-login-flow-mobile','qa-admin','2027-08-05T12:00:00Z','2026-08-05T12:00:00Z');
 
+-- Local-only synthetic members for the desktop/mobile onboarding login E2E.
+DELETE FROM product_events WHERE user_id IN ('e2e-onboarding-chromium','e2e-onboarding-mobile-chromium');
+DELETE FROM sessions WHERE user_id IN ('e2e-onboarding-chromium','e2e-onboarding-mobile-chromium');
+DELETE FROM user_taste_badges WHERE user_id IN ('e2e-onboarding-chromium','e2e-onboarding-mobile-chromium');
+DELETE FROM users WHERE id IN ('e2e-onboarding-chromium','e2e-onboarding-mobile-chromium');
+INSERT INTO users
+(id,email,display_name,role,password_hash,password_salt,email_verified_at,created_at,updated_at)
+VALUES
+('e2e-onboarding-chromium','e2e-onboarding-chromium@retaste.local','E2E 온보딩 회원','USER','Q2wdQ2Kx6jxG6P/8TUmYkaV1pLhRzybKn7JaUY5zXlg=','cmV0YXN0ZS1jaHJvbWl1bQ==','2026-08-10T00:00:00Z','2026-08-10T00:00:00Z','2026-08-10T00:00:00Z'),
+('e2e-onboarding-mobile-chromium','e2e-onboarding-mobile-chromium@retaste.local','E2E 온보딩 회원','USER','VeHrmx/Io307yt0bKjm8GUfUjC9hJ+0nV5rwEWPBfOw=','cmV0YXN0ZS1tb2JpbGUtY2hyb21pdW0=','2026-08-10T00:00:00Z','2026-08-10T00:00:00Z','2026-08-10T00:00:00Z');
+
 DELETE FROM reviewer_profiles WHERE user_id = 'qa-reviewer-member';
 DELETE FROM reviewer_applications WHERE user_id = 'qa-reviewer-member';
 

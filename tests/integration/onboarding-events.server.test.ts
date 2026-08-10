@@ -88,6 +88,7 @@ vi.mock("../../app/features/ratings/rating-badges.server", () => ({
 
 import { createDb, type AppDb } from "../../app/db/client.server";
 import {
+  guestTasteBadges,
   guestTasteSessions,
   productEvents,
   users,
@@ -346,7 +347,7 @@ function cookiePair(setCookie: string) {
 }
 
 function onboardingForm(input: {
-  intent: "SAVE_STEP" | "SKIP" | "COMPLETE";
+  intent: "SAVE_STEP" | "SAVE_SELECTION" | "SKIP" | "COMPLETE";
   currentStep: "LOCATION" | "FOOD" | "STYLE" | "PREVIEW";
   direction?: OnboardingNavigationDirection;
   foodBadgeIds?: string[];
@@ -356,7 +357,7 @@ function onboardingForm(input: {
   const form = new FormData();
   form.set("intent", input.intent);
   form.set("currentStep", navigation.currentStep);
-  form.set("targetStep", navigation.targetStep);
+  form.set("targetStep", input.intent === "SAVE_SELECTION" ? navigation.currentStep : navigation.targetStep);
   form.set("direction", navigation.direction);
   form.set("locationMode", "DEFAULT");
   form.set("returnTo", "/places");
@@ -472,6 +473,37 @@ describe("product event route wiring", () => {
       .resolves.toEqual([]);
     await expect(db.query.guestTasteSessions.findFirst({ where: eq(guestTasteSessions.id, guestSessionId) }))
       .resolves.toMatchObject({ completedStepsJson: JSON.stringify(["FOOD"]) });
+  });
+
+  it("saves a page-exit selection without advancing or recording a completion event", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db);
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        body: onboardingForm({
+          intent: "SAVE_SELECTION",
+          currentStep: "STYLE",
+          foodBadgeIds: ["food-gukbap"],
+          styleBadgeIds: ["style-old-school"],
+        }),
+      }),
+    } as never);
+
+    await expect(db.select().from(productEvents).where(eq(productEvents.guestSessionId, guestSessionId)))
+      .resolves.toEqual([]);
+    await expect(db.query.guestTasteSessions.findFirst({ where: eq(guestTasteSessions.id, guestSessionId) }))
+      .resolves.toMatchObject({ completedStepsJson: JSON.stringify(["STYLE"]) });
+    await expect(db.select({ badgeId: guestTasteBadges.badgeId })
+      .from(guestTasteBadges)
+      .where(eq(guestTasteBadges.sessionId, guestSessionId)))
+      .resolves.toEqual(expect.arrayContaining([
+        { badgeId: "food-gukbap" },
+        { badgeId: "style-old-school" },
+      ]));
   });
 
   it("keeps a successful onboarding mutation when event storage fails and logs only the fixed code", async () => {

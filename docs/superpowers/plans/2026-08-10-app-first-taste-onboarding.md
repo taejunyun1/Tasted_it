@@ -878,7 +878,7 @@ test("guest can skip and is not trapped in onboarding", async ({ page }) => {
 
 - [ ] **Step 2: E2E 현재 결과 확인**
 
-Run: `pnpm run test:e2e -- tests/e2e/taste-onboarding.spec.ts`
+Run: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts`
 
 Expected: PASS가 목표다. 실패하면 출력에 표시된 최초의 사용자 흐름 결함만 Step 3에서 수정한다.
 
@@ -888,7 +888,7 @@ Expected: PASS가 목표다. 실패하면 출력에 표시된 최초의 사용�
 
 - [ ] **Step 4: 모바일·데스크톱 E2E 통과 확인**
 
-Run: `pnpm run test:e2e -- tests/e2e/taste-onboarding.spec.ts`
+Run: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts`
 
 Expected: desktop Chromium 및 mobile Chromium 모두 PASS
 
@@ -949,7 +949,7 @@ Expected: 모든 integration test PASS. AI binding 원격 경고는 허용하되
 
 - [ ] **Step 5: production build와 E2E**
 
-Run: `pnpm run build && pnpm run test:e2e -- tests/e2e/taste-onboarding.spec.ts`
+Run: `pnpm run build && pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts`
 
 Expected: build 성공, desktop/mobile 온보딩 E2E PASS
 

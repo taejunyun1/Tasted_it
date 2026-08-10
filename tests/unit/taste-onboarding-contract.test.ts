@@ -121,6 +121,37 @@ describe("taste onboarding contract", () => {
     expect(component).toContain("readOnboardingLocation() ?? defaultOnboardingLocation()");
   });
 
+  it("persists the current step selection on page exit without advancing", async () => {
+    const component = fs.readFileSync("app/components/onboarding/TasteOnboarding.tsx", "utf8");
+    expect(component).toContain('window.addEventListener("pagehide"');
+    expect(component).toContain('form.set("intent", "SAVE_SELECTION")');
+
+    const form = new FormData();
+    form.set("intent", "SAVE_SELECTION");
+    form.set("currentStep", "STYLE");
+    form.set("targetStep", "STYLE");
+    form.set("direction", "FORWARD");
+    form.set("locationMode", "DEFAULT");
+    form.append("foodBadgeId", "food-gukbap");
+    form.append("styleBadgeId", "style-old-school");
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    const response = await action({
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+    } as never);
+
+    expect(response).toMatchObject({ data: { ok: true } });
+    expect(mocks.saveGuestOnboarding).toHaveBeenCalledWith(
+      mocks.db,
+      expect.objectContaining({
+        sessionId: "guest-1",
+        step: "STYLE",
+        foodBadgeIds: ["food-gukbap"],
+        styleBadgeIds: ["style-old-school"],
+      }),
+    );
+  });
+
   it.each(["//evil.example/path", "/\\evil.example/path", "/%5Cevil.example/path", "https://evil.example/path"])(
     "loader rejects malicious returnTo %s",
     async (returnTo) => {
