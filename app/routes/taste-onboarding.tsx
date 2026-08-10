@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import type { Route } from "./+types/taste-onboarding";
 import { TasteOnboarding } from "../components/onboarding/TasteOnboarding";
-import { createDb } from "../db/client.server";
+import { createDb, type AppDb } from "../db/client.server";
 import { guestTasteSessions } from "../db/schema";
 import { getOptionalUser } from "../features/auth/session.server";
 import {
@@ -13,6 +13,11 @@ import {
   getOrCreateGuestSession,
   saveGuestOnboarding,
 } from "../features/onboarding/guest-session.server";
+import {
+  recordProductEvent,
+  type ProductEventMetadata,
+  type ProductEventName,
+} from "../features/onboarding/onboarding-events.server";
 import { TASTE_BADGE_CATALOG } from "../features/members/profile-taste-badges";
 
 const onboardingAction = z.object({
@@ -23,6 +28,25 @@ const onboardingAction = z.object({
   styleBadgeIds: z.array(z.string()).max(3).default([]),
   returnTo: z.string().default("/places"),
 });
+
+async function recordOnboardingProductEvent(db: AppDb, input: {
+  eventName: ProductEventName;
+  guestSessionId: string;
+  metadata?: ProductEventMetadata;
+  occurredAt: string;
+}) {
+  try {
+    await recordProductEvent(db, {
+      eventName: input.eventName,
+      guestSessionId: input.guestSessionId,
+      userId: null,
+      metadata: input.metadata,
+      occurredAt: input.occurredAt,
+    });
+  } catch {
+    console.error("PRODUCT_EVENT_WRITE_FAILED");
+  }
+}
 
 export function safeOnboardingReturnTo(value: string | null | undefined) {
   const fallback = "/places";
@@ -60,6 +84,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { session, setCookie } = await getOrCreateGuestSession(db, request, now);
   const state = await getGuestOnboarding(db, session.id, now);
   if (!state) throw new Response("온보딩 세션을 준비하지 못했습니다.", { status: 500 });
+  if (setCookie) {
+    await recordOnboardingProductEvent(db, {
+      eventName: "ONBOARDING_STARTED",
+      guestSessionId: session.id,
+      occurredAt: now,
+    });
+  }
 
   const payload = {
     initialState: {
@@ -115,9 +146,28 @@ export async function action({ request }: Route.ActionArgs) {
         ? { skippedAt: now, updatedAt: now }
         : { completedAt: now, updatedAt: now },
     ).where(eq(guestTasteSessions.id, session.id));
+    await recordOnboardingProductEvent(db, {
+      eventName: parsed.data.intent === "SKIP" ? "ONBOARDING_SKIPPED" : "ONBOARDING_COMPLETED",
+      guestSessionId: session.id,
+      metadata: {
+        step: parsed.data.step,
+        selectedCount: parsed.data.foodBadgeIds.length + parsed.data.styleBadgeIds.length,
+      },
+      occurredAt: now,
+    });
     const headers = setCookie ? { "Set-Cookie": setCookie } : undefined;
     return redirect(safeOnboardingReturnTo(parsed.data.returnTo), { headers });
   }
+
+  await recordOnboardingProductEvent(db, {
+    eventName: "ONBOARDING_STEP_COMPLETED",
+    guestSessionId: session.id,
+    metadata: {
+      step: parsed.data.step,
+      selectedCount: parsed.data.foodBadgeIds.length + parsed.data.styleBadgeIds.length,
+    },
+    occurredAt: now,
+  });
 
   return data({ ok: true }, setCookie ? { headers: { "Set-Cookie": setCookie } } : undefined);
 }

@@ -13,6 +13,7 @@ import { castVote, getCurrentVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
 import { recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
+import { recordProductEvent, type ProductEventMetadata, type ProductEventName } from "../features/onboarding/onboarding-events.server";
 import { VoteControl } from "../components/ratings/VoteControl";
 
 const actionSchema = z.discriminatedUnion("intent", [
@@ -23,6 +24,25 @@ const actionSchema = z.discriminatedUnion("intent", [
   }),
   z.object({ intent: z.literal("save"), saved: z.enum(["true", "false"]).transform((value) => value === "true") }),
 ]);
+
+async function recordMemberProductEvent(db: ReturnType<typeof createDb>, input: {
+  eventName: ProductEventName;
+  userId: string;
+  metadata?: ProductEventMetadata;
+  occurredAt: string;
+}) {
+  try {
+    await recordProductEvent(db, {
+      eventName: input.eventName,
+      guestSessionId: null,
+      userId: input.userId,
+      metadata: input.metadata,
+      occurredAt: input.occurredAt,
+    });
+  } catch {
+    console.error("PRODUCT_EVENT_WRITE_FAILED");
+  }
+}
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const db = createDb(env.DB);
@@ -87,8 +107,21 @@ export async function action({ request, params }: Route.ActionArgs) {
     } catch {
       console.error("TASTE_LEARNING_REFRESH_FAILED");
     }
+    await recordMemberProductEvent(db, {
+      eventName: parsed.data.value === 1 ? "RECOMMENDATION_LIKED" : "RECOMMENDATION_DISLIKED",
+      userId: user.id,
+      metadata: parsed.data.value === -1 && parsed.data.reason ? { reason: parsed.data.reason } : {},
+      occurredAt: now,
+    });
   } else {
     await setSavedAndRefreshTaste(db, { placeId: place.id, userId: user.id, saved: parsed.data.saved, now });
+    if (parsed.data.saved) {
+      await recordMemberProductEvent(db, {
+        eventName: "RECOMMENDATION_SAVED",
+        userId: user.id,
+        occurredAt: now,
+      });
+    }
   }
   return { ok: true };
 }
