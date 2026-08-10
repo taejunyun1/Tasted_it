@@ -549,7 +549,7 @@ describe("authenticated session cookie composition", () => {
   });
 
   it.each([
-    ["email", null, "/"],
+    ["email", null, "/places"],
     ["google", "retaste_oauth_request", "/courses"],
     ["naver", "retaste_naver_oauth", "/places"],
   ] as const)("executes %s login and preserves every successful response cookie", async (
@@ -584,7 +584,7 @@ describe("authenticated session cookie composition", () => {
   });
 
   it.each([
-    ["email", null, "/"],
+    ["email", null, "/places"],
     ["google", "retaste_oauth_request", "/courses"],
     ["naver", "retaste_naver_oauth", "/places"],
   ] as const)("keeps %s login successful and retains guest state when merge fails", async (

@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { safeReturnTo } from "../../app/features/auth/login";
 
 describe("safeReturnTo", () => {
-  it("always returns to the member map after login", () => {
-    expect(safeReturnTo("/places/sample-place-1?from=map")).toBe("/");
+  it("returns to a requested place after login but not an admin route", () => {
+    expect(safeReturnTo("/places/sample-place-1?from=map")).toBe("/places/sample-place-1?from=map");
     expect(safeReturnTo("/admin/candidates")).toBe("/");
     expect(safeReturnTo(null)).toBe("/");
   });
