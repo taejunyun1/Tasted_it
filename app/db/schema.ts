@@ -746,3 +746,45 @@ export const parkingEvLinks = sqliteTable("parking_ev_links", {
   evStationId: text("ev_station_id").notNull().references(() => evChargingStations.id, { onDelete: "cascade" }),
   relationship: text("relationship", { enum: ["ONSITE_CONFIRMED", "NEARBY_ONLY"] }).notNull(), matchMethod: text("match_method").notNull(), confidence: real("confidence").notNull(), createdAt: text("created_at").notNull(),
 }, (table) => [primaryKey({ columns: [table.parkingFacilityId, table.evStationId] }), index("parking_ev_links_relationship_idx").on(table.parkingFacilityId, table.relationship)]);
+
+export const guestTasteSessions = sqliteTable("guest_taste_sessions", {
+  id: text("id").primaryKey(),
+  onboardingVersion: integer("onboarding_version").notNull().default(1),
+  locationMode: text("location_mode", { enum: ["DEVICE", "DEFAULT"] }).notNull().default("DEFAULT"),
+  completedStepsJson: text("completed_steps_json").notNull().default("[]"),
+  completedAt: text("completed_at"),
+  skippedAt: text("skipped_at"),
+  mergedUserId: text("merged_user_id").references(() => users.id, { onDelete: "set null" }),
+  expiresAt: text("expires_at").notNull(),
+  ...timestamps,
+}, (table) => [index("guest_taste_sessions_expiry_idx").on(table.expiresAt, table.mergedUserId)]);
+
+export const guestTasteBadges = sqliteTable("guest_taste_badges", {
+  sessionId: text("session_id").notNull().references(() => guestTasteSessions.id, { onDelete: "cascade" }),
+  badgeId: text("badge_id").notNull().references(() => tasteBadges.id, { onDelete: "restrict" }),
+  selectedAt: text("selected_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.sessionId, table.badgeId] }),
+  index("guest_taste_badges_badge_idx").on(table.badgeId),
+]);
+
+export const recommendationFeedback = sqliteTable("recommendation_feedback", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  value: integer("value").notNull(),
+  reason: text("reason", { enum: ["MENU", "DISTANCE", "PRICE", "ATMOSPHERE", "ALREADY_VISITED"] }),
+  ...timestamps,
+}, (table) => [primaryKey({ columns: [table.userId, table.placeId] })]);
+
+export const productEvents = sqliteTable("product_events", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  guestSessionId: text("guest_session_id").references(() => guestTasteSessions.id, { onDelete: "set null" }),
+  eventName: text("event_name").notNull(),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  occurredAt: text("occurred_at").notNull(),
+}, (table) => [
+  index("product_events_name_time_idx").on(table.eventName, table.occurredAt),
+  index("product_events_guest_idx").on(table.guestSessionId, table.occurredAt),
+  index("product_events_user_idx").on(table.userId, table.occurredAt),
+]);

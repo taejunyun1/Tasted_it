@@ -40,6 +40,10 @@ import {
   oauthRequests,
   tasteBadges,
   userTasteBadges,
+  guestTasteSessions,
+  guestTasteBadges,
+  recommendationFeedback,
+  productEvents,
 } from "../../app/db/schema";
 
 describe("week 1 schema", () => {
@@ -107,5 +111,13 @@ describe("week 1 schema", () => {
     expect(tasteBadges.headlineNoun).toBeDefined();
     expect(userTasteBadges.score).toBeDefined();
     expect(userTasteBadges.source).toBeDefined();
+  });
+
+  it("exports app-first onboarding and feedback tables", () => {
+    expect(guestTasteSessions.expiresAt).toBeDefined();
+    expect(guestTasteSessions.mergedUserId).toBeDefined();
+    expect(guestTasteBadges.badgeId).toBeDefined();
+    expect(recommendationFeedback.reason).toBeDefined();
+    expect(productEvents.eventName).toBeDefined();
   });
 });
