@@ -125,7 +125,7 @@ function takeDiverse(output: DiscoveryPlace[], candidates: DiscoveryPlace[], lim
   for (const candidate of candidates) {
     if (output.length >= limit) break;
     if (output.some((item) => item.id === candidate.id)) continue;
-    if ((categories.get(candidate.primaryCategory.slug) ?? 0) >= 2) continue;
+    if ((categories.get(candidate.primaryCategory.slug) ?? 0) >= 3) continue;
     if ((neighborhoods.get(candidate.neighborhood) ?? 0) >= 2) continue;
     output.push(candidate);
     categories.set(candidate.primaryCategory.slug, (categories.get(candidate.primaryCategory.slug) ?? 0) + 1);
@@ -159,7 +159,8 @@ export function rankPersonalDiscovery(input: {
     const directionBoost = (wantsDiscovery && mode === "EXPLORATION" ? 0.12 : 0)
       + (wantsNeighborhood ? distance * 0.12 : 0)
       + (wantsTrusted ? quality * 0.12 : 0);
-    const score = quality * 0.45 + distance * 0.2 + modeBoost + seasonalBoost + directionBoost;
+    const personalizationBoost = Math.min(0.35, modeBoost + directionBoost);
+    const score = quality * 0.45 + distance * 0.2 + personalizationBoost + seasonalBoost;
     const recommendationReasons = [
       mode === "FAMILIAR"
         ? `${termsForBadge(matchedTasteId!)[0] ?? "선택한"} 취향과 가까움`
@@ -168,14 +169,10 @@ export function rankPersonalDiscovery(input: {
     ].slice(0, 2);
     return { ...place, distanceMeters: distanceInMeters(input.center, place), discoveryMode: mode as DiscoveryPlace["discoveryMode"], recommendationReasons, _score: score };
   }).sort((left, right) => right._score - left._score || left.name.localeCompare(right.name, "ko"));
-  const familiar = scored.filter((item) => item.discoveryMode === "FAMILIAR");
-  const adjacent = scored.filter((item) => item.discoveryMode === "ADJACENT");
   const exploration = scored.filter((item) => item.discoveryMode === "EXPLORATION");
   const output: typeof scored = [];
-  takeDiverse(output, familiar, Math.max(0, limit - Math.min(4, Math.ceil(limit / 2))));
-  takeDiverse(output, adjacent, Math.max(output.length, limit - 2));
-  takeDiverse(output, exploration, Math.min(limit, output.length + 2));
-  takeDiverse(output, [...familiar, ...adjacent, ...exploration], limit);
+  takeDiverse(output, exploration, Math.min(limit, 2));
+  takeDiverse(output, scored, limit);
   return output.map(({ _score: _, ...place }) => place);
 }
 

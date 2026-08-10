@@ -38,6 +38,7 @@ function withFallback<T extends { id: string }>(preferred: T[], all: T[], limit:
 
 export async function getPlaceRecommendationPage(db: AppDb, input: {
   userId?: string | null;
+  tasteBadgeIds?: string[];
   bbox: [number, number, number, number];
   categorySlug?: string;
   center: DiscoveryCenter;
@@ -70,7 +71,10 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
       reviewerScore: snapshot?.reviewerScore,
     };
   });
-  const userBadgeIds = storedTaste.map((badge) => badge.badgeId);
+  const userBadgeIds = [...new Set([
+    ...storedTaste.map((badge) => badge.badgeId),
+    ...(input.tasteBadgeIds ?? []),
+  ])];
   const selectedBadges = parseRecommendationSelection(input.selectedBadges);
   const month = new Date(input.now).getUTCMonth() + 1;
   const goldenCandidates = goldenPicks.flatMap((pick) => {

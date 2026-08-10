@@ -7,6 +7,47 @@ import { categories, goldenPickEvents, placeCategories, places, ratingSnapshots,
 import { getPlaceRecommendationPage } from "../../app/features/places/place-recommendation.server";
 
 describe("place recommendation server", () => {
+  it("uses guest taste badge ids without a member id", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const now = "2026-08-10T00:00:00.000Z";
+    const activeCategories = await db.select().from(categories).where(eq(categories.isActive, true)).limit(4);
+    expect(activeCategories).toHaveLength(4);
+    const guestPlaceIds = Array.from({ length: 8 }, (_, index) => `recommend-guest-${suffix}-${index}`);
+    await db.insert(places).values(guestPlaceIds.map((id, index) => ({
+      id,
+      slug: id,
+      name: index < 3 ? `비회원 국밥 ${index}` : `비회원 탐색 ${index}`,
+      status: "PUBLISHED" as const,
+      address: "광주",
+      neighborhood: `추천동-${index % 4}`,
+      latitude: 35.14 + index * 0.001,
+      longitude: 126.89 + index * 0.001,
+      searchText: index < 3 ? "국밥 노포" : `새로운 메뉴 ${index}`,
+      createdAt: now,
+      updatedAt: now,
+    })));
+    await db.insert(placeCategories).values(guestPlaceIds.map((placeId, index) => ({
+      placeId,
+      categoryId: activeCategories[index % activeCategories.length]!.id,
+      isPrimary: true,
+    })));
+
+    const result = await getPlaceRecommendationPage(db, {
+      userId: null,
+      tasteBadgeIds: ["food-gukbap", "style-old-school"],
+      bbox: [126.8, 35.0, 127.0, 35.3],
+      center: { latitude: 35.15, longitude: 126.9 },
+      selectedBadges: [],
+      now,
+      limit: 8,
+    });
+
+    expect(result.chips.some((chip) => chip.id === "food-gukbap")).toBe(true);
+    expect(result.chips.slice(0, 2).map((chip) => chip.id)).toEqual(["food-gukbap", "style-old-school"]);
+    expect(result.personal).toHaveLength(8);
+  });
+
   it("reuses stored taste, rating snapshots, and active Golden Picks", async () => {
     const db = createDb(env.DB);
     const suffix = crypto.randomUUID();

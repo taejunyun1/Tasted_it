@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { Form, Link, useFetcher, useSearchParams } from "react-router";
+import { Form, Link, redirect, useFetcher, useSearchParams } from "react-router";
 import type { Route } from "./+types/place-list";
 import type { loader as recommendationLoader } from "./place-recommendations-resource";
 import { PlaceCard } from "../components/places/PlaceCard";
@@ -9,6 +9,7 @@ import { PlaceRecommendationControls } from "../components/places/PlaceRecommend
 import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
 import { parseMapState } from "../features/maps/map-state";
+import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import { getPlaceRecommendationPage } from "../features/places/place-recommendation.server";
 import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
@@ -21,12 +22,25 @@ export async function loader({ request }: Route.LoaderArgs) {
   const [west, south, east, north] = state.bbox;
   const center = { latitude: (south + north) / 2, longitude: (west + east) / 2 };
   const db = createDb(env.DB);
+  const now = new Date().toISOString();
   const user = await getOptionalUser(request);
+  const guest = user ? null : await getGuestOnboardingFromRequest(db, request, now);
+  if (!user && env.ONBOARDING_ENABLED === "true" && !guest?.completedAt && !guest?.skippedAt) {
+    throw redirect(`/onboarding/taste?returnTo=${encodeURIComponent(`${url.pathname}${url.search}`)}`);
+  }
   const selectedBadges = url.searchParams.getAll("badge");
   const [places, groups, recommendations] = await Promise.all([
     listPlaces(db, { categorySlug, query: state.query, bbox: state.bbox }),
     listPublicCategoryGroups(db),
-    getPlaceRecommendationPage(db, { userId: user?.id, categorySlug, bbox: state.bbox, center, selectedBadges, now: new Date().toISOString() }),
+    getPlaceRecommendationPage(db, {
+      userId: user?.id,
+      tasteBadgeIds: guest ? [...guest.foodBadgeIds, ...guest.styleBadgeIds] : [],
+      categorySlug,
+      bbox: state.bbox,
+      center,
+      selectedBadges,
+      now,
+    }),
   ]);
   const category = groups.flatMap((group) => group.children).find((child) => child.slug === categorySlug);
   return { places, recommendations, state, category: category ?? null, search: url.search };
