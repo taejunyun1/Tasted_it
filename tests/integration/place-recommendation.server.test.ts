@@ -7,6 +7,110 @@ import { categories, goldenPickEvents, placeCategories, places, ratingSnapshots,
 import { getPlaceRecommendationPage } from "../../app/features/places/place-recommendation.server";
 
 describe("place recommendation server", () => {
+  it("keeps exploration and diversity safeguards after service fallback", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const now = "2026-08-10T00:00:00.000Z";
+    const categoryIds = Array.from({ length: 4 }, (_, index) => `recommend-final-category-${suffix}-${index}`);
+    await db.insert(categories).values(categoryIds.map((id, index) => ({
+      id,
+      slug: id,
+      name: `최종 추천 분류 ${index}`,
+      emoji: "🍽️",
+      isActive: true,
+      sortOrder: index,
+      createdAt: now,
+      updatedAt: now,
+    })));
+
+    const trustedExplorationIds = Array.from({ length: 8 }, (_, index) => `recommend-final-trusted-${suffix}-${index}`);
+    const preferredFamiliarIds = Array.from({ length: 7 }, (_, index) => `recommend-final-preferred-${suffix}-${index}`);
+    await db.insert(places).values(trustedExplorationIds.map((id, index) => ({
+      id,
+      slug: id,
+      name: `탐색 메뉴 ${index}`,
+      status: "PUBLISHED" as const,
+      address: "격리 테스트",
+      neighborhood: index === 0 ? "공통동" : `탐색동-${index}`,
+      latitude: 34.05 + index * 0.001,
+      longitude: 125.05,
+      searchText: `새로운 메뉴 ${index}`,
+      createdAt: now,
+      updatedAt: now,
+    })));
+    await db.insert(places).values(preferredFamiliarIds.map((id, index) => ({
+      id,
+      slug: id,
+      name: `선호 국밥 ${index}`,
+      status: "PUBLISHED" as const,
+      address: "격리 테스트",
+      neighborhood: index < 2 ? "공통동" : `선호동-${index}`,
+      latitude: 34.06 + index * 0.001,
+      longitude: 125.05,
+      searchText: `국밥 ${index}`,
+      createdAt: now,
+      updatedAt: now,
+    })));
+    await db.insert(placeCategories).values([
+      ...trustedExplorationIds.map((placeId, index) => ({
+        placeId,
+        categoryId: index === 0 ? categoryIds[0]! : categoryIds[3]!,
+        isPrimary: true,
+      })),
+      ...preferredFamiliarIds.map((placeId, index) => ({
+        placeId,
+        categoryId: categoryIds[index < 3 ? 0 : index < 5 ? 1 : 2]!,
+        isPrimary: true,
+      })),
+    ]);
+    const snapshotValues = trustedExplorationIds.map((placeId, index) => ({
+      id: `recommend-final-snapshot-${suffix}-${index}`,
+      placeId,
+      configId: "rating-config-v2",
+      inputHash: `${suffix}-${index}`,
+      overallScore: 99 - index,
+      userScore: 99 - index,
+      reviewerScore: 99 - index,
+      overallSampleCount: 50,
+      userSampleCount: 40,
+      reviewerSampleCount: 10,
+      reviewerRawWeight: 10,
+      reviewerCombinedWeight: 10,
+      reviewerWeightShare: 0.2,
+      reasonsJson: "{}",
+      isStale: false,
+      computedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await db.insert(ratingSnapshots).values(snapshotValues.slice(0, 4));
+    await db.insert(ratingSnapshots).values(snapshotValues.slice(4));
+
+    const result = await getPlaceRecommendationPage(db, {
+      userId: null,
+      tasteBadgeIds: ["food-gukbap"],
+      bbox: [125.0, 34.0, 125.1, 34.1],
+      center: { latitude: 34.05, longitude: 125.05 },
+      selectedBadges: [],
+      now,
+      limit: 8,
+    });
+
+    expect(result.personal).toHaveLength(8);
+    expect(result.personal.filter((place) => place.discoveryMode === "EXPLORATION").length)
+      .toBeGreaterThanOrEqual(2);
+    const categoryCounts = result.personal.reduce(
+      (counts, place) => counts.set(place.primaryCategory.slug, (counts.get(place.primaryCategory.slug) ?? 0) + 1),
+      new Map<string, number>(),
+    );
+    const neighborhoodCounts = result.personal.reduce(
+      (counts, place) => counts.set(place.neighborhood, (counts.get(place.neighborhood) ?? 0) + 1),
+      new Map<string, number>(),
+    );
+    expect(Math.max(...categoryCounts.values())).toBeLessThanOrEqual(3);
+    expect(Math.max(...neighborhoodCounts.values())).toBeLessThanOrEqual(2);
+  });
+
   it("uses guest taste badge ids without a member id", async () => {
     const db = createDb(env.DB);
     const suffix = crypto.randomUUID();

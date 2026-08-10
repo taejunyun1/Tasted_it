@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Form } from "react-router";
+import { Form, useFetcher } from "react-router";
 
-import { readOnboardingLocation, requestOnboardingLocation } from "../../features/onboarding/location.client";
+import type { loader as recommendationLoader } from "../../routes/place-recommendations-resource";
+import {
+  defaultOnboardingLocation,
+  readOnboardingLocation,
+  requestOnboardingLocation,
+  type OnboardingLocation,
+} from "../../features/onboarding/location.client";
 import { onboardingProgress, toggleOnboardingBadge, type OnboardingStep } from "../../features/onboarding/onboarding";
 import type { TasteBadgeDefinition } from "../../features/members/profile-taste-badges";
+import { PlaceCard } from "../places/PlaceCard";
 
 type InitialState = {
   step: OnboardingStep;
@@ -26,6 +33,20 @@ export function nextOnboardingStep(step: OnboardingStep): OnboardingStep {
   return STEPS[Math.min(index + 1, STEPS.length - 1)];
 }
 
+export function onboardingRecommendationPath(location: Pick<OnboardingLocation, "bbox">) {
+  const search = new URLSearchParams({ bbox: location.bbox.join(",") });
+  return `/resources/place-recommendations?${search}`;
+}
+
+export function onboardingPlacesDestination(
+  returnTo: string,
+  location: Pick<OnboardingLocation, "bbox">,
+) {
+  const destination = new URL(returnTo, "https://retaste.invalid");
+  destination.searchParams.set("bbox", location.bbox.join(","));
+  return `${destination.pathname}${destination.search}${destination.hash}`;
+}
+
 function BadgeButton({ badge, selected, onToggle }: {
   badge: TasteBadgeDefinition;
   selected: string[];
@@ -44,6 +65,7 @@ function BadgeButton({ badge, selected, onToggle }: {
 }
 
 export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnTo }: Props) {
+  const recommendationFetcher = useFetcher<typeof recommendationLoader>();
   const [locationMode, setLocationMode] = useState(initialState.locationMode);
   const [foodBadgeIds, setFoodBadgeIds] = useState(initialState.foodBadgeIds);
   const [styleBadgeIds, setStyleBadgeIds] = useState(initialState.styleBadgeIds);
@@ -51,6 +73,7 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
   const returnToInput = useRef<HTMLInputElement>(null);
   const stepInput = useRef<HTMLInputElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const previewLocation = useRef<OnboardingLocation | null>(null);
   const announcedStep = useRef(initialState.step);
   const step = initialState.step;
   const progress = onboardingProgress(step);
@@ -59,6 +82,16 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
   useEffect(() => {
     if (announcedStep.current !== step) headingRef.current?.focus();
     announcedStep.current = step;
+  }, [step]);
+
+  const loadPreviewRecommendations = () => {
+    const location = readOnboardingLocation() ?? defaultOnboardingLocation();
+    previewLocation.current = location;
+    recommendationFetcher.load(onboardingRecommendationPath(location));
+  };
+
+  useEffect(() => {
+    if (step === "PREVIEW") loadPreviewRecommendations();
   }, [step]);
 
   const toggleFood = (badgeId: string) => {
@@ -79,13 +112,18 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
     if (stepInput.current && stepIndex > 0) stepInput.current.value = STEPS[stepIndex - 1];
   };
   const prepareRecommendationRequest = () => {
-    if (locationMode !== "DEVICE") return;
-    const location = readOnboardingLocation();
-    if (!location || !returnToInput.current) return;
-    const destination = new URL(returnTo, window.location.origin);
-    destination.searchParams.set("bbox", location.bbox.join(","));
-    returnToInput.current.value = `${destination.pathname}${destination.search}${destination.hash}`;
+    if (!returnToInput.current) return;
+    const location = previewLocation.current
+      ?? readOnboardingLocation()
+      ?? defaultOnboardingLocation();
+    returnToInput.current.value = onboardingPlacesDestination(returnTo, location);
   };
+  const previewPlaces = recommendationFetcher.data?.ok
+    ? recommendationFetcher.data.recommendations.personal.slice(0, 8)
+    : [];
+  const previewError = recommendationFetcher.data && !recommendationFetcher.data.ok
+    ? recommendationFetcher.data.message
+    : null;
 
   return <main id="main" className="taste-onboarding">
     <section className="taste-onboarding__card" aria-labelledby="taste-onboarding-title">
@@ -144,13 +182,23 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
           <p>좋아하는 메뉴 <strong>{foodBadgeIds.length}개</strong></p>
           <p>맛과 스타일 <strong>{styleBadgeIds.length}개</strong></p>
           <p>{locationMode === "DEVICE" ? "내 주변" : "광주 중심"} 추천을 준비했어요.</p>
+          {recommendationFetcher.state !== "idle" && <p role="status">추천을 불러오는 중이에요.</p>}
+          {previewError && <div role="status">
+            <p>{previewError}</p>
+            <button type="button" className="taste-onboarding__secondary" onClick={loadPreviewRecommendations}>
+              다시 불러오기
+            </button>
+          </div>}
+          {previewPlaces.length > 0 && <div className="place-grid">
+            {previewPlaces.map((place) => <PlaceCard key={place.id} place={place} variant="personal" />)}
+          </div>}
         </div>}
 
         <div className="taste-onboarding__actions">
           {stepIndex > 0 && <button type="submit" name="intent" value="SAVE_STEP" className="taste-onboarding__secondary" onClick={preparePreviousStep}>이전</button>}
           {step !== "PREVIEW"
             ? <button type="submit" name="intent" value="SAVE_STEP" className="taste-onboarding__primary">계속</button>
-            : <button type="submit" name="intent" value="COMPLETE" className="taste-onboarding__primary" onClick={prepareRecommendationRequest}>추천 보러 가기</button>}
+            : <button type="submit" name="intent" value="COMPLETE" className="taste-onboarding__primary" onClick={prepareRecommendationRequest}>추천 보러가기</button>}
         </div>
         <button type="submit" name="intent" value="SKIP" className="taste-onboarding__skip">나중에 할게요</button>
       </Form>

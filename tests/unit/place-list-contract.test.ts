@@ -93,6 +93,7 @@ describe("places onboarding entry contract", () => {
 
     await expect(loader({ request: new Request("https://retaste.example/places") } as never))
       .resolves.toMatchObject({ places: [] });
+    expect(mocks.getGuestOnboardingFromRequest).not.toHaveBeenCalled();
   });
 
   it("does not redirect a logged-in user", async () => {
@@ -135,5 +136,13 @@ describe("places onboarding entry contract", () => {
       expect.anything(),
       expect.objectContaining({ tasteBadgeIds: ["food-gukbap", "style-old-school"] }),
     );
+  });
+
+  it("does not read guest onboarding from the resource when onboarding is disabled", async () => {
+    mocks.env.ONBOARDING_ENABLED = "false";
+    const { loader } = await import("../../app/routes/place-recommendations-resource");
+
+    await loader({ request: new Request("https://retaste.example/resources/place-recommendations?bbox=126.8,35,127,35.3") } as never);
+    expect(mocks.getGuestOnboardingFromRequest).not.toHaveBeenCalled();
   });
 });

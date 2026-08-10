@@ -24,7 +24,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const user = await getOptionalUser(request);
-  const guest = user ? null : await getGuestOnboardingFromRequest(db, request, now);
+  const guest = !user && env.ONBOARDING_ENABLED === "true"
+    ? await getGuestOnboardingFromRequest(db, request, now)
+    : null;
   if (!user && env.ONBOARDING_ENABLED === "true" && !guest?.completedAt && !guest?.skippedAt) {
     throw redirect(`/onboarding/taste?returnTo=${encodeURIComponent(`${url.pathname}${url.search}`)}`);
   }

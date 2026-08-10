@@ -16,7 +16,9 @@ export async function loader({ request }: Route.LoaderArgs) {
     const db = createDb(env.DB);
     const now = new Date().toISOString();
     const user = await getOptionalUser(request);
-    const guest = user ? null : await getGuestOnboardingFromRequest(db, request, now);
+    const guest = !user && env.ONBOARDING_ENABLED === "true"
+      ? await getGuestOnboardingFromRequest(db, request, now)
+      : null;
     const recommendations = await getPlaceRecommendationPage(db, {
       userId: user?.id,
       tasteBadgeIds: guest ? [...guest.foodBadgeIds, ...guest.styleBadgeIds] : [],

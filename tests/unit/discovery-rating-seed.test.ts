@@ -82,4 +82,37 @@ describe("personal discovery safeguards", () => {
     );
     expect(Math.max(...neighborhoodCounts.values())).toBeLessThanOrEqual(2);
   });
+
+  it("lets a style badge after five food badges change the ranked result", () => {
+    const places = [
+      discoveryPlace("brunch", { name: "브런치", ratingScore: 90 }),
+      discoveryPlace("steak", { name: "스테이크", ratingScore: 80 }),
+      discoveryPlace("dessert", { name: "디저트", ratingScore: 75 }),
+      discoveryPlace("old-school", { name: "전통 노포", ratingScore: 20 }),
+    ];
+    const baseInput = {
+      places,
+      selectedBadges: [],
+      center: { latitude: 35.15, longitude: 126.9 },
+      month: 8,
+      limit: 4,
+    };
+    const foodBadgeIds = [
+      "food-gukbap",
+      "food-naengmyeon",
+      "food-ramen",
+      "food-sushi",
+      "food-pizza",
+    ];
+
+    const withoutStyle = rankPersonalDiscovery({ ...baseInput, userBadgeIds: foodBadgeIds });
+    const withStyle = rankPersonalDiscovery({
+      ...baseInput,
+      userBadgeIds: [...foodBadgeIds, "style-old-school"],
+    });
+
+    expect(withStyle.find((place) => place.id === "old-school")?.discoveryMode).toBe("FAMILIAR");
+    expect(withStyle.findIndex((place) => place.id === "old-school"))
+      .toBeLessThan(withoutStyle.findIndex((place) => place.id === "old-school"));
+  });
 });

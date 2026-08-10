@@ -5,6 +5,7 @@ import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import { ratingSnapshots, userTasteBadges } from "../../db/schema";
 import { listActiveGoldenPicks } from "../ratings/golden-pick.server";
 import {
+  mergePersonalDiscoveryRankings,
   rankGoldenRelay,
   rankPersonalDiscovery,
   rankTrustedPlaces,
@@ -90,7 +91,11 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
     places: candidates.filter((place) => !reserved.has(place.id)), selectedBadges, userBadgeIds, center: input.center, month, limit,
   });
   const personalFallback = rankPersonalDiscovery({ places: candidates, selectedBadges, userBadgeIds, center: input.center, month, limit });
-  const personal = withFallback(personalPreferred, personalFallback, limit);
+  const personal = mergePersonalDiscoveryRankings({
+    preferred: personalPreferred,
+    fallback: personalFallback,
+    limit,
+  });
 
   return {
     chips: buildRecommendationChips({ userBadges: userBadgeIds, month }),

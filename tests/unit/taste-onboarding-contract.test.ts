@@ -64,6 +64,34 @@ describe("taste onboarding contract", () => {
     expect(component).toContain("headingRef.current?.focus()");
   });
 
+  it("uses the same location bbox for preview loading and the places destination", async () => {
+    const component = await import("../../app/components/onboarding/TasteOnboarding") as unknown as {
+      onboardingRecommendationPath?: (location: { bbox: [number, number, number, number] }) => string;
+      onboardingPlacesDestination?: (
+        returnTo: string,
+        location: { bbox: [number, number, number, number] },
+      ) => string;
+    };
+    const location = { bbox: [126.8, 35, 127, 35.3] as [number, number, number, number] };
+
+    expect(component.onboardingRecommendationPath).toBeTypeOf("function");
+    expect(component.onboardingPlacesDestination).toBeTypeOf("function");
+    expect(component.onboardingRecommendationPath!(location))
+      .toBe("/resources/place-recommendations?bbox=126.8%2C35%2C127%2C35.3");
+    expect(component.onboardingPlacesDestination!("/places?category=korean", location))
+      .toBe("/places?category=korean&bbox=126.8%2C35%2C127%2C35.3");
+  });
+
+  it("loads and renders preview recommendations with retry feedback", () => {
+    const component = fs.readFileSync("app/components/onboarding/TasteOnboarding.tsx", "utf8");
+    expect(component).toContain("useFetcher<typeof recommendationLoader>");
+    expect(component).toContain("recommendationFetcher.load(onboardingRecommendationPath(location))");
+    expect(component).toContain("recommendations.personal.slice(0, 8)");
+    expect(component).toContain("<PlaceCard");
+    expect(component).toContain("다시 불러오기");
+    expect(component).toContain("readOnboardingLocation() ?? defaultOnboardingLocation()");
+  });
+
   it.each(["//evil.example/path", "/\\evil.example/path", "/%5Cevil.example/path", "https://evil.example/path"])(
     "loader rejects malicious returnTo %s",
     async (returnTo) => {

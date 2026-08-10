@@ -133,6 +133,24 @@ function takeDiverse(output: DiscoveryPlace[], candidates: DiscoveryPlace[], lim
   }
 }
 
+export function mergePersonalDiscoveryRankings(input: {
+  preferred: DiscoveryPlace[];
+  fallback: DiscoveryPlace[];
+  limit: number;
+}) {
+  const candidates = [...new Map(
+    [...input.preferred, ...input.fallback].map((place) => [place.id, place]),
+  ).values()];
+  const output: DiscoveryPlace[] = [];
+  takeDiverse(
+    output,
+    candidates.filter((place) => place.discoveryMode === "EXPLORATION"),
+    Math.min(input.limit, 2),
+  );
+  takeDiverse(output, candidates, input.limit);
+  return output;
+}
+
 export function rankPersonalDiscovery(input: {
   places: DiscoveryPlace[];
   selectedBadges: string[];
@@ -142,7 +160,7 @@ export function rankPersonalDiscovery(input: {
   limit?: number;
 }) {
   const limit = input.limit ?? 8;
-  const tasteIds = input.selectedBadges.length ? input.selectedBadges : input.userBadgeIds.slice(0, 3);
+  const tasteIds = [...new Set([...input.selectedBadges, ...input.userBadgeIds])];
   const adjacentTerms = tasteIds.flatMap((id) => TASTE_ADJACENCY[id] ?? []);
   const seasonalTerms = termsForBadge(`season-${seasonForMonth(input.month).toLocaleLowerCase()}`);
   const wantsDiscovery = input.selectedBadges.includes("discovery-new-taste");
