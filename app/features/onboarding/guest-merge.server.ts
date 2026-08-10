@@ -1,5 +1,4 @@
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
-import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -14,7 +13,7 @@ import {
 } from "./guest-session.server";
 
 const ONBOARDING_EVIDENCE = JSON.stringify({ source: "ONBOARDING", version: 1 });
-const validBadgeIds = new Set(TASTE_BADGE_CATALOG.map((badge) => badge.id));
+const VALID_BADGE_IDS_JSON = JSON.stringify(TASTE_BADGE_CATALOG.map((badge) => badge.id));
 
 function activeSessionConditions(sessionId: string, now: string) {
   return and(
@@ -33,62 +32,41 @@ export async function mergeGuestTasteSessionFromRequest(
   const sessionId = readGuestSessionId(request);
   if (!sessionId) return { merged: false, expireCookie: null };
 
-  const session = await db.query.guestTasteSessions.findFirst({
-    columns: { id: true },
-    where: activeSessionConditions(sessionId, now),
-  });
-  if (!session) return { merged: false, expireCookie: null };
-
-  const selected = await db.select({ badgeId: guestTasteBadges.badgeId })
-    .from(guestTasteBadges)
-    .where(eq(guestTasteBadges.sessionId, sessionId));
-  const badgeIds = [...new Set(
-    selected.map(({ badgeId }) => badgeId).filter((badgeId) => validBadgeIds.has(badgeId)),
-  )];
-
-  const statements: BatchItem<"sqlite">[] = badgeIds.map((badgeId) => (
-    db.insert(userTasteBadges).select(
-      db.select({
-        userId: sql<string>`${userId}`.as("user_id"),
-        badgeId: guestTasteBadges.badgeId,
-        source: sql<"USER">`'USER'`.as("source"),
-        score: sql<number>`0.8`.as("score"),
-        evidenceJson: sql<string>`${ONBOARDING_EVIDENCE}`.as("evidence_json"),
-        createdAt: sql<string>`${now}`.as("created_at"),
-        updatedAt: sql<string>`${now}`.as("updated_at"),
-      })
-        .from(guestTasteBadges)
-        .innerJoin(
-          guestTasteSessions,
-          eq(guestTasteSessions.id, guestTasteBadges.sessionId),
-        )
-        .where(and(
-          activeSessionConditions(sessionId, now),
-          eq(guestTasteBadges.badgeId, badgeId),
-        )),
-    ).onConflictDoUpdate({
-      target: [
-        userTasteBadges.userId,
-        userTasteBadges.badgeId,
-        userTasteBadges.source,
-      ],
-      set: {
-        score: sql`max(${userTasteBadges.score}, excluded.score)`,
-        evidenceJson: ONBOARDING_EVIDENCE,
-        updatedAt: now,
-      },
+  const copyCurrentBadges = db.insert(userTasteBadges).select(
+    db.select({
+      userId: sql<string>`${userId}`.as("user_id"),
+      badgeId: guestTasteBadges.badgeId,
+      source: sql<"USER">`'USER'`.as("source"),
+      score: sql<number>`0.8`.as("score"),
+      evidenceJson: sql<string>`${ONBOARDING_EVIDENCE}`.as("evidence_json"),
+      createdAt: sql<string>`${now}`.as("created_at"),
+      updatedAt: sql<string>`${now}`.as("updated_at"),
     })
-  ));
-  statements.push(
-    db.update(guestTasteSessions)
-      .set({ mergedUserId: userId, updatedAt: now })
-      .where(activeSessionConditions(sessionId, now)),
-  );
-
-  const [first, ...rest] = statements;
-  if (!first) return { merged: false, expireCookie: null };
-  const results = await db.batch([first, ...rest]);
-  const sessionUpdate = results.at(-1) as { meta?: { changes?: number } } | undefined;
+      .from(guestTasteBadges)
+      .innerJoin(
+        guestTasteSessions,
+        eq(guestTasteSessions.id, guestTasteBadges.sessionId),
+      )
+      .where(and(
+        activeSessionConditions(sessionId, now),
+        sql`${guestTasteBadges.badgeId} in (select value from json_each(${VALID_BADGE_IDS_JSON}))`,
+      )),
+  ).onConflictDoUpdate({
+    target: [
+      userTasteBadges.userId,
+      userTasteBadges.badgeId,
+      userTasteBadges.source,
+    ],
+    set: {
+      score: sql`max(${userTasteBadges.score}, excluded.score)`,
+      evidenceJson: ONBOARDING_EVIDENCE,
+      updatedAt: now,
+    },
+  });
+  const markMerged = db.update(guestTasteSessions)
+    .set({ mergedUserId: userId, updatedAt: now })
+    .where(activeSessionConditions(sessionId, now));
+  const [, sessionUpdate] = await db.batch([copyCurrentBadges, markMerged]);
   if (sessionUpdate?.meta?.changes !== 1) {
     return { merged: false, expireCookie: null };
   }
