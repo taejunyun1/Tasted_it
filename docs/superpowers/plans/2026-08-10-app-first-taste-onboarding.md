@@ -915,7 +915,7 @@ git commit -m "2026-08-10 취향 온보딩 사용자 흐름 검증"
 - Produces: 배포·관찰·롤백 절차와 PR 검증 증거
 - Consumes: 모든 이전 Task
 
-- [ ] **Step 1: 운영 문서 추가**
+- [x] **Step 1: 운영 문서 추가**
 
 다음 항목을 `place-operations-runbook.md`에 작성한다.
 
@@ -929,31 +929,31 @@ git commit -m "2026-08-10 취향 온보딩 사용자 흐름 검증"
 - 개인정보 금지: 이메일, 이름, 주소, 원본 위치 좌표를 product_events.metadata_json에 기록하지 않는다.
 ```
 
-- [ ] **Step 2: migration 로컬 적용 확인**
+- [x] **Step 2: migration 로컬 적용 확인**
 
 Run: `pnpm wrangler d1 migrations apply DB --local`
 
 Expected: `0018_app_first_taste_onboarding.sql` 적용 성공
 
-- [ ] **Step 3: 정적 검사와 단위 테스트**
+- [x] **Step 3: 정적 검사와 단위 테스트**
 
 Run: `git diff --check && pnpm run typecheck && pnpm test`
 
 Expected: typecheck 성공, 단위 테스트 0 failure
 
-- [ ] **Step 4: Worker 통합 테스트**
+- [x] **Step 4: Worker 통합 테스트**
 
 Run: `pnpm run test:integration`
 
 Expected: 모든 integration test PASS. AI binding 원격 경고는 허용하되 인증 실패는 허용하지 않는다.
 
-- [ ] **Step 5: production build와 E2E**
+- [x] **Step 5: production build와 E2E**
 
 Run: `pnpm run build && pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts`
 
 Expected: build 성공, desktop/mobile 온보딩 E2E PASS
 
-- [ ] **Step 6: 최신 main 반영과 재검증**
+- [x] **Step 6: 최신 main 반영과 재검증**
 
 ```bash
 git fetch origin
@@ -964,7 +964,7 @@ pnpm test
 
 Expected: 충돌 없음. 충돌이 있으면 다른 작업자의 변경을 보존해 해결하고 전체 테스트를 다시 실행한다.
 
-- [ ] **Step 7: 운영 문서 커밋**
+- [x] **Step 7: 운영 문서 커밋**
 
 ```bash
 git add docs/operations/place-operations-runbook.md docs/superpowers/plans/2026-08-10-app-first-taste-onboarding.md
@@ -972,6 +972,8 @@ git commit -m "2026-08-10 취향 온보딩 운영 절차 정리"
 ```
 
 - [ ] **Step 8: 브랜치 push와 PR 생성**
+
+상태: 독립 최종 리뷰 전이므로 push와 PR 생성은 보류한다.
 
 ```bash
 git push -u origin codex/app-first-taste-onboarding-spec
