@@ -324,7 +324,7 @@ type TasteSignal = {
 6. 제품 이벤트와 운영 관찰
 7. 제한된 베타 사용자에게 공개 후 성공 기준 검토
 
-기능 플래그를 사용해 기존 사용자에게는 현재 흐름을 유지하고 신규 세션부터 점진적으로 노출한다. 문제가 발생하면 온보딩만 끄고 기존 `/places` 추천 화면으로 복귀할 수 있어야 한다. 비활성 상태에서는 loader뿐 아니라 stale form과 직접 action POST도 세션·배지·이벤트·쿠키를 만들거나 수정하지 않고 canonical 공개 경로로 복귀한다.
+기능 플래그를 사용해 기존 사용자에게는 현재 흐름을 유지하고 신규 세션부터 점진적으로 노출한다. 문제가 발생하면 온보딩만 끄고 기존 `/places` 추천 화면으로 복귀할 수 있어야 한다. 비활성 상태에서는 loader뿐 아니라 stale form과 직접 action POST도 세션·배지·이벤트·쿠키를 만들거나 수정하지 않고 canonical 공개 경로로 복귀한다. 온보딩 `returnTo` 공개 allowlist는 raw pathname이 정확히 `/places` 또는 React Router resource pathname `/places.data`인 경우만 허용하며, 결과 pathname은 항상 `/places`로 canonicalize한다. `bbox`, `category`, `q`, `badge`만 보존하고 온보딩 자기 경로, 관리·인증·로그아웃, 알 수 없는 경로, 외부·protocol-relative, backslash, dot-segment, 중첩 인코딩 입력은 모두 `/places`로 fallback한다.
 
 ## 14. 결정 사항 요약
 

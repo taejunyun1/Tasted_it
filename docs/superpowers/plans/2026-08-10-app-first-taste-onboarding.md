@@ -417,7 +417,7 @@ const onboardingAction = z.object({
 });
 ```
 
-폼의 반복 필드는 `form.getAll("foodBadgeId")`와 `form.getAll("styleBadgeId")`로 조립한다. `SKIP`과 `COMPLETE`는 세션에 완료 시각을 기록하고 `returnTo`로 redirect한다. 신규 세션이면 응답에 `Set-Cookie`를 붙인다.
+폼의 반복 필드는 `form.getAll("foodBadgeId")`와 `form.getAll("styleBadgeId")`로 조립한다. `SKIP`과 `COMPLETE`는 세션에 완료 시각을 기록하고 검증된 `returnTo`로 redirect한다. 온보딩 공개 복귀 allowlist는 raw pathname `/places`, `/places.data`만 허용하고 두 경로 모두 `/places`로 canonicalize한다. `bbox`, `category`, `q`, 반복 `badge`만 보존하며 self/internal/unknown/external/protocol-relative/backslash/dot-segment/nested-encoded 입력은 `/places`로 fallback한다. 신규 세션이면 응답에 `Set-Cookie`를 붙인다.
 
 - [ ] **Step 5: 앱 우선 컴포넌트 구현**
 

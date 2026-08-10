@@ -79,6 +79,7 @@ pnpm wrangler d1 migrations apply DB --local
 - 판정 방식: 문자열이 정확히 `true`일 때만 활성화된다. 미설정 또는 다른 값은 비활성으로 취급한다.
 - 현재 저장소 기본값: `wrangler.jsonc`의 `ONBOARDING_ENABLED`는 `true`다. 제한 공개가 필요하면 배포 환경에서 먼저 `false`로 설정해 Worker를 배포하고, 준비가 끝난 시점에 `true`로 전환해 다시 배포한다.
 - 비활성 동작: 비회원 `/places`와 추천 resource는 비회원 온보딩 세션을 조회하지 않고 기존 추천 흐름을 사용한다. `/onboarding/taste` loader와 stale/direct POST는 세션·배지·이벤트·쿠키를 생성·수정하지 않고 allowlist로 정규화한 공개 `returnTo`로 이동한다. 로그인 사용자의 direct POST도 같은 무변경 경로로 처리한다.
+- `returnTo` allowlist: raw pathname으로 정확한 `/places`와 React Router `/places.data`만 허용하고 둘 다 `/places`로 canonicalize한다. 공개 필터 `bbox`, `category`, `q`, 반복 `badge`만 보존한다. 자기 경로 `/onboarding/taste`, 관리·인증·로그아웃·알 수 없는 경로, 외부·protocol-relative, backslash, dot-segment, 중첩 인코딩 입력은 `/places`로 fallback한다.
 - 롤백 확인: 새 비회원 브라우저에서 `/places`가 `/onboarding/taste`로 이동하지 않고 기존 추천을 표시하는지 확인한다.
 
 현재 플래그는 전체 켜기/끄기만 지원한다. 사용자 비율 기반 점진 노출은 지원하지 않으므로 제한 공개 대상은 별도 배포 환경 또는 명시적인 QA 사용자 집단으로 관리한다.
@@ -132,7 +133,7 @@ ORDER BY event_name;
 
 1. `ONBOARDING_ENABLED=false`로 설정한 호환 Worker를 배포한다.
 2. 새 비회원 브라우저에서 `/places`가 온보딩으로 이동하지 않고 기존 추천을 표시하는지 확인한다.
-3. `/onboarding/taste?returnTo=%2Fplaces` 직접 요청이 `/places`로 돌아가는지 확인한다.
+3. `/onboarding/taste?returnTo=%2Fonboarding%2Ftaste`와 관리·인증 경로를 `returnTo`로 준 loader/direct POST가 `/places`로 돌아가고, 세션·배지·이벤트·쿠키를 변경하지 않는지 확인한다. `/places.data`는 지원 필터만 보존한 `/places`로 돌아가야 한다.
 4. 로그인, 저장, 평가와 기존 장소 운영 화면이 정상인지 확인한다.
 5. `0018`~`0023`은 기존 흐름과 호환되는 추가형 schema이므로 파괴적 역 migration을 실행하지 않는다. 후속 수정이 필요하면 새 순번의 순방향 migration을 작성한다.
 6. 장애 시간, 영향 범위, Worker version, 기능 플래그, D1 migration 상태, 관찰 이벤트와 조치자를 기록한다.

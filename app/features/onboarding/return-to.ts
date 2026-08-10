@@ -26,21 +26,14 @@ export function safeOnboardingReturnTo(value: string | null | undefined) {
   const fallback = "/places";
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
 
-  let decoded = value;
   try {
-    for (let count = 0; count < 3; count += 1) {
-      const next = decodeURIComponent(decoded);
-      if (next.includes("\\") || next.startsWith("//")) return fallback;
-      if (next === decoded) break;
-      decoded = next;
-    }
     const base = new URL("https://retaste.invalid");
-    const destination = new URL(decoded, base);
-    if (destination.origin !== base.origin) return fallback;
-    if (destination.pathname === "/places" || destination.pathname === "/places.data") {
-      return canonicalPlacesReturnTo(destination);
-    }
-    return value;
+    const destination = new URL(value, base);
+    const rawPathname = value.split(/[?#]/u, 1)[0];
+    if (destination.origin !== base.origin || destination.hash) return fallback;
+    if (rawPathname !== "/places" && rawPathname !== "/places.data") return fallback;
+    if (destination.pathname !== rawPathname) return fallback;
+    return canonicalPlacesReturnTo(destination);
   } catch {
     return fallback;
   }

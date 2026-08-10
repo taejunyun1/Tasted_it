@@ -383,6 +383,68 @@ async function selectedGuestBadges(db: AppDb, guestSessionId: string) {
 }
 
 describe("product event route wiring", () => {
+  it.each([
+    ["disabled", "loader", "/onboarding/taste"],
+    ["authenticated", "loader", "/admin/candidates"],
+    ["disabled", "action", "/auth/google"],
+    ["authenticated", "action", "/logout"],
+  ] as const)(
+    "returns %s %s requests with a non-public returnTo to /places without mutation",
+    async (guard, requestKind, returnTo) => {
+      const db = createDb(env.DB);
+      const guestSessionId = await seedGuest(db, undefined, "FOOD");
+      await db.insert(guestTasteBadges).values({
+        sessionId: guestSessionId,
+        badgeId: "food-gukbap",
+        selectedAt: NOW,
+      });
+      if (guard === "authenticated") {
+        const userId = await seedUser(db);
+        routeMocks.getOptionalUser.mockResolvedValue({ id: userId });
+      }
+      const sessionsBefore = await db.select().from(guestTasteSessions);
+      const badgesBefore = await db.select().from(guestTasteBadges);
+      const eventsBefore = await db.select().from(productEvents);
+      const previousFlag = env.ONBOARDING_ENABLED;
+      if (guard === "disabled") env.ONBOARDING_ENABLED = "false";
+
+      try {
+        const route = await import("../../app/routes/taste-onboarding");
+        const response = requestKind === "loader"
+          ? await route.loader({
+            request: new Request(
+              `https://retaste.test/onboarding/taste?returnTo=${encodeURIComponent(returnTo)}`,
+              { headers: { Cookie: `retaste_guest=${guestSessionId}` } },
+            ),
+          } as never) as Response
+          : await route.action({
+            request: new Request("https://retaste.test/onboarding/taste", {
+              method: "POST",
+              headers: { Cookie: `retaste_guest=${guestSessionId}` },
+              body: (() => {
+                const form = onboardingForm({
+                  intent: "SAVE_STEP",
+                  currentStep: "FOOD",
+                  foodBadgeIds: ["food-ramen"],
+                });
+                form.set("returnTo", returnTo);
+                return form;
+              })(),
+            }),
+          } as never) as Response;
+
+        expect(response.headers.get("Location")).toBe("/places");
+        expect(response.headers.get("Set-Cookie")).toBeNull();
+      } finally {
+        env.ONBOARDING_ENABLED = previousFlag;
+      }
+
+      await expect(db.select().from(guestTasteSessions)).resolves.toEqual(sessionsBefore);
+      await expect(db.select().from(guestTasteBadges)).resolves.toEqual(badgesBefore);
+      await expect(db.select().from(productEvents)).resolves.toEqual(eventsBefore);
+    },
+  );
+
   it("makes a disabled stale onboarding POST a complete no-mutation kill switch", async () => {
     const db = createDb(env.DB);
     const guestSessionId = await seedGuest(db, undefined, "FOOD");
