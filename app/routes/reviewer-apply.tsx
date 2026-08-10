@@ -43,7 +43,7 @@ export default function ReviewerApply({ loaderData, actionData }: Route.Componen
   return <main id="main" className="mx-auto min-h-screen max-w-5xl px-5 py-12 md:px-10">
     <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-emerald-800">REVIEWER / APPLICATION</p>
     <div className="mt-3 grid gap-8 border-b border-neutral-900 pb-8 md:grid-cols-[1fr_260px] md:items-end">
-      <div><h1 className="text-4xl font-semibold tracking-[-0.05em] md:text-6xl">리뷰어 신청</h1><p className="mt-4 max-w-2xl leading-7 text-neutral-600">좋아하는 가게를 많이 아는 것보다, 같은 기준으로 오래 기록할 수 있는지를 봅니다.</p></div>
+      <div><h1 className="text-[25.2px] font-semibold tracking-[-0.05em] md:text-[42px]">리뷰어 신청</h1><p className="mt-4 max-w-2xl leading-7 text-neutral-600">좋아하는 가게를 많이 아는 것보다, 같은 기준으로 오래 기록할 수 있는지를 봅니다.</p></div>
       <div className="border-l-4 border-emerald-800 bg-emerald-50 p-5"><p className="text-xs font-medium text-neutral-600">승인된 장소 제안</p><strong className="mt-1 block font-mono text-3xl font-semibold text-emerald-900">{loaderData.dashboard.approvedSuggestionCount} / 10곳</strong><p className="mt-2 text-xs leading-5 text-neutral-600">제안 기능 연결 전에는 0곳으로 표시됩니다.</p></div>
     </div>
     {actionData?.error && <p className="mt-6 border border-rose-500 bg-rose-50 px-4 py-3 text-sm text-rose-800">{actionData.error}</p>}

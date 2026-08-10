@@ -328,3 +328,25 @@ body{background:var(--atlas-paper)}
 @media(max-width:980px){.discovery-section[data-kind="personal"] .discovery-rail,.discovery-section[data-kind="trusted"] .discovery-rail{grid-template-columns:repeat(2,minmax(0,1fr))}.discovery-section[data-kind="golden"] .discovery-rail{grid-template-columns:repeat(4,minmax(270px,1fr))}.discovery-controls__heading{grid-template-columns:1fr}.discovery-controls__heading>p:last-child{margin-top:10px}}
 @media(max-width:620px){.discovery-page{padding:28px 0 76px}.discovery-hero{padding-top:14px}.discovery-hero h1{font-size:49px}.discovery-hero>div>p:last-child{font-size:13px}.discovery-controls{margin-top:24px;border-radius:22px;padding:20px;box-shadow:5px 5px 0 rgba(20,37,28,.11)}.discovery-controls__heading h2{font-size:35px}.discovery-chip-list{gap:7px}.discovery-chip-list button{min-height:39px;padding:9px 12px;font-size:10px}.discovery-recommendations__title{padding-top:62px}.discovery-recommendations__title h2{font-size:46px}.discovery-section{padding-top:45px}.discovery-heading{display:block}.discovery-heading>p{margin-top:9px;text-align:left}.discovery-section[data-kind="personal"] .discovery-rail,.discovery-section[data-kind="trusted"] .discovery-rail{grid-template-columns:1fr}.discovery-section[data-kind="personal"] .place-card[data-variant="featured"]{grid-column:auto;grid-row:auto}.discovery-section[data-kind="personal"] .place-card[data-variant="featured"] .place-image{height:230px}.discovery-section[data-kind="trusted"]{margin-inline:-14px;border-radius:24px;padding:28px 14px}.discovery-section[data-kind="golden"] .discovery-rail{grid-template-columns:repeat(4,82vw);margin-right:-14px}.discovery-section[data-kind="golden"] .place-card:nth-child(even){margin-top:0}.discovery-all{padding-top:72px}.discovery-grid{grid-template-columns:1fr}.discovery-search{grid-template-columns:minmax(0,1fr) auto}}
 @media(prefers-reduced-motion:reduce){.discovery-page a,.discovery-page button,.discovery-recommendations{transition:none}.discovery-page a:hover,.discovery-page button:hover{transform:none}}
+
+h1{font-size:1.4em}
+.hero h1{font-size:clamp(36.4px,5.6vw,78.4px)}
+.explore-head h1{font-size:29.4px}
+.detail-copy h1{font-size:clamp(26.6px,3.5vw,47.6px)}
+.error-page h1{font-size:clamp(28px,4.9vw,63px)}
+.legal h1{font-size:clamp(28px,4.9vw,50.4px)}
+.reviewer-rating-shell h1{font-size:33.6px}
+.admin-rating-shell h1{font-size:33.6px}
+.map-detail-copy h1{font-size:21px}
+.admin-head h1{font-size:29.4px}
+.review-top h1{font-size:clamp(23.8px,2.8vw,36.4px)}
+.operation-form h1,.operation-list h1,.place-ops h1{font-size:clamp(26.6px,3.5vw,40.6px)}
+.map-atlas-head h1{font-size:clamp(20.3px,1.68vw,26.6px)}
+.course-hero h1{font-size:clamp(33.6px,4.2vw,60.2px)}
+.member-profile h1{font-size:clamp(33.6px,4.2vw,57.4px)}
+.member-profile__taste h1{font-size:clamp(36.4px,4.9vw,64.4px)}
+.discovery-hero h1{font-size:clamp(37.8px,4.9vw,64.4px)}
+@media(max-width:900px){.course-hero h1{font-size:36.4px}}
+@media(max-width:760px){.hero h1{font-size:36.4px}.explore-head h1{font-size:22.4px}.reviewer-rating-shell h1{font-size:25.2px}.map-detail-copy h1{font-size:17.5px}.map-atlas-head h1{font-size:20.3px}}
+@media(max-width:620px){.discovery-hero h1{font-size:34.3px}}
+@media(max-width:520px){.course-hero h1{font-size:30.1px}.member-profile h1{font-size:30.8px}.member-profile__taste h1{font-size:32.2px}}
