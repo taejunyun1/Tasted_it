@@ -228,7 +228,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         <div className="admin-page-frame mx-auto max-w-[1500px] px-5 py-8 md:px-10">
           <div>
             <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-emerald-800">ADMIN / PLACE REVIEW</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] md:text-5xl">장소 검수 목록</h1>
+            <h1 className="mt-2 text-[21px] font-semibold tracking-[-0.04em] md:text-[33.6px]">장소 검수 목록</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">자동 분류 결과를 목록에서 확인하고, 애매한 후보만 카테고리를 직접 정합니다. 동네는 주소에서 자동 계산됩니다.</p>
           </div>
         </div>
