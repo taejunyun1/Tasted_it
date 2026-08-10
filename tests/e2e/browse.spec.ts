@@ -7,6 +7,8 @@ test("category journey exposes the same place in list and map", async ({ page })
   await page.getByRole("button", { name: /라멘/ }).first().click();
   await expect(page).toHaveURL(/category=ramen-detail/);
   await page.getByRole("link", { name: "맛집 리스트", exact: true }).last().click();
+  await expect(page).toHaveURL(/\/onboarding\/taste\?returnTo=%2Fplaces$/);
+  await page.getByRole("button", { name: "나중에 할게요" }).click();
   await expect(page).toHaveURL(/\/places$/);
   await expect(page.getByRole("link", { name: /Re:Taste 샘플 라멘 동명/ }).first()).toBeVisible();
 });

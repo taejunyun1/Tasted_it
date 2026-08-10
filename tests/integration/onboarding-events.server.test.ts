@@ -383,6 +383,67 @@ async function selectedGuestBadges(db: AppDb, guestSessionId: string) {
 }
 
 describe("product event route wiring", () => {
+  it("makes a disabled stale onboarding POST a complete no-mutation kill switch", async () => {
+    const db = createDb(env.DB);
+    const guestSessionId = await seedGuest(db, undefined, "FOOD");
+    await db.insert(guestTasteBadges).values({
+      sessionId: guestSessionId,
+      badgeId: "food-gukbap",
+      selectedAt: NOW,
+    });
+    const sessionsBefore = await db.select().from(guestTasteSessions);
+    const eventsBefore = await db.select().from(productEvents);
+    const form = onboardingForm({
+      intent: "SAVE_STEP",
+      currentStep: "FOOD",
+      foodBadgeIds: ["food-ramen"],
+    });
+    form.set("returnTo", "/places.data?category=ramen-detail&_routes=routes%2Fplace-list");
+    const previousFlag = env.ONBOARDING_ENABLED;
+    env.ONBOARDING_ENABLED = "false";
+
+    try {
+      const { action } = await import("../../app/routes/taste-onboarding");
+      const response = await action({
+        request: new Request("https://retaste.test/onboarding/taste", {
+          method: "POST",
+          headers: { Cookie: `retaste_guest=${guestSessionId}` },
+          body: form,
+        }),
+      } as never) as Response;
+
+      expect(response.headers.get("Location")).toBe("/places?category=ramen-detail");
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+    } finally {
+      env.ONBOARDING_ENABLED = previousFlag;
+    }
+
+    await expect(db.select().from(guestTasteSessions)).resolves.toEqual(sessionsBefore);
+    await expect(selectedGuestBadges(db, guestSessionId)).resolves.toEqual([{ badgeId: "food-gukbap" }]);
+    await expect(db.select().from(productEvents)).resolves.toEqual(eventsBefore);
+  });
+
+  it("does not create guest state for an authenticated direct onboarding POST", async () => {
+    const db = createDb(env.DB);
+    const userId = await seedUser(db);
+    routeMocks.getOptionalUser.mockResolvedValueOnce({ id: userId });
+    const sessionsBefore = await db.select().from(guestTasteSessions);
+    const eventsBefore = await db.select().from(productEvents);
+    const { action } = await import("../../app/routes/taste-onboarding");
+
+    const response = await action({
+      request: new Request("https://retaste.test/onboarding/taste", {
+        method: "POST",
+        body: onboardingForm({ intent: "SKIP", currentStep: "LOCATION" }),
+      }),
+    } as never) as Response;
+
+    expect(response.headers.get("Location")).toBe("/places");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    await expect(db.select().from(guestTasteSessions)).resolves.toEqual(sessionsBefore);
+    await expect(db.select().from(productEvents)).resolves.toEqual(eventsBefore);
+  });
+
   it("records ONBOARDING_STARTED only when the loader creates a guest session", async () => {
     const { loader } = await import("../../app/routes/taste-onboarding");
     const first = await loader({
@@ -496,7 +557,7 @@ describe("product event route wiring", () => {
     const guestSessionId = await seedGuest(db, undefined, "STYLE");
     const { action } = await import("../../app/routes/taste-onboarding");
 
-    await action({
+    const response = await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
         headers: { Cookie: `retaste_guest=${guestSessionId}` },
@@ -507,7 +568,7 @@ describe("product event route wiring", () => {
           styleBadgeIds: ["style-old-school"],
         }),
       }),
-    } as never);
+    } as never) as unknown as { init?: ResponseInit };
 
     await expect(db.select().from(productEvents).where(eq(productEvents.guestSessionId, guestSessionId)))
       .resolves.toEqual([]);
@@ -520,6 +581,8 @@ describe("product event route wiring", () => {
         { badgeId: "food-gukbap" },
         { badgeId: "style-old-school" },
       ]));
+    expect(new Headers(response.init?.headers).get("Set-Cookie"))
+      .toContain(`retaste_guest=${guestSessionId}`);
   });
 
   it("does not let an older page-exit selection overwrite a newer step", async () => {
@@ -828,12 +891,44 @@ describe("product event route wiring", () => {
     ]);
   });
 
+  it("records detail-opened from the canonical React Router data request", async () => {
+    const db = createDb(env.DB);
+    const userId = await seedUser(db);
+    routeMocks.getOptionalUser.mockResolvedValue({ id: userId });
+    const requestId = crypto.randomUUID();
+    const cardPath = recommendationPlacePath("place-event-test", {
+      variant: "personal",
+      discoveryMode: "EXPLORATION",
+    });
+    const requestPath = recommendationRequestPath(cardPath, requestId);
+    const dataPath = requestPath.replace("/places/place-event-test?", "/places/place-event-test.data?");
+    const request = new Request(`https://retaste.test${dataPath}&_routes=routes%2Fplace-detail`);
+    const { loader } = await import("../../app/routes/place-detail");
+
+    await loader({ request, params: { placeSlug: "place-event-test" } } as never);
+
+    await expect(db.select().from(productEvents).where(and(
+      eq(productEvents.userId, userId),
+      eq(productEvents.eventName, "RECOMMENDATION_DETAIL_OPENED"),
+    ))).resolves.toEqual([
+      expect.objectContaining({
+        id: requestId,
+        metadataJson: JSON.stringify({ sourceRail: "PERSONAL", discoveryMode: "EXPLORATION" }),
+      }),
+    ]);
+  });
+
   it.each([
     "/places/place-event-test",
     "/places/place-event-test?sourceRail=MAP&discoveryMode=EXPLORATION&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f",
     "/places/place-event-test?sourceRail=PERSONAL&discoveryMode=member%40example.com&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f",
     "/places/place-event-test?sourceRail=GOLDEN&discoveryMode=EXPLORATION&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f",
     "/places/place-event-test?sourceRail=PERSONAL&discoveryMode=EXPLORATION&recommendationRequestId=not-a-uuid",
+    "/places/place-event-test?sourceRail=PERSONAL&discoveryMode=EXPLORATION&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f&unexpected=1",
+    "/places/place-event-test?sourceRail=PERSONAL&sourceRail=TRUSTED&discoveryMode=EXPLORATION&recommendationRequestId=8c4d0b28-9175-4e3f-9df8-968efc89c970",
+    "/places/place-event-test?sourceRail=PERSONAL&discoveryMode=EXPLORATION&recommendationRequestId=9d5e1c39-a286-4f40-8ea9-a79f0d90da81&recommendationRequestId=ae6f2d4a-b397-4141-9fba-b8a01ea1eb92",
+    "/places/place-event-test.data?sourceRail=PERSONAL&discoveryMode=EXPLORATION&recommendationRequestId=af702d5b-c408-4a62-8c0b-091fb9b289c3&unexpected=1&_routes=routes%2Fplace-detail",
+    "/places/place-event-test.data?sourceRail=PERSONAL&discoveryMode=EXPLORATION&recommendationRequestId=b0813e6c-d519-4b73-9d1c-1a20cab39ad4&_routes=routes%2Fplace-detail&_routes=routes%2Fplace-detail",
   ])("does not record detail-opened for unvalidated provenance %s", async (path) => {
     const db = createDb(env.DB);
     const userId = await seedUser(db);

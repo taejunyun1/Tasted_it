@@ -10,6 +10,7 @@ import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
 import { parseMapState } from "../features/maps/map-state";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
+import { canonicalPlacesReturnTo } from "../features/onboarding/return-to";
 import { getPlaceRecommendationPage } from "../features/places/place-recommendation.server";
 import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
@@ -28,7 +29,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     ? await getGuestOnboardingFromRequest(db, request, now)
     : null;
   if (!user && env.ONBOARDING_ENABLED === "true" && !guest?.completedAt && !guest?.skippedAt) {
-    throw redirect(`/onboarding/taste?returnTo=${encodeURIComponent(`${url.pathname}${url.search}`)}`);
+    throw redirect(`/onboarding/taste?returnTo=${encodeURIComponent(canonicalPlacesReturnTo(url))}`);
   }
   const selectedBadges = url.searchParams.getAll("badge");
   const [places, groups, recommendations] = await Promise.all([

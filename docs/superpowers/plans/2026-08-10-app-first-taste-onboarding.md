@@ -11,12 +11,14 @@
 ## Global Constraints
 
 - 신규 브랜치와 worktree는 최신 `origin/main`에서 시작하며 다른 작업자의 파일과 브랜치를 수정하지 않는다.
-- DB 변경은 기존 migration을 수정하지 않고 `drizzle/0018_app_first_taste_onboarding.sql`로 추가한다.
+- DB 변경은 기존 migration을 수정하지 않는다. 최종 수명주기 보강은 새 순번 `drizzle/0023_onboarding_data_lifecycle.sql`로 추가한다.
 - 패키지 관리자는 `pnpm`만 사용하며 신규 외부 의존성을 추가하지 않는다.
 - 음식 취향은 5개 선택을 권장하고 0~5개를 허용한다.
 - 식당 스타일은 0~3개를 허용하며 네 번째 선택은 거절한다.
 - 온보딩 모든 단계는 건너뛸 수 있다.
-- 비회원 세션은 마지막 활동 후 30일 동안 유지한다.
+- 진행 중인 비회원 세션은 유효 활동마다 30일 만료를 갱신하고, 완료·건너뛰기·병합 terminal 상태는 이후 조회로 연장하지 않는다.
+- 제품 이벤트는 발생 후 30일 보유하고 매일 예약 작업으로 삭제한다.
+- 기기 위치는 소수점 셋째 자리(약 100m)로 반올림한 뒤 sessionStorage와 bbox URL에만 사용한다.
 - 원본 위치 좌표, 이메일, 이름은 제품 이벤트에 기록하지 않는다.
 - 최종 추천 점수에서 개인 취향 영향은 최대 35%다.
 - 추천 8곳에서 새로운 취향 후보를 최소 2곳 유지한다.
@@ -45,6 +47,9 @@
 - `tests/integration/guest-merge.server.test.ts`: 로그인 병합과 멱등성 통합 테스트
 - `tests/integration/taste-learning.server.test.ts`: 행동 기반 취향 갱신 통합 테스트
 - `tests/e2e/taste-onboarding.spec.ts`: 모바일·데스크톱 전체 흐름
+- `drizzle/0023_onboarding_data_lifecycle.sql`: 제품 이벤트 발생 시각 purge 인덱스
+- `app/features/onboarding/data-lifecycle.server.ts`: 만료 세션·제품 이벤트 예약 삭제
+- `tests/integration/onboarding-data-lifecycle.test.ts`: 결정론적 cascade·보존 기간 검증
 
 ### 수정 파일
 
@@ -65,6 +70,7 @@
 - `worker-configuration.d.ts`: `ONBOARDING_ENABLED` 환경 타입
 - `wrangler.jsonc`: 기본 기능 플래그 바인딩
 - `docs/operations/place-operations-runbook.md`: 기능 플래그, 지표, 롤백 확인 방법
+- `docs/legal/privacy-data-inventory.md`: 비회원 세션·제품 이벤트·반올림 위치 URL/로그 표면과 보유 기간
 
 ---
 
@@ -537,7 +543,7 @@ const userBadgeIds = [...new Set([
 ])];
 ```
 
-`place-discovery.ts`의 개인화 항은 최종 점수의 `0.35`를 넘지 않게 clamp하고, 8개 결과에서 `EXPLORATION`을 두 개 먼저 예약한 뒤 나머지를 점수순으로 채운다. 기존 동일 카테고리 최대 3곳·동네 최대 2곳 제한을 유지한다.
+`place-discovery.ts`의 개인화 항은 저장 점수를 `0..1`로 정규화하고 출처 신뢰도(`USER 1.0`, `NAVER/GOOGLE 0.9`, `INFERRED 0.75`)를 곱해 비례 반영한다. 현재 비회원 세션에서 직접 고른 배지 ID는 `USER`, 점수 `1.0`으로 전달한다. 점수 `0`인 추론 신호는 familiar 가산점을 만들지 않으며 방향 보정을 포함한 개인화 항은 항상 유한한 수이고 최종 점수의 `0.35`를 넘지 않게 clamp한다. 8개 결과에서 `EXPLORATION`을 두 개 먼저 예약한 뒤 나머지를 점수순으로 채우고, 기존 동일 카테고리 최대 3곳·동네 최대 2곳 제한을 유지한다.
 
 - [ ] **Step 4: 첫 진입 계약 테스트 작성**
 
@@ -820,6 +826,8 @@ metadata 키는 `step`, `selectedCount`, `sourceRail`, `discoveryMode`, `reason`
 
 온보딩 loader/action과 장소 상세 action의 성공 지점에서 이벤트를 기록한다. 이벤트 기록 실패는 사용자 동작을 실패시키지 않고 `PRODUCT_EVENT_WRITE_FAILED`만 기록한다.
 
+추천 상세 provenance는 공개 query의 `sourceRail`, `discoveryMode`, `recommendationRequestId`를 각각 정확히 한 번만 허용하고 알 수 없는 키와 중복 키를 거절한다. React Router 상세 data loader가 만드는 `.data` suffix와 단일 `_routes=routes/place-detail`은 서버 전송 계층에서만 canonicalize한 뒤 같은 공개 parser로 검증한다.
+
 - [ ] **Step 5: 테스트 통과 확인**
 
 Run: `pnpm vitest run tests/integration/onboarding-events.server.test.ts --config vitest.workers.config.ts`
@@ -933,7 +941,7 @@ git commit -m "2026-08-10 취향 온보딩 사용자 흐름 검증"
 
 Run: `pnpm wrangler d1 migrations apply DB --local`
 
-Expected: `0018_app_first_taste_onboarding.sql` 적용 성공
+Expected: `0018`~`0023` 순차 적용 성공
 
 - [x] **Step 3: 정적 검사와 단위 테스트**
 
@@ -994,5 +1002,7 @@ PR 본문에는 변경 범위, 검증 결과, migration `0018`, `ONBOARDING_ENAB
 - 개인화 영향 35% 상한과 새로운 취향 최소 2곳이 테스트로 고정된다.
 - 제품 이벤트는 허용된 비식별 metadata만 저장한다.
 - 모바일·데스크톱, 위치 거부, 건너뛰기, 복원, 로그인 병합 E2E가 통과한다.
-- 기능 플래그 비활성화 시 기존 `/places` 흐름으로 복귀한다.
+- 기능 플래그 비활성화 시 loader와 direct/stale POST 모두 무변경으로 canonical `/places` 흐름에 복귀한다.
+- 만료 비회원 세션·배지는 매일 cascade 삭제되고 제품 이벤트는 30일 뒤 삭제된다.
+- 위치는 소수점 셋째 자리로 최소화한 뒤에만 sessionStorage와 URL에 전달되며 D1·제품 이벤트에는 저장되지 않는다.
 - migration, typecheck, unit, integration, build, E2E가 모두 통과한다.

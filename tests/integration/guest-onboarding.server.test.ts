@@ -60,7 +60,7 @@ describe("guest onboarding", () => {
       locationMode: "DEFAULT",
       foodBadgeIds: ["food-ramen"],
       styleBadgeIds: ["style-market", "taste-spicy"],
-      expiresAt: "2026-09-09T00:00:00.000Z",
+      expiresAt: "2026-09-09T00:03:00.000Z",
     });
   });
 
@@ -77,7 +77,10 @@ describe("guest onboarding", () => {
       new Request("https://example.com/onboarding", { headers: { Cookie: first.setCookie! } }),
       "2026-08-10T00:01:00Z",
     );
-    expect(second).toMatchObject({ session: { id: first.session.id }, setCookie: null });
+    expect(second).toMatchObject({ session: { id: first.session.id } });
+    expect(second.setCookie).toContain(`${GUEST_COOKIE_NAME}=${first.session.id}`);
+    expect(second.setCookie).toContain(`Max-Age=${GUEST_TTL_SECONDS}`);
+    expect(second.session.expiresAt).toBe("2026-09-09T00:01:00.000Z");
 
     const restored = await getGuestOnboardingFromRequest(
       db,
@@ -86,6 +89,38 @@ describe("guest onboarding", () => {
     );
     expect(restored?.sessionId).toBe(first.session.id);
   });
+
+  it.each(["COMPLETE", "SKIP"] as const)(
+    "sets %s retention from the terminal activity and does not extend it on later reads",
+    async (terminalState) => {
+      const db = createDb(env.DB);
+      const session = await createGuestSession(db, {
+        id: `guest-${crypto.randomUUID()}`,
+        now: "2026-08-10T00:00:00Z",
+      });
+      await saveGuestOnboarding(db, {
+        sessionId: session.id,
+        selectionEpoch: 0,
+        expectedStep: "LOCATION",
+        step: "LOCATION",
+        selectionRevision: 1,
+        locationMode: "DEFAULT",
+        foodBadgeIds: [],
+        styleBadgeIds: [],
+        now: "2026-08-10T00:05:00Z",
+        terminalState,
+      });
+
+      const request = new Request("https://example.com/onboarding", {
+        headers: { Cookie: `${GUEST_COOKIE_NAME}=${session.id}` },
+      });
+      const restored = await getOrCreateGuestSession(db, request, "2026-08-11T00:00:00Z");
+      expect(restored).toMatchObject({ session: { id: session.id }, setCookie: null });
+      expect(restored.session.expiresAt).toBe("2026-09-09T00:05:00.000Z");
+      await expect(getGuestOnboarding(db, session.id, "2026-08-11T00:00:00Z"))
+        .resolves.toMatchObject({ expiresAt: "2026-09-09T00:05:00.000Z" });
+    },
+  );
 
   it("rejects unknown badges and category limit violations before writing", async () => {
     const db = createDb(env.DB);
@@ -162,6 +197,9 @@ describe("guest onboarding", () => {
     })).rejects.toThrow("GUEST_SESSION_UNAVAILABLE");
     const badges = await db.select().from(guestTasteBadges).where(eq(guestTasteBadges.sessionId, merged.id));
     expect(badges).toEqual([]);
+    await expect(db.query.guestTasteSessions.findFirst({
+      where: eq(guestTasteSessions.id, merged.id),
+    })).resolves.toMatchObject({ expiresAt: "2026-09-09T00:00:00.000Z" });
   });
 
   it("does not change badges when a session is merged after validation but before its batch", async () => {

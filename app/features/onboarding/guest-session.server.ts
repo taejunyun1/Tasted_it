@@ -15,6 +15,10 @@ export const GUEST_TTL_SECONDS = 60 * 60 * 24 * 30;
 const ONBOARDING_STEPS: OnboardingStep[] = ["LOCATION", "FOOD", "STYLE", "PREVIEW"];
 const badgeById = new Map(TASTE_BADGE_CATALOG.map((badge) => [badge.id, badge]));
 
+function guestSessionExpiresAt(now: string) {
+  return new Date(new Date(now).getTime() + GUEST_TTL_SECONDS * 1_000).toISOString();
+}
+
 export type GuestOnboardingState = {
   sessionId: string;
   selectionEpoch: number;
@@ -144,7 +148,7 @@ export async function createGuestSession(
   db: AppDb,
   input: { id: string; now: string },
 ): Promise<typeof guestTasteSessions.$inferSelect> {
-  const expiresAt = new Date(new Date(input.now).getTime() + GUEST_TTL_SECONDS * 1_000).toISOString();
+  const expiresAt = guestSessionExpiresAt(input.now);
   await db.insert(guestTasteSessions).values({
     id: input.id,
     locationMode: "DEFAULT",
@@ -170,7 +174,22 @@ export async function getOrCreateGuestSession(
     const session = await db.query.guestTasteSessions.findFirst({
       where: activeGuestSessionConditions(sessionId, now),
     });
-    if (session) return { session, setCookie: null };
+    if (session) {
+      if (session.completedAt || session.skippedAt) return { session, setCookie: null };
+      const [refreshed] = await db.update(guestTasteSessions).set({
+        expiresAt: guestSessionExpiresAt(now),
+        updatedAt: now,
+      }).where(and(
+        activeGuestSessionConditions(session.id, now),
+        isNull(guestTasteSessions.completedAt),
+        isNull(guestTasteSessions.skippedAt),
+      )).returning();
+      const activeSession = refreshed ?? session;
+      return {
+        session: activeSession,
+        setCookie: refreshed ? guestSessionCookie(activeSession.id, request.url) : null,
+      };
+    }
   }
 
   const session = await createGuestSession(db, { id: crypto.randomUUID(), now });
@@ -201,6 +220,7 @@ export async function claimGuestOnboardingDocument(
   const [claimed] = await db.update(guestTasteSessions).set({
     selectionEpoch: sql`${guestTasteSessions.selectionEpoch} + 1`,
     selectionRevision: 0,
+    expiresAt: guestSessionExpiresAt(now),
     updatedAt: now,
   }).where(and(
     activeGuestSessionConditions(sessionId, now),
@@ -297,6 +317,7 @@ export async function saveGuestOnboarding(
       completedStepsJson: JSON.stringify([input.step]),
       ...(input.terminalState === "COMPLETE" ? { completedAt: input.now } : {}),
       ...(input.terminalState === "SKIP" ? { skippedAt: input.now } : {}),
+      expiresAt: guestSessionExpiresAt(input.now),
       updatedAt: input.now,
     }).where(writableGuestSessionConditions(input)),
   ];

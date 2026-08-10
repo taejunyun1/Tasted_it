@@ -13,6 +13,7 @@ import {
   claimGuestOnboardingDocument,
   getOrCreateGuestSession,
   getWritableGuestSessionFromRequest,
+  guestSessionCookie,
   saveGuestOnboarding,
 } from "../features/onboarding/guest-session.server";
 import {
@@ -20,7 +21,10 @@ import {
   type ProductEventMetadata,
   type ProductEventName,
 } from "../features/onboarding/onboarding-events.server";
+import { safeOnboardingReturnTo } from "../features/onboarding/return-to";
 import { TASTE_BADGE_CATALOG } from "../features/members/profile-taste-badges";
+
+export { safeOnboardingReturnTo } from "../features/onboarding/return-to";
 
 const onboardingAction = z.object({
   intent: z.enum(["SAVE_STEP", "SAVE_SELECTION", "SKIP", "COMPLETE"]),
@@ -69,27 +73,6 @@ async function recordOnboardingProductEvent(db: AppDb, input: {
   }
 }
 
-export function safeOnboardingReturnTo(value: string | null | undefined) {
-  const fallback = "/places";
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
-
-  let decoded = value;
-  try {
-    for (let count = 0; count < 3; count += 1) {
-      const next = decodeURIComponent(decoded);
-      if (next.includes("\\") || next.startsWith("//")) return fallback;
-      if (next === decoded) break;
-      decoded = next;
-    }
-    const base = new URL("https://retaste.invalid");
-    const destination = new URL(decoded, base);
-    if (destination.origin !== base.origin) return fallback;
-    return value;
-  } catch {
-    return fallback;
-  }
-}
-
 export function meta() {
   return [{ title: "취향 설정 | Re:Taste" }];
 }
@@ -129,6 +112,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
+  const returnTo = safeOnboardingReturnTo(
+    typeof form.get("returnTo") === "string" ? form.get("returnTo") as string : null,
+  );
+  if (env.ONBOARDING_ENABLED !== "true" || await getOptionalUser(request)) {
+    return redirect(returnTo);
+  }
   const parsed = onboardingAction.safeParse({
     intent: form.get("intent"),
     currentStep: form.get("currentStep"),
@@ -152,7 +141,7 @@ export async function action({ request }: Route.ActionArgs) {
     return data({ ok: true, ignored: true });
   }
   const { session, setCookie } = existingSession
-    ? { session: existingSession, setCookie: null }
+    ? { session: existingSession, setCookie: guestSessionCookie(existingSession.id, request.url) }
     : await getOrCreateGuestSession(db, request, now);
   try {
     await saveGuestOnboarding(db, {

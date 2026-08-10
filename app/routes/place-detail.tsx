@@ -16,8 +16,9 @@ import { recordRecommendationFeedback, refreshInferredTasteSignals } from "../fe
 import { recordProductEvent, type ProductEventMetadata, type ProductEventName } from "../features/onboarding/onboarding-events.server";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import {
-  RECOMMENDATION_DISCOVERY_MODES,
-  RECOMMENDATION_SOURCE_RAILS,
+  safePlaceDetailRequestPath,
+  type RecommendationDiscoveryMode,
+  type RecommendationSourceRail,
 } from "../components/places/PlaceCard";
 import { VoteControl } from "../components/ratings/VoteControl";
 
@@ -30,24 +31,24 @@ const actionSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("save"), saved: z.enum(["true", "false"]).transform((value) => value === "true") }),
 ]);
 
-const recommendationProvenanceSchema = z.object({
-  sourceRail: z.enum(RECOMMENDATION_SOURCE_RAILS),
-  discoveryMode: z.enum(RECOMMENDATION_DISCOVERY_MODES),
-  recommendationRequestId: z.uuid(),
-}).refine((value) => {
-  if (value.sourceRail === "TRUSTED") return value.discoveryMode === "QUALITY";
-  if (value.sourceRail === "GOLDEN") return value.discoveryMode === "REVIEWER";
-  return ["FAMILIAR", "ADJACENT", "EXPLORATION", "ONBOARDING"].includes(value.discoveryMode);
-});
-
 function recommendationProvenance(request: Request) {
   const url = new URL(request.url);
-  const parsed = recommendationProvenanceSchema.safeParse({
-    sourceRail: url.searchParams.get("sourceRail"),
-    discoveryMode: url.searchParams.get("discoveryMode"),
-    recommendationRequestId: url.searchParams.get("recommendationRequestId"),
-  });
-  return parsed.success ? parsed.data : null;
+  const routeDataMarkers = url.searchParams.getAll("_routes");
+  const isCanonicalRouteDataRequest = url.pathname.endsWith(".data")
+    && routeDataMarkers.length === 1
+    && routeDataMarkers[0] === "routes/place-detail";
+  if (isCanonicalRouteDataRequest) {
+    url.pathname = url.pathname.slice(0, -".data".length);
+    url.searchParams.delete("_routes");
+  }
+  const requestPath = safePlaceDetailRequestPath(`${url.pathname}${url.search}`);
+  if (!requestPath?.includes("?")) return null;
+  const validated = new URL(requestPath, "https://retaste.invalid");
+  return {
+    sourceRail: validated.searchParams.get("sourceRail") as RecommendationSourceRail,
+    discoveryMode: validated.searchParams.get("discoveryMode") as RecommendationDiscoveryMode,
+    recommendationRequestId: validated.searchParams.get("recommendationRequestId")!,
+  };
 }
 
 async function recordPlaceProductEvent(db: ReturnType<typeof createDb>, input: {

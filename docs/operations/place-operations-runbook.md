@@ -62,6 +62,7 @@
 3. `0020_product_event_lifecycle_uniqueness.sql`: 같은 비회원 세션의 시작·회원 전환 이벤트가 중복되지 않도록 부분 유일 인덱스를 추가한다.
 4. `0021_guest_onboarding_selection_revision.sql`: 같은 문서 안에서 늦게 도착한 선택 저장을 거절할 revision을 추가한다.
 5. `0022_guest_onboarding_selection_epoch.sql`: 재진입·복수 탭의 이전 문서가 최신 선택을 덮지 못하도록 document epoch를 추가한다.
+6. `0023_onboarding_data_lifecycle.sql`: 30일 제품 이벤트 purge가 전체 테이블 scan 없이 실행되도록 발생 시각 인덱스를 추가한다.
 
 로컬 검증은 격리된 로컬 D1에서 다음 명령으로 수행한다.
 
@@ -69,7 +70,7 @@
 pnpm wrangler d1 migrations apply DB --local
 ```
 
-운영 D1 적용은 배포 담당자가 export와 현재 Worker version을 기록한 뒤 `0018`부터 `0022`까지의 미적용 목록을 확인하고 수행한다. 이 절차는 기존 데이터를 파괴하는 역 migration을 포함하지 않는다.
+운영 D1 적용은 배포 담당자가 export와 현재 Worker version을 기록한 뒤 `0018`부터 `0023`까지의 미적용 목록을 확인하고 수행한다. 이 절차는 기존 데이터를 파괴하는 역 migration을 포함하지 않는다.
 
 ### 취향 온보딩 기능 플래그
 
@@ -77,7 +78,7 @@ pnpm wrangler d1 migrations apply DB --local
 - 비활성: `ONBOARDING_ENABLED=false`
 - 판정 방식: 문자열이 정확히 `true`일 때만 활성화된다. 미설정 또는 다른 값은 비활성으로 취급한다.
 - 현재 저장소 기본값: `wrangler.jsonc`의 `ONBOARDING_ENABLED`는 `true`다. 제한 공개가 필요하면 배포 환경에서 먼저 `false`로 설정해 Worker를 배포하고, 준비가 끝난 시점에 `true`로 전환해 다시 배포한다.
-- 비활성 동작: 비회원 `/places`와 추천 resource는 비회원 온보딩 세션을 조회하지 않고 기존 추천 흐름을 사용한다. `/onboarding/taste` 직접 요청도 안전한 `returnTo`로 이동한다.
+- 비활성 동작: 비회원 `/places`와 추천 resource는 비회원 온보딩 세션을 조회하지 않고 기존 추천 흐름을 사용한다. `/onboarding/taste` loader와 stale/direct POST는 세션·배지·이벤트·쿠키를 생성·수정하지 않고 allowlist로 정규화한 공개 `returnTo`로 이동한다. 로그인 사용자의 direct POST도 같은 무변경 경로로 처리한다.
 - 롤백 확인: 새 비회원 브라우저에서 `/places`가 `/onboarding/taste`로 이동하지 않고 기존 추천을 표시하는지 확인한다.
 
 현재 플래그는 전체 켜기/끄기만 지원한다. 사용자 비율 기반 점진 노출은 지원하지 않으므로 제한 공개 대상은 별도 배포 환경 또는 명시적인 QA 사용자 집단으로 관리한다.
@@ -85,7 +86,7 @@ pnpm wrangler d1 migrations apply DB --local
 ### 출시 순서
 
 1. 운영 D1 export, 현재 Worker version, 현재 기능 플래그 값을 기록한다.
-2. 격리된 로컬·preview 환경에서 `0018`~`0022`와 typecheck, unit, Workers integration, build, 데스크톱·모바일 온보딩 E2E를 확인한다.
+2. 격리된 로컬·preview 환경에서 `0018`~`0023`과 typecheck, unit, Workers integration, build, 데스크톱·모바일 온보딩 E2E를 확인한다.
 3. 배포 담당자가 운영 D1의 미적용 migration을 순서대로 적용하고 적용 목록을 다시 확인한다.
 4. `ONBOARDING_ENABLED=false`로 기존 `/places` 추천, 로그인, 저장·평가가 정상인지 먼저 확인한다.
 5. 제한 공개 환경에서 `ONBOARDING_ENABLED=true`로 전환하고 시작·완료·건너뛰기·회원 전환과 제품 동작 실패 로그를 관찰한다.
@@ -109,11 +110,21 @@ GROUP BY event_name
 ORDER BY event_name;
 ```
 
+### 보존·삭제 예약 작업
+
+- 기존 daily cron `17 18 * * *`(한국 시간 매일 03:17)이 온보딩 수명주기 작업도 함께 실행한다.
+- 진행 중 비회원 세션은 유효한 온보딩 활동마다 D1 `expires_at`과 응답 쿠키를 현재 시각+30일로 갱신한다.
+- 완료·건너뛰기는 해당 terminal 활동 시각+30일로 고정하며 이후 `/places`·추천 조회는 연장하지 않는다. 병합 세션도 연장하지 않는다.
+- 예약 작업은 `expires_at <= now`인 `guest_taste_sessions`를 삭제한다. `guest_taste_badges`는 외래 키 cascade로 함께 삭제되고, 남겨야 할 최근 제품 이벤트의 guest 참조는 `SET NULL` 처리된다.
+- `product_events`는 발생 후 30일 보유한다. 출시 직후·24시간 관찰과 월 단위 단기 비교를 지원하는 가장 짧은 운영 기간으로 정했으며, 매일 `occurred_at <= now-30일` 행을 삭제한다.
+- 점검 SQL은 `SELECT MIN(occurred_at), MAX(occurred_at), COUNT(*) FROM product_events;`와 `SELECT COUNT(*) FROM guest_taste_sessions WHERE expires_at <= datetime('now');`를 사용한다. 만료 행이 다음 daily cron 이후에도 계속 남으면 Worker scheduled 오류를 먼저 확인한다.
+
 ### 개인정보 경계
 
 - `product_events.metadata_json`에 이메일, 이름, 주소, 원본 위치 좌표를 기록하지 않는다.
 - metadata는 `step`, `selectedCount`, `sourceRail`, `discoveryMode`, `reason`만 허용하며 문자열 또는 유한 정수만 저장한다.
 - 비회원 식별자는 서버가 발급한 무작위 세션 ID만 사용한다. 브라우저 지문이나 원본 좌표를 식별자로 사용하지 않는다.
+- 기기 위치는 위도·경도를 소수점 셋째 자리(약 100m)로 반올림한 뒤 sessionStorage와 현재 요청 bbox URL에만 사용한다. bbox query는 브라우저 기록과 Cloudflare 접근 로그 표면에 남을 수 있지만 D1 세션·`product_events`에는 기록하지 않는다.
 - 운영 조회 결과를 내보낼 때 사용자·비회원 세션 ID와 metadata 원문을 불필요하게 복사하지 않는다.
 - 장애 로그에는 예외 본문, 계정·세션 ID 또는 개인정보를 추가하지 않고 정의된 고정 오류 코드만 사용한다.
 
@@ -123,5 +134,5 @@ ORDER BY event_name;
 2. 새 비회원 브라우저에서 `/places`가 온보딩으로 이동하지 않고 기존 추천을 표시하는지 확인한다.
 3. `/onboarding/taste?returnTo=%2Fplaces` 직접 요청이 `/places`로 돌아가는지 확인한다.
 4. 로그인, 저장, 평가와 기존 장소 운영 화면이 정상인지 확인한다.
-5. `0018`~`0022`는 기존 흐름과 호환되는 추가형 schema이므로 파괴적 역 migration을 실행하지 않는다. 후속 수정이 필요하면 새 순번의 순방향 migration을 작성한다.
+5. `0018`~`0023`은 기존 흐름과 호환되는 추가형 schema이므로 파괴적 역 migration을 실행하지 않는다. 후속 수정이 필요하면 새 순번의 순방향 migration을 작성한다.
 6. 장애 시간, 영향 범위, Worker version, 기능 플래그, D1 migration 상태, 관찰 이벤트와 조치자를 기록한다.

@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { rankPersonalDiscovery, type DiscoveryPlace } from "../../app/features/places/place-discovery";
+import {
+  normalizedTasteSignalStrength,
+  personalizationBoostForDiscovery,
+  rankPersonalDiscovery,
+  type DiscoveryPlace,
+  type RankingTasteSignal,
+} from "../../app/features/places/place-discovery";
 
 function discoveryPlace(id: string, input: Partial<DiscoveryPlace> = {}): DiscoveryPlace {
   return {
@@ -36,6 +42,12 @@ describe("discovery rating seed", () => {
 });
 
 describe("personal discovery safeguards", () => {
+  const userSignal = (badgeId: string, score = 0.8): RankingTasteSignal => ({
+    badgeId,
+    score,
+    source: "USER",
+  });
+
   it("reserves two exploration places before filling by clamped score", () => {
     const result = rankPersonalDiscovery({
       places: [
@@ -114,5 +126,48 @@ describe("personal discovery safeguards", () => {
     expect(withStyle.find((place) => place.id === "old-school")?.discoveryMode).toBe("FAMILIAR");
     expect(withStyle.findIndex((place) => place.id === "old-school"))
       .toBeLessThan(withoutStyle.findIndex((place) => place.id === "old-school"));
+  });
+
+  it("uses source-aware normalized strength and scales partial taste scores", () => {
+    const fullUser = normalizedTasteSignalStrength({ badgeId: "food-gukbap", score: 1, source: "USER" });
+    const fullInferred = normalizedTasteSignalStrength({ badgeId: "food-gukbap", score: 1, source: "INFERRED" });
+    const partialUser = normalizedTasteSignalStrength({ badgeId: "food-gukbap", score: 0.4, source: "USER" });
+
+    expect(fullUser).toBe(1);
+    expect(fullInferred).toBe(0.75);
+    expect(partialUser).toBe(0.4);
+    expect(personalizationBoostForDiscovery({
+      mode: "FAMILIAR",
+      tasteStrength: partialUser,
+      directionBoost: 0,
+    })).toBeCloseTo(0.14, 10);
+  });
+
+  it("gives an inferred zero-score badge no familiar boost", () => {
+    const result = rankPersonalDiscovery({
+      places: [
+        discoveryPlace("zero-inferred", { name: "국밥" }),
+        discoveryPlace("unrelated", { name: "브런치" }),
+      ],
+      selectedBadges: [],
+      tasteSignals: [{ badgeId: "food-gukbap", score: 0, source: "INFERRED" }],
+      center: { latitude: 35.15, longitude: 126.9 },
+      month: 8,
+      limit: 2,
+    });
+
+    expect(result.find((place) => place.id === "zero-inferred")?.discoveryMode).toBe("EXPLORATION");
+  });
+
+  it("caps the complete personalization contribution at the numeric 0.35 invariant", () => {
+    const contribution = personalizationBoostForDiscovery({
+      mode: "FAMILIAR",
+      tasteStrength: normalizedTasteSignalStrength(userSignal("food-gukbap", 1)),
+      directionBoost: 0.36,
+    });
+
+    expect(Number.isFinite(contribution)).toBe(true);
+    expect(contribution).toBe(0.35);
+    expect(contribution).toBeLessThanOrEqual(0.35);
   });
 });

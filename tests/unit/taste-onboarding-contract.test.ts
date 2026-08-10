@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getOptionalUser: vi.fn(async () => null),
   getOrCreateGuestSession: vi.fn(async () => ({ session: { id: "guest-1" }, setCookie: null })),
   getWritableGuestSessionFromRequest: vi.fn(async () => ({ id: "guest-1" })),
+  guestSessionCookie: vi.fn((id: string) => `retaste_guest=${id}; Max-Age=2592000`),
   claimGuestOnboardingDocument: vi.fn(async () => ({
     sessionId: "guest-1",
     selectionEpoch: 1,
@@ -45,11 +46,14 @@ vi.mock("../../app/features/onboarding/guest-session.server", () => ({
   getOrCreateGuestSession: mocks.getOrCreateGuestSession,
   getWritableGuestSessionFromRequest: mocks.getWritableGuestSessionFromRequest,
   getGuestOnboarding: mocks.getGuestOnboarding,
+  guestSessionCookie: mocks.guestSessionCookie,
   saveGuestOnboarding: mocks.saveGuestOnboarding,
 }));
 
 afterEach(() => {
   mocks.env.ONBOARDING_ENABLED = "true";
+  mocks.getOptionalUser.mockReset();
+  mocks.getOptionalUser.mockResolvedValue(null);
   mocks.getOrCreateGuestSession.mockClear();
   mocks.saveGuestOnboarding.mockReset();
   mocks.saveGuestOnboarding.mockResolvedValue(undefined);
@@ -167,6 +171,8 @@ describe("taste onboarding contract", () => {
     } as never);
 
     expect(response).toMatchObject({ data: { ok: true } });
+    expect(new Headers((response as { init?: ResponseInit }).init?.headers).get("Set-Cookie"))
+      .toContain("retaste_guest=guest-1");
     expect(mocks.saveGuestOnboarding).toHaveBeenCalledWith(
       mocks.db,
       expect.objectContaining({
@@ -221,6 +227,72 @@ describe("taste onboarding contract", () => {
     const response = await action({ request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }) } as never);
     expect(response).toBeInstanceOf(Response);
     expect((response as Response).headers.get("Location")).toBe("/places");
+  });
+
+  it.each(["COMPLETE", "SKIP"] as const)(
+    "%s returns a React Router data returnTo to the canonical places page",
+    async (intent) => {
+      const { action } = await import("../../app/routes/taste-onboarding");
+      const form = new FormData();
+      form.set("intent", intent);
+      form.set("currentStep", "PREVIEW");
+      form.set("targetStep", "PREVIEW");
+      form.set("direction", "FORWARD");
+      form.set("selectionEpoch", "1");
+      form.set("selectionRevision", "1");
+      form.set("returnTo", "/places.data?category=ramen-detail&_routes=routes%2Fplace-list");
+
+      const response = await action({
+        request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+      } as never);
+
+      expect(response).toBeInstanceOf(Response);
+      expect((response as Response).headers.get("Location")).toBe("/places?category=ramen-detail");
+    },
+  );
+
+  it("redirects a stale POST without mutation or cookies when onboarding is disabled", async () => {
+    mocks.env.ONBOARDING_ENABLED = "false";
+    const { action } = await import("../../app/routes/taste-onboarding");
+    const form = new FormData();
+    form.set("intent", "COMPLETE");
+    form.set("currentStep", "PREVIEW");
+    form.set("targetStep", "PREVIEW");
+    form.set("direction", "FORWARD");
+    form.set("selectionEpoch", "1");
+    form.set("selectionRevision", "1");
+    form.set("returnTo", "/places.data?category=ramen-detail&_routes=routes%2Fplace-list");
+
+    const response = await action({
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+    } as never) as Response;
+
+    expect(response.headers.get("Location")).toBe("/places?category=ramen-detail");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(mocks.getOrCreateGuestSession).not.toHaveBeenCalled();
+    expect(mocks.saveGuestOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("redirects an authenticated direct POST without creating guest state", async () => {
+    mocks.getOptionalUser.mockResolvedValueOnce({ id: "member-1" });
+    const { action } = await import("../../app/routes/taste-onboarding");
+    const form = new FormData();
+    form.set("intent", "SKIP");
+    form.set("currentStep", "LOCATION");
+    form.set("targetStep", "FOOD");
+    form.set("direction", "FORWARD");
+    form.set("selectionEpoch", "1");
+    form.set("selectionRevision", "1");
+    form.set("returnTo", "/places");
+
+    const response = await action({
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+    } as never) as Response;
+
+    expect(response.headers.get("Location")).toBe("/places");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(mocks.getOrCreateGuestSession).not.toHaveBeenCalled();
+    expect(mocks.saveGuestOnboarding).not.toHaveBeenCalled();
   });
 
   it("returns 400 for outdated badge IDs without masking unexpected failures", async () => {

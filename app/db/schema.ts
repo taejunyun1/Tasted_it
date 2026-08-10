@@ -794,6 +794,7 @@ export const productEvents = sqliteTable("product_events", {
   occurredAt: text("occurred_at").notNull(),
 }, (table) => [
   index("product_events_name_time_idx").on(table.eventName, table.occurredAt),
+  index("product_events_occurred_at_idx").on(table.occurredAt),
   index("product_events_guest_idx").on(table.guestSessionId, table.occurredAt),
   index("product_events_user_idx").on(table.userId, table.occurredAt),
   uniqueIndex("product_events_guest_event_uidx")

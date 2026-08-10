@@ -4,6 +4,7 @@ import { runScheduledRatingMaintenance } from "../app/features/ratings/scheduled
 import { runScheduledPlaceMaintenance } from "../app/features/places/scheduled-place.server";
 import { runScheduledAiClassification } from "../app/features/candidates/scheduled-ai.server";
 import { runScheduledParkingSync } from "../app/features/parking/scheduled-parking.server";
+import { runScheduledOnboardingDataLifecycle } from "../app/features/onboarding/data-lifecycle.server";
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
@@ -21,6 +22,7 @@ export default {
       runScheduledPlaceMaintenance(env),
       runScheduledAiClassification(env),
       runScheduledParkingSync(env),
+      runScheduledOnboardingDataLifecycle(env),
     ]));
   },
 } satisfies ExportedHandler<Env>;

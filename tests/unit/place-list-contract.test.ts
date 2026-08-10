@@ -87,6 +87,28 @@ describe("places onboarding entry contract", () => {
     expect(response?.headers.get("Location")).toBe("/onboarding/taste?returnTo=%2Fplaces");
   });
 
+  it("canonicalizes React Router data requests and keeps only supported public filters", async () => {
+    mocks.getGuestOnboardingFromRequest.mockResolvedValue({
+      completedAt: null,
+      skippedAt: null,
+      foodBadgeIds: [],
+      styleBadgeIds: [],
+    });
+    const { loader } = await import("../../app/routes/place-list");
+    const source = "/places.data?category=ramen-detail&q=%EB%9D%BC%EB%A9%B4&bbox=126.8%2C35%2C127%2C35.3&badge=food-ramen&_routes=routes%2Fplace-list&place=private-sheet-state";
+
+    let response: Response | null = null;
+    try {
+      await loader({ request: new Request(`https://retaste.example${source}`) } as never);
+    } catch (error) {
+      if (error instanceof Response) response = error;
+    }
+
+    const canonical = "/places?category=ramen-detail&q=%EB%9D%BC%EB%A9%B4&bbox=126.8%2C35%2C127%2C35.3&badge=food-ramen";
+    expect(response?.headers.get("Location"))
+      .toBe(`/onboarding/taste?returnTo=${encodeURIComponent(canonical)}`);
+  });
+
   it("keeps the existing places flow when onboarding is disabled", async () => {
     mocks.env.ONBOARDING_ENABLED = "false";
     const { loader } = await import("../../app/routes/place-list");

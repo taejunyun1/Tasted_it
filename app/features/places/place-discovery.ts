@@ -1,4 +1,5 @@
 import { calculateRating } from "../ratings/rating-v1";
+import type { TasteBadgeSource } from "../members/profile-taste-badges";
 import type { PlaceSummary } from "./place.types";
 import { seasonForMonth, TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
 
@@ -28,6 +29,66 @@ export interface DiscoverySections {
   nearby: DiscoveryPlace[];
   service: DiscoveryPlace[];
   golden: DiscoveryPlace[];
+}
+
+export type RankingTasteSignal = {
+  badgeId: string;
+  score: number;
+  source: TasteBadgeSource;
+};
+
+const TASTE_SOURCE_STRENGTH: Record<TasteBadgeSource, number> = {
+  USER: 1,
+  NAVER: 0.9,
+  GOOGLE: 0.9,
+  INFERRED: 0.75,
+};
+
+export const GUEST_TASTE_SIGNAL_SCORE = 1;
+
+function clampUnit(value: number) {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+export function normalizedTasteSignalStrength(signal: RankingTasteSignal) {
+  return clampUnit(signal.score) * TASTE_SOURCE_STRENGTH[signal.source];
+}
+
+export function personalizationBoostForDiscovery(input: {
+  mode: "FAMILIAR" | "ADJACENT" | "EXPLORATION";
+  tasteStrength: number;
+  directionBoost: number;
+}) {
+  const tasteStrength = clampUnit(input.tasteStrength);
+  const modeBoost = input.mode === "FAMILIAR"
+    ? 0.35 * tasteStrength
+    : input.mode === "ADJACENT" ? 0.22 * tasteStrength : 0.08;
+  const directionBoost = Math.max(0, Number.isFinite(input.directionBoost) ? input.directionBoost : 0);
+  return Math.min(0.35, modeBoost + directionBoost);
+}
+
+function directTasteSignals(badgeIds: string[]): RankingTasteSignal[] {
+  return badgeIds.map((badgeId) => ({
+    badgeId,
+    score: GUEST_TASTE_SIGNAL_SCORE,
+    source: "USER",
+  }));
+}
+
+function effectiveTasteSignals(input: {
+  selectedBadges: string[];
+  tasteSignals?: RankingTasteSignal[];
+  userBadgeIds?: string[];
+}) {
+  const signals = [
+    ...input.selectedBadges.map((badgeId) => ({ badgeId, score: 1, source: "USER" as const })),
+    ...(input.tasteSignals ?? []),
+    ...directTasteSignals(input.userBadgeIds ?? []),
+  ].filter((signal) => normalizedTasteSignalStrength(signal) > 0);
+  return signals.sort((left, right) => (
+    normalizedTasteSignalStrength(right) - normalizedTasteSignalStrength(left)
+    || left.badgeId.localeCompare(right.badgeId)
+  ));
 }
 
 const EARTH_RADIUS_METERS = 6_371_000;
@@ -154,22 +215,29 @@ export function mergePersonalDiscoveryRankings(input: {
 export function rankPersonalDiscovery(input: {
   places: DiscoveryPlace[];
   selectedBadges: string[];
-  userBadgeIds: string[];
+  tasteSignals?: RankingTasteSignal[];
+  userBadgeIds?: string[];
   center: DiscoveryCenter;
   month: number;
   limit?: number;
 }) {
   const limit = input.limit ?? 8;
-  const tasteIds = [...new Set([...input.selectedBadges, ...input.userBadgeIds])];
-  const adjacentTerms = tasteIds.flatMap((id) => TASTE_ADJACENCY[id] ?? []);
+  const tasteSignals = effectiveTasteSignals(input);
   const seasonalTerms = termsForBadge(`season-${seasonForMonth(input.month).toLocaleLowerCase()}`);
   const wantsDiscovery = input.selectedBadges.includes("discovery-new-taste");
   const wantsNeighborhood = input.selectedBadges.includes("discovery-neighborhood");
   const wantsTrusted = input.selectedBadges.includes("general-trusted");
   const scored = input.places.map((place) => {
-    const matchedTasteId = tasteIds.find((id) => matchesTerms(place, termsForBadge(id)));
-    const mode = matchedTasteId ? "FAMILIAR" : matchesTerms(place, adjacentTerms) ? "ADJACENT" : "EXPLORATION";
-    const modeBoost = mode === "FAMILIAR" ? 0.35 : mode === "ADJACENT" ? 0.22 : 0.08;
+    const matchedTasteSignal = tasteSignals.find((signal) => matchesTerms(place, termsForBadge(signal.badgeId)));
+    const adjacentTasteSignal = matchedTasteSignal ? undefined : tasteSignals.find((signal) => (
+      matchesTerms(place, TASTE_ADJACENCY[signal.badgeId] ?? [])
+    ));
+    const mode = matchedTasteSignal ? "FAMILIAR" : adjacentTasteSignal ? "ADJACENT" : "EXPLORATION";
+    const tasteStrength = normalizedTasteSignalStrength(matchedTasteSignal ?? adjacentTasteSignal ?? {
+      badgeId: "",
+      score: 0,
+      source: "INFERRED",
+    });
     const quality = qualityScore(place);
     const distance = distanceScore(input.center, place);
     const seasonalMatch = matchesTerms(place, seasonalTerms);
@@ -177,11 +245,11 @@ export function rankPersonalDiscovery(input: {
     const directionBoost = (wantsDiscovery && mode === "EXPLORATION" ? 0.12 : 0)
       + (wantsNeighborhood ? distance * 0.12 : 0)
       + (wantsTrusted ? quality * 0.12 : 0);
-    const personalizationBoost = Math.min(0.35, modeBoost + directionBoost);
+    const personalizationBoost = personalizationBoostForDiscovery({ mode, tasteStrength, directionBoost });
     const score = quality * 0.45 + distance * 0.2 + personalizationBoost + seasonalBoost;
     const recommendationReasons = [
       mode === "FAMILIAR"
-        ? `${termsForBadge(matchedTasteId!)[0] ?? "선택한"} 취향과 가까움`
+        ? `${termsForBadge(matchedTasteSignal!.badgeId)[0] ?? "선택한"} 취향과 가까움`
         : mode === "ADJACENT" ? "평소 취향에서 한 발짝" : "오늘의 새로운 메뉴",
       ...(seasonalBoost > 0 ? ["지금 먹기 좋은 메뉴"] : []),
     ].slice(0, 2);
@@ -207,10 +275,20 @@ export function rankTrustedPlaces(input: { places: DiscoveryPlace[]; limit?: num
     .map(({ _score: _, ...place }) => place);
 }
 
-export function rankGoldenRelay(input: { places: DiscoveryPlace[]; center: DiscoveryCenter; userBadgeIds: string[]; limit?: number }) {
+export function rankGoldenRelay(input: {
+  places: DiscoveryPlace[];
+  center: DiscoveryCenter;
+  tasteSignals?: RankingTasteSignal[];
+  userBadgeIds?: string[];
+  limit?: number;
+}) {
   const remaining = input.places.map((place) => ({ ...place }));
   const output: DiscoveryPlace[] = [];
-  const directTerms = input.userBadgeIds.slice(0, 3).flatMap(termsForBadge);
+  const directTerms = effectiveTasteSignals({
+    selectedBadges: [],
+    tasteSignals: input.tasteSignals,
+    userBadgeIds: input.userBadgeIds,
+  }).slice(0, 3).flatMap((signal) => termsForBadge(signal.badgeId));
   while (remaining.length && output.length < (input.limit ?? 8)) {
     const previous = output.at(-1);
     remaining.sort((left, right) => {

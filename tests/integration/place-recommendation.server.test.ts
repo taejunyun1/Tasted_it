@@ -152,6 +152,72 @@ describe("place recommendation server", () => {
     expect(result.personal).toHaveLength(8);
   });
 
+  it("carries stored source and score into ranking so direct USER taste outranks equal INFERRED taste", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const now = "2026-08-10T00:00:00.000Z";
+    const [category] = await db.select().from(categories).where(eq(categories.isActive, true)).limit(1);
+    expect(category).toBeTruthy();
+    const userId = `recommend-strength-user-${suffix}`;
+    const directPlaceId = `recommend-strength-direct-${suffix}`;
+    const inferredPlaceId = `recommend-strength-inferred-${suffix}`;
+    await db.insert(users).values({
+      id: userId,
+      email: `${userId}@example.com`,
+      displayName: "추천 강도 사용자",
+      role: "USER",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(userTasteBadges).values([
+      { userId, badgeId: "food-gukbap", source: "USER", score: 0.8, evidenceJson: "{}", createdAt: now, updatedAt: now },
+      { userId, badgeId: "food-ramen", source: "INFERRED", score: 0.8, evidenceJson: "{}", createdAt: now, updatedAt: now },
+    ]);
+    await db.insert(places).values([
+      {
+        id: directPlaceId,
+        slug: directPlaceId,
+        name: "하 직접 국밥",
+        status: "PUBLISHED",
+        address: "격리 추천",
+        neighborhood: "직접동",
+        latitude: 34.5,
+        longitude: 125.5,
+        searchText: "국밥",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: inferredPlaceId,
+        slug: inferredPlaceId,
+        name: "가 추론 라멘",
+        status: "PUBLISHED",
+        address: "격리 추천",
+        neighborhood: "추론동",
+        latitude: 34.5,
+        longitude: 125.5,
+        searchText: "라멘",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    await db.insert(placeCategories).values([
+      { placeId: directPlaceId, categoryId: category!.id, isPrimary: true },
+      { placeId: inferredPlaceId, categoryId: category!.id, isPrimary: true },
+    ]);
+
+    const result = await getPlaceRecommendationPage(db, {
+      userId,
+      bbox: [125.4, 34.4, 125.6, 34.6],
+      center: { latitude: 34.5, longitude: 125.5 },
+      selectedBadges: [],
+      now,
+      limit: 2,
+    });
+
+    expect(result.personal.map((place) => place.id)).toEqual([directPlaceId, inferredPlaceId]);
+  });
+
   it("reuses stored taste, rating snapshots, and active Golden Picks", async () => {
     const db = createDb(env.DB);
     const suffix = crypto.randomUUID();

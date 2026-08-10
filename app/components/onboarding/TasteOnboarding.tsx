@@ -4,6 +4,7 @@ import { Form, useFetcher } from "react-router";
 import type { loader as recommendationLoader } from "../../routes/place-recommendations-resource";
 import {
   defaultOnboardingLocation,
+  minimizeOnboardingBbox,
   readOnboardingLocation,
   requestOnboardingLocation,
   type OnboardingLocation,
@@ -48,7 +49,7 @@ export function onboardingNavigation(
 }
 
 export function onboardingRecommendationPath(location: Pick<OnboardingLocation, "bbox">) {
-  const search = new URLSearchParams({ bbox: location.bbox.join(",") });
+  const search = new URLSearchParams({ bbox: minimizeOnboardingBbox(location.bbox).join(",") });
   return `/resources/place-recommendations?${search}`;
 }
 
@@ -57,7 +58,7 @@ export function onboardingPlacesDestination(
   location: Pick<OnboardingLocation, "bbox">,
 ) {
   const destination = new URL(returnTo, "https://retaste.invalid");
-  destination.searchParams.set("bbox", location.bbox.join(","));
+  destination.searchParams.set("bbox", minimizeOnboardingBbox(location.bbox).join(","));
   return `${destination.pathname}${destination.search}${destination.hash}`;
 }
 

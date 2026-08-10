@@ -5,12 +5,15 @@ import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import { ratingSnapshots, userTasteBadges } from "../../db/schema";
 import { listActiveGoldenPicks } from "../ratings/golden-pick.server";
 import {
+  GUEST_TASTE_SIGNAL_SCORE,
   mergePersonalDiscoveryRankings,
+  normalizedTasteSignalStrength,
   rankGoldenRelay,
   rankPersonalDiscovery,
   rankTrustedPlaces,
   type DiscoveryCenter,
   type DiscoveryPlace,
+  type RankingTasteSignal,
 } from "./place-discovery";
 import {
   buildRecommendationChips,
@@ -51,7 +54,11 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
   const [places, goldenPicks, storedTaste] = await Promise.all([
     listRecommendationCandidates(db, { bbox: input.bbox, categorySlug: input.categorySlug, limit: 500 }),
     listActiveGoldenPicks(db, input.now),
-    input.userId ? db.select({ badgeId: userTasteBadges.badgeId, score: userTasteBadges.score })
+    input.userId ? db.select({
+      badgeId: userTasteBadges.badgeId,
+      score: userTasteBadges.score,
+      source: userTasteBadges.source,
+    })
       .from(userTasteBadges).where(eq(userTasteBadges.userId, input.userId)).orderBy(desc(userTasteBadges.score)) : Promise.resolve([]),
   ]);
   const placeIds = places.map((place) => place.id);
@@ -72,25 +79,33 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
       reviewerScore: snapshot?.reviewerScore,
     };
   });
-  const userBadgeIds = [...new Set([
-    ...storedTaste.map((badge) => badge.badgeId),
-    ...(input.tasteBadgeIds ?? []),
-  ])];
+  const tasteSignals: RankingTasteSignal[] = [
+    ...storedTaste,
+    ...(input.tasteBadgeIds ?? []).map((badgeId) => ({
+      badgeId,
+      score: GUEST_TASTE_SIGNAL_SCORE,
+      source: "USER" as const,
+    })),
+  ];
+  const userBadgeIds = [...new Set(tasteSignals
+    .filter((signal) => normalizedTasteSignalStrength(signal) > 0)
+    .sort((left, right) => normalizedTasteSignalStrength(right) - normalizedTasteSignalStrength(left))
+    .map((signal) => signal.badgeId))];
   const selectedBadges = parseRecommendationSelection(input.selectedBadges);
   const month = new Date(input.now).getUTCMonth() + 1;
   const goldenCandidates = goldenPicks.flatMap((pick) => {
     const place = candidates.find((candidate) => candidate.id === pick.placeId);
     return place ? [{ ...place, reviewerUserId: pick.reviewerUserId, goldenPickAt: pick.effectiveAt }] : [];
   });
-  const golden = rankGoldenRelay({ places: goldenCandidates, center: input.center, userBadgeIds, limit });
+  const golden = rankGoldenRelay({ places: goldenCandidates, center: input.center, tasteSignals, limit });
   const goldenIds = new Set(golden.map((place) => place.id));
   const trustedAll = rankTrustedPlaces({ places: candidates, limit: Math.max(limit * 3, limit) });
   const trusted = withFallback(trustedAll.filter((place) => !goldenIds.has(place.id)), trustedAll, limit);
   const reserved = new Set([...goldenIds, ...trusted.map((place) => place.id)]);
   const personalPreferred = rankPersonalDiscovery({
-    places: candidates.filter((place) => !reserved.has(place.id)), selectedBadges, userBadgeIds, center: input.center, month, limit,
+    places: candidates.filter((place) => !reserved.has(place.id)), selectedBadges, tasteSignals, center: input.center, month, limit,
   });
-  const personalFallback = rankPersonalDiscovery({ places: candidates, selectedBadges, userBadgeIds, center: input.center, month, limit });
+  const personalFallback = rankPersonalDiscovery({ places: candidates, selectedBadges, tasteSignals, center: input.center, month, limit });
   const personal = mergePersonalDiscoveryRankings({
     preferred: personalPreferred,
     fallback: personalFallback,
