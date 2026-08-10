@@ -18,12 +18,18 @@ import {
   type FeedbackReason,
 } from "../../app/features/members/taste-learning.server";
 import { getMemberTasteProfile } from "../../app/features/members/profile-taste.server";
-import { getSaved, setSavedAndRefreshTaste } from "../../app/features/saves/save.server";
+import { getSaved, setSaved, setSavedAndRefreshTaste } from "../../app/features/saves/save.server";
 
 const now = "2026-08-10T00:00:00Z";
 let suffix: string;
 let userId: string;
 let categoryId: string;
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 async function createPlace(name: string) {
   const db = createDb(env.DB);
@@ -201,16 +207,22 @@ describe("recommendation feedback learning", () => {
     expect(await db.select().from(recommendationFeedback).where(eq(recommendationFeedback.userId, userId))).toEqual([]);
   });
 
-  it("keeps a committed save when taste refresh fails and logs no failure detail", async () => {
+  it("keeps a committed unsave when taste refresh fails and logs no failure detail", async () => {
     const db = createDb(env.DB);
     const placeId = await createPlace("실패 격리 국밥");
+    await setSaved(db, { userId, placeId, saved: true, now });
     const refreshTaste = vi.fn().mockRejectedValue(new Error("private@example.com"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     try {
-      await setSavedAndRefreshTaste(db, { userId, placeId, saved: true, now }, { refreshTaste });
+      await setSavedAndRefreshTaste(db, {
+        userId,
+        placeId,
+        saved: false,
+        now: "2026-08-10T01:00:00Z",
+      }, { refreshTaste });
 
-      expect(await getSaved(db, { userId, placeId })).toBe(true);
+      expect(await getSaved(db, { userId, placeId })).toBe(false);
       expect(refreshTaste).toHaveBeenCalledOnce();
       expect(consoleError).toHaveBeenCalledWith("TASTE_LEARNING_REFRESH_FAILED");
       expect(consoleError).not.toHaveBeenCalledWith("TASTE_LEARNING_REFRESH_FAILED", expect.anything());
@@ -240,5 +252,99 @@ describe("recommendation feedback learning", () => {
     });
 
     expect(profile.vector.find((badge) => badge.id === "food-gukbap")?.score).toBeCloseTo(0.3, 8);
+  });
+
+  it("refreshes inferred taste when a saved place is removed", async () => {
+    const db = createDb(env.DB);
+    const placeId = await createPlace("프로필 저장 해제 국밥");
+    await setSavedAndRefreshTaste(db, { userId, placeId, saved: true, now });
+    expect(await inferredGukbapScore()).toBeGreaterThan(0);
+    await setSavedAndRefreshTaste(db, {
+      userId,
+      placeId,
+      saved: false,
+      now: "2026-08-10T01:00:00Z",
+    });
+
+    expect(await getSaved(db, { userId, placeId })).toBe(false);
+    expect(await inferredGukbapScore()).toBeUndefined();
+  });
+
+  it("does not let an older refresh overwrite a newer unsave refresh", async () => {
+    const db = createDb(env.DB);
+    const placeId = await createPlace("동시성 국밥");
+    await setSavedAndRefreshTaste(db, { userId, placeId, saved: true, now });
+    const snapshotRead = deferred();
+    const releaseOlder = deferred();
+
+    const olderRefresh = refreshInferredTasteSignals(
+      db,
+      userId,
+      "2026-08-10T01:00:00Z",
+      {
+        afterSnapshot: async () => {
+          snapshotRead.resolve();
+          await releaseOlder.promise;
+        },
+      },
+    );
+    await Promise.race([
+      snapshotRead.promise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("REFRESH_SNAPSHOT_HOOK_NOT_CALLED")), 250)),
+    ]);
+
+    await setSavedAndRefreshTaste(db, {
+      userId,
+      placeId,
+      saved: false,
+      now: "2026-08-10T02:00:00Z",
+    });
+    expect(await inferredGukbapScore()).toBeUndefined();
+
+    releaseOlder.resolve();
+    await olderRefresh;
+    expect(await inferredGukbapScore()).toBeUndefined();
+  });
+
+  it("preserves createdAt for retained inferred rows while deleting only stale ids", async () => {
+    const db = createDb(env.DB);
+    const placeId = await createPlace("생성 시각 보존 국밥");
+    await feedback(placeId, 1, null);
+    await refreshInferredTasteSignals(db, userId, now);
+    const initial = await db.query.userTasteBadges.findFirst({
+      where: and(
+        eq(userTasteBadges.userId, userId),
+        eq(userTasteBadges.badgeId, "food-gukbap"),
+        eq(userTasteBadges.source, "INFERRED"),
+      ),
+    });
+    await db.insert(userTasteBadges).values({
+      userId,
+      badgeId: "food-pizza",
+      source: "INFERRED",
+      score: 0.5,
+      evidenceJson: "{\"stale\":true}",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    });
+
+    await refreshInferredTasteSignals(db, userId, "2026-08-10T03:00:00Z");
+
+    const retained = await db.query.userTasteBadges.findFirst({
+      where: and(
+        eq(userTasteBadges.userId, userId),
+        eq(userTasteBadges.badgeId, "food-gukbap"),
+        eq(userTasteBadges.source, "INFERRED"),
+      ),
+    });
+    expect(retained?.createdAt).toBe(initial?.createdAt);
+    expect(retained?.updatedAt).toBe("2026-08-10T03:00:00Z");
+    expect(await db.query.userTasteBadges.findFirst({
+      where: and(
+        eq(userTasteBadges.userId, userId),
+        eq(userTasteBadges.badgeId, "food-pizza"),
+        eq(userTasteBadges.source, "INFERRED"),
+      ),
+    })).toBeUndefined();
   });
 });

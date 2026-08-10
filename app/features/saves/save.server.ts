@@ -2,7 +2,10 @@ import { and, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { savedPlaces } from "../../db/schema";
-import { refreshInferredTasteSignals } from "../members/taste-learning.server";
+import {
+  createTasteActivityVersionWrite,
+  refreshInferredTasteSignals,
+} from "../members/taste-learning.server";
 
 export interface SaveInput {
   userId: string;
@@ -12,18 +15,20 @@ export interface SaveInput {
 }
 
 export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
-  if (input.saved) {
-    await db.insert(savedPlaces).values({
+  const mutation = input.saved
+    ? db.insert(savedPlaces).values({
       userId: input.userId,
       placeId: input.placeId,
       createdAt: input.now,
-    }).onConflictDoNothing();
-    return;
-  }
-  await db.delete(savedPlaces).where(and(
-    eq(savedPlaces.userId, input.userId),
-    eq(savedPlaces.placeId, input.placeId),
-  ));
+    }).onConflictDoNothing()
+    : db.delete(savedPlaces).where(and(
+      eq(savedPlaces.userId, input.userId),
+      eq(savedPlaces.placeId, input.placeId),
+    ));
+  await db.batch([
+    mutation,
+    createTasteActivityVersionWrite(db, input.userId, input.now),
+  ]);
 }
 
 export async function setSavedAndRefreshTaste(

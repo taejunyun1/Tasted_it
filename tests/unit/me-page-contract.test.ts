@@ -15,4 +15,10 @@ describe("me page contract", () => {
     expect(source).toContain("loaderData.saved.length");
     expect(source).toContain("loaderData.rated.length");
   });
+
+  it("저장 해제도 취향 학습 실패 격리 경로를 사용한다", () => {
+    expect(source).toContain('import { setSavedAndRefreshTaste } from "../features/saves/save.server"');
+    expect(source).toContain("await setSavedAndRefreshTaste(createDb(env.DB), {");
+    expect(source).not.toContain("await setSaved(createDb(env.DB), {");
+  });
 });

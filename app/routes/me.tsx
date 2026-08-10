@@ -13,7 +13,7 @@ import { requireUser } from "../features/auth/session.server";
 import { listMemberTaste } from "../features/members/member.server";
 import { getMemberTasteProfile } from "../features/members/profile-taste.server";
 import { getMemberTasteGraph } from "../features/ratings/flavor-print.server";
-import { setSaved } from "../features/saves/save.server";
+import { setSavedAndRefreshTaste } from "../features/saves/save.server";
 
 export function meta() {
   return [{ title: "나의 취향 — Re:Taste" }, { name: "description", content: "저장과 평가를 바탕으로 쌓이는 나의 맛 취향 기록" }];
@@ -57,7 +57,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const user = await requireUser(request);
   const form = await request.formData();
-  await setSaved(createDb(env.DB), {
+  await setSavedAndRefreshTaste(createDb(env.DB), {
     userId: user.id,
     placeId: String(form.get("placeId") ?? ""),
     saved: false,
