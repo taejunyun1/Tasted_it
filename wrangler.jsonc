@@ -9,6 +9,7 @@
 	"main": "./workers/app.ts",
 	"triggers": { "crons": ["17 18 * * *"] },
 	"preview_urls": false,
+	"vars": { "ONBOARDING_ENABLED": "true" },
 	"ai": { "binding": "AI" },
 	"d1_databases": [
 		{
