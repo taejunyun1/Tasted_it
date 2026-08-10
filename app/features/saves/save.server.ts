@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { savedPlaces } from "../../db/schema";
 import {
-  createTasteActivityVersionWrite,
+  advanceTasteLearningVersion,
   refreshInferredTasteSignals,
 } from "../members/taste-learning.server";
 
@@ -25,20 +25,30 @@ export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
       eq(savedPlaces.userId, input.userId),
       eq(savedPlaces.placeId, input.placeId),
     ));
-  await db.batch([
-    mutation,
-    createTasteActivityVersionWrite(db, input.userId, input.now),
-  ]);
+  await mutation;
 }
 
 export async function setSavedAndRefreshTaste(
   db: AppDb,
   input: SaveInput,
-  options: { refreshTaste?: typeof refreshInferredTasteSignals } = {},
+  options: {
+    advanceVersion?: typeof advanceTasteLearningVersion;
+    refreshTaste?: typeof refreshInferredTasteSignals;
+  } = {},
 ): Promise<void> {
   await setSaved(db, input);
   try {
-    await (options.refreshTaste ?? refreshInferredTasteSignals)(db, input.userId, input.now);
+    const observedVersion = await (options.advanceVersion ?? advanceTasteLearningVersion)(
+      db,
+      input.userId,
+      input.now,
+    );
+    await (options.refreshTaste ?? refreshInferredTasteSignals)(
+      db,
+      input.userId,
+      input.now,
+      { observedVersion },
+    );
   } catch {
     console.error("TASTE_LEARNING_REFRESH_FAILED");
   }

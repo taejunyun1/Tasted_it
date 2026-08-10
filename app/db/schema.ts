@@ -776,6 +776,12 @@ export const recommendationFeedback = sqliteTable("recommendation_feedback", {
   ...timestamps,
 }, (table) => [primaryKey({ columns: [table.userId, table.placeId] })]);
 
+export const tasteLearningStates = sqliteTable("taste_learning_states", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  versionToken: text("version_token").notNull(),
+  ...timestamps,
+});
+
 export const productEvents = sqliteTable("product_events", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),

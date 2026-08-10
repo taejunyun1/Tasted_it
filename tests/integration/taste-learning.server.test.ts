@@ -7,6 +7,7 @@ import {
   categories,
   placeCategories,
   places,
+  productEvents,
   recommendationFeedback,
   savedPlaces,
   userTasteBadges,
@@ -229,6 +230,51 @@ describe("recommendation feedback learning", () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  it("keeps a committed save when the dedicated version write fails", async () => {
+    const db = createDb(env.DB);
+    const placeId = await createPlace("버전 실패 격리 국밥");
+    const advanceVersion = vi.fn().mockRejectedValue(new Error("VERSION_WRITE_FAILED"));
+    const refreshTaste = vi.fn();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      await setSavedAndRefreshTaste(db, {
+        userId,
+        placeId,
+        saved: true,
+        now,
+      }, { advanceVersion, refreshTaste });
+
+      expect(await getSaved(db, { userId, placeId })).toBe(true);
+      expect(advanceVersion).toHaveBeenCalledOnce();
+      expect(refreshTaste).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith("TASTE_LEARNING_REFRESH_FAILED");
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("does not create or mutate product events while recording or refreshing taste", async () => {
+    const db = createDb(env.DB);
+    const placeId = await createPlace("이벤트 격리 국밥");
+    const existingEvent = {
+      id: `analytics-event-${suffix}`,
+      userId,
+      guestSessionId: null,
+      eventName: "ONBOARDING_STARTED",
+      metadataJson: "{\"source\":\"test\"}",
+      occurredAt: "2026-08-09T00:00:00Z",
+    };
+    await db.insert(productEvents).values(existingEvent);
+
+    await feedback(placeId, 1, null);
+    await refreshInferredTasteSignals(db, userId, now);
+
+    expect(await db.select().from(productEvents).where(eq(productEvents.userId, userId))).toEqual([
+      existingEvent,
+    ]);
   });
 
   it("does not infer the same activity again when a stored inferred vector exists", async () => {

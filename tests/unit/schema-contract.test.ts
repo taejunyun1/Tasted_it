@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getTableConfig } from "drizzle-orm/sqlite-core";
 import {
   categories,
   adminAuditLogs,
@@ -44,6 +45,7 @@ import {
   guestTasteBadges,
   recommendationFeedback,
   productEvents,
+  tasteLearningStates,
 } from "../../app/db/schema";
 
 describe("week 1 schema", () => {
@@ -119,5 +121,15 @@ describe("week 1 schema", () => {
     expect(guestTasteBadges.badgeId).toBeDefined();
     expect(recommendationFeedback.reason).toBeDefined();
     expect(productEvents.eventName).toBeDefined();
+  });
+
+  it("exports dedicated per-user taste learning concurrency state", () => {
+    expect(tasteLearningStates.userId).toBeDefined();
+    expect(tasteLearningStates.versionToken).toBeDefined();
+    expect(tasteLearningStates.createdAt).toBeDefined();
+    expect(tasteLearningStates.updatedAt).toBeDefined();
+    expect(getTableConfig(tasteLearningStates).foreignKeys).toEqual([
+      expect.objectContaining({ onDelete: "cascade" }),
+    ]);
   });
 });

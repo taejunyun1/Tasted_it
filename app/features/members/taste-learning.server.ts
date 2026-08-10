@@ -6,8 +6,8 @@ import {
   categories,
   placeCategories,
   places,
-  productEvents,
   recommendationFeedback,
+  tasteLearningStates,
   userTasteBadges,
 } from "../../db/schema";
 import { listMemberTaste } from "./member.server";
@@ -15,34 +15,25 @@ import { inferTasteBadges, type TasteBadgeScore } from "./profile-taste-badges";
 
 export type FeedbackReason = "MENU" | "DISTANCE" | "PRICE" | "ATMOSPHERE" | "ALREADY_VISITED";
 
-const ACTIVITY_VERSION_EVENT = "TASTE_ACTIVITY_VERSION";
-
-function activityVersionId(userId: string) {
-  return `taste-activity-version:${userId}`;
-}
-
-function activityVersionJson() {
-  return JSON.stringify({ version: crypto.randomUUID() });
-}
-
-export function createTasteActivityVersionWrite(db: AppDb, userId: string, now: string) {
-  const versionJson = activityVersionJson();
-  return db.insert(productEvents).values({
-    id: activityVersionId(userId),
+export async function advanceTasteLearningVersion(
+  db: AppDb,
+  userId: string,
+  now: string,
+): Promise<string> {
+  const versionToken = crypto.randomUUID();
+  await db.insert(tasteLearningStates).values({
     userId,
-    guestSessionId: null,
-    eventName: ACTIVITY_VERSION_EVENT,
-    metadataJson: versionJson,
-    occurredAt: now,
+    versionToken,
+    createdAt: now,
+    updatedAt: now,
   }).onConflictDoUpdate({
-    target: productEvents.id,
+    target: tasteLearningStates.userId,
     set: {
-      userId,
-      eventName: ACTIVITY_VERSION_EVENT,
-      metadataJson: versionJson,
-      occurredAt: now,
+      versionToken,
+      updatedAt: now,
     },
   });
+  return versionToken;
 }
 
 export async function recordRecommendationFeedback(db: AppDb, input: {
@@ -52,24 +43,21 @@ export async function recordRecommendationFeedback(db: AppDb, input: {
   reason: FeedbackReason | null;
   now: string;
 }): Promise<void> {
-  await db.batch([
-    db.insert(recommendationFeedback).values({
-      userId: input.userId,
-      placeId: input.placeId,
+  await db.insert(recommendationFeedback).values({
+    userId: input.userId,
+    placeId: input.placeId,
+    value: input.value,
+    reason: input.reason,
+    createdAt: input.now,
+    updatedAt: input.now,
+  }).onConflictDoUpdate({
+    target: [recommendationFeedback.userId, recommendationFeedback.placeId],
+    set: {
       value: input.value,
       reason: input.reason,
-      createdAt: input.now,
       updatedAt: input.now,
-    }).onConflictDoUpdate({
-      target: [recommendationFeedback.userId, recommendationFeedback.placeId],
-      set: {
-        value: input.value,
-        reason: input.reason,
-        updatedAt: input.now,
-      },
-    }),
-    createTasteActivityVersionWrite(db, input.userId, input.now),
-  ]);
+    },
+  });
 }
 
 function applyFoodPenalties(inferred: TasteBadgeScore[], foodBadgeIds: string[]) {
@@ -87,21 +75,13 @@ export async function refreshInferredTasteSignals(
   db: AppDb,
   userId: string,
   now: string,
-  options: { afterSnapshot?: () => Promise<void> } = {},
+  options: {
+    afterSnapshot?: () => Promise<void>;
+    observedVersion?: string;
+  } = {},
 ): Promise<void> {
-  const versionId = activityVersionId(userId);
-  await db.insert(productEvents).values({
-    id: versionId,
-    userId,
-    guestSessionId: null,
-    eventName: ACTIVITY_VERSION_EVENT,
-    metadataJson: activityVersionJson(),
-    occurredAt: now,
-  }).onConflictDoNothing();
-  const version = await db.query.productEvents.findFirst({
-    where: eq(productEvents.id, versionId),
-  });
-  if (!version) throw new Error("TASTE_ACTIVITY_VERSION_UNAVAILABLE");
+  const observedVersion = options.observedVersion
+    ?? await advanceTasteLearningVersion(db, userId, now);
 
   const [memberTaste, feedbackRows] = await Promise.all([
     listMemberTaste(db, userId),
@@ -144,19 +124,19 @@ export async function refreshInferredTasteSignals(
 
   await options.afterSnapshot?.();
 
-  const leaseJson = activityVersionJson();
+  const leaseToken = crypto.randomUUID();
   const leaseIsCurrent = sql`exists (
-    select 1 from ${productEvents}
-    where ${productEvents.id} = ${versionId}
-      and ${productEvents.metadataJson} = ${leaseJson}
+    select 1 from ${tasteLearningStates}
+    where ${tasteLearningStates.userId} = ${userId}
+      and ${tasteLearningStates.versionToken} = ${leaseToken}
   )`;
   const badgeIds = adjusted.map((badge) => badge.badgeId);
-  const claimVersion = db.update(productEvents).set({
-    metadataJson: leaseJson,
-    occurredAt: now,
+  const claimVersion = db.update(tasteLearningStates).set({
+    versionToken: leaseToken,
+    updatedAt: now,
   }).where(and(
-    eq(productEvents.id, versionId),
-    eq(productEvents.metadataJson, version.metadataJson),
+    eq(tasteLearningStates.userId, userId),
+    eq(tasteLearningStates.versionToken, observedVersion),
   ));
   const deleteStaleInferred = db.delete(userTasteBadges).where(and(
     eq(userTasteBadges.userId, userId),
@@ -174,9 +154,9 @@ export async function refreshInferredTasteSignals(
       evidenceJson: sql<string>`${evidenceJson}`.as("evidence_json"),
       createdAt: sql<string>`${now}`.as("created_at"),
       updatedAt: sql<string>`${now}`.as("updated_at"),
-    }).from(productEvents).where(and(
-      eq(productEvents.id, versionId),
-      eq(productEvents.metadataJson, leaseJson),
+    }).from(tasteLearningStates).where(and(
+      eq(tasteLearningStates.userId, userId),
+      eq(tasteLearningStates.versionToken, leaseToken),
     )),
   ).onConflictDoUpdate({
     target: [userTasteBadges.userId, userTasteBadges.badgeId, userTasteBadges.source],
