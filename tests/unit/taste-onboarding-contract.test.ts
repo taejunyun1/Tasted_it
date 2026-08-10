@@ -9,8 +9,21 @@ const mocks = vi.hoisted(() => ({
   getOptionalUser: vi.fn(async () => null),
   getOrCreateGuestSession: vi.fn(async () => ({ session: { id: "guest-1" }, setCookie: null })),
   getWritableGuestSessionFromRequest: vi.fn(async () => ({ id: "guest-1" })),
+  claimGuestOnboardingDocument: vi.fn(async () => ({
+    sessionId: "guest-1",
+    selectionEpoch: 1,
+    selectionRevision: 0,
+    step: "LOCATION",
+    locationMode: "DEFAULT",
+    foodBadgeIds: [],
+    styleBadgeIds: [],
+    expiresAt: "2026-09-09T00:00:00.000Z",
+    completedAt: null,
+    skippedAt: null,
+  })),
   getGuestOnboarding: vi.fn(async () => ({
     sessionId: "guest-1",
+    selectionEpoch: 1,
     selectionRevision: 0,
     step: "LOCATION",
     locationMode: "DEFAULT",
@@ -28,6 +41,7 @@ vi.mock("cloudflare:workers", () => ({ env: mocks.env }));
 vi.mock("../../app/db/client.server", () => ({ createDb: () => mocks.db }));
 vi.mock("../../app/features/auth/session.server", () => ({ getOptionalUser: mocks.getOptionalUser }));
 vi.mock("../../app/features/onboarding/guest-session.server", () => ({
+  claimGuestOnboardingDocument: mocks.claimGuestOnboardingDocument,
   getOrCreateGuestSession: mocks.getOrCreateGuestSession,
   getWritableGuestSessionFromRequest: mocks.getWritableGuestSessionFromRequest,
   getGuestOnboarding: mocks.getGuestOnboarding,
@@ -71,6 +85,7 @@ describe("taste onboarding contract", () => {
     expect(source).toContain('name="currentStep"');
     expect(source).toContain('name="targetStep"');
     expect(source).toContain('name="direction"');
+    expect(source).toContain('name="selectionEpoch"');
     expect(source).toContain('name="selectionRevision"');
 
     const router = createMemoryRouter([{
@@ -78,6 +93,7 @@ describe("taste onboarding contract", () => {
       element: createElement(component.TasteOnboarding, {
         initialState: {
           step: "FOOD",
+          selectionEpoch: 1,
           selectionRevision: 0,
           locationMode: "DEFAULT",
           foodBadgeIds: [],
@@ -139,6 +155,7 @@ describe("taste onboarding contract", () => {
     form.set("currentStep", "STYLE");
     form.set("targetStep", "STYLE");
     form.set("direction", "FORWARD");
+    form.set("selectionEpoch", "1");
     form.set("selectionRevision", "1");
     form.set("locationMode", "DEFAULT");
     form.append("foodBadgeId", "food-gukbap");
@@ -169,6 +186,7 @@ describe("taste onboarding contract", () => {
     form.set("currentStep", "STYLE");
     form.set("targetStep", "STYLE");
     form.set("direction", "FORWARD");
+    form.set("selectionEpoch", "1");
     form.set("selectionRevision", "1");
     const { action } = await import("../../app/routes/taste-onboarding");
 
@@ -197,6 +215,7 @@ describe("taste onboarding contract", () => {
     form.set("currentStep", "PREVIEW");
     form.set("targetStep", "PREVIEW");
     form.set("direction", "FORWARD");
+    form.set("selectionEpoch", "1");
     form.set("selectionRevision", "1");
     form.set("returnTo", "/%5Cevil.example/path");
     const response = await action({ request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }) } as never);
@@ -212,6 +231,7 @@ describe("taste onboarding contract", () => {
       form.set("currentStep", "FOOD");
       form.set("targetStep", "STYLE");
       form.set("direction", "FORWARD");
+      form.set("selectionEpoch", "1");
       form.set("selectionRevision", "1");
       form.append("foodBadgeId", "food-outdated");
       return new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form });

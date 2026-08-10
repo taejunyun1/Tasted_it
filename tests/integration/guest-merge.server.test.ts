@@ -374,6 +374,7 @@ describe("mergeGuestTasteSessionFromRequest", () => {
           return async (...input: Parameters<AppDb["batch"]>) => {
             await saveGuestOnboarding(target, {
               sessionId: guestId,
+              selectionEpoch: 0,
               expectedStep: "PREVIEW",
               step: "PREVIEW",
               selectionRevision: 1,
@@ -398,6 +399,7 @@ describe("mergeGuestTasteSessionFromRequest", () => {
     expect(rows).toEqual([{ badgeId: "food-ramen" }]);
     await expect(saveGuestOnboarding(db, {
       sessionId: guestId,
+      selectionEpoch: 0,
       expectedStep: "PREVIEW",
       step: "PREVIEW",
       selectionRevision: 2,

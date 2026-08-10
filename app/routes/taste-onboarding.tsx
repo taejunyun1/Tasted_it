@@ -10,7 +10,7 @@ import {
 import { createDb, type AppDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
 import {
-  getGuestOnboarding,
+  claimGuestOnboardingDocument,
   getOrCreateGuestSession,
   getWritableGuestSessionFromRequest,
   saveGuestOnboarding,
@@ -27,6 +27,7 @@ const onboardingAction = z.object({
   currentStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
   targetStep: z.enum(["LOCATION", "FOOD", "STYLE", "PREVIEW"]),
   direction: z.enum(["FORWARD", "BACK"]),
+  selectionEpoch: z.coerce.number().int().min(1),
   selectionRevision: z.coerce.number().int().min(1),
   locationMode: z.enum(["DEVICE", "DEFAULT"]).default("DEFAULT"),
   foodBadgeIds: z.array(z.string()).max(5).default([]),
@@ -102,8 +103,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const { session, setCookie } = await getOrCreateGuestSession(db, request, now);
-  const state = await getGuestOnboarding(db, session.id, now);
-  if (!state) throw new Response("온보딩 세션을 준비하지 못했습니다.", { status: 500 });
+  const state = await claimGuestOnboardingDocument(db, session.id, now);
+  if (!state) return redirect(returnTo, setCookie ? { headers: { "Set-Cookie": setCookie } } : undefined);
   await recordOnboardingProductEvent(db, {
     eventName: "ONBOARDING_STARTED",
     guestSessionId: session.id,
@@ -113,6 +114,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const payload = {
     initialState: {
       step: state.step,
+      selectionEpoch: state.selectionEpoch,
       selectionRevision: state.selectionRevision,
       locationMode: state.locationMode,
       foodBadgeIds: state.foodBadgeIds,
@@ -132,6 +134,7 @@ export async function action({ request }: Route.ActionArgs) {
     currentStep: form.get("currentStep"),
     targetStep: form.get("targetStep"),
     direction: form.get("direction"),
+    selectionEpoch: form.get("selectionEpoch"),
     selectionRevision: form.get("selectionRevision"),
     locationMode: form.get("locationMode") ?? undefined,
     foodBadgeIds: form.getAll("foodBadgeId").filter((value): value is string => typeof value === "string"),
@@ -154,6 +157,7 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     await saveGuestOnboarding(db, {
       sessionId: session.id,
+      selectionEpoch: parsed.data.selectionEpoch,
       expectedStep: parsed.data.currentStep,
       step: parsed.data.intent === "SAVE_STEP" ? parsed.data.targetStep : parsed.data.currentStep,
       selectionRevision: parsed.data.selectionRevision,

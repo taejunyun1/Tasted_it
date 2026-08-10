@@ -14,6 +14,7 @@ import { PlaceCard } from "../places/PlaceCard";
 
 type InitialState = {
   step: OnboardingStep;
+  selectionEpoch: number;
   selectionRevision: number;
   locationMode: "DEVICE" | "DEFAULT";
   foodBadgeIds: string[];
@@ -93,13 +94,14 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
   const announcedStep = useRef(initialState.step);
   const selectionDirty = useRef(false);
   const selectionRevision = useRef(initialState.selectionRevision);
+  const selectionEpoch = useRef(initialState.selectionEpoch);
+  if (selectionEpoch.current !== initialState.selectionEpoch) {
+    selectionEpoch.current = initialState.selectionEpoch;
+    selectionRevision.current = initialState.selectionRevision;
+  }
   const step = initialState.step;
   const progress = onboardingProgress(step);
   const stepIndex = STEPS.indexOf(step);
-
-  useEffect(() => {
-    selectionRevision.current = Math.max(selectionRevision.current, initialState.selectionRevision);
-  }, [initialState.selectionRevision]);
 
   useEffect(() => {
     if (announcedStep.current !== step) headingRef.current?.focus();
@@ -215,6 +217,7 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
         <input type="hidden" name="currentStep" value={forwardNavigation.currentStep} />
         <input ref={targetStepInput} type="hidden" name="targetStep" value={forwardNavigation.targetStep} />
         <input ref={directionInput} type="hidden" name="direction" value={forwardNavigation.direction} />
+        <input type="hidden" name="selectionEpoch" value={initialState.selectionEpoch} />
         <input ref={selectionRevisionInput} type="hidden" name="selectionRevision" defaultValue={initialState.selectionRevision} />
         <input type="hidden" name="locationMode" value={locationMode} />
         <input ref={returnToInput} type="hidden" name="returnTo" defaultValue={returnTo} />

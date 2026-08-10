@@ -12,6 +12,7 @@ import {
 import {
   GUEST_COOKIE_NAME,
   GUEST_TTL_SECONDS,
+  claimGuestOnboardingDocument,
   createGuestSession,
   getGuestOnboarding,
   getGuestOnboardingFromRequest,
@@ -27,6 +28,7 @@ describe("guest onboarding", () => {
 
     await saveGuestOnboarding(db, {
       sessionId: created.id,
+      selectionEpoch: 0,
       expectedStep: "LOCATION",
       step: "STYLE",
       selectionRevision: 1,
@@ -42,6 +44,7 @@ describe("guest onboarding", () => {
 
     await saveGuestOnboarding(db, {
       sessionId: created.id,
+      selectionEpoch: 0,
       expectedStep: "STYLE",
       step: "PREVIEW",
       selectionRevision: 2,
@@ -90,6 +93,7 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: created.id,
+      selectionEpoch: 0,
       expectedStep: "LOCATION",
       step: "FOOD",
       selectionRevision: 1,
@@ -101,6 +105,7 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: created.id,
+      selectionEpoch: 0,
       expectedStep: "LOCATION",
       step: "STYLE",
       selectionRevision: 1,
@@ -121,6 +126,7 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: expired.id,
+      selectionEpoch: 0,
       expectedStep: "LOCATION",
       step: "FOOD",
       selectionRevision: 1,
@@ -145,6 +151,7 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(db, {
       sessionId: merged.id,
+      selectionEpoch: 0,
       expectedStep: "LOCATION",
       step: "FOOD",
       selectionRevision: 1,
@@ -186,6 +193,7 @@ describe("guest onboarding", () => {
 
     await expect(saveGuestOnboarding(racedDb, {
       sessionId: session.id,
+      selectionEpoch: 0,
       expectedStep: "LOCATION",
       step: "FOOD",
       selectionRevision: 1,
@@ -213,5 +221,67 @@ describe("guest onboarding", () => {
         completedAt: "2026-08-10T00:05:00.000Z",
         skippedAt: "2026-08-10T00:06:00.000Z",
       });
+  });
+
+  it.each(["OLD_FIRST", "OLD_LAST"] as const)(
+    "keeps the newer document payload when equal local revisions arrive %s",
+    async (arrivalOrder) => {
+      const db = createDb(env.DB);
+      const session = await createGuestSession(db, {
+        id: `guest-${crypto.randomUUID()}`,
+        now: "2026-08-10T00:00:00Z",
+      });
+      const oldDocument = await claimGuestOnboardingDocument(db, session.id, "2026-08-10T00:01:00Z");
+      expect(oldDocument?.selectionEpoch).toBe(1);
+      const oldPayload = {
+        sessionId: session.id,
+        selectionEpoch: oldDocument!.selectionEpoch,
+        selectionRevision: 1,
+        expectedStep: "LOCATION" as const,
+        step: "LOCATION" as const,
+        locationMode: "DEFAULT" as const,
+        foodBadgeIds: ["food-gukbap"],
+        styleBadgeIds: [] as string[],
+        now: "2026-08-10T00:02:00Z",
+      };
+
+      const newDocument = await claimGuestOnboardingDocument(db, session.id, "2026-08-10T00:03:00Z");
+      expect(newDocument?.selectionEpoch).toBe(2);
+      const newPayload = {
+        ...oldPayload,
+        selectionEpoch: newDocument!.selectionEpoch,
+        foodBadgeIds: ["food-ramen"],
+        now: "2026-08-10T00:04:00Z",
+      };
+      if (arrivalOrder === "OLD_FIRST") {
+        await expect(saveGuestOnboarding(db, oldPayload)).rejects.toThrow("GUEST_SESSION_UNAVAILABLE");
+      }
+      await saveGuestOnboarding(db, newPayload);
+      if (arrivalOrder === "OLD_LAST") {
+        await expect(saveGuestOnboarding(db, oldPayload)).rejects.toThrow("GUEST_SESSION_UNAVAILABLE");
+      }
+
+      await expect(getGuestOnboarding(db, session.id, "2026-08-10T00:05:00Z"))
+        .resolves.toMatchObject({
+          selectionEpoch: 2,
+          selectionRevision: 1,
+          foodBadgeIds: ["food-ramen"],
+        });
+    },
+  );
+
+  it("claims distinct increasing epochs for concurrent onboarding documents", async () => {
+    const db = createDb(env.DB);
+    const session = await createGuestSession(db, {
+      id: `guest-${crypto.randomUUID()}`,
+      now: "2026-08-10T00:00:00Z",
+    });
+
+    const documents = await Promise.all([
+      claimGuestOnboardingDocument(db, session.id, "2026-08-10T00:01:00Z"),
+      claimGuestOnboardingDocument(db, session.id, "2026-08-10T00:01:00Z"),
+    ]);
+
+    expect(documents.map((document) => document?.selectionEpoch).sort()).toEqual([1, 2]);
   });
 });

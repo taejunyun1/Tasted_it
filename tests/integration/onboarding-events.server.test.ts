@@ -120,6 +120,7 @@ async function seedGuest(
 ) {
   await db.insert(guestTasteSessions).values({
     id,
+    selectionEpoch: 1,
     locationMode: "DEFAULT",
     completedStepsJson: JSON.stringify([step]),
     expiresAt: "2026-09-09T00:00:00.000Z",
@@ -354,6 +355,7 @@ function cookiePair(setCookie: string) {
 function onboardingForm(input: {
   intent: "SAVE_STEP" | "SAVE_SELECTION" | "SKIP" | "COMPLETE";
   currentStep: "LOCATION" | "FOOD" | "STYLE" | "PREVIEW";
+  selectionEpoch?: number;
   selectionRevision?: number;
   direction?: OnboardingNavigationDirection;
   foodBadgeIds?: string[];
@@ -365,6 +367,7 @@ function onboardingForm(input: {
   form.set("currentStep", navigation.currentStep);
   form.set("targetStep", input.intent === "SAVE_SELECTION" ? navigation.currentStep : navigation.targetStep);
   form.set("direction", navigation.direction);
+  form.set("selectionEpoch", String(input.selectionEpoch ?? 1));
   form.set("selectionRevision", String(input.selectionRevision ?? 1));
   form.set("locationMode", "DEFAULT");
   form.set("returnTo", "/places");

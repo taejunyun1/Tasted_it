@@ -43,6 +43,14 @@
 - 재리뷰 TDD GREEN은 old selection → newer step/COMPLETE/SKIP/merge → delayed selection 순서를 실제 D1로 검증하며 step, revision, terminal timestamp, badge, session 개수와 Set-Cookie 무생성을 확인한다.
 - 하나의 local D1을 공유하는 전체 E2E는 Playwright worker를 항상 `1`로 고정했다. 정확한 전체 명령 2회 모두 기존 4개 실패 외 추가 D1 오류 없이 같은 결과를 냈다.
 
+## 최종 독립 리뷰 수정
+
+- 최종 리뷰 RED는 서로 다른 document가 server revision `N`을 함께 읽고 local revision `N+1`을 재사용할 수 있음을 지적했다. Beacon enqueue와 commit 사이에 재진입하거나 복수 탭을 열면 실제 최신 payload가 네트워크 도착 순서에 따라 거절될 수 있었다.
+- `guest_taste_sessions.selection_epoch` forward migration을 추가했다. 각 loader는 writable session에서 epoch를 원자적으로 `+1` claim하고 revision을 `0`으로 초기화하며, claim statement가 반환한 고유 epoch를 해당 document에 발급한다.
+- 정상 submit과 beacon은 hidden `selectionEpoch`와 document-local `selectionRevision`을 함께 보낸다. Server batch는 현재 epoch가 정확히 일치하고 revision이 더 큰 경우만 badge/step/lifecycle을 갱신한다. 새 loader가 epoch를 claim한 시점부터 이전 document의 action은 local revision 값이나 도착 순서와 관계없이 거절된다.
+- 실제 D1 TDD는 E rev1 old payload와 E+1 rev1 new payload를 `old→new`, `new→old` 순서로 각각 전달해 두 경우 모두 E+1 payload만 최종 상태가 됨을 확인한다. 동시에 실행한 loader claim 두 건도 서로 다른 증가 epoch `1`, `2`를 반환했다.
+- 기존 SAVE_SELECTION 무생성, terminal/merge/expiry dominance, 30일 TTL, 합성 fixture·좌표 비수집 개인정보 경계는 그대로 유지했다.
+
 ## 검증 결과
 
 - 변경 전 전체 E2E 기준선: 88개 통과, 8개 의도적 건너뜀, 4개 실패.
@@ -50,12 +58,13 @@
   - `map-zoom.spec.ts`: desktop/mobile에서 선택 후 기대 zoom 16 대신 12를 유지했다.
   - 두 실패 묶음은 Task 8 변경 전 재현됐으며 집중 spec 회귀와 분리했다.
 - 관련 unit: `pnpm vitest run tests/unit/onboarding.test.ts tests/unit/taste-onboarding-contract.test.ts tests/unit/auth-login.test.ts tests/unit/login-return-to.test.ts` — 4개 파일, 31개 테스트 통과.
-- 관련 Workers integration: `pnpm vitest run tests/integration/guest-onboarding.server.test.ts tests/integration/guest-merge.server.test.ts tests/integration/onboarding-events.server.test.ts --config vitest.workers.config.ts` — 3개 파일, 70개 테스트 통과. AI binding 경고는 표시됐지만 테스트가 AI API를 호출하지 않았다.
+- 관련 Workers integration: `pnpm vitest run tests/integration/guest-onboarding.server.test.ts tests/integration/guest-merge.server.test.ts tests/integration/onboarding-events.server.test.ts --config vitest.workers.config.ts` — 3개 파일, 73개 테스트 통과. AI binding 경고는 표시됐지만 테스트가 AI API를 호출하지 않았다.
 - desktop Task 8 E2E: 7개 통과.
 - mobile Task 8 E2E: 7개 통과.
-- 집중 E2E: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts` — desktop 7개 + mobile 7개, 합계 14개 통과 (`28.2s`, 1 worker).
+- 집중 E2E: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts` — desktop 7개 + mobile 7개, 합계 14개 통과 (`26.4s`, 1 worker).
 - 전체 E2E 1회차: 정확한 `pnpm run test:e2e` — 114개 중 102개 통과, 8개 의도적 건너뜀, 기존 4개 실패 (`2.2m`).
 - 전체 E2E 2회차: 정확한 `pnpm run test:e2e` — 114개 중 102개 통과, 8개 의도적 건너뜀, 동일한 기존 4개 실패 (`2.1m`). 두 실행 모두 `browse.spec.ts` desktop/mobile과 `map-zoom.spec.ts` desktop/mobile의 기존 서명뿐이며 D1 internal error, timeout, `SQLITE_BUSY`, Task 8 신규 실패는 없다.
+- epoch 수정 후 전체 E2E: 정확한 `pnpm run test:e2e` — 114개 중 102개 통과, 8개 의도적 건너뜀, 동일한 기존 4개 실패 (`2.2m`). Task 8 신규 실패나 추가 D1 오류는 없다.
 - `pnpm run typecheck`: Wrangler types, React Router typegen, `tsc -b` 통과.
 - `git diff --check`: 통과.
 - Workers integration은 종료 코드 0 이후 저장소의 기존 Vite 종료 지연 경고를 출력했지만 이어진 Playwright까지 정상 실행됐다.
@@ -73,6 +82,7 @@
 - `app/features/onboarding/guest-session.server.ts`
 - `app/db/schema.ts`
 - `drizzle/0021_guest_onboarding_selection_revision.sql`
+- `drizzle/0022_guest_onboarding_selection_epoch.sql`
 - `tests/unit/taste-onboarding-contract.test.ts`
 - `tests/integration/guest-onboarding.server.test.ts`
 - `tests/integration/onboarding-events.server.test.ts`
@@ -83,6 +93,6 @@
 
 ## 운영 영향과 남은 확인
 
-- forward migration 1개가 `selection_revision INTEGER NOT NULL DEFAULT 0`을 추가한다. 기존 TTL, 의존성, lockfile, 환경 변수는 바뀌지 않았다. Playwright는 server 재사용을 비활성화하고 shared-D1 worker를 1로 제한했으며 QA seed에는 합성 test-only 회원 두 행만 둔다.
+- forward migration 2개가 `selection_revision INTEGER NOT NULL DEFAULT 0`과 `selection_epoch INTEGER NOT NULL DEFAULT 0`을 추가한다. 기존 TTL, 의존성, lockfile, 환경 변수는 바뀌지 않았다. Playwright는 server 재사용을 비활성화하고 shared-D1 worker를 1로 제한했으며 QA seed에는 합성 test-only 회원 두 행만 둔다.
 - 원격 D1, 외부 인증 제공자, 이메일 발송, Workers AI, 유료 API, push, PR, merge, deploy를 실행하지 않았다.
 - 변경 전 전체 E2E의 기존 4개 실패는 Task 9 전체 회귀 또는 해당 소유 작업에서 별도로 조정해야 한다.

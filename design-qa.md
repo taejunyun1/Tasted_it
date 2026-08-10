@@ -87,7 +87,7 @@ final result: passed
 
 ### 검증 환경
 
-- 최종 검증 시각: `2026-08-10 18:48 KST`
+- 최종 검증 시각: `2026-08-10 19:07 KST`
 - 데스크톱: Playwright `Desktop Chrome`, CSS viewport `1280 × 720`
 - 모바일: Playwright `Pixel 7`, CSS viewport `412 × 839`, device scale factor `2.625`
 - 데이터 경계: 로컬 D1과 로컬 시드만 사용했다. 합성 로그인 회원은 테스트 서버 시작 전에 한 번 seed하고, 브라우저 실행 중에는 해당 서버의 loader/action만 사용한다. 테스트 프로세스에서 `wrangler d1`을 별도 실행하지 않는다.
@@ -101,7 +101,7 @@ final result: passed
 - 건너뛰기: 첫 단계에서 건너뛴 뒤 `/places`를 새로고침해도 온보딩으로 다시 가두지 않았다.
 - 선택 제한: FOOD 여섯 번째와 STYLE 네 번째 선택이 기존 선택을 교체하지 않았고 각각 `5/5`, `3/3`을 유지했다. STYLE 제한 안내도 상태 메시지로 전달됐다.
 - 복원: STYLE에서 `노포파`를 선택하고 제출하지 않은 채 이탈했다. 재진입 직후 STYLE 단계와 `노포파[aria-pressed=true]`가 복원됐고, 이전 FOOD 단계의 `국밥러`와 제목 포커스도 유지됐다. 현재 단계의 마지막 선택 snapshot을 `visibilitychange/pagehide`에서 한 번 저장하되 단계 전진이나 완료 이벤트를 만들지 않는다.
-- 복원 순서·수명주기: loader의 server revision부터 client revision을 단조 증가시키고, server는 현재 step·더 큰 revision·미완료·미건너뜀·미병합·미만료 조건을 모든 badge/session batch statement에 동일하게 적용한다. 오래된 beacon과 server step을 이미 지난 beacon은 no-op이며, 완료·건너뛰기 timestamp는 revision/선택과 같은 batch에 저장된다. 병합 뒤 stale cookie나 cookie 없는 beacon은 세션을 생성하지 않는다. 고정 30일 TTL과 위치·식별정보 경계는 바뀌지 않았다.
+- 복원 순서·수명주기: 각 loader가 guest session의 `selectionEpoch`를 원자적으로 `+1` claim하고 revision을 `0`으로 초기화한다. client는 그 document 안에서 revision을 증가시키며, server는 현재 epoch·현재 step·더 큰 revision·미완료·미건너뜀·미병합·미만료 조건을 모든 badge/session batch statement에 동일하게 적용한다. 따라서 복수 탭/재진입 document가 같은 local revision `1`을 써도 이전 epoch의 beacon은 도착 순서와 무관하게 no-op이다. 완료·건너뛰기 timestamp는 revision/선택과 같은 batch에 저장되고, 병합 뒤 stale cookie나 cookie 없는 beacon은 세션을 생성하지 않는다. 고정 30일 TTL과 위치·식별정보 경계는 바뀌지 않았다.
 - 키보드: `Enter`로 단계 제출, `Space`로 FOOD/STYLE 배지 선택, 단계 전환 뒤 제목 포커스 이동을 확인했다.
 - 위치 거부: init script가 `getCurrentPosition`의 error callback을 결정적으로 호출하도록 했고 API 호출 횟수 `1`을 먼저 확인했다. 이후 `광주 중심` 기본값과 추천 미리보기를 확인했으며 원본 위치 좌표는 사용하지 않았다.
 - 추천 미리보기: 실제 로컬 추천 카드가 데스크톱과 모바일에서 렌더링됐다. 오류 시 `다시 불러오기` 계약은 `tests/unit/taste-onboarding-contract.test.ts`에서 고정돼 있다. React Router 데이터 응답 형식을 우회하는 가짜 네트워크 응답은 실제 사용자 실패를 재현하지 않아 E2E 증거로 채택하지 않았다.
@@ -110,11 +110,12 @@ final result: passed
 ### 결과와 기준선 분리
 
 - 정확한 집중 명령: `pnpm run test:e2e tests/e2e/taste-onboarding.spec.ts`
-- Task 8 집중 E2E: 데스크톱 7개, 모바일 7개, 합계 14개 통과 (`28.2s`, 1 worker).
+- Task 8 집중 E2E: 데스크톱 7개, 모바일 7개, 합계 14개 통과 (`26.4s`, 1 worker).
 - 전체 명령: `pnpm run test:e2e`
 - 전체 E2E 1회차: 114개 중 102개 통과, 8개 의도적 건너뜀, 기존 4개 실패 (`2.2m`).
 - 전체 E2E 2회차: 114개 중 102개 통과, 8개 의도적 건너뜀, 동일한 기존 4개 실패 (`2.1m`). 두 실행 모두 `browse.spec.ts`의 온보딩 `.data` 반환 경로 2건과 `map-zoom.spec.ts`의 확대 상태 2건만 남았고 Task 8 신규 실패, D1 internal error, timeout, `SQLITE_BUSY`는 없었다.
-- 관련 unit: 4개 파일, 31개 통과. 관련 Workers integration: 3개 파일, 70개 통과. `pnpm run typecheck`, `git diff --check` 통과.
+- epoch 수정 후 전체 E2E: 114개 중 102개 통과, 8개 의도적 건너뜀, 동일한 기존 4개 실패 (`2.2m`). Task 8 신규 실패와 추가 D1 오류는 없었다.
+- 관련 unit: 4개 파일, 31개 통과. 관련 Workers integration: 3개 파일, 73개 통과. 동등 local revision의 `old→new`, `new→old` 도착 순서와 concurrent epoch claim이 실제 D1에서 통과했다. `pnpm run typecheck`, `git diff --check` 통과.
 - 제품 수정: 로그인 helper가 검증된 `/places` 내부 경로만 보존하도록 수정했다. 외부 URL, protocol-relative URL, 역슬래시 우회, `/admin`, `/auth` 목적지는 계속 `/`로 제한한다.
 - 검증 중 Vite 개발 서버의 manifest patch fetch 종료 경고와 Workers 테스트 종료 지연 경고가 있었지만 각 테스트 결과와 프로세스 실행은 위 수치로 완료됐다.
 - 화면 스타일 수정은 필요하지 않았다. 두 viewport 모두 동일한 기능 흐름을 통과했다.

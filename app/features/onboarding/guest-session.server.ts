@@ -17,6 +17,7 @@ const badgeById = new Map(TASTE_BADGE_CATALOG.map((badge) => [badge.id, badge]))
 
 export type GuestOnboardingState = {
   sessionId: string;
+  selectionEpoch: number;
   selectionRevision: number;
   step: OnboardingStep;
   locationMode: "DEVICE" | "DEFAULT";
@@ -29,6 +30,7 @@ export type GuestOnboardingState = {
 
 export type SaveGuestOnboardingInput = {
   sessionId: string;
+  selectionEpoch: number;
   expectedStep: OnboardingStep;
   step: OnboardingStep;
   selectionRevision: number;
@@ -101,6 +103,7 @@ function writableGuestSessionConditions(input: SaveGuestOnboardingInput) {
     isNull(guestTasteSessions.completedAt),
     isNull(guestTasteSessions.skippedAt),
     currentStepConditions(input.expectedStep),
+    eq(guestTasteSessions.selectionEpoch, input.selectionEpoch),
     lt(guestTasteSessions.selectionRevision, input.selectionRevision),
   );
 }
@@ -190,20 +193,33 @@ export async function getWritableGuestSessionFromRequest(
   }) ?? null;
 }
 
-export async function getGuestOnboarding(
+export async function claimGuestOnboardingDocument(
   db: AppDb,
   sessionId: string,
   now: string,
 ): Promise<GuestOnboardingState | null> {
-  const session = await db.query.guestTasteSessions.findFirst({
-    where: activeGuestSessionConditions(sessionId, now),
-  });
-  if (!session) return null;
+  const [claimed] = await db.update(guestTasteSessions).set({
+    selectionEpoch: sql`${guestTasteSessions.selectionEpoch} + 1`,
+    selectionRevision: 0,
+    updatedAt: now,
+  }).where(and(
+    activeGuestSessionConditions(sessionId, now),
+    isNull(guestTasteSessions.completedAt),
+    isNull(guestTasteSessions.skippedAt),
+  )).returning();
+  if (!claimed) return null;
 
   const selected = await db
     .select({ badgeId: guestTasteBadges.badgeId })
     .from(guestTasteBadges)
-    .where(eq(guestTasteBadges.sessionId, session.id));
+    .where(eq(guestTasteBadges.sessionId, claimed.id));
+  return guestOnboardingState(claimed, selected);
+}
+
+function guestOnboardingState(
+  session: typeof guestTasteSessions.$inferSelect,
+  selected: Array<{ badgeId: string }>,
+): GuestOnboardingState {
   const foodBadgeIds = selected
     .filter(({ badgeId }) => badgeById.get(badgeId)?.category === "FOOD")
     .map(({ badgeId }) => badgeId)
@@ -218,6 +234,7 @@ export async function getGuestOnboarding(
 
   return {
     sessionId: session.id,
+    selectionEpoch: session.selectionEpoch,
     selectionRevision: session.selectionRevision,
     step: stepFromCompletedSteps(session.completedStepsJson),
     locationMode: session.locationMode,
@@ -227,6 +244,23 @@ export async function getGuestOnboarding(
     completedAt: session.completedAt,
     skippedAt: session.skippedAt,
   };
+}
+
+export async function getGuestOnboarding(
+  db: AppDb,
+  sessionId: string,
+  now: string,
+): Promise<GuestOnboardingState | null> {
+  const session = await db.query.guestTasteSessions.findFirst({
+    where: activeGuestSessionConditions(sessionId, now),
+  });
+  if (!session) return null;
+
+  const selected = await db
+    .select({ badgeId: guestTasteBadges.badgeId })
+    .from(guestTasteBadges)
+    .where(eq(guestTasteBadges.sessionId, session.id));
+  return guestOnboardingState(session, selected);
 }
 
 export async function getGuestOnboardingFromRequest(
