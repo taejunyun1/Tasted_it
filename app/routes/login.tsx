@@ -63,7 +63,7 @@ export default function Login({ actionData, loaderData }: Route.ComponentProps) 
   </AuthPage>;
 }
 export function AuthPage({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: React.ReactNode }) {
-  return <main id="main" className="mx-auto min-h-screen max-w-xl px-6 py-20"><p className="mb-4 text-xs font-medium tracking-[0.2em] text-emerald-800">{eyebrow}</p><h1 className="text-[25.2px] font-semibold tracking-tight">{title}</h1><p className="mt-4 font-normal text-neutral-600">{description}</p>{children}<p className="mt-8 text-sm font-normal text-neutral-600">계속하면 <Link className="underline" to="/terms">이용약관</Link>과 <Link className="underline" to="/privacy">개인정보 처리방침</Link>에 동의합니다.</p></main>;
+  return <main id="main" className="mx-auto min-h-screen max-w-xl px-6 py-20"><p className="mb-4 text-xs font-medium tracking-[0.2em] text-emerald-800">{eyebrow}</p><h1 className="text-[27px] font-semibold tracking-tight">{title}</h1><p className="mt-4 font-normal text-neutral-600">{description}</p>{children}<p className="mt-8 text-sm font-normal text-neutral-600">계속하면 <Link className="underline" to="/terms">이용약관</Link>과 <Link className="underline" to="/privacy">개인정보 처리방침</Link>에 동의합니다.</p></main>;
 }
 export function AuthInput(props: { label: string; name: string; type: string; autoComplete: string }) {
   return <label className="grid gap-2"><span className="font-medium">{props.label}</span><input className="border border-neutral-300 bg-white px-4 py-3 font-normal" required {...props} /></label>;

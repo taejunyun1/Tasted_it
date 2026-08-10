@@ -57,7 +57,7 @@
 
 .taste-onboarding__header h1{
   margin:var(--space-5) 0 0;
-  font-size:clamp(1.26rem,4.9vw,2.1rem);
+  font-size:clamp(1.35rem,5.25vw,2.25rem);
   line-height:1.08;
   letter-spacing:-.045em;
 }

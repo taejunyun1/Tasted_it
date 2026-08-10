@@ -18,7 +18,7 @@ export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-neutral-300 pb-6">
         <div>
           <p className="text-sm text-neutral-600">{loaderData.user.email}</p>
-          <h1 className="mt-2 text-[21px] font-semibold">장소 관리</h1>
+          <h1 className="mt-2 text-[22.5px] font-semibold">장소 관리</h1>
         </div>
         <nav className="flex gap-3">
           <Link className="border border-neutral-950 px-4 py-2 font-medium" to="/admin/candidates">후보 검수</Link>

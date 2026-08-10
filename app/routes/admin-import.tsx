@@ -92,7 +92,7 @@ export default function AdminImport({ actionData }: Route.ComponentProps) {
       <Link className="text-sm underline" to="/admin/places">
         ← 장소 관리
       </Link>
-      <h1 className="mt-6 text-[21px] font-semibold">장소 CSV 가져오기</h1>
+      <h1 className="mt-6 text-[22.5px] font-semibold">장소 CSV 가져오기</h1>
       <p className="mt-3 text-neutral-600">
         먼저 전체 행을 검증하고, 오류가 없을 때만 한 번에 반영합니다.
       </p>
@@ -123,7 +123,7 @@ export default function AdminImport({ actionData }: Route.ComponentProps) {
 
       {actionData?.preview.length ? (
         <section className="mt-8 border-t border-neutral-300 pt-6">
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-[17px] font-semibold">
             {actionData.preview.length}개 장소 확인
           </h2>
           <ul className="mt-4 grid gap-2">

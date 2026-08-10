@@ -14,7 +14,7 @@ export async function sendAccountEmail(input: {
       from: input.from,
       to: [input.to],
       subject: `Re:Taste ${title}`,
-      html: `<div style="font-family:sans-serif;color:#171b18"><h1 style="font-size:16.8px">Re:Taste ${title}</h1><p>아래 링크는 30분 동안 한 번만 사용할 수 있습니다.</p><p><a href="${input.url}">${title} 계속하기</a></p><p>요청하지 않았다면 이 메일을 무시하세요.</p></div>`,
+      html: `<div style="font-family:sans-serif;color:#171b18"><h1 style="font-size:18px">Re:Taste ${title}</h1><p>아래 링크는 30분 동안 한 번만 사용할 수 있습니다.</p><p><a href="${input.url}">${title} 계속하기</a></p><p>요청하지 않았다면 이 메일을 무시하세요.</p></div>`,
     }),
   });
   if (!response.ok) throw new Error(`RESEND_SEND_FAILED:${response.status}`);
@@ -50,7 +50,7 @@ export async function sendGoogleWelcomeEmail(input: {
       from: input.from,
       to: [input.to],
       subject: "Re:Taste에 오신 것을 환영합니다",
-      html: `<div style="font-family:sans-serif;color:#171b18"><h1 style="font-size:16.8px">Re:Taste에 오신 것을 환영합니다</h1><p>${name}님, Google 계정 연결이 완료되었습니다.</p><p>광주·전남의 맛집과 취향에 맞는 코스를 둘러보세요.</p><p><a href="${coursesUrl}">나만의 맛 코스 추천받기</a></p></div>`,
+      html: `<div style="font-family:sans-serif;color:#171b18"><h1 style="font-size:18px">Re:Taste에 오신 것을 환영합니다</h1><p>${name}님, Google 계정 연결이 완료되었습니다.</p><p>광주·전남의 맛집과 취향에 맞는 코스를 둘러보세요.</p><p><a href="${coursesUrl}">나만의 맛 코스 추천받기</a></p></div>`,
       text: `${input.displayName.trim() || "새 회원"}님, Re:Taste Google 계정 연결이 완료되었습니다. 맛 코스 둘러보기: ${coursesUrl}`,
     }),
   });
