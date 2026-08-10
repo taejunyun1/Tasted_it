@@ -24,3 +24,15 @@
 - 원격 D1 적용, 운영 배포, 외부 유료 호출은 수행하지 않았다.
 - `worker-configuration.d.ts`는 저장소에서 기본적으로 무시되는 Wrangler 생성 파일이다. `pnpm run typecheck`로 `ONBOARDING_ENABLED` 타입 생성을 확인했으며, 14,000줄 이상의 생성물을 강제 추적하지 않고 소스 바인딩인 `wrangler.jsonc`만 커밋한다.
 - 실제 브라우저의 위치 권한 허용/거부 및 390px·1440px 시각 증거는 이 단위 작업에서 캡처하지 않았다. PR 작성 전 별도 확인이 필요하다.
+
+## 리뷰 수정 검증
+
+- 단계 제출 시 로컬 화면 상태를 먼저 변경하지 않고, loader 재검증으로 저장된 단계가 돌아온 뒤에만 화면을 갱신하도록 수정했다. `이전`도 동일하게 서버 저장 후 이동한다.
+- `returnTo`는 반복 URL 디코딩, 역슬래시·프로토콜 상대 경로 거부, 동일 출처 URL 파싱을 통과한 내부 경로만 허용한다.
+- `GUEST_ONBOARDING_BADGES_INVALID`만 사용자 입력 오류로 식별해 400을 반환하며 예상하지 못한 오류는 다시 던진다.
+- 단계 제목 포커스 이동과 실제 `progressbar` ARIA 값을 추가했다.
+- RED: `pnpm vitest run tests/unit/taste-onboarding-contract.test.ts` — 9개 중 6개 실패로 단계 경쟁, 접근성, 악성 경로 3종, 구형 배지 오류를 재현했다.
+- 집중 검증: `pnpm vitest run tests/unit/taste-onboarding-contract.test.ts tests/unit/onboarding.test.ts` — 2개 파일, 12개 테스트 통과.
+- 타입 검사: `pnpm run typecheck` 통과.
+- 전체 단위 테스트: `pnpm vitest run tests/unit` — 75개 파일, 387개 테스트 통과.
+- 형식 검사: `git diff --check` 통과.

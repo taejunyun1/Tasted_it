@@ -24,9 +24,25 @@ const onboardingAction = z.object({
   returnTo: z.string().default("/places"),
 });
 
-function safeOnboardingReturnTo(value: string | null | undefined) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/places";
-  return value;
+export function safeOnboardingReturnTo(value: string | null | undefined) {
+  const fallback = "/places";
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
+
+  let decoded = value;
+  try {
+    for (let count = 0; count < 3; count += 1) {
+      const next = decodeURIComponent(decoded);
+      if (next.includes("\\") || next.startsWith("//")) return fallback;
+      if (next === decoded) break;
+      decoded = next;
+    }
+    const base = new URL("https://retaste.invalid");
+    const destination = new URL(decoded, base);
+    if (destination.origin !== base.origin) return fallback;
+    return value;
+  } catch {
+    return fallback;
+  }
 }
 
 export function meta() {
@@ -74,14 +90,24 @@ export async function action({ request }: Route.ActionArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const { session, setCookie } = await getOrCreateGuestSession(db, request, now);
-  await saveGuestOnboarding(db, {
-    sessionId: session.id,
-    step: parsed.data.step,
-    locationMode: parsed.data.locationMode,
-    foodBadgeIds: parsed.data.foodBadgeIds,
-    styleBadgeIds: parsed.data.styleBadgeIds,
-    now,
-  });
+  try {
+    await saveGuestOnboarding(db, {
+      sessionId: session.id,
+      step: parsed.data.step,
+      locationMode: parsed.data.locationMode,
+      foodBadgeIds: parsed.data.foodBadgeIds,
+      styleBadgeIds: parsed.data.styleBadgeIds,
+      now,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "GUEST_ONBOARDING_BADGES_INVALID") {
+      return data(
+        { ok: false, message: "선택할 수 없는 취향이 포함되어 있어요. 다시 골라주세요." },
+        { status: 400, headers: setCookie ? { "Set-Cookie": setCookie } : undefined },
+      );
+    }
+    throw error;
+  }
 
   if (parsed.data.intent === "SKIP" || parsed.data.intent === "COMPLETE") {
     await db.update(guestTasteSessions).set(

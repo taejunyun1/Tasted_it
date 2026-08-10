@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Form } from "react-router";
 
 import { readOnboardingLocation, requestOnboardingLocation } from "../../features/onboarding/location.client";
@@ -21,6 +21,11 @@ type Props = {
 
 const STEPS: OnboardingStep[] = ["LOCATION", "FOOD", "STYLE", "PREVIEW"];
 
+export function nextOnboardingStep(step: OnboardingStep): OnboardingStep {
+  const index = STEPS.indexOf(step);
+  return STEPS[Math.min(index + 1, STEPS.length - 1)];
+}
+
 function BadgeButton({ badge, selected, onToggle }: {
   badge: TasteBadgeDefinition;
   selected: string[];
@@ -39,14 +44,22 @@ function BadgeButton({ badge, selected, onToggle }: {
 }
 
 export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnTo }: Props) {
-  const [step, setStep] = useState(initialState.step);
   const [locationMode, setLocationMode] = useState(initialState.locationMode);
   const [foodBadgeIds, setFoodBadgeIds] = useState(initialState.foodBadgeIds);
   const [styleBadgeIds, setStyleBadgeIds] = useState(initialState.styleBadgeIds);
   const [limitMessage, setLimitMessage] = useState("");
   const returnToInput = useRef<HTMLInputElement>(null);
+  const stepInput = useRef<HTMLInputElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const announcedStep = useRef(initialState.step);
+  const step = initialState.step;
   const progress = onboardingProgress(step);
   const stepIndex = STEPS.indexOf(step);
+
+  useEffect(() => {
+    if (announcedStep.current !== step) headingRef.current?.focus();
+    announcedStep.current = step;
+  }, [step]);
 
   const toggleFood = (badgeId: string) => {
     const result = toggleOnboardingBadge({ selected: foodBadgeIds, badgeId, maximum: 5 });
@@ -61,7 +74,10 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
     const location = await requestOnboardingLocation();
     setLocationMode(location.mode);
   };
-  const nextStep = STEPS[Math.min(stepIndex + 1, STEPS.length - 1)];
+  const nextStep = nextOnboardingStep(step);
+  const preparePreviousStep = () => {
+    if (stepInput.current && stepIndex > 0) stepInput.current.value = STEPS[stepIndex - 1];
+  };
   const prepareRecommendationRequest = () => {
     if (locationMode !== "DEVICE") return;
     const location = readOnboardingLocation();
@@ -75,10 +91,18 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
     <section className="taste-onboarding__card" aria-labelledby="taste-onboarding-title">
       <header className="taste-onboarding__header">
         <p className="eyebrow">TASTE SETUP · {progress}/4</p>
-        <div className="taste-onboarding__progress" aria-label={`${progress}/4 진행`}>
+        <div
+          className="taste-onboarding__progress"
+          role="progressbar"
+          aria-label="취향 설정 진행"
+          aria-valuemin={1}
+          aria-valuemax={4}
+          aria-valuenow={progress}
+          aria-valuetext={`${progress}/4 진행`}
+        >
           <span style={{ width: `${progress * 25}%` }} />
         </div>
-        <h1 id="taste-onboarding-title">
+        <h1 ref={headingRef} id="taste-onboarding-title" tabIndex={-1}>
           {step === "LOCATION" && "지금 가까운 한 끼부터 볼까요?"}
           {step === "FOOD" && "자주 생각나는 메뉴를 골라주세요."}
           {step === "STYLE" && "좋아하는 맛과 식당 분위기는요?"}
@@ -87,7 +111,7 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
       </header>
 
       <Form method="post" className="taste-onboarding__form">
-        <input type="hidden" name="step" value={nextStep} />
+        <input ref={stepInput} type="hidden" name="step" value={nextStep} />
         <input type="hidden" name="locationMode" value={locationMode} />
         <input ref={returnToInput} type="hidden" name="returnTo" defaultValue={returnTo} />
         {foodBadgeIds.map((id) => <input key={id} type="hidden" name="foodBadgeId" value={id} />)}
@@ -123,9 +147,9 @@ export function TasteOnboarding({ initialState, foodBadges, styleBadges, returnT
         </div>}
 
         <div className="taste-onboarding__actions">
-          {stepIndex > 0 && <button type="button" className="taste-onboarding__secondary" onClick={() => setStep(STEPS[stepIndex - 1])}>이전</button>}
+          {stepIndex > 0 && <button type="submit" name="intent" value="SAVE_STEP" className="taste-onboarding__secondary" onClick={preparePreviousStep}>이전</button>}
           {step !== "PREVIEW"
-            ? <button type="submit" name="intent" value="SAVE_STEP" className="taste-onboarding__primary" onClick={() => setStep(nextStep)}>계속</button>
+            ? <button type="submit" name="intent" value="SAVE_STEP" className="taste-onboarding__primary">계속</button>
             : <button type="submit" name="intent" value="COMPLETE" className="taste-onboarding__primary" onClick={prepareRecommendationRequest}>추천 보러 가기</button>}
         </div>
         <button type="submit" name="intent" value="SKIP" className="taste-onboarding__skip">나중에 할게요</button>
