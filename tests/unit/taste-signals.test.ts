@@ -1,6 +1,18 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 
+import { VoteControl } from "../../app/components/ratings/VoteControl";
 import { selectTasteSignals } from "../../app/features/members/taste-signals";
+
+function renderVoteControl(props: Parameters<typeof VoteControl>[0]) {
+  const router = createMemoryRouter([{
+    path: "/",
+    element: createElement(VoteControl, props),
+  }], { initialEntries: ["/"] });
+  return renderToStaticMarkup(createElement(RouterProvider, { router }));
+}
 
 describe("selectTasteSignals", () => {
   it("값이 높은 순으로 최대 세 개의 실제 취향 신호를 고른다", () => {
@@ -30,5 +42,43 @@ describe("selectTasteSignals", () => {
       requiredPlaceCount: 5,
       signals: [],
     });
+  });
+});
+
+describe("VoteControl", () => {
+  it("로그인 전에는 returnTo를 보존한 로그인 안내만 렌더링한다", () => {
+    const html = renderVoteControl({
+      vote: null,
+      saved: false,
+      signedIn: false,
+      returnTo: "/places/시장-국밥?from=preview",
+    });
+
+    expect(html).toContain("로그인하고 취향 남기기");
+    expect(html).toContain("returnTo=%2Fplaces%2F%EC%8B%9C%EC%9E%A5-%EA%B5%AD%EB%B0%A5%3Ffrom%3Dpreview");
+    expect(html).not.toContain("비추천 이유");
+  });
+
+  it("비추천 상태에서 다섯 이유를 하나만 고르는 접근 가능한 그룹을 렌더링한다", () => {
+    const html = renderVoteControl({ vote: -1, saved: false, signedIn: true, returnTo: "/places/gukbap" });
+    const visibleText = html.replace(/<[^>]+>/g, " ");
+
+    expect(html).toContain("<fieldset");
+    expect(html).toContain("비추천 이유를 하나 선택해 주세요");
+    expect(html.match(/type="radio"/g)).toHaveLength(5);
+    expect(html.match(/name="reason"/g)).toHaveLength(5);
+    expect(html).toContain("메뉴");
+    expect(html).toContain("거리");
+    expect(html).toContain("가격");
+    expect(html).toContain("분위기");
+    expect(html).toContain("이미 가본 곳");
+    expect(visibleText).not.toMatch(/(?:^|\s)-?\d+(?:\.\d+)?(?:\s|$)/);
+  });
+
+  it("추천 상태에서는 부정 이유 그룹을 숨긴다", () => {
+    const html = renderVoteControl({ vote: 1, saved: true, signedIn: true, returnTo: "/places/gukbap" });
+
+    expect(html).not.toContain("비추천 이유를 하나 선택해 주세요");
+    expect(html).not.toContain("name=\"reason\"");
   });
 });

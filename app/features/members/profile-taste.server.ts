@@ -27,15 +27,19 @@ export async function getMemberTasteProfile(db: AppDb, input: {
     badgeId: userTasteBadges.badgeId,
     score: userTasteBadges.score,
     source: userTasteBadges.source,
+    evidenceJson: userTasteBadges.evidenceJson,
   }).from(userTasteBadges).where(eq(userTasteBadges.userId, input.userId));
+  const hasStoredActivityInference = stored.some((row) => (
+    row.source === "INFERRED" && row.evidenceJson === JSON.stringify({ algorithm: "activity-v1" })
+  ));
   const inferred = inferTasteBadges({
-    saved: input.saved,
-    rated: input.rated,
+    saved: hasStoredActivityInference ? [] : input.saved,
+    rated: hasStoredActivityInference ? [] : input.rated,
     flavorDimensions: input.tasteGraph.status === "VISIBLE" ? input.tasteGraph.dimensions : [],
   });
   return buildTasteProfile({
     displayName: input.displayName,
-    stored: stored.map((row) => ({ ...row, source: row.source as TasteBadgeSource })),
+    stored: stored.map((row) => ({ badgeId: row.badgeId, score: row.score, source: row.source as TasteBadgeSource })),
     inferred,
   });
 }

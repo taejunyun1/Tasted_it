@@ -11,11 +11,16 @@ import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus, recordPlaceDetailView } from "../features/ratings/rating-badges.server";
 import { castVote, getCurrentVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
-import { getSaved, setSaved } from "../features/saves/save.server";
+import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
+import { recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
 import { VoteControl } from "../components/ratings/VoteControl";
 
 const actionSchema = z.discriminatedUnion("intent", [
-  z.object({ intent: z.literal("vote"), value: z.coerce.number().refine((value): value is -1 | 1 => value === -1 || value === 1) }),
+  z.object({
+    intent: z.literal("vote"),
+    value: z.coerce.number().refine((value): value is -1 | 1 => value === -1 || value === 1),
+    reason: z.enum(["MENU", "DISTANCE", "PRICE", "ATMOSPHERE", "ALREADY_VISITED"]).nullable().default(null),
+  }),
   z.object({ intent: z.literal("save"), saved: z.enum(["true", "false"]).transform((value) => value === "true") }),
 ]);
 
@@ -70,8 +75,20 @@ export async function action({ request, params }: Route.ActionArgs) {
   const now = new Date().toISOString();
   if (parsed.data.intent === "vote") {
     await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now });
+    try {
+      await recordRecommendationFeedback(db, {
+        placeId: place.id,
+        userId: user.id,
+        value: parsed.data.value,
+        reason: parsed.data.reason,
+        now,
+      });
+      await refreshInferredTasteSignals(db, user.id, now);
+    } catch {
+      console.error("TASTE_LEARNING_REFRESH_FAILED");
+    }
   } else {
-    await setSaved(db, { placeId: place.id, userId: user.id, saved: parsed.data.saved, now });
+    await setSavedAndRefreshTaste(db, { placeId: place.id, userId: user.id, saved: parsed.data.saved, now });
   }
   return { ok: true };
 }

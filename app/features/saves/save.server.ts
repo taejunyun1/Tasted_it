@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { savedPlaces } from "../../db/schema";
+import { refreshInferredTasteSignals } from "../members/taste-learning.server";
 
 export interface SaveInput {
   userId: string;
@@ -23,6 +24,19 @@ export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
     eq(savedPlaces.userId, input.userId),
     eq(savedPlaces.placeId, input.placeId),
   ));
+}
+
+export async function setSavedAndRefreshTaste(
+  db: AppDb,
+  input: SaveInput,
+  options: { refreshTaste?: typeof refreshInferredTasteSignals } = {},
+): Promise<void> {
+  await setSaved(db, input);
+  try {
+    await (options.refreshTaste ?? refreshInferredTasteSignals)(db, input.userId, input.now);
+  } catch {
+    console.error("TASTE_LEARNING_REFRESH_FAILED");
+  }
 }
 
 export async function getSaved(
