@@ -16,11 +16,23 @@ WHERE vote_event_id IN (
   )
 );
 
-DELETE FROM vote_events
-WHERE place_id IN (
-  'sample-place-1', 'sample-place-2', 'sample-place-3',
-  'sample-place-4', 'sample-place-5', 'sample-place-6'
-);
+-- vote_events.previous_event_id가 같은 테이블의 과거 이벤트를 RESTRICT로 참조한다.
+-- 따라서 최신(leaf) 이벤트부터 제거한다. 샘플 이벤트 최대 15건을 모두 처리하도록 반복한다.
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
+DELETE FROM vote_events WHERE place_id IN ('sample-place-1','sample-place-2','sample-place-3','sample-place-4','sample-place-5','sample-place-6') AND NOT EXISTS (SELECT 1 FROM vote_events child WHERE child.previous_event_id = vote_events.id);
 
 DELETE FROM golden_pick_events
 WHERE place_id IN (

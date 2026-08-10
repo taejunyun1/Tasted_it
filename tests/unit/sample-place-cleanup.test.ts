@@ -27,4 +27,12 @@ describe("sample place cleanup", () => {
     expect(goldenPicks).toBeGreaterThan(voteEvents);
     expect(places).toBeGreaterThan(goldenPicks);
   });
+
+  it("deletes self-referencing vote history from leaves to roots", () => {
+    const sql = readFileSync(cleanupSqlUrl, "utf8");
+    const leafDeleteCount = sql.match(/DELETE FROM vote_events[\s\S]*?NOT EXISTS/gi)?.length ?? 0;
+
+    expect(leafDeleteCount).toBeGreaterThanOrEqual(15);
+    expect(sql).toContain("child.previous_event_id = vote_events.id");
+  });
 });
