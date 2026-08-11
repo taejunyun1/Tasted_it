@@ -174,6 +174,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const pendingRequestKeyRef = useRef<string | null>(null);
   const startedRequestKeyRef = useRef<string | null>(null);
   const lastRecordedRequestKeyRef = useRef<string | null>(null);
+  const lastRecordedLoaderCurationRef = useRef<HomeCurationPage | null>(null);
   const liveSearch = `?${params.toString()}`;
   const liveMapState = parseMapState(liveSearch);
   const liveHomeState = parseHomeCurationState(liveSearch);
@@ -195,7 +196,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     : null;
 
   useEffect(() => {
-    if (loaderData.curation) setCuration(loaderData.curation);
+    if (!loaderData.curation) return;
+    setCuration(loaderData.curation);
+    if (lastRecordedLoaderCurationRef.current !== loaderData.curation) {
+      recordHomeRecommendation(sessionStorage, loaderData.curation);
+      lastRecordedLoaderCurationRef.current = loaderData.curation;
+    }
   }, [loaderData.curation]);
 
   useEffect(() => {

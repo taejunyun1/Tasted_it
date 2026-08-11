@@ -63,4 +63,48 @@ describe("home recommendation history", () => {
 
     expect(readHomeRecommendationHistory(storage).recentFirst).toEqual(["p1", "p1", "p1"]);
   });
+
+  it("최근 10회 창에는 빈 결과도 포함해 오래된 노출과 1위를 제거한다", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    } as Storage;
+
+    recordHomeRecommendation(storage, { mode: "now", places: [{ id: "old" }] } as HomeCurationPage);
+    for (let index = 0; index < 10; index += 1) {
+      recordHomeRecommendation(storage, { mode: "taste", places: [] } as HomeCurationPage);
+    }
+
+    expect(readHomeRecommendationHistory(storage)).toEqual(expect.objectContaining({
+      recentFirst: [],
+      recentShown: [],
+      previousMode: "taste",
+      previousIds: [],
+    }));
+  });
+
+  it("30곳 경계에서 방금 다시 노출한 오래된 장소를 유지한다", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    } as Storage;
+
+    for (let page = 0; page < 6; page += 1) {
+      recordHomeRecommendation(storage, {
+        mode: "now",
+        places: Array.from({ length: 5 }, (_, index) => ({ id: `p${page * 5 + index}` })),
+      } as HomeCurationPage);
+    }
+    recordHomeRecommendation(storage, {
+      mode: "taste",
+      places: [{ id: "p0" }, { id: "p30" }],
+    } as HomeCurationPage);
+
+    const history = readHomeRecommendationHistory(storage);
+    expect(history.recentShown).toHaveLength(30);
+    expect(history.recentShown).toContainEqual({ placeId: "p0", count: 2 });
+    expect(history.recentShown).toContainEqual({ placeId: "p30", count: 1 });
+  });
 });

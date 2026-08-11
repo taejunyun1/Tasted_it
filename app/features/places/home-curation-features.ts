@@ -195,7 +195,7 @@ export function firstRankPenalty(placeId: string, recentFirst: string[]) {
   const occurrences = recentFirst.filter((id) => id === placeId).length;
   if (occurrences >= 3) return -.30;
   if (occurrences >= 2) return -.18;
-  if (occurrences === 1) return -.12;
+  if (recentFirst[0] === placeId) return -.12;
   return 0;
 }
 

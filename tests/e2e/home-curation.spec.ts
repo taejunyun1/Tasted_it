@@ -153,6 +153,16 @@ test("큐레이션 홈은 다섯 곳과 명시적 전체 탐색을 보존한다"
   await page.getByRole("button", { name: "추천 지도", exact: true }).click();
   await expect(page.getByRole("button", { name: "전체 지도", exact: true })).toBeVisible();
   await expect(presentation.getByRole("heading", { name: "지금 갈 만한 5곳" })).toBeVisible();
+  await expect(presentation.getByRole("button", { name: "지금 갈 만한 곳", exact: true }))
+    .toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => {
+    const raw = sessionStorage.getItem("retaste:home-curation-v2");
+    return raw ? JSON.parse(raw).previousMode : null;
+  })).toBe("now");
+  const returnedNowIds = await recommendationIds(presentation);
+  await selectMode(page, presentation, "taste", "내 취향");
+  const returnedTasteIds = await recommendationIds(presentation);
+  expect(returnedNowIds.filter((id) => returnedTasteIds.includes(id)).length).toBeLessThanOrEqual(3);
 });
 
 test("모드 변경은 최소 두 곳을 바꾸고 단순 UI 재렌더는 결과를 바꾸지 않는다", async ({ page }, testInfo) => {
@@ -166,8 +176,8 @@ test("모드 변경은 최소 두 곳을 바꾸고 단순 UI 재렌더는 결과
   const initialContract = await directRecommendationContract(page, "now");
   expect(initialContract.candidateCount).toBeGreaterThanOrEqual(8);
 
-  await selectMode(page, presentation, "now", "지금 갈 만한 곳");
   const nowIds = await recommendationIds(presentation);
+  expect(recommendationRequestCount).toBe(0);
   await selectMode(page, presentation, "taste", "내 취향");
   const tasteIds = await recommendationIds(presentation);
   expect(nowIds.filter((id) => tasteIds.includes(id)).length).toBeLessThanOrEqual(3);

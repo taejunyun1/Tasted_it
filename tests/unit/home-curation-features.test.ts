@@ -60,6 +60,14 @@ describe("home curation features", () => {
     expect(firstRankPenalty("p1", ["p1", "p1", "p1"])).toBe(-.30);
   });
 
+  it.each([
+    [["p1", "other", "another"], -.12],
+    [["other", "p1", "another"], 0],
+    [["p1", "other", "p1"], -.18],
+  ] as const)("직전 1위와 최근 반복 1위를 구분한다: %j", (recentFirst, expected) => {
+    expect(firstRankPenalty("p1", [...recentFirst])).toBe(expected);
+  });
+
   it("변동값은 같은 날짜·세션·모드·500m 위치에서 안정적이다", () => {
     const a = deterministicVariation({ sessionSeed: "s", dateKey: "2026-08-11", mode: "now", center: centerA, placeId: "p" });
     const b = deterministicVariation({ sessionSeed: "s", dateKey: "2026-08-11", mode: "now", center: centerBWithin500m, placeId: "p" });
@@ -130,7 +138,7 @@ describe("home curation features", () => {
     expect(result.taste).toBeCloseTo(1 - Math.exp(-1));
     expect(result.discovery).toBe(.2);
     expect(result.freshness).toBe(.55);
-    expect(result.firstRankPenalty).toBe(-.12);
+    expect(result.firstRankPenalty).toBe(0);
     expect(result.variation).toBeGreaterThanOrEqual(0);
   });
 });
