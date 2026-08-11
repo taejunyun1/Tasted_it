@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { HomeCurationPage } from "../../app/features/places/home-curation";
+import {
+  readHomeRecommendationHistory,
+  recordHomeRecommendation,
+} from "../../app/features/places/home-curation-history.client";
+
 const mocks = vi.hoisted(() => ({
   env: { DB: {}, ONBOARDING_ENABLED: "true", NAVER_MAPS_CLIENT_ID: "map-client" },
   getOptionalUser: vi.fn(async (): Promise<{ id: string } | null> => null),
@@ -18,6 +24,14 @@ const mocks = vi.hoisted(() => ({
   listPlaces: vi.fn(async () => []),
   listPublicCategoryGroups: vi.fn(async () => []),
 }));
+
+function memoryStorage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+  } as Storage;
+}
 
 vi.mock("cloudflare:workers", () => ({ env: mocks.env }));
 vi.mock("../../app/db/client.server", () => ({ createDb: () => ({}) }));
@@ -365,79 +379,131 @@ describe("home curated route", () => {
     )).toEqual({ requestKey: "request-B", page: pageB });
   });
 
-  it("지연된 resource A가 최신 resource B 식별자로 노출돼도 B 결과와 이력을 덮어쓰지 않는다", async () => {
+  it.each([
+    {
+      label: "늦은 A 성공",
+      lateResponse: {
+        ok: true,
+        requestToken: "request-token-A",
+        recommendations: {
+          algorithmVersion: "home-curation-v2",
+          status: "READY",
+          places: [{ id: "place-A" }],
+          mode: "taste",
+          timeSlot: "lunch",
+          radiusMeters: 3_000,
+          candidateCount: 1,
+          goldenFallback: false,
+          notice: null,
+        },
+      },
+    },
+    {
+      label: "늦은 A 503",
+      lateResponse: {
+        ok: false,
+        requestToken: "request-token-A",
+        message: "추천을 다시 불러오지 못했어요. 기존 결과를 유지합니다.",
+      },
+    },
+  ])("B 성공 뒤 $label 응답은 B 화면·세션 이력·오류 상태를 바꾸지 않는다", async ({ lateResponse }) => {
     const {
       beginHomeRecommendationRequest,
-      getHomeRecommendationRouteKey,
+      clearHomeRecommendationRequestLifecycle,
       getRecordableHomeRecommendation,
+      isCurrentHomeRecommendationResponse,
     } = await import("../../app/routes/home");
-    const pageA = {
+    const initialPage = {
       algorithmVersion: "home-curation-v2",
       status: "READY",
-      places: [{ id: "place-A" }],
-      mode: "taste",
+      places: [{ id: "place-initial" }],
+      mode: "now",
       timeSlot: "lunch",
       radiusMeters: 3_000,
       candidateCount: 1,
       goldenFallback: false,
       notice: null,
-    } as unknown as import("../../app/features/places/home-curation").HomeCurationPage;
+    } as unknown as HomeCurationPage;
     const pageB = {
-      ...pageA,
+      ...initialPage,
       places: [{ id: "place-B" }],
       mode: "time",
-    } as import("../../app/features/places/home-curation").HomeCurationPage;
-    const routeA = getHomeRecommendationRouteKey({
-      view: "curated",
-      mode: "taste",
-      bbox: [126.72, 35.03, 127.02, 35.25],
-      locationSource: "map_center",
-    });
-    const routeB = getHomeRecommendationRouteKey({
-      view: "curated",
-      mode: "time",
-      bbox: [126.85, 35.127, 126.9, 35.163],
-      locationSource: "gps",
-    });
+    } as HomeCurationPage;
+    const routeB = "curated|time|126.85000,35.12700,126.90000,35.16300|gps";
     const lifecycleB = beginHomeRecommendationRequest("loading", "request-token-B");
-    let displayed = pageA;
-    const recorded: string[] = [];
-    const accept = (response: unknown) => {
+    const pendingRequestKeyRef = { current: lifecycleB.pendingRequestKey };
+    const pendingRequestRouteKeyRef = { current: routeB as string | null };
+    const startedRequestKeyRef = { current: lifecycleB.startedRequestKey };
+    const storage = memoryStorage();
+    let displayed = initialPage;
+    let currentError: string | null = null;
+    let lastRecordedRequestKey: string | null = null;
+    const deliveryOrder: string[] = [];
+    const deliver = (label: "A" | "B", response: unknown) => {
+      deliveryOrder.push(label);
+      const isCurrent = isCurrentHomeRecommendationResponse(
+        "idle",
+        response,
+        pendingRequestKeyRef.current,
+        startedRequestKeyRef.current,
+        pendingRequestRouteKeyRef.current,
+        routeB,
+      );
+      currentError = isCurrent
+        && response.ok === false
+        && "message" in response
+        && typeof response.message === "string"
+        ? response.message
+        : null;
       const completed = getRecordableHomeRecommendation(
         "idle",
         response,
-        lifecycleB.pendingRequestKey,
-        lifecycleB.startedRequestKey,
-        null,
-        routeB,
+        pendingRequestKeyRef.current,
+        startedRequestKeyRef.current,
+        lastRecordedRequestKey,
+        pendingRequestRouteKeyRef.current,
         routeB,
       );
       if (!completed) return;
       displayed = completed.page;
-      recorded.push(completed.page.places[0]?.id ?? "EMPTY");
+      recordHomeRecommendation(storage, completed.page);
+      lastRecordedRequestKey = completed.requestKey;
+      clearHomeRecommendationRequestLifecycle({
+        pendingRequestKeyRef,
+        pendingRequestRouteKeyRef,
+        startedRequestKeyRef,
+      });
     };
     let releaseA: (() => void) | undefined;
     const delayedA = new Promise<void>((resolve) => {
       releaseA = resolve;
-    }).then(() => accept({
-      ok: true,
-      requestToken: "request-token-A",
-      requestRouteKey: routeA,
-      recommendations: pageA,
-    }));
+    }).then(() => deliver("A", lateResponse));
 
-    accept({
+    deliver("B", {
       ok: true,
       requestToken: "request-token-B",
-      requestRouteKey: routeB,
       recommendations: pageB,
     });
+    expect(displayed.places[0]?.id).toBe("place-B");
+    expect(readHomeRecommendationHistory(storage)).toEqual(expect.objectContaining({
+      previousMode: "time",
+      previousIds: ["place-B"],
+    }));
+    expect(currentError).toBeNull();
+
     releaseA?.();
     await delayedA;
 
+    expect(deliveryOrder).toEqual(["B", "A"]);
     expect(displayed.places[0]?.id).toBe("place-B");
     expect(displayed.mode).toBe("time");
-    expect(recorded).toEqual(["place-B"]);
+    expect(readHomeRecommendationHistory(storage)).toEqual(expect.objectContaining({
+      recentFirst: ["place-B"],
+      recentShown: [{ placeId: "place-B", count: 1 }],
+      previousMode: "time",
+      previousIds: ["place-B"],
+    }));
+    expect(currentError).toBeNull();
   });
 
   it("모드 변경·위치·지역·명시적 재시도만 현재 세션 이력을 보내며 hydration은 재요청하지 않는다", () => {

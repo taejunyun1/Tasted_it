@@ -327,7 +327,7 @@ test("지연된 이전 추천 응답은 전체 지도 loader 이후 세션 이�
   })).toBe("now");
 });
 
-test("지연 resource A 뒤 최신 resource B는 불변 토큰으로 화면과 이력을 지킨다", async ({ context, page }, testInfo) => {
+test("진행 중 resource A를 최신 B로 교체하면 B 화면과 이력을 지킨다", async ({ context, page }, testInfo) => {
   await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
   await context.setGeolocation(MOCK_GPS);
   let releaseA: (() => void) | undefined;
