@@ -26,6 +26,7 @@ const BBOX_TOLERANCE = 0.00001;
 
 type RecommendationContract = {
   ok: boolean;
+  requestToken: string;
   recommendations: {
     candidateCount: number;
     goldenFallback: boolean;
@@ -99,12 +100,14 @@ function expectBboxNear(actual: number[], expected: readonly number[]) {
 }
 
 async function directRecommendationContract(page: Page, mode: string) {
+  const requestToken = `direct-${mode}-contract`;
   const response = await page.request.get(
-    `/resources/home-recommendations?mode=${mode}&bbox=${DEFAULT_BBOX}&locationSource=map_center`,
+    `/resources/home-recommendations?mode=${mode}&bbox=${DEFAULT_BBOX}&locationSource=map_center&requestToken=${requestToken}`,
   );
   expect(response.status()).toBe(200);
   const contract = await response.json() as RecommendationContract;
   expect(contract.ok).toBe(true);
+  expect(contract.requestToken).toBe(requestToken);
   return contract.recommendations;
 }
 
@@ -322,6 +325,58 @@ test("지연된 이전 추천 응답은 전체 지도 loader 이후 세션 이�
     const raw = sessionStorage.getItem("retaste:home-curation-v2");
     return raw ? JSON.parse(raw).previousMode : null;
   })).toBe("now");
+});
+
+test("지연 resource A 뒤 최신 resource B는 불변 토큰으로 화면과 이력을 지킨다", async ({ context, page }, testInfo) => {
+  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
+  await context.setGeolocation(MOCK_GPS);
+  let releaseA: (() => void) | undefined;
+  const aGate = new Promise<void>((resolve) => {
+    releaseA = resolve;
+  });
+  let requestAToken: string | null = null;
+  let requestBToken: string | null = null;
+  await page.route("**/resources/home-recommendations.data?*", async (route) => {
+    const url = new URL(route.request().url());
+    const source = url.searchParams.get("locationSource");
+    if (source === "map_center") {
+      requestAToken = url.searchParams.get("requestToken");
+      await aGate;
+    } else if (source === "gps") {
+      requestBToken = url.searchParams.get("requestToken");
+    }
+    await route.continue();
+  });
+  await page.goto("/?qa=1");
+
+  const presentation = curationPresentation(page, testInfo.project.name);
+  await presentation.getByRole("button", { name: "내 취향", exact: true }).click();
+  await expect.poll(() => requestAToken).not.toBeNull();
+  const responseBPromise = page.waitForResponse((response) => (
+    response.url().includes("/resources/home-recommendations.data")
+    && new URL(response.url()).searchParams.get("locationSource") === "gps"
+  ));
+  await presentation.getByRole("button", { name: "내 위치", exact: true }).click();
+  const responseB = await responseBPromise;
+  expect(requestAToken).not.toBe(requestBToken);
+  expect(requestBToken).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+  expect(new URL(responseB.url()).searchParams.get("mode")).toBe("taste");
+  expectBboxNear(bboxFromRequestUrl(responseB.url()), MOCK_GPS_BBOX);
+  await expect(presentation.locator(".home-curation-list")).toHaveAttribute("aria-busy", "false");
+  const expectedBIds = await recommendationIds(presentation);
+  await expect.poll(() => page.evaluate(() => {
+    const raw = sessionStorage.getItem("retaste:home-curation-v2");
+    return raw ? JSON.parse(raw).previousIds : [];
+  })).toEqual(expectedBIds);
+
+  releaseA?.();
+  await page.waitForTimeout(300);
+
+  expect(await recommendationIds(presentation)).toEqual(expectedBIds);
+  await expect.poll(() => page.evaluate(() => {
+    const raw = sessionStorage.getItem("retaste:home-curation-v2");
+    return raw ? JSON.parse(raw).previousIds : [];
+  })).toEqual(expectedBIds);
 });
 
 test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동기화된다", async ({ page }, testInfo) => {

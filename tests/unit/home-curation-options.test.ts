@@ -56,36 +56,39 @@ describe("home curation options", () => {
   });
 
   it("추천 리소스의 모드와 bbox를 엄격하게 파싱한다", () => {
-    expect(parseHomeRecommendationRequest("?mode=golden&bbox=126.8,35,127,35.3"))
+    expect(parseHomeRecommendationRequest("?mode=golden&bbox=126.8,35,127,35.3&requestToken=request-token-01"))
       .toEqual(expect.objectContaining({
         mode: "golden",
         bbox: [126.8, 35, 127, 35.3],
         center: { latitude: 35.15, longitude: 126.9 },
+        requestToken: "request-token-01",
       }));
   });
 
   it("React Router가 붙이는 정확한 리소스 식별자만 허용한다", () => {
-    expect(parseHomeRecommendationRequest("?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource"))
+    expect(parseHomeRecommendationRequest("?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-02&_routes=routes%2Fhome-recommendations-resource"))
       .toMatchObject({ mode: "now", bbox: [126.8, 35, 127, 35.3] });
   });
 
   it("locationSource만 허용하고 history는 손상돼도 요청을 보존한다", () => {
-    expect(parseHomeRecommendationRequest(new URL("https://x.test/r?mode=now&locationSource=gps&history=bad")))
+    expect(parseHomeRecommendationRequest(new URL("https://x.test/r?mode=now&locationSource=gps&history=bad&requestToken=request-token-03")))
       .toEqual(expect.objectContaining({ locationSource: "gps", history: expect.objectContaining({ recentFirst: [] }) }));
   });
 
   it.each([
     "?bbox=126.8,35,127,35.3",
-    "?mode=bad&bbox=126.8,35,127,35.3",
-    "?mode=now&mode=taste&bbox=126.8,35,127,35.3",
-    "?mode=now&bbox=126.8,35,127,35.3&debug=1",
-    "?mode=now&bbox=126.8,35,127,35.3&_routes=bad",
-    "?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource&_routes=routes%2Fhome-recommendations-resource",
-    "?mode=now&locationSource=browser",
-    "?mode=now&locationSource=gps&locationSource=map_center",
-    "?mode=now&bbox=126.8,35,127",
-    "?mode=now&bbox=127,35.3,126.8,35",
-    "?mode=now&bbox=100,35,101,35.3",
+    "?mode=bad&bbox=126.8,35,127,35.3&requestToken=request-token-04",
+    "?mode=now&mode=taste&bbox=126.8,35,127,35.3&requestToken=request-token-04",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-04&debug=1",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-04&_routes=bad",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-04&_routes=routes%2Fhome-recommendations-resource&_routes=routes%2Fhome-recommendations-resource",
+    "?mode=now&locationSource=browser&requestToken=request-token-04",
+    "?mode=now&locationSource=gps&locationSource=map_center&requestToken=request-token-04",
+    "?mode=now&bbox=126.8,35,127&requestToken=request-token-04",
+    "?mode=now&bbox=127,35.3,126.8,35&requestToken=request-token-04",
+    "?mode=now&bbox=100,35,101,35.3&requestToken=request-token-04",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=bad token",
+    `?mode=now&bbox=126.8,35,127,35.3&requestToken=${"a".repeat(65)}`,
   ])("모호하거나 한국 범위를 벗어난 추천 요청을 거부한다: %s", (search) => {
     expect(() => parseHomeRecommendationRequest(search)).toThrow("HOME_RECOMMENDATION_REQUEST_INVALID");
   });

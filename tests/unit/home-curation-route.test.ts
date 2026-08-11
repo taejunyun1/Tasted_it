@@ -126,12 +126,19 @@ describe("home curated route", () => {
     } as Storage;
     const { buildRecommendationUrl } = await import("../../app/routes/home");
 
-    const url = new URL(buildRecommendationUrl("taste", [126.8, 35, 127, 35.3], "gps", storage), "https://retaste.example");
+    const url = new URL(buildRecommendationUrl(
+      "taste",
+      [126.8, 35, 127, 35.3],
+      "gps",
+      "request-token-01",
+      storage,
+    ), "https://retaste.example");
 
     expect(url.pathname).toBe("/resources/home-recommendations");
     expect(url.searchParams.get("mode")).toBe("taste");
     expect(url.searchParams.get("bbox")).toBe("126.8,35,127,35.3");
     expect(url.searchParams.get("locationSource")).toBe("gps");
+    expect(url.searchParams.get("requestToken")).toBe("request-token-01");
     expect(url.searchParams.get("history")).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
@@ -157,16 +164,40 @@ describe("home curated route", () => {
     }));
   });
 
-  it("전체 지도 왕복과 새 loader 결과에서 이전 지역 pending bounds를 폐기한다", () => {
+  it("새 loader 결과는 pending bounds와 진행 중 추천 요청 수명주기를 함께 폐기한다", async () => {
+    const { clearHomeRecommendationRequestLifecycle } = await import("../../app/routes/home");
+    const pendingRequestKeyRef = { current: "request-token-A" };
+    const pendingRequestRouteKeyRef = { current: "route-A" };
+    const startedRequestKeyRef = { current: "request-token-A" };
+
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
+
+    expect({
+      pendingRequestKey: pendingRequestKeyRef.current,
+      pendingRequestRouteKey: pendingRequestRouteKeyRef.current,
+      startedRequestKey: startedRequestKeyRef.current,
+    }).toEqual({
+      pendingRequestKey: null,
+      pendingRequestRouteKey: null,
+      startedRequestKey: null,
+    });
+
     const source = readFileSync("app/routes/home.tsx", "utf8");
 
     expect(source).toMatch(/const browseAll = \(\) => \{\s*setPendingBounds\(null\)/);
     expect(source).toMatch(/const returnToCuration = \(\) => \{\s*setPendingBounds\(null\)/);
-    expect(source).toMatch(/\[loaderData\.curation, loaderData\.view\]/);
+    expect(source).toMatch(/useEffect\(\(\) => \{[\s\S]*?setPendingBounds\(null\);[\s\S]*?clearHomeRecommendationRequestLifecycle\([\s\S]*?\);[\s\S]*?\}, \[loaderData\.curation, loaderData\.view\]\)/);
   });
 
   it("완료된 v2 정상 응답만 요청별 한 번 기록 대상으로 고른다", async () => {
-    const { getRecordableHomeRecommendation } = await import("../../app/routes/home");
+    const {
+      getRecordableHomeRecommendation,
+      isCurrentHomeRecommendationResponse,
+    } = await import("../../app/routes/home");
     const page = {
       algorithmVersion: "home-curation-v2",
       status: "READY",
@@ -178,27 +209,52 @@ describe("home curated route", () => {
       goldenFallback: false,
       notice: null,
     } as const;
-    const response = { ok: true as const, recommendations: page };
+    const response = { ok: true as const, requestToken: "request-token-01", recommendations: page };
     const routeKey = "curated|now|126.80000,35.00000,127.00000,35.30000|map_center";
 
-    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", null, routeKey, routeKey))
-      .toEqual({ requestKey: "request-1", page });
+    expect(isCurrentHomeRecommendationResponse(
+      "idle",
+      response,
+      "request-token-01",
+      "request-token-01",
+      routeKey,
+      routeKey,
+    )).toBe(true);
+    expect(isCurrentHomeRecommendationResponse(
+      "idle",
+      { ok: false, requestToken: "request-token-stale", message: "stale" },
+      "request-token-01",
+      "request-token-01",
+      routeKey,
+      routeKey,
+    )).toBe(false);
+
+    expect(getRecordableHomeRecommendation("idle", response, "request-token-01", "request-token-01", null, routeKey, routeKey))
+      .toEqual({ requestKey: "request-token-01", page });
     const emptyPage = { ...page, status: "EMPTY" as const };
     expect(getRecordableHomeRecommendation("idle", {
       ok: true,
+      requestToken: "request-token-02",
       recommendations: emptyPage,
-    }, "request-2", "request-2", null, routeKey, routeKey)).toEqual({ requestKey: "request-2", page: emptyPage });
-    expect(getRecordableHomeRecommendation("loading", response, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
-    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", "request-1", routeKey, routeKey)).toBeNull();
-    expect(getRecordableHomeRecommendation("idle", { ok: false }, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
+    }, "request-token-02", "request-token-02", null, routeKey, routeKey)).toEqual({ requestKey: "request-token-02", page: emptyPage });
+    expect(getRecordableHomeRecommendation("loading", response, "request-token-01", "request-token-01", null, routeKey, routeKey)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", response, "request-token-01", "request-token-01", "request-token-01", routeKey, routeKey)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", { ok: false }, "request-token-01", "request-token-01", null, routeKey, routeKey)).toBeNull();
     expect(getRecordableHomeRecommendation("idle", {
       ok: true,
+      requestToken: "request-token-01",
       recommendations: { ...page, algorithmVersion: "home-curation-v1" },
-    }, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
+    }, "request-token-01", "request-token-01", null, routeKey, routeKey)).toBeNull();
     expect(getRecordableHomeRecommendation("idle", {
       ok: true,
+      requestToken: "request-token-01",
       recommendations: { ...page, status: "ERROR" },
-    }, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
+    }, "request-token-01", "request-token-01", null, routeKey, routeKey)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", {
+      ok: true,
+      requestToken: "request-token-stale",
+      recommendations: page,
+    }, "request-token-01", "request-token-01", null, routeKey, routeKey)).toBeNull();
   });
 
   it("지연된 A 응답은 URL·loader가 B로 이동한 뒤 결과나 이력 기록 대상으로 수락하지 않는다", async () => {
@@ -232,7 +288,7 @@ describe("home curated route", () => {
 
     expect(getRecordableHomeRecommendation(
       "idle",
-      { ok: true, recommendations: delayedPageA },
+      { ok: true, requestToken: "request-token-A", recommendations: delayedPageA },
       "request-A",
       "request-A",
       null,
@@ -266,7 +322,7 @@ describe("home curated route", () => {
     });
     expect(getRecordableHomeRecommendation(
       "idle",
-      { ok: true, recommendations: retainedPageA },
+      { ok: true, requestToken: "request-token-A", recommendations: retainedPageA },
       lifecycle.pendingRequestKey,
       lifecycle.startedRequestKey,
       "request-A",
@@ -300,13 +356,88 @@ describe("home curated route", () => {
     });
     expect(getRecordableHomeRecommendation(
       "idle",
-      { ok: true, recommendations: pageB },
+      { ok: true, requestToken: "request-B", recommendations: pageB },
       lifecycle.pendingRequestKey,
       lifecycle.startedRequestKey,
       "request-A",
       "route-B",
       "route-B",
     )).toEqual({ requestKey: "request-B", page: pageB });
+  });
+
+  it("지연된 resource A가 최신 resource B 식별자로 노출돼도 B 결과와 이력을 덮어쓰지 않는다", async () => {
+    const {
+      beginHomeRecommendationRequest,
+      getHomeRecommendationRouteKey,
+      getRecordableHomeRecommendation,
+    } = await import("../../app/routes/home");
+    const pageA = {
+      algorithmVersion: "home-curation-v2",
+      status: "READY",
+      places: [{ id: "place-A" }],
+      mode: "taste",
+      timeSlot: "lunch",
+      radiusMeters: 3_000,
+      candidateCount: 1,
+      goldenFallback: false,
+      notice: null,
+    } as unknown as import("../../app/features/places/home-curation").HomeCurationPage;
+    const pageB = {
+      ...pageA,
+      places: [{ id: "place-B" }],
+      mode: "time",
+    } as import("../../app/features/places/home-curation").HomeCurationPage;
+    const routeA = getHomeRecommendationRouteKey({
+      view: "curated",
+      mode: "taste",
+      bbox: [126.72, 35.03, 127.02, 35.25],
+      locationSource: "map_center",
+    });
+    const routeB = getHomeRecommendationRouteKey({
+      view: "curated",
+      mode: "time",
+      bbox: [126.85, 35.127, 126.9, 35.163],
+      locationSource: "gps",
+    });
+    const lifecycleB = beginHomeRecommendationRequest("loading", "request-token-B");
+    let displayed = pageA;
+    const recorded: string[] = [];
+    const accept = (response: unknown) => {
+      const completed = getRecordableHomeRecommendation(
+        "idle",
+        response,
+        lifecycleB.pendingRequestKey,
+        lifecycleB.startedRequestKey,
+        null,
+        routeB,
+        routeB,
+      );
+      if (!completed) return;
+      displayed = completed.page;
+      recorded.push(completed.page.places[0]?.id ?? "EMPTY");
+    };
+    let releaseA: (() => void) | undefined;
+    const delayedA = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    }).then(() => accept({
+      ok: true,
+      requestToken: "request-token-A",
+      requestRouteKey: routeA,
+      recommendations: pageA,
+    }));
+
+    accept({
+      ok: true,
+      requestToken: "request-token-B",
+      requestRouteKey: routeB,
+      recommendations: pageB,
+    });
+    releaseA?.();
+    await delayedA;
+
+    expect(displayed.places[0]?.id).toBe("place-B");
+    expect(displayed.mode).toBe("time");
+    expect(recorded).toEqual(["place-B"]);
   });
 
   it("모드 변경·위치·지역·명시적 재시도만 현재 세션 이력을 보내며 hydration은 재요청하지 않는다", () => {
@@ -318,7 +449,8 @@ describe("home curated route", () => {
     expect(source).toContain("lastRecordedRequestKeyRef");
     expect(source).toContain("pendingRequestRouteKeyRef");
     expect(source).toContain("beginHomeRecommendationRequest(");
-    expect(source).toContain('const requestKey = `${++requestSequenceRef.current}:${requestUrl}`;');
+    expect(source).toContain("createHomeRecommendationRequestToken(++requestSequenceRef.current)");
+    expect(source).toContain("buildRecommendationUrl(mode, bbox, source, requestKey)");
     expect(source).toContain('loadRecommendations(mode, liveMapState.bbox, liveHomeState.locationSource)');
     expect(source).toContain('loadRecommendations(liveHomeState.mode, result.bbox, "gps")');
     expect(source).toContain('loadRecommendations(liveHomeState.mode, pendingBounds, "map_center")');

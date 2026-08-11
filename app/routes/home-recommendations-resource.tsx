@@ -37,11 +37,16 @@ export async function loader({ request }: Route.LoaderArgs) {
       locationSource: state.locationSource,
     });
 
-    return data({ ok: true as const, recommendations });
+    return data({
+      ok: true as const,
+      requestToken: state.requestToken,
+      recommendations,
+    });
   } catch (error) {
     console.error("HOME_RECOMMENDATION_RESOURCE_FAILED", error);
     return data({
       ok: false as const,
+      requestToken: state.requestToken,
       message: "추천을 다시 불러오지 못했어요. 기존 결과를 유지합니다.",
     }, { status: 503 });
   }

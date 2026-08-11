@@ -47,15 +47,21 @@ export function buildRecommendationUrl(
   mode: HomeCurationMode,
   bbox: [number, number, number, number],
   locationSource: HomeLocationSource,
+  requestToken: string,
   storage: Storage = sessionStorage,
 ) {
   const params = new URLSearchParams({
     mode,
     bbox: bbox.join(","),
     locationSource,
+    requestToken,
     history: encodeHomeRecommendationHistory(readHomeRecommendationHistory(storage)),
   });
   return `/resources/home-recommendations?${params}`;
+}
+
+export function createHomeRecommendationRequestToken(sequence: number) {
+  return `hr-${sequence.toString(36)}-${crypto.randomUUID()}`;
 }
 
 export function beginHomeRecommendationRequest(
@@ -66,6 +72,18 @@ export function beginHomeRecommendationRequest(
     pendingRequestKey: requestKey,
     startedRequestKey: state === "idle" ? null : requestKey,
   };
+}
+
+type NullableStringRef = { current: string | null };
+
+export function clearHomeRecommendationRequestLifecycle(input: {
+  pendingRequestKeyRef: NullableStringRef;
+  pendingRequestRouteKeyRef: NullableStringRef;
+  startedRequestKeyRef: NullableStringRef;
+}) {
+  input.pendingRequestKeyRef.current = null;
+  input.pendingRequestRouteKeyRef.current = null;
+  input.startedRequestKeyRef.current = null;
 }
 
 export function getHomeRecommendationRouteKey(input: {
@@ -82,6 +100,26 @@ export function getHomeRecommendationRouteKey(input: {
   ].join("|");
 }
 
+export function isCurrentHomeRecommendationResponse(
+  state: RecommendationFetcherState,
+  response: unknown,
+  requestKey: string | null,
+  startedRequestKey: string | null,
+  requestRouteKey: string | null,
+  currentRouteKey: string,
+): response is { ok: unknown; requestToken: string } {
+  return state === "idle"
+    && Boolean(requestKey)
+    && startedRequestKey === requestKey
+    && Boolean(requestRouteKey)
+    && requestRouteKey === currentRouteKey
+    && typeof response === "object"
+    && response !== null
+    && "ok" in response
+    && "requestToken" in response
+    && response.requestToken === requestKey;
+}
+
 export function getRecordableHomeRecommendation(
   state: RecommendationFetcherState,
   response: unknown,
@@ -92,15 +130,16 @@ export function getRecordableHomeRecommendation(
   currentRouteKey: string,
 ): { requestKey: string; page: HomeCurationPage } | null {
   if (
-    state !== "idle"
+    !isCurrentHomeRecommendationResponse(
+      state,
+      response,
+      requestKey,
+      startedRequestKey,
+      requestRouteKey,
+      currentRouteKey,
+    )
     || !requestKey
-    || startedRequestKey !== requestKey
     || lastRecordedRequestKey === requestKey
-    || !requestRouteKey
-    || requestRouteKey !== currentRouteKey
-    || typeof response !== "object"
-    || response === null
-    || !("ok" in response)
     || response.ok !== true
     || !("recommendations" in response)
     || typeof response.recommendations !== "object"
@@ -217,7 +256,17 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const markerRanks = useMemo(() => Object.fromEntries(
     (isCurated ? activeCuration?.places ?? [] : []).map((place) => [place.id, place.rank]),
   ), [activeCuration, isCurated]);
-  const recommendationError = recommendationFetcher.data && !recommendationFetcher.data.ok
+  const recommendationResponseIsCurrent = isCurrentHomeRecommendationResponse(
+    recommendationFetcher.state,
+    recommendationFetcher.data,
+    pendingRequestKeyRef.current,
+    startedRequestKeyRef.current,
+    pendingRequestRouteKeyRef.current,
+    currentRecommendationRouteKey,
+  );
+  const recommendationError = recommendationResponseIsCurrent
+    && recommendationFetcher.data
+    && !recommendationFetcher.data.ok
     ? recommendationFetcher.data.message
     : null;
 
@@ -232,6 +281,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
   useEffect(() => {
     setPendingBounds(null);
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
   }, [loaderData.curation, loaderData.view]);
 
   useEffect(() => {
@@ -240,9 +294,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       || pendingRequestRouteKeyRef.current === currentRecommendationRouteKey
     ) return;
 
-    pendingRequestKeyRef.current = null;
-    pendingRequestRouteKeyRef.current = null;
-    startedRequestKeyRef.current = null;
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
   }, [currentRecommendationRouteKey]);
 
   useEffect(() => {
@@ -266,9 +322,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setPendingBounds(null);
     recordHomeRecommendation(sessionStorage, completed.page);
     lastRecordedRequestKeyRef.current = completed.requestKey;
-    pendingRequestKeyRef.current = null;
-    pendingRequestRouteKeyRef.current = null;
-    startedRequestKeyRef.current = null;
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
   }, [currentRecommendationRouteKey, recommendationFetcher.data, recommendationFetcher.state]);
 
   useEffect(() => {
@@ -283,8 +341,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     bbox: [number, number, number, number],
     source: HomeLocationSource,
   ) => {
-    const requestUrl = buildRecommendationUrl(mode, bbox, source);
-    const requestKey = `${++requestSequenceRef.current}:${requestUrl}`;
+    const requestKey = createHomeRecommendationRequestToken(++requestSequenceRef.current);
+    const requestUrl = buildRecommendationUrl(mode, bbox, source, requestKey);
     const lifecycle = beginHomeRecommendationRequest(recommendationFetcher.state, requestKey);
     pendingRequestKeyRef.current = lifecycle.pendingRequestKey;
     pendingRequestRouteKeyRef.current = getHomeRecommendationRouteKey({
@@ -342,9 +400,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   };
   const browseAll = () => {
     setPendingBounds(null);
-    pendingRequestKeyRef.current = null;
-    pendingRequestRouteKeyRef.current = null;
-    startedRequestKeyRef.current = null;
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("view", "browse");
@@ -354,9 +414,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   };
   const returnToCuration = () => {
     setPendingBounds(null);
-    pendingRequestKeyRef.current = null;
-    pendingRequestRouteKeyRef.current = null;
-    startedRequestKeyRef.current = null;
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("view");

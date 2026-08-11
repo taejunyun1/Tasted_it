@@ -11,6 +11,7 @@ export type HomeTimeSlot = "breakfast" | "lunch" | "afternoon" | "dinner" | "lat
 export type { HomeLocationSource } from "../places/home-curation-history-codec";
 
 const MODES = new Set<HomeCurationMode>(["now", "taste", "time", "golden", "discovery"]);
+const HOME_RECOMMENDATION_REQUEST_TOKEN = /^[A-Za-z0-9_-]{8,64}$/;
 
 export function parseHomeCurationState(search: string): {
   view: HomeMapView;
@@ -90,20 +91,28 @@ export function parseHomeRecommendationRequest(input: string | URL | URLSearchPa
   center: { latitude: number; longitude: number };
   locationSource: HomeLocationSource;
   history: HomeRecommendationHistory;
+  requestToken: string;
 } {
   const params = recommendationSearchParams(input);
   const keys = [...params.keys()];
   const validKeys = keys.every((key) => (
-    key === "mode" || key === "bbox" || key === "_routes" || key === "history" || key === "locationSource"
+    key === "mode"
+    || key === "bbox"
+    || key === "_routes"
+    || key === "history"
+    || key === "locationSource"
+    || key === "requestToken"
   ));
   const modeValues = params.getAll("mode");
   const bboxValues = params.getAll("bbox");
   const routeValues = params.getAll("_routes");
   const historyValues = params.getAll("history");
   const locationSourceValues = params.getAll("locationSource");
+  const requestTokenValues = params.getAll("requestToken");
   const mode = modeValues[0] as HomeCurationMode | undefined;
   const bboxNumbers = bboxValues[0]?.split(",").map(Number) ?? [...DEFAULT_BBOX];
   const locationSource = locationSourceValues[0] as HomeLocationSource | undefined;
+  const requestToken = requestTokenValues[0];
 
   if (
     !validKeys
@@ -113,10 +122,13 @@ export function parseHomeRecommendationRequest(input: string | URL | URLSearchPa
     || routeValues.length > 1
     || historyValues.length > 1
     || locationSourceValues.length > 1
+    || requestTokenValues.length !== 1
     || (routeValues.length === 1 && routeValues[0] !== "routes/home-recommendations-resource")
     || !mode
     || !MODES.has(mode)
     || (locationSource !== undefined && locationSource !== "gps" && locationSource !== "map_center")
+    || !requestToken
+    || !HOME_RECOMMENDATION_REQUEST_TOKEN.test(requestToken)
     || bboxNumbers.length !== 4
     || bboxNumbers.some((value) => !Number.isFinite(value))
   ) {
@@ -142,5 +154,6 @@ export function parseHomeRecommendationRequest(input: string | URL | URLSearchPa
     center: centerOfBbox(bbox),
     locationSource: locationSource ?? "map_center",
     history: decodeHomeRecommendationHistory(historyValues[0]),
+    requestToken,
   };
 }
