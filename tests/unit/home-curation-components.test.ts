@@ -57,7 +57,6 @@ const props: HomeCurationPresentationProps = {
   onSelect: vi.fn(),
   onLocate: vi.fn(),
   onRetry: vi.fn(),
-  onBrowse: vi.fn(),
 };
 
 describe("home curation presentation", () => {
@@ -74,14 +73,15 @@ describe("home curation presentation", () => {
     expect(html).toContain('aria-pressed="true"');
   });
 
-  it("데스크톱 패널과 모바일 시트가 같은 모드·추천 계약을 공유한다", () => {
+  it("데스크톱 패널과 모바일 시트는 추천 내용만 공유하고 지도 전환 버튼을 갖지 않는다", () => {
     const panel = renderToStaticMarkup(createElement(HomeCurationPanel, props));
     const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, props));
 
     expect(panel).toContain("지금 갈 만한 5곳");
     expect(sheet).toContain("지금 갈 만한 5곳");
     expect(panel).toContain("내 취향");
-    expect(sheet).toContain("전체 지도");
+    expect(panel).not.toContain("전체 지도");
+    expect(sheet).not.toContain("전체 지도");
     expect(sheet).toContain('data-snap="half"');
   });
 

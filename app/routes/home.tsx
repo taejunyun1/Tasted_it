@@ -232,7 +232,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     onSelect: (id: string) => setSearch({ selected: id }),
     onLocate: locate,
     onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox),
-    onBrowse: browseAll,
   } : null;
 
   return <main id="main" className={`map-explorer${isCurated ? " map-explorer--curated" : ""}`}>
@@ -272,7 +271,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       />
       {isCurated && pendingBounds && <button type="button" className="home-curation-reload-area" onClick={recommendPendingArea}>이 지역 다시 추천</button>}
       {isCurated && presentationProps && <HomeCurationSheet {...presentationProps} />}
-      {!isCurated && <button type="button" className="home-curation-return" onClick={returnToCuration}>추천 지도</button>}
+      <button
+        type="button"
+        className="home-curation-view-toggle"
+        onClick={isCurated ? browseAll : returnToCuration}
+      >
+        {isCurated ? "전체 지도" : "추천 지도"}
+      </button>
       {!isCurated && selectedPlace && !detailSlug && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} onOpenDetail={openDetail} />}
       {!isCurated && <PlaceDetailSheet slug={detailSlug} onClose={closeDetail} />}
     </section>

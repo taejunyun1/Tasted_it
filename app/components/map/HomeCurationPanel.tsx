@@ -19,7 +19,6 @@ export function HomeCurationPanel(props: HomeCurationPresentationProps) {
     <HomeCurationCards {...props} />
     <footer className="home-curation-footer">
       <span>{props.page.radiusMeters / 1_000}km 안에서 추천</span>
-      <button type="button" onClick={props.onBrowse}>전체 지도</button>
     </footer>
   </aside>;
 }

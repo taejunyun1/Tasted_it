@@ -18,7 +18,6 @@ export type HomeCurationPresentationProps = {
   onSelect: (placeId: string) => void;
   onLocate: () => void;
   onRetry: () => void;
-  onBrowse: () => void;
 };
 
 export const HOME_CURATION_MODE_OPTIONS: Array<{

@@ -95,5 +95,9 @@ describe("home curated route", () => {
     expect(source).toContain("이 지역 다시 추천");
     expect(source).toContain("markerRanks={markerRanks}");
     expect(source).toContain("추천 지도");
+    expect(source).toContain('className="home-curation-view-toggle"');
+    expect(source).toContain('isCurated ? "전체 지도" : "추천 지도"');
+    expect(source).toContain("isCurated ? browseAll : returnToCuration");
+    expect(source.match(/home-curation-view-toggle/g)).toHaveLength(1);
   });
 });

@@ -57,7 +57,6 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
       <HomeCurationModeControls {...props} />
       {props.error && <p className="home-curation-error" role="status">{props.error} <button type="button" onClick={props.onRetry}>다시 시도</button></p>}
       <HomeCurationCards {...props} />
-      <button type="button" className="home-curation-browse" onClick={props.onBrowse}>전체 지도</button>
     </div>
   </aside>;
 }
