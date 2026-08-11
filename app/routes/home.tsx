@@ -57,6 +57,16 @@ export function buildRecommendationUrl(
   return `/resources/home-recommendations?${params}`;
 }
 
+export function beginHomeRecommendationRequest(
+  state: RecommendationFetcherState,
+  requestKey: string,
+): { pendingRequestKey: string; startedRequestKey: string | null } {
+  return {
+    pendingRequestKey: requestKey,
+    startedRequestKey: state === "idle" ? null : requestKey,
+  };
+}
+
 export function getRecordableHomeRecommendation(
   state: RecommendationFetcherState,
   response: unknown,
@@ -222,8 +232,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   ) => {
     const requestUrl = buildRecommendationUrl(mode, bbox, source);
     const requestKey = `${++requestSequenceRef.current}:${requestUrl}`;
-    pendingRequestKeyRef.current = requestKey;
-    startedRequestKeyRef.current = requestKey;
+    const lifecycle = beginHomeRecommendationRequest(recommendationFetcher.state, requestKey);
+    pendingRequestKeyRef.current = lifecycle.pendingRequestKey;
+    startedRequestKeyRef.current = lifecycle.startedRequestKey;
     void recommendationFetcher.load(requestUrl);
   };
   const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => {

@@ -159,6 +159,70 @@ describe("home curated route", () => {
     }, "request-1", "request-1", null)).toBeNull();
   });
 
+  it("idle의 retained 성공 A는 B가 loading 되기 전에 B 응답으로 기록하지 않는다", async () => {
+    const {
+      beginHomeRecommendationRequest,
+      getRecordableHomeRecommendation,
+    } = await import("../../app/routes/home");
+    const retainedPageA = {
+      algorithmVersion: "home-curation-v2",
+      status: "READY",
+      places: [],
+      mode: "now",
+      timeSlot: "lunch",
+      radiusMeters: 3_000,
+      candidateCount: 0,
+      goldenFallback: false,
+      notice: null,
+    } as const;
+
+    const lifecycle = beginHomeRecommendationRequest("idle", "request-B");
+
+    expect(lifecycle).toEqual({
+      pendingRequestKey: "request-B",
+      startedRequestKey: null,
+    });
+    expect(getRecordableHomeRecommendation(
+      "idle",
+      { ok: true, recommendations: retainedPageA },
+      lifecycle.pendingRequestKey,
+      lifecycle.startedRequestKey,
+      "request-A",
+    )).toBeNull();
+  });
+
+  it("loading 중 A를 B로 교체하면 같은 fetcher의 최신 B 완료를 B 요청에 연결한다", async () => {
+    const {
+      beginHomeRecommendationRequest,
+      getRecordableHomeRecommendation,
+    } = await import("../../app/routes/home");
+    const pageB = {
+      algorithmVersion: "home-curation-v2",
+      status: "EMPTY",
+      places: [],
+      mode: "taste",
+      timeSlot: "lunch",
+      radiusMeters: 3_000,
+      candidateCount: 0,
+      goldenFallback: false,
+      notice: null,
+    } as const;
+
+    const lifecycle = beginHomeRecommendationRequest("loading", "request-B");
+
+    expect(lifecycle).toEqual({
+      pendingRequestKey: "request-B",
+      startedRequestKey: "request-B",
+    });
+    expect(getRecordableHomeRecommendation(
+      "idle",
+      { ok: true, recommendations: pageB },
+      lifecycle.pendingRequestKey,
+      lifecycle.startedRequestKey,
+      "request-A",
+    )).toEqual({ requestKey: "request-B", page: pageB });
+  });
+
   it("모드 변경·위치·지역·명시적 재시도만 현재 세션 이력을 보내며 hydration은 재요청하지 않는다", () => {
     const source = readFileSync("app/routes/home.tsx", "utf8");
 
@@ -166,7 +230,8 @@ describe("home curated route", () => {
     expect(source).toContain("encodeHomeRecommendationHistory");
     expect(source).toContain("recordHomeRecommendation");
     expect(source).toContain("lastRecordedRequestKeyRef");
-    expect(source).toMatch(/const requestKey = `\$\{\+\+requestSequenceRef\.current\}:\$\{requestUrl\}`;\s*pendingRequestKeyRef\.current = requestKey;\s*startedRequestKeyRef\.current = requestKey;\s*void recommendationFetcher\.load\(requestUrl\)/);
+    expect(source).toContain("beginHomeRecommendationRequest(");
+    expect(source).toContain('const requestKey = `${++requestSequenceRef.current}:${requestUrl}`;');
     expect(source).toContain('loadRecommendations(mode, liveMapState.bbox, locationSource)');
     expect(source).toContain('loadRecommendations(liveHomeState.mode, result.bbox, "gps")');
     expect(source).toContain('loadRecommendations(liveHomeState.mode, pendingBounds, "map_center")');
