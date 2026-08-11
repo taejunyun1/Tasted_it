@@ -233,7 +233,6 @@ await expect(page.locator(".map-explorer-panel")).toBeVisible();
 await page.getByRole("button", { name: "추천 지도", exact: true }).click();
 await expect(page.getByRole("button", { name: "전체 지도", exact: true })).toBeVisible();
 await expect(presentation).toBeVisible();
-await expect(presentation.getByRole("button", { name: "내 취향" })).toHaveAttribute("aria-pressed", "true");
 ```
 
 `tests/e2e/browse.spec.ts`도 첫 전환을 페이지 전역 버튼으로 변경한다.

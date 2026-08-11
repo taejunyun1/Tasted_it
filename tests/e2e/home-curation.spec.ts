@@ -32,7 +32,11 @@ test("curated home shows five ranked places and preserves explicit browse", asyn
     await page.screenshot({ path: testInfo.outputPath(`home-curation-${testInfo.project.name}.png`), fullPage: true });
   }
 
-  await presentation.getByRole("button", { name: "전체 지도" }).click();
-  await expect(page.getByRole("button", { name: "추천 지도" })).toBeVisible();
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
   await expect(page.locator(".map-explorer-panel")).toBeVisible();
+
+  await page.getByRole("button", { name: "추천 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "전체 지도", exact: true })).toBeVisible();
+  await expect(presentation.getByRole("heading", { name: "지금 갈 만한 5곳" })).toBeVisible();
 });

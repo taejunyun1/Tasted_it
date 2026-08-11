@@ -3,8 +3,7 @@ import { expect, test } from "@playwright/test";
 test("category journey exposes the same place in list and map", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByLabel("장소 지도")).toBeVisible();
-  const curatedPresentation = page.locator(".home-curation-panel:visible, .home-curation-sheet:visible");
-  await curatedPresentation.getByRole("button", { name: "전체 지도" }).click();
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
   await page.getByRole("button", { name: /일식/ }).click();
   await page.getByRole("button", { name: /라멘/ }).first().click();
   await expect(page).toHaveURL(/category=ramen-detail/);
