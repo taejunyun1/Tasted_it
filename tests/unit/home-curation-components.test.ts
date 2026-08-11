@@ -15,10 +15,14 @@ import {
 import type { HomeCurationPage } from "../../app/features/places/home-curation";
 
 const page: HomeCurationPage = {
+  algorithmVersion: "home-curation-v2",
   status: "READY",
   mode: "now",
   timeSlot: "lunch",
   radiusMeters: 3_000,
+  candidateCount: 5,
+  goldenFallback: false,
+  notice: null,
   places: Array.from({ length: 5 }, (_, index) => ({
     id: `place-${index}`,
     slug: `place-${index}`,

@@ -41,18 +41,22 @@ export type HomeCurationInput = {
   tasteSignals: RankingTasteSignal[];
   mode: HomeCurationMode;
   timeSlot: HomeTimeSlot;
-  radiusMeters: 3_000 | 5_000;
+  radiusMeters: 3_000 | 5_000 | 8_000;
   history?: HomeRecommendationHistory;
   dateKey?: string;
   locationSource?: HomeLocationSource;
 };
 
 export type HomeCurationPage = {
+  algorithmVersion: "home-curation-v2";
   status: "READY" | "EMPTY";
   places: HomeCuratedPlace[];
   mode: HomeCurationMode;
   timeSlot: HomeTimeSlot;
-  radiusMeters: 3_000 | 5_000;
+  radiusMeters: 3_000 | 5_000 | 8_000;
+  candidateCount: number;
+  goldenFallback: boolean;
+  notice: string | null;
 };
 
 const EMPTY_HISTORY: HomeRecommendationHistory = {
@@ -67,7 +71,7 @@ function sampleCount(place: DiscoveryPlace) {
   return place.ratingSampleCount ?? place.positive + place.negative;
 }
 
-function passesHomeQuality(place: DiscoveryPlace) {
+export function passesHomeQuality(place: DiscoveryPlace) {
   const samples = sampleCount(place);
   if (samples < 8) return true;
   const visibleScore = place.ratingScore ?? calculateRating(place).displayScore;
