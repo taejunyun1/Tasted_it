@@ -437,7 +437,8 @@ describe("home curated route", () => {
     const storage = memoryStorage();
     let displayed = initialPage;
     let currentError: string | null = null;
-    let lastRecordedRequestKey: string | null = null;
+    // Keep B's lifecycle active and omit the duplicate-record guard so the
+    // immutable response token is the only identity boundary exercised here.
     const deliveryOrder: string[] = [];
     const deliver = (label: "A" | "B", response: unknown) => {
       deliveryOrder.push(label);
@@ -460,19 +461,13 @@ describe("home curated route", () => {
         response,
         pendingRequestKeyRef.current,
         startedRequestKeyRef.current,
-        lastRecordedRequestKey,
+        null,
         pendingRequestRouteKeyRef.current,
         routeB,
       );
       if (!completed) return;
       displayed = completed.page;
       recordHomeRecommendation(storage, completed.page);
-      lastRecordedRequestKey = completed.requestKey;
-      clearHomeRecommendationRequestLifecycle({
-        pendingRequestKeyRef,
-        pendingRequestRouteKeyRef,
-        startedRequestKeyRef,
-      });
     };
     let releaseA: (() => void) | undefined;
     const delayedA = new Promise<void>((resolve) => {
@@ -490,6 +485,15 @@ describe("home curated route", () => {
       previousIds: ["place-B"],
     }));
     expect(currentError).toBeNull();
+    expect({
+      pendingRequestKey: pendingRequestKeyRef.current,
+      pendingRequestRouteKey: pendingRequestRouteKeyRef.current,
+      startedRequestKey: startedRequestKeyRef.current,
+    }).toEqual({
+      pendingRequestKey: "request-token-B",
+      pendingRequestRouteKey: routeB,
+      startedRequestKey: "request-token-B",
+    });
 
     releaseA?.();
     await delayedA;
@@ -504,6 +508,21 @@ describe("home curated route", () => {
       previousIds: ["place-B"],
     }));
     expect(currentError).toBeNull();
+
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
+    expect({
+      pendingRequestKey: pendingRequestKeyRef.current,
+      pendingRequestRouteKey: pendingRequestRouteKeyRef.current,
+      startedRequestKey: startedRequestKeyRef.current,
+    }).toEqual({
+      pendingRequestKey: null,
+      pendingRequestRouteKey: null,
+      startedRequestKey: null,
+    });
   });
 
   it("모드 변경·위치·지역·명시적 재시도만 현재 세션 이력을 보내며 hydration은 재요청하지 않는다", () => {
