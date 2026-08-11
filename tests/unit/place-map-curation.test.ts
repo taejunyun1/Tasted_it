@@ -49,4 +49,3 @@ describe("curated place map", () => {
     expect(mapBoundsDeliveryTarget({ deferBounds: false, viewportDirty: false })).toBe("committed");
   });
 });
-
