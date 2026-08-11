@@ -143,7 +143,7 @@ test("mobile direct list and map details stay queryless and emit no recommendati
     await page.goto("/places/sample-dongmyeong-ramen");
     await expect(page).toHaveURL(/\/places\/sample-dongmyeong-ramen$/);
 
-    await page.goto(`/?qa=${Date.now()}`);
+    await page.goto(`/?view=browse&qa=${Date.now()}`);
     const map = page.getByLabel("장소 지도");
     await map.getByRole("button", { name: /음식점 \d+곳, 확대해서 보기$/ }).first().click();
     await map.getByRole("button", { name: /음식점 \d+곳, 확대해서 보기$/ }).first().click();
