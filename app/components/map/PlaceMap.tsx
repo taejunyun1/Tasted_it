@@ -19,7 +19,15 @@ function detachMarkers(markers: naver.maps.Marker[]) {
   });
 }
 
-export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, onSelect, onBounds, onZoom = () => undefined, onClusterSelect = () => undefined, initialBounds, locationBounds, locationNotice = null }: {
+export function mapBoundsDeliveryTarget(input: {
+  deferBounds: boolean;
+  viewportDirty: boolean;
+}): "ignore" | "pending" | "committed" {
+  if (!input.deferBounds) return "committed";
+  return input.viewportDirty ? "pending" : "ignore";
+}
+
+export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, initialBounds, locationBounds, locationNotice = null }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
@@ -27,8 +35,11 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   zoom?: number;
   clusters?: RegionCluster[];
   focusCluster?: RegionCluster | null;
+  markerRanks?: Record<string, number>;
+  deferBounds?: boolean;
   onSelect: (id: string) => void;
   onBounds: (bbox: [number, number, number, number]) => void;
+  onPendingBounds?: (bbox: [number, number, number, number]) => void;
   onZoom?: (zoom: number) => void;
   onClusterSelect?: (cluster: RegionCluster) => void;
   initialBounds?: [number, number, number, number];
@@ -42,15 +53,20 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   const initialBoundsRef = useRef(initialBounds);
   const selectRef = useRef(onSelect);
   const boundsRef = useRef(onBounds);
+  const pendingBoundsRef = useRef(onPendingBounds);
+  const deferBoundsRef = useRef(deferBounds);
   const zoomRef = useRef(onZoom);
   const clusterSelectRef = useRef(onClusterSelect);
   const markersRef = useRef<naver.maps.Marker[]>([]);
   const suppressBoundsUntilRef = useRef(0);
+  const viewportDirtyRef = useRef(false);
   const selectedPlace = selected ? places.find((candidate) => candidate.id === selected) : undefined;
   const selectedLatitude = selectedPlace?.latitude;
   const selectedLongitude = selectedPlace?.longitude;
   selectRef.current = onSelect;
   boundsRef.current = onBounds;
+  pendingBoundsRef.current = onPendingBounds;
+  deferBoundsRef.current = deferBounds;
   zoomRef.current = onZoom;
   clusterSelectRef.current = onClusterSelect;
 
@@ -96,10 +112,21 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
           const bounds = created.getBounds();
           const southwest = bounds.getSW();
           const northeast = bounds.getNE();
-          boundsRef.current(toBoundsTuple(
+          const nextBounds = toBoundsTuple(
             { lat: southwest.lat(), lng: southwest.lng() },
             { lat: northeast.lat(), lng: northeast.lng() },
-          ));
+          );
+          const target = mapBoundsDeliveryTarget({
+            deferBounds: deferBoundsRef.current,
+            viewportDirty: viewportDirtyRef.current,
+          });
+          if (target === "ignore") return;
+          if (target === "pending") {
+            viewportDirtyRef.current = false;
+            pendingBoundsRef.current(nextBounds);
+          } else {
+            boundsRef.current(nextBounds);
+          }
         }, 400);
       });
       zoomListener = maps.Event.addListener(created, "zoom_changed", () => {
@@ -147,14 +174,16 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     }) : places.map((place) => {
       const influence = getMarkerInfluence(place.positive, place.negative);
       const isSelected = selected === place.id;
-      const markerSize = isSelected ? 36 : influence === "high" ? 34 : influence === "medium" ? 32 : 30;
+      const markerRank = markerRanks[place.id];
+      const markerSize = markerRank ? (isSelected ? 42 : 38) : isSelected ? 36 : influence === "high" ? 34 : influence === "medium" ? 32 : 30;
       const position = new maps.LatLng(place.latitude, place.longitude);
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `map-pin influence-${influence}${isSelected ? " is-selected" : ""}`;
-      button.setAttribute("aria-label", `${place.name} 지도 핀`);
+      button.className = `map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${isSelected ? " is-selected" : ""}`;
+      button.setAttribute("aria-label", `${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`);
       button.dataset.influence = influence;
-      button.textContent = place.primaryCategory.emoji;
+      if (markerRank) button.dataset.rank = String(markerRank);
+      button.textContent = markerRank ? String(markerRank) : place.primaryCategory.emoji;
       button.onclick = () => {
         selectRef.current(place.id);
       };
@@ -170,7 +199,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       markersRef.current = [];
       detachMarkers(markers);
     };
-  }, [clusters, map, places, selected]);
+  }, [clusters, map, markerRanks, places, selected]);
 
   useEffect(() => {
     if (!map || !window.naver?.maps || !focusCluster) return;
@@ -212,12 +241,22 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   }, [map, selected, selectedLatitude, selectedLongitude]);
 
   const qaFallback = !clientId && qaMode;
+  const handleViewportIntent = () => {
+    viewportDirtyRef.current = true;
+  };
+  const deliverQaBounds = (bbox: [number, number, number, number]) => {
+    const target = mapBoundsDeliveryTarget({ deferBounds, viewportDirty: true });
+    if (target === "pending") onPendingBounds(bbox);
+    else onBounds(bbox);
+  };
   if (qaFallback) return <div
     className="map-canvas map-canvas--qa"
     aria-label="장소 지도"
     data-focused-place={selected || undefined}
     data-focused-region={focusCluster?.label}
     data-map-zoom={zoom}
+    onPointerDown={handleViewportIntent}
+    onWheel={handleViewportIntent}
   >
     {locationNotice && <p className="map-error" role="status" aria-live="polite">{locationNotice}</p>}
     <a href="#" aria-label="지도 확대" onClick={(event) => {
@@ -225,7 +264,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       const nextZoom = zoom + 1;
       onZoom(nextZoom);
       const delta = Math.max(0.004, 0.02 / Math.max(1, nextZoom - 10));
-      onBounds([126.8526 - delta, 35.1595 - delta, 126.8526 + delta, 35.1595 + delta]);
+      deliverQaBounds([126.8526 - delta, 35.1595 - delta, 126.8526 + delta, 35.1595 + delta]);
     }}>+</a>
     {clusters.length ? clusters.map((cluster) => <button
       key={cluster.id}
@@ -238,15 +277,16 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
         const [west, south, east, north] = getClusterFocusBounds(cluster.bounds, cluster.level);
         onClusterSelect(cluster);
         onZoom(nextZoom);
-        onBounds([west, south, east, north]);
+        deliverQaBounds([west, south, east, north]);
       }}
     ><span>{cluster.label}</span><strong>{cluster.count}</strong></button>) : places.map((place) => {
       const influence = getMarkerInfluence(place.positive, place.negative);
-      return <button key={place.id} type="button" className={`map-pin influence-${influence}${selected === place.id ? " is-selected" : ""}`} aria-label={`${place.name} 지도 핀`} data-influence={influence} onClick={() => onSelect(place.id)}>{place.primaryCategory.emoji}</button>;
+      const markerRank = markerRanks[place.id];
+      return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-influence={influence} data-rank={markerRank} onClick={() => onSelect(place.id)}>{markerRank ?? place.primaryCategory.emoji}</button>;
     })}
   </div>;
 
-  return <div className="map-canvas" ref={host} aria-label="장소 지도" data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom}>
+  return <div className="map-canvas" ref={host} aria-label="장소 지도" data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
     {(error || locationNotice) && <p className="map-error" role="status" aria-live="polite">{error || locationNotice}</p>}
   </div>;
 }
