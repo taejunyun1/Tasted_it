@@ -1,0 +1,63 @@
+import { useEffect, useRef, useState } from "react";
+
+import {
+  HomeCurationCards,
+  HomeCurationModeControls,
+  type HomeCurationPresentationProps,
+} from "./HomeCurationCards";
+
+export type HomeSheetSnap = "peek" | "half" | "full";
+
+const SNAP_ORDER: HomeSheetSnap[] = ["peek", "half", "full"];
+
+export function homeSheetSnapAfterDrag(snap: HomeSheetSnap, deltaY: number): HomeSheetSnap {
+  if (Math.abs(deltaY) < 36) return snap;
+  const direction = deltaY < 0 ? 1 : -1;
+  const index = Math.max(0, Math.min(SNAP_ORDER.length - 1, SNAP_ORDER.indexOf(snap) + direction));
+  return SNAP_ORDER[index]!;
+}
+
+export function homeSheetSnapForSelection(
+  snap: HomeSheetSnap,
+  selectedPlaceId: string | null,
+): HomeSheetSnap {
+  return selectedPlaceId && snap === "peek" ? "half" : snap;
+}
+
+export function HomeCurationSheet(props: HomeCurationPresentationProps) {
+  const [snap, setSnap] = useState<HomeSheetSnap>("half");
+  const pointerStartY = useRef<number | null>(null);
+
+  useEffect(() => {
+    setSnap((current) => homeSheetSnapForSelection(current, props.selectedPlaceId));
+  }, [props.selectedPlaceId]);
+
+  return <aside className="home-curation-sheet" data-snap={snap} aria-label="홈 맛집 추천">
+    <button
+      type="button"
+      className="home-curation-sheet__handle"
+      aria-label={snap === "full" ? "추천 목록 접기" : "추천 목록 펼치기"}
+      onClick={() => setSnap((current) => current === "full" ? "half" : "full")}
+      onPointerDown={(event) => {
+        pointerStartY.current = event.clientY;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerUp={(event) => {
+        const start = pointerStartY.current;
+        pointerStartY.current = null;
+        if (start !== null) setSnap((current) => homeSheetSnapAfterDrag(current, event.clientY - start));
+      }}
+      onPointerCancel={() => { pointerStartY.current = null; }}
+    ><span aria-hidden="true" /></button>
+    <div className="home-curation-sheet__summary">
+      <div><p className="eyebrow">NEARBY / CURATED</p><h1>지금 갈 만한 5곳</h1></div>
+      <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
+    </div>
+    <div className="home-curation-sheet__body">
+      <HomeCurationModeControls {...props} />
+      {props.error && <p className="home-curation-error" role="status">{props.error} <button type="button" onClick={props.onRetry}>다시 시도</button></p>}
+      <HomeCurationCards {...props} />
+      <button type="button" className="home-curation-browse" onClick={props.onBrowse}>전체 지도</button>
+    </div>
+  </aside>;
+}
