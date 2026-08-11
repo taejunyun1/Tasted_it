@@ -1,11 +1,5 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
-
 import type { AppDb } from "../../db/client.server";
-import { loadInD1Chunks } from "../../db/d1-query-chunks";
-import { ratingSnapshots, userTasteBadges } from "../../db/schema";
-import { listActiveGoldenPicks } from "../ratings/golden-pick.server";
 import {
-  GUEST_TASTE_SIGNAL_SCORE,
   mergePersonalDiscoveryRankings,
   normalizedTasteSignalStrength,
   rankGoldenRelay,
@@ -13,14 +7,13 @@ import {
   rankTrustedPlaces,
   type DiscoveryCenter,
   type DiscoveryPlace,
-  type RankingTasteSignal,
 } from "./place-discovery";
 import {
   buildRecommendationChips,
   buildRecommendationTitle,
   parseRecommendationSelection,
 } from "./place-recommendation-options";
-import { listRecommendationCandidates } from "./place.server";
+import { loadRecommendationCandidateContext } from "./recommendation-candidates.server";
 
 export type PlaceRecommendationPage = {
   chips: ReturnType<typeof buildRecommendationChips>;
@@ -51,42 +44,7 @@ export async function getPlaceRecommendationPage(db: AppDb, input: {
   limit?: number;
 }): Promise<PlaceRecommendationPage> {
   const limit = input.limit ?? 8;
-  const [places, goldenPicks, storedTaste] = await Promise.all([
-    listRecommendationCandidates(db, { bbox: input.bbox, categorySlug: input.categorySlug, limit: 500 }),
-    listActiveGoldenPicks(db, input.now),
-    input.userId ? db.select({
-      badgeId: userTasteBadges.badgeId,
-      score: userTasteBadges.score,
-      source: userTasteBadges.source,
-    })
-      .from(userTasteBadges).where(eq(userTasteBadges.userId, input.userId)).orderBy(desc(userTasteBadges.score)) : Promise.resolve([]),
-  ]);
-  const placeIds = places.map((place) => place.id);
-  const snapshots = await loadInD1Chunks(placeIds, (placeIdChunk) => db.select().from(ratingSnapshots)
-    .where(and(inArray(ratingSnapshots.placeId, placeIdChunk), eq(ratingSnapshots.isStale, false)))
-    .orderBy(desc(ratingSnapshots.computedAt)), { reservedBindings: 1 });
-  const latestSnapshot = new Map<string, typeof snapshots[number]>();
-  snapshots.forEach((snapshot) => {
-    if (!latestSnapshot.has(snapshot.placeId)) latestSnapshot.set(snapshot.placeId, snapshot);
-  });
-  const candidates: DiscoveryPlace[] = places.map((place) => {
-    const snapshot = latestSnapshot.get(place.id);
-    return {
-      ...place,
-      ratingScore: snapshot?.overallScore,
-      ratingSampleCount: snapshot?.overallSampleCount,
-      userScore: snapshot?.userScore,
-      reviewerScore: snapshot?.reviewerScore,
-    };
-  });
-  const tasteSignals: RankingTasteSignal[] = [
-    ...storedTaste,
-    ...(input.tasteBadgeIds ?? []).map((badgeId) => ({
-      badgeId,
-      score: GUEST_TASTE_SIGNAL_SCORE,
-      source: "USER" as const,
-    })),
-  ];
+  const { candidates, goldenPicks, tasteSignals } = await loadRecommendationCandidateContext(db, input);
   const userBadgeIds = [...new Set(tasteSignals
     .filter((signal) => normalizedTasteSignalStrength(signal) > 0)
     .sort((left, right) => normalizedTasteSignalStrength(right) - normalizedTasteSignalStrength(left))
