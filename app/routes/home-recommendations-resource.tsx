@@ -33,6 +33,8 @@ export async function loader({ request }: Route.LoaderArgs) {
       center: state.center,
       mode: state.mode,
       now,
+      history: state.history,
+      locationSource: state.locationSource,
     });
 
     return data({ ok: true as const, recommendations });

@@ -100,4 +100,80 @@ describe("home curated route", () => {
     expect(source).toContain("isCurated ? browseAll : returnToCuration");
     expect(source.match(/home-curation-view-toggle/g)).toHaveLength(1);
   });
+
+  it("사용자 추천 요청 URL에 세션 이력과 위치 출처를 넣는다", async () => {
+    const values = new Map<string, string>([["retaste:home-curation-v2", JSON.stringify({
+      sessionSeed: "session-1",
+      recentFirst: ["p1"],
+      recentShown: [{ placeId: "p1", count: 1 }],
+      previousMode: "now",
+      previousIds: ["p1"],
+    })]]);
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    } as Storage;
+    const { buildRecommendationUrl } = await import("../../app/routes/home");
+
+    const url = new URL(buildRecommendationUrl("taste", [126.8, 35, 127, 35.3], "gps", storage), "https://retaste.example");
+
+    expect(url.pathname).toBe("/resources/home-recommendations");
+    expect(url.searchParams.get("mode")).toBe("taste");
+    expect(url.searchParams.get("bbox")).toBe("126.8,35,127,35.3");
+    expect(url.searchParams.get("locationSource")).toBe("gps");
+    expect(url.searchParams.get("history")).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("완료된 v2 정상 응답만 요청별 한 번 기록 대상으로 고른다", async () => {
+    const { getRecordableHomeRecommendation } = await import("../../app/routes/home");
+    const page = {
+      algorithmVersion: "home-curation-v2",
+      status: "READY",
+      places: [],
+      mode: "now",
+      timeSlot: "lunch",
+      radiusMeters: 3_000,
+      candidateCount: 0,
+      goldenFallback: false,
+      notice: null,
+    } as const;
+    const response = { ok: true as const, recommendations: page };
+
+    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", null))
+      .toEqual({ requestKey: "request-1", page });
+    const emptyPage = { ...page, status: "EMPTY" as const };
+    expect(getRecordableHomeRecommendation("idle", {
+      ok: true,
+      recommendations: emptyPage,
+    }, "request-2", "request-2", null)).toEqual({ requestKey: "request-2", page: emptyPage });
+    expect(getRecordableHomeRecommendation("loading", response, "request-1", "request-1", null)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", "request-1")).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", { ok: false }, "request-1", "request-1", null)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", {
+      ok: true,
+      recommendations: { ...page, algorithmVersion: "home-curation-v1" },
+    }, "request-1", "request-1", null)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", {
+      ok: true,
+      recommendations: { ...page, status: "ERROR" },
+    }, "request-1", "request-1", null)).toBeNull();
+  });
+
+  it("모드 변경·위치·지역·명시적 재시도만 현재 세션 이력을 보내며 hydration은 재요청하지 않는다", () => {
+    const source = readFileSync("app/routes/home.tsx", "utf8");
+
+    expect(source).toContain("readHomeRecommendationHistory");
+    expect(source).toContain("encodeHomeRecommendationHistory");
+    expect(source).toContain("recordHomeRecommendation");
+    expect(source).toContain("lastRecordedRequestKeyRef");
+    expect(source).toMatch(/const requestKey = `\$\{\+\+requestSequenceRef\.current\}:\$\{requestUrl\}`;\s*pendingRequestKeyRef\.current = requestKey;\s*startedRequestKeyRef\.current = requestKey;\s*void recommendationFetcher\.load\(requestUrl\)/);
+    expect(source).toContain('loadRecommendations(mode, liveMapState.bbox, locationSource)');
+    expect(source).toContain('loadRecommendations(liveHomeState.mode, result.bbox, "gps")');
+    expect(source).toContain('loadRecommendations(liveHomeState.mode, pendingBounds, "map_center")');
+    expect(source).toContain('onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, locationSource)');
+    expect(source).not.toContain("clientLoader");
+    expect(source).not.toMatch(/useEffect\(\(\) => \{\s*loadRecommendations/);
+    expect(source).not.toContain("localStorage");
+    expect(source).not.toContain("document.cookie");
+  });
 });

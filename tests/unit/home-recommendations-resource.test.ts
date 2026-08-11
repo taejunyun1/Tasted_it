@@ -86,6 +86,19 @@ describe("home recommendations resource", () => {
     expect(mocks.getHomeCurationPage).toHaveBeenCalledOnce();
   });
 
+  it("세션 이력과 gps 위치 출처를 서버 추천 요청에 전달한다", async () => {
+    const { loader } = await import("../../app/routes/home-recommendations-resource");
+    await loader({
+      request: new Request("https://retaste.example/resources/home-recommendations?mode=taste&locationSource=gps&history=eyJzZXNzaW9uU2VlZCI6InMifQ"),
+    } as never);
+
+    expect(mocks.getHomeCurationPage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      mode: "taste",
+      locationSource: "gps",
+      history: expect.objectContaining({ sessionSeed: "s" }),
+    }));
+  });
+
   it("잘못된 요청은 계산하지 않고 400으로 거부한다", async () => {
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     const result = await loader({
