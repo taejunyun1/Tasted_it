@@ -284,6 +284,46 @@ test("내 위치에서 전체 지도를 이동한 뒤 추천 지도로 돌아오
   expect(new URL(response.url()).searchParams.get("locationSource")).toBe("map_center");
 });
 
+test("이전 지역의 다시 추천 동작은 전체 지도 왕복과 새 loader 결과 뒤 남지 않는다", async ({ page }) => {
+  let recommendationRequestCount = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/resources/home-recommendations.data")) recommendationRequestCount += 1;
+  });
+  await page.goto("/?qa=1");
+
+  await page.getByRole("link", { name: "지도 확대", exact: true }).click();
+  await expect(page.getByRole("button", { name: "이 지역 다시 추천", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "지도 확대", exact: true }).click();
+
+  await page.getByRole("button", { name: "추천 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "전체 지도", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "이 지역 다시 추천", exact: true })).toHaveCount(0);
+  expect(recommendationRequestCount).toBe(0);
+});
+
+test("지연된 이전 추천 응답은 전체 지도 loader 이후 세션 이력을 덮어쓰지 않는다", async ({ page }, testInfo) => {
+  await page.route("**/resources/home-recommendations.data?*", async (route) => {
+    const mode = new URL(route.request().url()).searchParams.get("mode");
+    if (mode === "taste") await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.continue();
+  });
+  await page.goto("/?qa=1");
+
+  const presentation = curationPresentation(page, testInfo.project.name);
+  const delayedResponse = recommendationResponse(page, "taste");
+  await presentation.getByRole("button", { name: "내 취향", exact: true }).click();
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
+  await delayedResponse;
+
+  await expect.poll(() => page.evaluate(() => {
+    const raw = sessionStorage.getItem("retaste:home-curation-v2");
+    return raw ? JSON.parse(raw).previousMode : null;
+  })).toBe("now");
+});
+
 test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동기화된다", async ({ page }, testInfo) => {
   await page.goto("/?qa=1");
 

@@ -157,6 +157,14 @@ describe("home curated route", () => {
     }));
   });
 
+  it("전체 지도 왕복과 새 loader 결과에서 이전 지역 pending bounds를 폐기한다", () => {
+    const source = readFileSync("app/routes/home.tsx", "utf8");
+
+    expect(source).toMatch(/const browseAll = \(\) => \{\s*setPendingBounds\(null\)/);
+    expect(source).toMatch(/const returnToCuration = \(\) => \{\s*setPendingBounds\(null\)/);
+    expect(source).toMatch(/\[loaderData\.curation, loaderData\.view\]/);
+  });
+
   it("완료된 v2 정상 응답만 요청별 한 번 기록 대상으로 고른다", async () => {
     const { getRecordableHomeRecommendation } = await import("../../app/routes/home");
     const page = {
@@ -171,25 +179,66 @@ describe("home curated route", () => {
       notice: null,
     } as const;
     const response = { ok: true as const, recommendations: page };
+    const routeKey = "curated|now|126.80000,35.00000,127.00000,35.30000|map_center";
 
-    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", null))
+    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", null, routeKey, routeKey))
       .toEqual({ requestKey: "request-1", page });
     const emptyPage = { ...page, status: "EMPTY" as const };
     expect(getRecordableHomeRecommendation("idle", {
       ok: true,
       recommendations: emptyPage,
-    }, "request-2", "request-2", null)).toEqual({ requestKey: "request-2", page: emptyPage });
-    expect(getRecordableHomeRecommendation("loading", response, "request-1", "request-1", null)).toBeNull();
-    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", "request-1")).toBeNull();
-    expect(getRecordableHomeRecommendation("idle", { ok: false }, "request-1", "request-1", null)).toBeNull();
+    }, "request-2", "request-2", null, routeKey, routeKey)).toEqual({ requestKey: "request-2", page: emptyPage });
+    expect(getRecordableHomeRecommendation("loading", response, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", response, "request-1", "request-1", "request-1", routeKey, routeKey)).toBeNull();
+    expect(getRecordableHomeRecommendation("idle", { ok: false }, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
     expect(getRecordableHomeRecommendation("idle", {
       ok: true,
       recommendations: { ...page, algorithmVersion: "home-curation-v1" },
-    }, "request-1", "request-1", null)).toBeNull();
+    }, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
     expect(getRecordableHomeRecommendation("idle", {
       ok: true,
       recommendations: { ...page, status: "ERROR" },
-    }, "request-1", "request-1", null)).toBeNull();
+    }, "request-1", "request-1", null, routeKey, routeKey)).toBeNull();
+  });
+
+  it("지연된 A 응답은 URL·loader가 B로 이동한 뒤 결과나 이력 기록 대상으로 수락하지 않는다", async () => {
+    const {
+      getHomeRecommendationRouteKey,
+      getRecordableHomeRecommendation,
+    } = await import("../../app/routes/home");
+    const delayedPageA = {
+      algorithmVersion: "home-curation-v2",
+      status: "READY",
+      places: [],
+      mode: "taste",
+      timeSlot: "lunch",
+      radiusMeters: 3_000,
+      candidateCount: 0,
+      goldenFallback: false,
+      notice: null,
+    } as const;
+    const requestRouteA = getHomeRecommendationRouteKey({
+      view: "curated",
+      mode: "taste",
+      bbox: [126.8, 35, 127, 35.3],
+      locationSource: "gps",
+    });
+    const currentRouteB = getHomeRecommendationRouteKey({
+      view: "browse",
+      mode: "now",
+      bbox: [126.7, 35.1, 126.9, 35.4],
+      locationSource: "map_center",
+    });
+
+    expect(getRecordableHomeRecommendation(
+      "idle",
+      { ok: true, recommendations: delayedPageA },
+      "request-A",
+      "request-A",
+      null,
+      requestRouteA,
+      currentRouteB,
+    )).toBeNull();
   });
 
   it("idle의 retained 성공 A는 B가 loading 되기 전에 B 응답으로 기록하지 않는다", async () => {
@@ -221,6 +270,8 @@ describe("home curated route", () => {
       lifecycle.pendingRequestKey,
       lifecycle.startedRequestKey,
       "request-A",
+      "route-B",
+      "route-B",
     )).toBeNull();
   });
 
@@ -253,6 +304,8 @@ describe("home curated route", () => {
       lifecycle.pendingRequestKey,
       lifecycle.startedRequestKey,
       "request-A",
+      "route-B",
+      "route-B",
     )).toEqual({ requestKey: "request-B", page: pageB });
   });
 
@@ -263,6 +316,7 @@ describe("home curated route", () => {
     expect(source).toContain("encodeHomeRecommendationHistory");
     expect(source).toContain("recordHomeRecommendation");
     expect(source).toContain("lastRecordedRequestKeyRef");
+    expect(source).toContain("pendingRequestRouteKeyRef");
     expect(source).toContain("beginHomeRecommendationRequest(");
     expect(source).toContain('const requestKey = `${++requestSequenceRef.current}:${requestUrl}`;');
     expect(source).toContain('loadRecommendations(mode, liveMapState.bbox, liveHomeState.locationSource)');

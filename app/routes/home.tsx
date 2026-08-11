@@ -20,6 +20,7 @@ import {
   parseHomeCurationState,
   type HomeCurationMode,
   type HomeLocationSource,
+  type HomeMapView,
 } from "../features/maps/home-curation-options";
 import { resolveLocationViewport } from "../features/maps/location-policy";
 import { parseMapState } from "../features/maps/map-state";
@@ -67,18 +68,36 @@ export function beginHomeRecommendationRequest(
   };
 }
 
+export function getHomeRecommendationRouteKey(input: {
+  view: HomeMapView;
+  mode: HomeCurationMode;
+  bbox: [number, number, number, number];
+  locationSource: HomeLocationSource;
+}) {
+  return [
+    input.view,
+    input.mode,
+    input.bbox.map((value) => value.toFixed(5)).join(","),
+    input.locationSource,
+  ].join("|");
+}
+
 export function getRecordableHomeRecommendation(
   state: RecommendationFetcherState,
   response: unknown,
   requestKey: string | null,
   startedRequestKey: string | null,
   lastRecordedRequestKey: string | null,
+  requestRouteKey: string | null,
+  currentRouteKey: string,
 ): { requestKey: string; page: HomeCurationPage } | null {
   if (
     state !== "idle"
     || !requestKey
     || startedRequestKey !== requestKey
     || lastRecordedRequestKey === requestKey
+    || !requestRouteKey
+    || requestRouteKey !== currentRouteKey
     || typeof response !== "object"
     || response === null
     || !("ok" in response)
@@ -172,12 +191,19 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [pendingBounds, setPendingBounds] = useState<[number, number, number, number] | null>(null);
   const requestSequenceRef = useRef(0);
   const pendingRequestKeyRef = useRef<string | null>(null);
+  const pendingRequestRouteKeyRef = useRef<string | null>(null);
   const startedRequestKeyRef = useRef<string | null>(null);
   const lastRecordedRequestKeyRef = useRef<string | null>(null);
   const lastRecordedLoaderCurationRef = useRef<HomeCurationPage | null>(null);
   const liveSearch = `?${params.toString()}`;
   const liveMapState = parseMapState(liveSearch);
   const liveHomeState = parseHomeCurationState(liveSearch);
+  const currentRecommendationRouteKey = getHomeRecommendationRouteKey({
+    view: liveHomeState.view,
+    mode: liveHomeState.mode,
+    bbox: liveMapState.bbox,
+    locationSource: liveHomeState.locationSource,
+  });
   const isCurated = liveHomeState.view === "curated";
   const activeCuration = curation ?? loaderData.curation;
   const activePlaces = isCurated && activeCuration ? activeCuration.places : loaderData.places;
@@ -205,6 +231,21 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   }, [loaderData.curation]);
 
   useEffect(() => {
+    setPendingBounds(null);
+  }, [loaderData.curation, loaderData.view]);
+
+  useEffect(() => {
+    if (
+      !pendingRequestRouteKeyRef.current
+      || pendingRequestRouteKeyRef.current === currentRecommendationRouteKey
+    ) return;
+
+    pendingRequestKeyRef.current = null;
+    pendingRequestRouteKeyRef.current = null;
+    startedRequestKeyRef.current = null;
+  }, [currentRecommendationRouteKey]);
+
+  useEffect(() => {
     if (recommendationFetcher.state !== "idle") {
       startedRequestKeyRef.current = pendingRequestKeyRef.current;
       return;
@@ -216,6 +257,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       pendingRequestKeyRef.current,
       startedRequestKeyRef.current,
       lastRecordedRequestKeyRef.current,
+      pendingRequestRouteKeyRef.current,
+      currentRecommendationRouteKey,
     );
     if (!completed) return;
 
@@ -223,7 +266,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setPendingBounds(null);
     recordHomeRecommendation(sessionStorage, completed.page);
     lastRecordedRequestKeyRef.current = completed.requestKey;
-  }, [recommendationFetcher.data, recommendationFetcher.state]);
+    pendingRequestKeyRef.current = null;
+    pendingRequestRouteKeyRef.current = null;
+    startedRequestKeyRef.current = null;
+  }, [currentRecommendationRouteKey, recommendationFetcher.data, recommendationFetcher.state]);
 
   useEffect(() => {
     const curationMatchesUrl = !isCurated || activeCuration?.mode === liveHomeState.mode;
@@ -241,6 +287,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     const requestKey = `${++requestSequenceRef.current}:${requestUrl}`;
     const lifecycle = beginHomeRecommendationRequest(recommendationFetcher.state, requestKey);
     pendingRequestKeyRef.current = lifecycle.pendingRequestKey;
+    pendingRequestRouteKeyRef.current = getHomeRecommendationRouteKey({
+      view: "curated",
+      mode,
+      bbox,
+      locationSource: source,
+    });
     startedRequestKeyRef.current = lifecycle.startedRequestKey;
     void recommendationFetcher.load(requestUrl);
   };
@@ -289,6 +341,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     loadRecommendations(liveHomeState.mode, pendingBounds, "map_center");
   };
   const browseAll = () => {
+    setPendingBounds(null);
+    pendingRequestKeyRef.current = null;
+    pendingRequestRouteKeyRef.current = null;
+    startedRequestKeyRef.current = null;
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("view", "browse");
@@ -297,6 +353,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     });
   };
   const returnToCuration = () => {
+    setPendingBounds(null);
+    pendingRequestKeyRef.current = null;
+    pendingRequestRouteKeyRef.current = null;
+    startedRequestKeyRef.current = null;
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("view");
