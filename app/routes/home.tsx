@@ -220,10 +220,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   }, [recommendationFetcher.data, recommendationFetcher.state]);
 
   useEffect(() => {
-    if (requestedSelectedId && !selectedPlace) {
+    const curationMatchesUrl = !isCurated || activeCuration?.mode === liveHomeState.mode;
+    if (requestedSelectedId && !selectedPlace && curationMatchesUrl) {
       setParams((current) => updateMapSearch(current, { selected: null }), { replace: true });
     }
-  }, [requestedSelectedId, selectedPlace, setParams]);
+  }, [activeCuration?.mode, isCurated, liveHomeState.mode, requestedSelectedId, selectedPlace, setParams]);
 
   const loadRecommendations = (
     mode: HomeCurationMode,

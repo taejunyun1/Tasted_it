@@ -2,13 +2,13 @@ import {
   decodeHomeRecommendationHistory,
   type HomeLocationSource,
   type HomeRecommendationHistory,
-} from "../places/home-curation-history.client";
+} from "../places/home-curation-history-codec";
 import { DEFAULT_BBOX } from "./map-state";
 
 export type HomeMapView = "curated" | "browse";
 export type HomeCurationMode = "now" | "taste" | "time" | "golden" | "discovery";
 export type HomeTimeSlot = "breakfast" | "lunch" | "afternoon" | "dinner" | "late";
-export type { HomeLocationSource } from "../places/home-curation-history.client";
+export type { HomeLocationSource } from "../places/home-curation-history-codec";
 
 const MODES = new Set<HomeCurationMode>(["now", "taste", "time", "golden", "discovery"]);
 
