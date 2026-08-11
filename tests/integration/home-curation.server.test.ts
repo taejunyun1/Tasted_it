@@ -4,14 +4,17 @@ import { expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import {
   categories,
+  currentVotes,
   goldenPickEvents,
   placeCategories,
   places,
   ratingSnapshots,
   userTasteBadges,
   users,
+  voteEvents,
 } from "../../app/db/schema";
 import { getHomeCurationPage } from "../../app/features/places/home-curation.server";
+import { loadRecommendationCandidateContext } from "../../app/features/places/recommendation-candidates.server";
 
 async function seedHomeCurationFixtures(input: { farTail: boolean }) {
   const db = createDb(env.DB);
@@ -117,11 +120,123 @@ async function seedHomeCurationFixtures(input: { farTail: boolean }) {
 
   return {
     userId,
+    reviewerId,
+    placeIds,
     now,
     center: { latitude: baseLatitude, longitude: 126.92 },
     bbox: [126.85, baseLatitude - 0.06, 126.99, baseLatitude + 0.06] as [number, number, number, number],
   };
 }
+
+it("로그인 사용자의 현재 비추천 후보만 제외하고 익명 후보는 유지한다", async () => {
+  const fixture = await seedHomeCurationFixtures({ farTail: false });
+  const db = createDb(env.DB);
+  const dislikedPlaceId = fixture.placeIds[0]!;
+  const eventId = `home-dislike-${crypto.randomUUID()}`;
+  await db.insert(voteEvents).values({
+    id: eventId,
+    placeId: dislikedPlaceId,
+    userId: fixture.userId,
+    value: -1,
+    eventType: "CREATE",
+    previousEventId: null,
+    createdAt: fixture.now,
+  });
+  await db.insert(currentVotes).values({
+    placeId: dislikedPlaceId,
+    userId: fixture.userId,
+    eventId,
+    value: -1,
+    updatedAt: fixture.now,
+  });
+  const request = {
+    bbox: fixture.bbox,
+    now: fixture.now,
+  };
+
+  const memberContext = await loadRecommendationCandidateContext(db, {
+    ...request,
+    userId: fixture.userId,
+  });
+  const anonymousContext = await loadRecommendationCandidateContext(db, request);
+
+  expect(memberContext.dislikedPlaceIds).toEqual([dislikedPlaceId]);
+  expect(memberContext.candidates.some((place) => place.id === dislikedPlaceId)).toBe(false);
+  expect(anonymousContext.dislikedPlaceIds).toEqual([]);
+  expect(anonymousContext.candidates.some((place) => place.id === dislikedPlaceId)).toBe(true);
+});
+
+it("최신 평가 스냅샷의 전체·사용자·리뷰어 점수와 표본을 null·0 구분까지 모두 붙인다", async () => {
+  const fixture = await seedHomeCurationFixtures({ farTail: false });
+  const db = createDb(env.DB);
+  const zeroSamplePlaceId = fixture.placeIds[0]!;
+  await db.insert(ratingSnapshots).values({
+    id: `home-snapshot-zero-${crypto.randomUUID()}`,
+    placeId: zeroSamplePlaceId,
+    configId: "rating-config-v2",
+    inputHash: crypto.randomUUID(),
+    overallScore: null,
+    userScore: null,
+    reviewerScore: null,
+    overallSampleCount: 0,
+    userSampleCount: 0,
+    reviewerSampleCount: 0,
+    reviewerRawWeight: 0,
+    reviewerCombinedWeight: 0,
+    reviewerWeightShare: 0,
+    reasonsJson: "{}",
+    isStale: false,
+    computedAt: "2026-08-11T04:00:00.000Z",
+    createdAt: "2026-08-11T04:00:00.000Z",
+    updatedAt: "2026-08-11T04:00:00.000Z",
+  });
+
+  const context = await loadRecommendationCandidateContext(db, {
+    bbox: fixture.bbox,
+    now: fixture.now,
+  });
+  const populated = context.candidates.find((place) => place.id === fixture.placeIds[1]);
+  const zeroSample = context.candidates.find((place) => place.id === zeroSamplePlaceId);
+
+  expect(populated).toEqual(expect.objectContaining({
+    ratingScore: 89,
+    ratingSampleCount: 20,
+    userRatingScore: 88,
+    userRatingSampleCount: 15,
+    reviewerRatingScore: 91,
+    reviewerRatingSampleCount: 5,
+  }));
+  expect(zeroSample).toEqual(expect.objectContaining({
+    ratingScore: null,
+    ratingSampleCount: 0,
+    userRatingScore: null,
+    userRatingSampleCount: 0,
+    reviewerRatingScore: null,
+    reviewerRatingSampleCount: 0,
+  }));
+});
+
+it("후보별 Golden 이력 요약과 기존 활성 Golden 정보를 함께 조립한다", async () => {
+  const fixture = await seedHomeCurationFixtures({ farTail: false });
+
+  const context = await loadRecommendationCandidateContext(createDb(env.DB), {
+    userId: fixture.userId,
+    bbox: fixture.bbox,
+    now: fixture.now,
+  });
+
+  expect(context.goldenSummaries).toContainEqual({
+    placeId: fixture.placeIds[2],
+    active: true,
+    activeStrength: 1,
+    pastStrength: 0,
+    reviewerUserId: fixture.reviewerId,
+  });
+  expect(context.goldenPicks).toContainEqual(expect.objectContaining({
+    placeId: fixture.placeIds[2],
+    reviewerUserId: fixture.reviewerId,
+  }));
+});
 
 it("공개 후보와 평가·취향·Golden Pick을 결합해 3km 추천을 반환한다", async () => {
   const fixture = await seedHomeCurationFixtures({ farTail: false });

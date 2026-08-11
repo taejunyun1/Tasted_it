@@ -1,7 +1,108 @@
-import { and, asc, eq, gte, lt } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
+import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import { goldenPickEvents, places, reviewerProfiles } from "../../db/schema";
+
+export type GoldenPlaceSummary = {
+  placeId: string;
+  active: boolean;
+  activeStrength: 0 | .8 | 1;
+  pastStrength: 0 | .4;
+  reviewerUserId: string | null;
+};
+
+type GoldenPickEvent = typeof goldenPickEvents.$inferSelect;
+
+function compareGoldenEvents(left: GoldenPickEvent, right: GoldenPickEvent) {
+  return left.effectiveAt.localeCompare(right.effectiveAt) || left.id.localeCompare(right.id);
+}
+
+function summarizeGoldenPickEvents(events: GoldenPickEvent[], now: string) {
+  const occurredEvents = events.filter((event) => event.effectiveAt <= now);
+  const closuresByGrant = new Map<string, GoldenPickEvent[]>();
+  occurredEvents.forEach((event) => {
+    if (event.eventType === "GRANT" || !event.previousEventId) return;
+    const closures = closuresByGrant.get(event.previousEventId) ?? [];
+    closures.push(event);
+    closuresByGrant.set(event.previousEventId, closures);
+  });
+
+  const grantsByPlace = new Map<string, GoldenPickEvent[]>();
+  occurredEvents.forEach((event) => {
+    if (event.eventType !== "GRANT") return;
+    const grants = grantsByPlace.get(event.placeId) ?? [];
+    grants.push(event);
+    grantsByPlace.set(event.placeId, grants);
+  });
+
+  const expiringSoonAt = addDays(now, 14);
+  const summaries = new Map<string, GoldenPlaceSummary>();
+  const activePicks: GoldenPickEvent[] = [];
+  grantsByPlace.forEach((grants, placeId) => {
+    const candidates = grants.map((grant) => {
+      const closures = closuresByGrant.get(grant.id) ?? [];
+      const withdrawn = closures.some((event) => event.eventType === "WITHDRAW");
+      const expired = closures.some((event) => event.eventType === "EXPIRE");
+      const validInterval = grant.expiresAt != null && grant.expiresAt > grant.effectiveAt;
+      const active = validInterval && !withdrawn && !expired && grant.expiresAt! > now;
+      const past = validInterval && !withdrawn && grant.expiresAt! <= now;
+      return { grant, active, past };
+    });
+    const active = candidates.filter((candidate) => candidate.active)
+      .sort((left, right) => {
+        const leftStrength = left.grant.expiresAt! <= expiringSoonAt ? .8 : 1;
+        const rightStrength = right.grant.expiresAt! <= expiringSoonAt ? .8 : 1;
+        return rightStrength - leftStrength || compareGoldenEvents(right.grant, left.grant);
+      });
+    activePicks.push(...active.map((candidate) => candidate.grant));
+    const strongestActive = active[0];
+    if (strongestActive) {
+      summaries.set(placeId, {
+        placeId,
+        active: true,
+        activeStrength: strongestActive.grant.expiresAt! <= expiringSoonAt ? .8 : 1,
+        pastStrength: 0,
+        reviewerUserId: strongestActive.grant.reviewerUserId,
+      });
+      return;
+    }
+
+    const latestPast = candidates.filter((candidate) => candidate.past)
+      .sort((left, right) => compareGoldenEvents(right.grant, left.grant))[0];
+    summaries.set(placeId, {
+      placeId,
+      active: false,
+      activeStrength: 0,
+      pastStrength: latestPast ? .4 : 0,
+      reviewerUserId: latestPast?.grant.reviewerUserId ?? null,
+    });
+  });
+
+  return {
+    summaries,
+    activePicks: activePicks.sort(compareGoldenEvents),
+  };
+}
+
+export async function loadGoldenPickContextForPlaces(db: AppDb, placeIds: string[], now: string) {
+  const uniquePlaceIds = [...new Set(placeIds)];
+  const events = await loadInD1Chunks(uniquePlaceIds, (placeIdChunk) => db.select()
+    .from(goldenPickEvents)
+    .where(inArray(goldenPickEvents.placeId, placeIdChunk))
+    .orderBy(asc(goldenPickEvents.effectiveAt), asc(goldenPickEvents.id)));
+  const context = summarizeGoldenPickEvents(events, now);
+  const summaries = new Map<string, GoldenPlaceSummary>();
+  uniquePlaceIds.forEach((placeId) => {
+    const summary = context.summaries.get(placeId);
+    if (summary) summaries.set(placeId, summary);
+  });
+  return { ...context, summaries };
+}
+
+export async function listGoldenPickHistoryForPlaces(db: AppDb, placeIds: string[], now: string) {
+  return (await loadGoldenPickContextForPlaces(db, placeIds, now)).summaries;
+}
 
 function addDays(iso: string, days: number) {
   const date = new Date(iso);

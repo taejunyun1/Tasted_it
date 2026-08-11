@@ -21,6 +21,10 @@ export interface DiscoveryPlace extends PlaceSummary {
   ratingSampleCount?: number;
   userScore?: number | null;
   reviewerScore?: number | null;
+  userRatingScore?: number | null;
+  userRatingSampleCount?: number;
+  reviewerRatingScore?: number | null;
+  reviewerRatingSampleCount?: number;
   discoveryMode?: "FAMILIAR" | "ADJACENT" | "EXPLORATION";
   recommendationReasons?: string[];
 }
