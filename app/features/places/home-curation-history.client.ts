@@ -118,7 +118,7 @@ export function recordHomeRecommendation(storage: Storage, page: HomeCurationPag
   ids.forEach((id) => counts.set(id, Math.min(9, (counts.get(id) ?? 0) + 1)));
   write(storage, {
     ...current,
-    recentFirst: ids[0] ? [ids[0], ...current.recentFirst.filter((id) => id !== ids[0])].slice(0, 3) : current.recentFirst,
+    recentFirst: ids[0] ? [ids[0], ...current.recentFirst].slice(0, 3) : current.recentFirst,
     recentShown: [...counts].map(([placeId, count]) => ({ placeId, count })).slice(-30),
     previousMode: page.mode,
     previousIds: ids,

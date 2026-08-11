@@ -48,4 +48,19 @@ describe("home recommendation history", () => {
       previousIds: ["p1", "p2"],
     }));
   });
+
+  it("같은 첫 추천이 연속되면 최근 1위 관측을 중복으로 보존한다", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    } as Storage;
+    const page = { mode: "now", places: [{ id: "p1" }] } as HomeCurationPage;
+
+    recordHomeRecommendation(storage, page);
+    recordHomeRecommendation(storage, page);
+    recordHomeRecommendation(storage, page);
+
+    expect(readHomeRecommendationHistory(storage).recentFirst).toEqual(["p1", "p1", "p1"]);
+  });
 });
