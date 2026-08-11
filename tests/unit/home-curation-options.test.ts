@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   centerOfBbox,
+  homeDateKeyAt,
   homeTimeSlotAt,
   homeTimeSlotLabel,
   parseHomeCurationState,
@@ -10,11 +11,19 @@ import {
 
 describe("home curation options", () => {
   it("알 수 없는 view와 mode를 큐레이션 기본값으로 정규화한다", () => {
-    expect(parseHomeCurationState("?view=bad&mode=bad")).toEqual({ view: "curated", mode: "now" });
+    expect(parseHomeCurationState("?view=bad&mode=bad&locationSource=bad")).toEqual({
+      view: "curated",
+      mode: "now",
+      locationSource: "map_center",
+    });
   });
 
   it("지원하는 view와 mode만 보존한다", () => {
-    expect(parseHomeCurationState("?view=browse&mode=golden")).toEqual({ view: "browse", mode: "golden" });
+    expect(parseHomeCurationState("?view=browse&mode=golden&locationSource=gps")).toEqual({
+      view: "browse",
+      mode: "golden",
+      locationSource: "gps",
+    });
   });
 
   it.each(["?category=ramen-detail", "?q=국밥"])("기존 검색·카테고리 URL은 전체 탐색으로 연다: %s", (search) => {
@@ -33,6 +42,13 @@ describe("home curation options", () => {
     ["2026-08-10T12:30:00.000Z", "late"],
   ] as const)("Asia/Seoul 기준 시간대를 계산한다", (now, expected) => {
     expect(homeTimeSlotAt(new Date(now))).toBe(expected);
+  });
+
+  it.each([
+    ["2026-08-11T14:59:59.999Z", "2026-08-11"],
+    ["2026-08-11T15:00:00.000Z", "2026-08-12"],
+  ] as const)("Asia/Seoul 자정 경계로 추천 날짜 키를 계산한다", (now, expected) => {
+    expect(homeDateKeyAt(new Date(now))).toBe(expected);
   });
 
   it("시간대 식별자를 사용자 문구로 바꾼다", () => {

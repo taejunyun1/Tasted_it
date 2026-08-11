@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 test.skip(Boolean(process.env.BASE_URL), "로컬 QA 시드가 있는 환경에서만 실행합니다.");
 
 const DEFAULT_BBOX = "126.72,35.03,127.02,35.25";
-const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.";
+const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 // Golden fallback ignores time-slot scoring. This past-Golden fixture has a
 // score gap larger than the bounded date variation, so its SSR order is fixed.
 const EVIDENCE_PLACE_IDS = [
@@ -252,6 +252,36 @@ test("위치와 새 지도 영역은 명시적으로 다시 추천한다", async
     .toBeLessThanOrEqual(BBOX_TOLERANCE);
   await expect(retryArea).toHaveCount(0);
   await expect(presentation.locator(".home-curation-error")).toHaveCount(0);
+});
+
+test("내 위치에서 전체 지도를 이동한 뒤 추천 지도로 돌아오면 지도 중심 출처를 유지한다", async ({ context, page }, testInfo) => {
+  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
+  await context.setGeolocation(MOCK_GPS);
+  await page.goto("/?qa=1");
+
+  const presentation = curationPresentation(page, testInfo.project.name);
+  const locatedResponsePromise = page.waitForResponse((response) => (
+    response.url().includes("/resources/home-recommendations.data")
+    && new URL(response.url()).searchParams.get("locationSource") === "gps"
+  ));
+  await presentation.getByRole("button", { name: "내 위치", exact: true }).click();
+  await locatedResponsePromise;
+  await expect.poll(() => new URL(page.url()).searchParams.get("locationSource")).toBe("gps");
+
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "지도 확대", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("locationSource")).toBe("map_center");
+
+  await page.getByRole("button", { name: "추천 지도", exact: true }).click();
+  const returnedPresentation = curationPresentation(page, testInfo.project.name);
+  await expect(returnedPresentation).toBeVisible();
+  await expect.poll(() => new URL(page.url()).searchParams.get("locationSource")).toBe("map_center");
+
+  const responsePromise = recommendationResponse(page, "time");
+  await returnedPresentation.getByRole("button", { name: "시간대 추천", exact: true }).click();
+  const response = await responsePromise;
+  expect(new URL(response.url()).searchParams.get("locationSource")).toBe("map_center");
 });
 
 test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동기화된다", async ({ page }, testInfo) => {

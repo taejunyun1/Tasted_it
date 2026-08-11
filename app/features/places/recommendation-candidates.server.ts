@@ -20,7 +20,10 @@ export type RecommendationCandidateContext = {
   goldenPicks: Awaited<ReturnType<typeof loadGoldenPickContextForPlaces>>["activePicks"];
   goldenSummaries: GoldenPlaceSummary[];
   tasteSignals: RankingTasteSignal[];
+  goldenContextStatus: "NOT_REQUESTED" | "AVAILABLE" | "UNAVAILABLE";
 };
+
+type GoldenContextPolicy = "omit" | "required" | "empty-on-error";
 
 async function loadStoredTasteSignals(db: AppDb, userId?: string | null) {
   if (!userId) return [];
@@ -105,6 +108,7 @@ export async function loadRecommendationCandidateContext(db: AppDb, input: {
   bbox: [number, number, number, number];
   categorySlug?: string;
   now: string;
+  goldenContext?: GoldenContextPolicy;
 }): Promise<RecommendationCandidateContext> {
   const [places, storedTaste] = await Promise.all([
     listRecommendationCandidates(db, {
@@ -121,13 +125,24 @@ export async function loadRecommendationCandidateContext(db: AppDb, input: {
   ]);
   const disliked = new Set(dislikedPlaceIds);
   const candidates = placesWithRatings.filter((place) => !disliked.has(place.id));
-  const goldenContext = await loadGoldenPickContextForPlaces(db, candidates.map((place) => place.id), input.now);
+  const goldenPolicy = input.goldenContext ?? "required";
+  let goldenContext: Awaited<ReturnType<typeof loadGoldenPickContextForPlaces>> | null = null;
+  if (goldenPolicy !== "omit") {
+    try {
+      goldenContext = await loadGoldenPickContextForPlaces(db, candidates.map((place) => place.id), input.now);
+    } catch (error) {
+      if (goldenPolicy === "required") throw error;
+    }
+  }
 
   return {
     candidates,
     dislikedPlaceIds,
-    goldenPicks: goldenContext.activePicks,
-    goldenSummaries: [...goldenContext.summaries.values()],
+    goldenPicks: goldenContext?.activePicks ?? [],
+    goldenSummaries: goldenContext ? [...goldenContext.summaries.values()] : [],
     tasteSignals: mergeTasteSignals(storedTaste, input.tasteBadgeIds ?? []),
+    goldenContextStatus: goldenPolicy === "omit"
+      ? "NOT_REQUESTED"
+      : goldenContext ? "AVAILABLE" : "UNAVAILABLE",
   };
 }

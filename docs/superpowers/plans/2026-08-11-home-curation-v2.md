@@ -305,7 +305,7 @@ it("Golden 활성 후보가 없으면 근거리 일반 장소를 섞지 않고 �
   const result = rankGoldenCandidates(input({ candidates: [generalNearby, pastGolden, reviewerTrusted], activeGoldenIds: [] }));
   expect(result.places.map((item) => item.place.id)).toEqual(expect.arrayContaining(["past", "reviewer"]));
   expect(result.places.some((item) => item.place.id === "general")).toBe(false);
-  expect(result.notice).toBe("현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.");
+  expect(result.notice).toBe("현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.");
 });
 ```
 
@@ -483,7 +483,7 @@ it("v2 메타데이터와 Golden fallback notice를 반환한다", async () => {
   expect(page).toEqual(expect.objectContaining({
     algorithmVersion: "home-curation-v2",
     goldenFallback: true,
-    notice: "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.",
+    notice: "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.",
   }));
 });
 ```
@@ -674,7 +674,7 @@ test("모드 변경은 최소 두 곳을 바꾸고 단순 UI 재렌더는 결과
 test("Golden 활성 후보가 없으면 안내와 근거 후보만 보인다", async ({ page }) => {
   await page.goto("/?view=curated");
   await page.getByRole("button", { name: "Golden Pick" }).click();
-  await expect(page.getByText("현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.")).toBeVisible();
+  await expect(page.getByText("현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.")).toBeVisible();
   await expect(page.locator('[data-golden-pick="true"]')).toHaveCount(0);
 });
 ```

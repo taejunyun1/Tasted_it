@@ -11,6 +11,7 @@ import type { DiscoveryPlace } from "../../app/features/places/place-discovery";
 
 function place(id: string, input: {
   category?: string;
+  name?: string;
   latitude?: number;
   longitude?: number;
   ratingScore?: number | null;
@@ -19,7 +20,7 @@ function place(id: string, input: {
   return {
     id,
     slug: id,
-    name: id,
+    name: input.name ?? id,
     address: id,
     neighborhood: id,
     latitude: input.latitude ?? 35.15,
@@ -59,6 +60,7 @@ function candidate(
   featureInput: Partial<HomeCandidateFeatures>,
   input: {
     category?: string;
+    name?: string;
     latitude?: number;
     longitude?: number;
     ratingScore?: number | null;
@@ -95,6 +97,23 @@ function input(overrides: {
 }
 
 describe("rankHomeCandidates", () => {
+  it("완전 동점의 최종 순서는 상호명과 무관하고 안정적인 장소 ID로 결정한다", () => {
+    const first = rankHomeCandidates(input({
+      candidates: [
+        candidate("place-a", { freshness: 1 }, { name: "가게 Z" }),
+        candidate("place-b", { freshness: 1 }, { name: "가게 A" }),
+      ],
+    })).map((item) => item.place.id);
+    const invertedNames = rankHomeCandidates(input({
+      candidates: [
+        candidate("place-a", { freshness: 1 }, { name: "가게 A" }),
+        candidate("place-b", { freshness: 1 }, { name: "가게 Z" }),
+      ],
+    })).map((item) => item.place.id);
+
+    expect(invertedNames).toEqual(first);
+  });
+
   it("거리만 가까운 장소보다 현재 모드 핵심 점수가 높은 장소를 1위로 둔다", () => {
     const nearWeakTaste = candidate("near-weak-taste", {
       distance: 1,
@@ -279,7 +298,7 @@ describe("rankGoldenCandidates", () => {
 
     expect(result.places[0].recommendationReasons).toEqual([
       "최근에 자주 보지 않은 곳이에요",
-      "최근 리뷰어 평가가 좋은 곳이에요",
+      "최근 리뷰어 평가 기록이 있어요",
     ]);
     expect(result.places[0].primaryReason).toBe("freshness");
   });
@@ -316,7 +335,7 @@ describe("rankGoldenCandidates", () => {
     expect(result.places.some((item) => item.place.id === "general")).toBe(false);
     expect(result.places).toHaveLength(2);
     expect(result.goldenFallback).toBe(true);
-    expect(result.notice).toBe("현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.");
+    expect(result.notice).toBe("현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.");
   });
 
   it("Golden 모드 변경 보정도 근거 fallback 풀 밖의 일반 후보를 사용하지 않는다", () => {

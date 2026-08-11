@@ -60,6 +60,17 @@ describe("home curated route", () => {
     expect(mocks.listPlaces).not.toHaveBeenCalled();
   });
 
+  it("초기 큐레이션 loader가 URL의 위치 출처를 추천 이유 계산에 전달한다", async () => {
+    const { loader } = await import("../../app/routes/home");
+    await loader({
+      request: new Request("https://retaste.example/?locationSource=gps"),
+    } as never);
+
+    expect(mocks.getHomeCurationPage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      locationSource: "gps",
+    }));
+  });
+
   it("명시적 전체보기는 기존 장소·카테고리 탐색을 유지한다", async () => {
     const { loader } = await import("../../app/routes/home");
     const result = await loader({ request: new Request("https://retaste.example/?view=browse&q=국밥") } as never);
@@ -122,6 +133,28 @@ describe("home curated route", () => {
     expect(url.searchParams.get("bbox")).toBe("126.8,35,127,35.3");
     expect(url.searchParams.get("locationSource")).toBe("gps");
     expect(url.searchParams.get("history")).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("내 위치에서 전체 지도로 간 뒤 지도 이동을 확정하면 추천 지도 출처를 map_center로 유지한다", async () => {
+    const { parseHomeCurationState } = await import("../../app/features/maps/home-curation-options");
+    const { updateMapSearch } = await import("../../app/features/maps/map-selection");
+    let params = updateMapSearch(new URLSearchParams(), {
+      bbox: "126.85,35.12,126.9,35.16",
+      locationSource: "gps",
+    });
+    params.set("view", "browse");
+    expect(parseHomeCurationState(`?${params}`).locationSource).toBe("gps");
+
+    params = updateMapSearch(params, {
+      bbox: "126.8,35.1,126.88,35.18",
+      locationSource: "map_center",
+    });
+    params.delete("view");
+
+    expect(parseHomeCurationState(`?${params}`)).toEqual(expect.objectContaining({
+      view: "curated",
+      locationSource: "map_center",
+    }));
   });
 
   it("완료된 v2 정상 응답만 요청별 한 번 기록 대상으로 고른다", async () => {
@@ -232,10 +265,10 @@ describe("home curated route", () => {
     expect(source).toContain("lastRecordedRequestKeyRef");
     expect(source).toContain("beginHomeRecommendationRequest(");
     expect(source).toContain('const requestKey = `${++requestSequenceRef.current}:${requestUrl}`;');
-    expect(source).toContain('loadRecommendations(mode, liveMapState.bbox, locationSource)');
+    expect(source).toContain('loadRecommendations(mode, liveMapState.bbox, liveHomeState.locationSource)');
     expect(source).toContain('loadRecommendations(liveHomeState.mode, result.bbox, "gps")');
     expect(source).toContain('loadRecommendations(liveHomeState.mode, pendingBounds, "map_center")');
-    expect(source).toContain('onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, locationSource)');
+    expect(source).toContain('onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, liveHomeState.locationSource)');
     expect(source).not.toContain("clientLoader");
     expect(source).not.toMatch(/useEffect\(\(\) => \{\s*loadRecommendations/);
     expect(source).not.toContain("localStorage");

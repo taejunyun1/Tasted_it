@@ -277,7 +277,7 @@ reviewerConfidence는 리뷰어 점수와 reviewerSampleCount에 신뢰도 공�
 
 응답에는 `goldenFallback: true`와 다음 notice를 포함한다.
 
-> 현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.
+> 현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.
 
 ## 10. 1순위와 2~5순위 선정
 
@@ -394,6 +394,7 @@ type HomeLocationSource = "gps" | "map_center";
 
 - 사용자가 `내 위치`를 성공적으로 누르면 `gps`다.
 - 최초 지도, 지도 이동 후 다시 추천은 `map_center`다.
+- 위치 출처는 홈 URL의 `locationSource`에 유지한다. 전체 지도에서 새 bbox를 확정하면 `map_center`로 갱신하고 추천 지도로 돌아올 때 loader와 리소스 요청이 같은 값을 사용한다.
 
 추천 이유도 위치 출처를 반영한다.
 
@@ -411,7 +412,7 @@ bbox 중심을 실제 사용자 GPS로 표현하지 않는다.
 - `평소 좋아하는 국밥 취향과 잘 맞아요`
 - `현재 위치에서 가깝고 점심 메뉴로 잘 맞아요`
 - `자주 고르지 않던 중식 카테고리예요`
-- `최근 리뷰어 평가가 좋은 곳이에요`
+- `최근 리뷰어 평가 기록이 있어요`
 - `주변 Golden Pick 중 평가 신뢰도가 높아요`
 
 실제 feature가 없는 문구는 생성하지 않는다. LLM은 사용하지 않는다.

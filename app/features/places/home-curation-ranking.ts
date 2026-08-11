@@ -40,7 +40,7 @@ const DISTANCE_REASON: Record<HomeLocationSource, string> = {
   map_center: "현재 보고 있는 지역에서 가까워요",
 };
 
-const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.";
+const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 
 function stableHash(value: string) {
   let hash = 0x811c9dc5;
@@ -241,7 +241,7 @@ function goldenContributions(
     contributions.push({ key: "past_golden", score: (candidate.pastGolden ?? 0) * .35, text: "과거 Golden Pick 기록이 있어요" });
   }
   if (fallback && (candidate.reviewerConfidence ?? 0) > 0) {
-    contributions.push({ key: "reviewer", score: (candidate.reviewerConfidence ?? 0) * .35, text: "최근 리뷰어 평가가 좋은 곳이에요" });
+    contributions.push({ key: "reviewer", score: (candidate.reviewerConfidence ?? 0) * .35, text: "최근 리뷰어 평가 기록이 있어요" });
   }
   const samples = candidate.place.ratingSampleCount ?? candidate.place.positive + candidate.place.negative;
   if (samples >= 8 && candidate.features.confidence > 0) {

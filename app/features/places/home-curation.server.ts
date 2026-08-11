@@ -1,5 +1,6 @@
 import type { AppDb } from "../../db/client.server";
 import {
+  homeDateKeyAt,
   homeTimeSlotAt,
   type HomeCurationMode,
 } from "../maps/home-curation-options";
@@ -20,7 +21,7 @@ import {
 import { loadRecommendationCandidateContext } from "./recommendation-candidates.server";
 
 const CANDIDATE_RADIUS_METERS = 8_000;
-const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.";
+const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 
 type HomeCurationRadius = HomeCurationPage["radiusMeters"];
 
@@ -61,6 +62,7 @@ export async function getHomeCurationPage(
     bbox: candidateBbox(input.center),
     categorySlug: input.categorySlug,
     now: input.now,
+    goldenContext: input.mode === "golden" ? "empty-on-error" : "omit",
   });
   const timeSlot = homeTimeSlotAt(new Date(input.now));
   const qualityCandidates = context.candidates
@@ -74,6 +76,19 @@ export async function getHomeCurationPage(
     ? 3_000
     : qualityCandidates.filter(within(5_000)).length >= 20 ? 5_000 : 8_000;
   const candidates = qualityCandidates.filter(within(radiusMeters));
+  if (input.mode === "golden" && context.goldenContextStatus === "UNAVAILABLE") {
+    return {
+      algorithmVersion: "home-curation-v2",
+      status: "EMPTY",
+      places: [],
+      mode: input.mode,
+      timeSlot,
+      radiusMeters,
+      candidateCount: candidates.length,
+      goldenFallback: true,
+      notice: GOLDEN_FALLBACK_NOTICE,
+    };
+  }
   const curatedPlaces = rankHomeCuration({
     places: candidates,
     goldenPicks: context.goldenPicks,
@@ -84,7 +99,7 @@ export async function getHomeCurationPage(
     timeSlot,
     radiusMeters,
     history: input.history,
-    dateKey: input.now.slice(0, 10),
+    dateKey: homeDateKeyAt(new Date(input.now)),
     locationSource: input.locationSource,
   });
   const candidateIds = new Set(candidates.map((place) => place.id));

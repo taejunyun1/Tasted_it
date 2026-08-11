@@ -63,7 +63,7 @@ const props: HomeCurationPresentationProps = {
   onRetry: vi.fn(),
 };
 
-const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.";
+const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 
 describe("home curation presentation", () => {
   it("번호·거리·평가·실제 근거 두 개와 Golden Pick만 표시한다", () => {
@@ -105,7 +105,7 @@ describe("home curation presentation", () => {
         places: page.places.map((place) => ({
           ...place,
           isGoldenPick: false,
-          recommendationReasons: ["최근 리뷰어 평가가 좋은 곳이에요", "평가 신뢰도 상위"],
+          recommendationReasons: ["최근 리뷰어 평가 기록이 있어요", "평가 신뢰도 상위"],
         })),
       },
     };

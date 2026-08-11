@@ -15,9 +15,11 @@ const MODES = new Set<HomeCurationMode>(["now", "taste", "time", "golden", "disc
 export function parseHomeCurationState(search: string): {
   view: HomeMapView;
   mode: HomeCurationMode;
+  locationSource: HomeLocationSource;
 } {
   const params = new URLSearchParams(search);
   const requestedMode = params.get("mode") as HomeCurationMode | null;
+  const requestedLocationSource = params.get("locationSource") as HomeLocationSource | null;
   const hasBrowseIntent = params.get("view") === "browse"
     || Boolean(params.get("category"))
     || Boolean(params.get("q")?.trim());
@@ -25,7 +27,21 @@ export function parseHomeCurationState(search: string): {
   return {
     view: hasBrowseIntent ? "browse" : "curated",
     mode: requestedMode && MODES.has(requestedMode) ? requestedMode : "now",
+    locationSource: requestedLocationSource === "gps" ? "gps" : "map_center",
   };
+}
+
+export function homeDateKeyAt(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => (
+    parts.find((item) => item.type === type)?.value ?? ""
+  );
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 export function homeTimeSlotAt(now: Date): HomeTimeSlot {

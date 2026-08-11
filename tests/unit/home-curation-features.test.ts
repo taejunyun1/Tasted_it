@@ -76,6 +76,22 @@ describe("home curation features", () => {
     expect(a).toBeLessThanOrEqual(.05);
   });
 
+  it("세션 또는 KST 날짜가 바뀌면 근소한 동점 후보의 결정적 변동값이 회전한다", () => {
+    const inputs = [
+      { sessionSeed: "session-a", dateKey: "2026-08-11" },
+      { sessionSeed: "session-b", dateKey: "2026-08-11" },
+      { sessionSeed: "session-a", dateKey: "2026-08-12" },
+    ];
+    const winners = inputs.map((seed) => ["place-a", "place-b"]
+      .map((placeId) => ({
+        placeId,
+        variation: deterministicVariation({ ...seed, mode: "now", center: centerA, placeId }),
+      }))
+      .sort((left, right) => right.variation - left.variation)[0]!.placeId);
+
+    expect(new Set(winners).size).toBeGreaterThan(1);
+  });
+
   it.each([
     ["STRONG", 1],
     ["WEAK", .7],

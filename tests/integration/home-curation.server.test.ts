@@ -20,7 +20,7 @@ import {
 import type { HomeCurationPage as HomeCurationPageContract } from "../../app/features/places/home-curation";
 import { loadRecommendationCandidateContext } from "../../app/features/places/recommendation-candidates.server";
 
-const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.";
+const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 let homeFixtureIndex = 0;
 
 type ConcentricLayer = "within3" | "within5Extra" | "within8Extra";

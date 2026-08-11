@@ -77,7 +77,7 @@ describe("Golden Pick", () => {
   });
 
   it("GRANT의 만료 시점과 WITHDRAW·EXPIRE 연결로 활성·과거 강도를 계산한다", async () => {
-    const { db, reviewerId, placeIds } = await seedReviewerAndPlaces(`golden-history-${crypto.randomUUID()}`, 4);
+    const { db, reviewerId, placeIds } = await seedReviewerAndPlaces(`golden-history-${crypto.randomUUID()}`, 6);
     const grantIds = placeIds.map(() => crypto.randomUUID());
     await db.insert(goldenPickEvents).values([
       {
@@ -99,6 +99,16 @@ describe("Golden Pick", () => {
         id: grantIds[3]!, reviewerUserId: reviewerId, placeId: placeIds[3]!, eventType: "GRANT",
         previousEventId: null, reason: null, effectiveAt: "2026-04-02T00:00:00.000Z",
         expiresAt: "2026-07-01T00:00:00.000Z", createdAt: "2026-04-02T00:00:00.000Z",
+      },
+      {
+        id: grantIds[4]!, reviewerUserId: reviewerId, placeId: placeIds[4]!, eventType: "GRANT",
+        previousEventId: null, reason: null, effectiveAt: "2026-04-03T00:00:00.000Z",
+        expiresAt: "2026-07-02T00:00:00.000Z", createdAt: "2026-04-03T00:00:00.000Z",
+      },
+      {
+        id: grantIds[5]!, reviewerUserId: reviewerId, placeId: placeIds[5]!, eventType: "GRANT",
+        previousEventId: null, reason: null, effectiveAt: "2026-07-03T00:00:00.000Z",
+        expiresAt: "2026-07-03T00:00:00.000Z", createdAt: "2026-07-03T00:00:00.000Z",
       },
       {
         id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[2]!, eventType: "EXPIRE",
@@ -125,6 +135,12 @@ describe("Golden Pick", () => {
     });
     expect(history.get(placeIds[3]!)).toEqual({
       placeId: placeIds[3], active: false, activeStrength: 0, pastStrength: 0, reviewerUserId: null,
+    });
+    expect(history.get(placeIds[4]!)).toEqual({
+      placeId: placeIds[4], active: false, activeStrength: 0, pastStrength: .4, reviewerUserId: reviewerId,
+    });
+    expect(history.get(placeIds[5]!)).toEqual({
+      placeId: placeIds[5], active: false, activeStrength: 0, pastStrength: 0, reviewerUserId: null,
     });
   });
 });

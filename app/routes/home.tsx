@@ -150,6 +150,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     },
     mode: homeState.mode,
     now,
+    locationSource: homeState.locationSource,
   });
   return {
     ...common,
@@ -164,7 +165,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
   const recommendationFetcher = useFetcher<typeof homeRecommendationLoader>();
   const [curation, setCuration] = useState(loaderData.curation);
-  const [locationSource, setLocationSource] = useState<HomeLocationSource>("map_center");
   const [mapZoom, setMapZoom] = useState(12);
   const [focusCluster, setFocusCluster] = useState<RegionCluster | null>(null);
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
@@ -248,7 +248,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setParams((current) => updateMapSearch(current, change), { replace: true });
   };
   const setBounds = (bbox: [number, number, number, number]) => {
-    setSearch({ bbox: bbox.map((value) => value.toFixed(5)).join(",") });
+    setSearch({
+      bbox: bbox.map((value) => value.toFixed(5)).join(","),
+      locationSource: "map_center",
+    });
   };
   const setMode = (mode: HomeCurationMode) => {
     setParams((current) => {
@@ -257,7 +260,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       next.delete("selected");
       return next;
     }, { replace: true });
-    loadRecommendations(mode, liveMapState.bbox, locationSource);
+    loadRecommendations(mode, liveMapState.bbox, liveHomeState.locationSource);
   };
   const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
     const result = resolveLocationViewport(coords);
@@ -266,10 +269,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("bbox", result.bbox.map((value) => value.toFixed(5)).join(","));
+      next.set("locationSource", "gps");
       next.delete("selected");
       return next;
     }, { replace: true });
-    setLocationSource("gps");
     if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
   }, () => {
     setLocationNotice("위치 권한을 확인한 뒤 다시 시도해주세요.");
@@ -279,10 +282,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("bbox", pendingBounds.map((value) => value.toFixed(5)).join(","));
+      next.set("locationSource", "map_center");
       next.delete("selected");
       return next;
     }, { replace: true });
-    setLocationSource("map_center");
     loadRecommendations(liveHomeState.mode, pendingBounds, "map_center");
   };
   const browseAll = () => {
@@ -329,7 +332,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     onModeChange: setMode,
     onSelect: (id: string) => setSearch({ selected: id }),
     onLocate: locate,
-    onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, locationSource),
+    onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, liveHomeState.locationSource),
   } : null;
 
   return <main id="main" className={`map-explorer${isCurated ? " map-explorer--curated" : ""}`}>
