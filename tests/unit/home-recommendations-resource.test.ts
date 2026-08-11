@@ -76,6 +76,16 @@ describe("home recommendations resource", () => {
     }));
   });
 
+  it("React Router data 요청의 내부 route 식별자를 허용한다", async () => {
+    const { loader } = await import("../../app/routes/home-recommendations-resource");
+    const result = await loader({
+      request: new Request("https://retaste.example/resources/home-recommendations.data?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource"),
+    } as never);
+
+    expect(result).toMatchObject({ data: { ok: true } });
+    expect(mocks.getHomeCurationPage).toHaveBeenCalledOnce();
+  });
+
   it("잘못된 요청은 계산하지 않고 400으로 거부한다", async () => {
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     const result = await loader({

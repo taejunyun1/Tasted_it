@@ -104,10 +104,9 @@
 
 .home-curation-modes{
   display:flex;
+  flex-wrap:wrap;
   gap:var(--space-2);
-  overflow-x:auto;
   padding:2px 2px var(--space-3);
-  scrollbar-width:none;
 }
 
 .home-curation-modes::-webkit-scrollbar{
@@ -393,8 +392,11 @@
     position:sticky;
     z-index:1;
     top:0;
+    flex-wrap:nowrap;
+    overflow-x:auto;
     padding-top:var(--space-2);
     background:var(--surface-page);
+    scrollbar-width:none;
   }
 
   .home-curation-card{

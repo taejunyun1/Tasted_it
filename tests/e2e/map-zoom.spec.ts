@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("map keeps its zoom level while bounds refresh the place list", async ({ page }) => {
-  await page.goto(`/?qa=${Date.now()}-${Math.random()}`);
+  await page.goto(`/?view=browse&qa=${Date.now()}-${Math.random()}`);
   const zoomIn = page.getByRole("link", { name: "지도 확대", exact: true });
   await expect(zoomIn).toBeVisible();
   const initialBounds = new URL(page.url()).searchParams.get("bbox");
@@ -19,7 +19,7 @@ test("map keeps its zoom level while bounds refresh the place list", async ({ pa
 });
 
 test("manual zoom out persists after selecting a filtered place", async ({ page }) => {
-  await page.goto(`/?qa=${Date.now()}-${Math.random()}`);
+  await page.goto(`/?view=browse&qa=${Date.now()}-${Math.random()}`);
   const map = page.getByLabel("장소 지도");
 
   await page.getByRole("button", { name: "🍚 한식" }).click();
@@ -44,7 +44,7 @@ test("manual zoom out persists after selecting a filtered place", async ({ page 
 });
 
 test("district and neighborhood clusters drill down to individual place pins", async ({ page }) => {
-  await page.goto(`/?qa=${Date.now()}-${Math.random()}`);
+  await page.goto(`/?view=browse&qa=${Date.now()}-${Math.random()}`);
   const map = page.getByLabel("장소 지도");
   const district = map.getByRole("button", { name: /음식점 \d+곳, 확대해서 보기$/ }).first();
   await expect(district).toBeVisible();

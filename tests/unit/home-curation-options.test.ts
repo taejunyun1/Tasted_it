@@ -48,12 +48,19 @@ describe("home curation options", () => {
       });
   });
 
+  it("React Router가 붙이는 정확한 리소스 식별자만 허용한다", () => {
+    expect(parseHomeRecommendationRequest("?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource"))
+      .toMatchObject({ mode: "now", bbox: [126.8, 35, 127, 35.3] });
+  });
+
   it.each([
     "?bbox=126.8,35,127,35.3",
     "?mode=now",
     "?mode=bad&bbox=126.8,35,127,35.3",
     "?mode=now&mode=taste&bbox=126.8,35,127,35.3",
     "?mode=now&bbox=126.8,35,127,35.3&debug=1",
+    "?mode=now&bbox=126.8,35,127,35.3&_routes=bad",
+    "?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource&_routes=routes%2Fhome-recommendations-resource",
     "?mode=now&bbox=126.8,35,127",
     "?mode=now&bbox=127,35.3,126.8,35",
     "?mode=now&bbox=100,35,101,35.3",

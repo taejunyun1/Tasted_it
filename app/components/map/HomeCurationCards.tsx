@@ -92,7 +92,10 @@ export function HomeCurationCards({
           </span>
           <span className="home-curation-card__reasons">
             <small>{SLOT_LABELS[place.slot]}</small>
-            {place.recommendationReasons.slice(0, 2).map((reason) => <small key={reason}>{reason}</small>)}
+            {place.recommendationReasons
+              .filter((reason) => !(place.isGoldenPick && reason === "리뷰어 Golden Pick"))
+              .slice(0, 2)
+              .map((reason) => <small key={reason}>{reason}</small>)}
             {place.isGoldenPick && <small data-kind="golden">Golden Pick</small>}
           </span>
         </span>

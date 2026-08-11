@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 function qaPath(search = "") {
   const params = new URLSearchParams(search);
+  params.set("view", "browse");
   params.set("qa", `${Date.now()}-${Math.random()}`);
   return `/?${params.toString()}`;
 }

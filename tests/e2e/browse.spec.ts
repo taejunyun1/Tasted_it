@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 test("category journey exposes the same place in list and map", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByLabel("장소 지도")).toBeVisible();
+  const curatedPresentation = page.locator(".home-curation-panel:visible, .home-curation-sheet:visible");
+  await curatedPresentation.getByRole("button", { name: "전체 지도" }).click();
   await page.getByRole("button", { name: /일식/ }).click();
   await page.getByRole("button", { name: /라멘/ }).first().click();
   await expect(page).toHaveURL(/category=ramen-detail/);
@@ -20,7 +22,7 @@ test("header keeps two primary links and places secondary actions in a hamburger
   await expect(page.getByRole("link", { name: "나의 취향", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "로그인", exact: true })).toBeHidden();
 
-  await page.getByRole("button", { name: "메뉴" }).click();
+  await page.getByRole("button", { name: "메뉴", exact: true }).click();
 
   await expect(page.getByRole("link", { name: "로그인", exact: true })).toBeVisible();
 });

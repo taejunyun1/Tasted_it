@@ -40,7 +40,9 @@ const page: HomeCurationPage = {
     distanceMeters: 250 + index * 100,
     slot: index === 3 ? "TRUSTED_PICK" : index === 4 ? "DISCOVERY" : "BEST_NOW",
     rank: index + 1,
-    recommendationReasons: ["현재 위치에서 가까움", "현재 시간대에 어울림", "표시하면 안 되는 이유"],
+    recommendationReasons: index === 3
+      ? ["리뷰어 Golden Pick", "평가 신뢰도 상위"]
+      : ["현재 위치에서 가까움", "현재 시간대에 어울림", "표시하면 안 되는 이유"],
     isGoldenPick: index === 3,
   })),
 };

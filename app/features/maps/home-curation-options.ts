@@ -62,17 +62,20 @@ export function parseHomeRecommendationRequest(search: string): {
 } {
   const params = new URLSearchParams(search);
   const keys = [...params.keys()];
-  const validKeys = keys.every((key) => key === "mode" || key === "bbox");
+  const validKeys = keys.every((key) => key === "mode" || key === "bbox" || key === "_routes");
   const modeValues = params.getAll("mode");
   const bboxValues = params.getAll("bbox");
+  const routeValues = params.getAll("_routes");
   const mode = modeValues[0] as HomeCurationMode | undefined;
   const bboxNumbers = bboxValues[0]?.split(",").map(Number) ?? [];
 
   if (
     !validKeys
-    || keys.length !== 2
+    || (keys.length !== 2 && keys.length !== 3)
     || modeValues.length !== 1
     || bboxValues.length !== 1
+    || routeValues.length > 1
+    || (routeValues.length === 1 && routeValues[0] !== "routes/home-recommendations-resource")
     || !mode
     || !MODES.has(mode)
     || bboxNumbers.length !== 4
