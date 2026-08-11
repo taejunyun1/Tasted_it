@@ -54,9 +54,13 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
       <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
     </div>
     <div className="home-curation-sheet__body">
+      {props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
       <HomeCurationModeControls {...props} />
       {props.error && <p className="home-curation-error" role="status">{props.error} <button type="button" onClick={props.onRetry}>다시 시도</button></p>}
       <HomeCurationCards {...props} />
+      <footer className="home-curation-footer">
+        <span>{props.page.radiusMeters / 1_000}km 안에서 추천</span>
+      </footer>
     </div>
   </aside>;
 }

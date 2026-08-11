@@ -63,6 +63,8 @@ const props: HomeCurationPresentationProps = {
   onRetry: vi.fn(),
 };
 
+const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.";
+
 describe("home curation presentation", () => {
   it("번호·거리·평가·실제 근거 두 개와 Golden Pick만 표시한다", () => {
     const html = renderToStaticMarkup(createElement(HomeCurationCards, props));
@@ -87,6 +89,34 @@ describe("home curation presentation", () => {
     expect(panel).not.toContain("전체 지도");
     expect(sheet).not.toContain("전체 지도");
     expect(sheet).toContain('data-snap="half"');
+  });
+
+  it("Golden fallback 안내를 데스크톱 패널과 모바일 시트에 모두 표시한다", () => {
+    const fallbackProps: HomeCurationPresentationProps = {
+      ...props,
+      page: {
+        ...page,
+        mode: "golden",
+        radiusMeters: 5_000,
+        candidateCount: 12,
+        goldenFallback: true,
+        notice: GOLDEN_FALLBACK_NOTICE,
+        places: page.places.map((place) => ({
+          ...place,
+          isGoldenPick: false,
+          recommendationReasons: ["최근 리뷰어 평가가 좋은 곳이에요", "평가 신뢰도 상위"],
+        })),
+      },
+    };
+    const panel = renderToStaticMarkup(createElement(HomeCurationPanel, fallbackProps));
+    const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, fallbackProps));
+
+    expect(panel).toContain(GOLDEN_FALLBACK_NOTICE);
+    expect(sheet).toContain(GOLDEN_FALLBACK_NOTICE);
+    expect(panel).toContain("5km 안에서 추천");
+    expect(sheet).toContain("5km 안에서 추천");
+    expect(panel).not.toContain('data-kind="golden"');
+    expect(sheet).not.toContain('data-kind="golden"');
   });
 
   it("36px 이상 위아래 드래그만 시트 스냅을 한 단계 바꾼다", () => {
