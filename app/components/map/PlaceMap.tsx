@@ -19,6 +19,73 @@ function detachMarkers(markers: naver.maps.Marker[]) {
   });
 }
 
+const GWANGJU_OVERVIEW_BOUNDS = {
+  west: 126.7,
+  south: 35.02,
+  east: 127.06,
+  north: 35.28,
+} as const;
+const MUDEUNGSAN_OVERVIEW_ICON_POINT = { x: 95, y: 63 } as const;
+const YEONGSAN_RIVER_OVERVIEW_LINE = "44,3 35,24 22,41 16,62 12,88";
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundOverviewValue(value: number) {
+  return Number(value.toFixed(1));
+}
+
+export function getGwangjuOverviewPoint({ latitude, longitude }: {
+  latitude: number;
+  longitude: number;
+}): { x: number; y: number } | null {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const x = ((longitude - GWANGJU_OVERVIEW_BOUNDS.west) /
+    (GWANGJU_OVERVIEW_BOUNDS.east - GWANGJU_OVERVIEW_BOUNDS.west)) * 100;
+  const y = ((GWANGJU_OVERVIEW_BOUNDS.north - latitude) /
+    (GWANGJU_OVERVIEW_BOUNDS.north - GWANGJU_OVERVIEW_BOUNDS.south)) * 100;
+  return {
+    x: roundOverviewValue(clamp(x, 6, 94)),
+    y: roundOverviewValue(clamp(y, 6, 94)),
+  };
+}
+
+function SelectedPlaceOverview({ belowFloatingMessage = false, place }: {
+  belowFloatingMessage?: boolean;
+  place: PlaceSummary;
+}) {
+  const point = getGwangjuOverviewPoint({
+    latitude: place.latitude,
+    longitude: place.longitude,
+  });
+  if (!point) return null;
+
+  return <div
+    className={`map-location-overview${belowFloatingMessage ? " map-location-overview--below-message" : ""}`}
+    role="img"
+    aria-label={`광주시 벨트라인, 무등산, 영산강 기준 ${place.name} 위치 미니맵`}
+  >
+    <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      <g className="map-location-overview__beltline">
+        <rect className="map-location-overview__region" x="12" y="22" width="76" height="56" rx="16" />
+        <path className="map-location-overview__district" d="M31 25 C36 38 34 54 26 71" />
+        <path className="map-location-overview__district" d="M70 25 C61 40 63 57 78 72" />
+        <path className="map-location-overview__district" d="M20 52 C38 53 57 62 73 75" />
+        <path className="map-location-overview__district" d="M50 24 C55 41 52 60 44 76" />
+      </g>
+      <polyline className="map-location-overview__river" points={YEONGSAN_RIVER_OVERVIEW_LINE} />
+      <g
+        className="map-location-overview__mountain-icon"
+        transform={`translate(${MUDEUNGSAN_OVERVIEW_ICON_POINT.x} ${MUDEUNGSAN_OVERVIEW_ICON_POINT.y})`}
+      >
+        <path d="M-5 6 L0 -6 L5 6 Z" />
+      </g>
+      <circle className="map-location-overview__dot" cx={point.x} cy={point.y} r="4.5" />
+    </svg>
+  </div>;
+}
+
 export function mapBoundsDeliveryTarget(input: {
   deferBounds: boolean;
   viewportDirty: boolean;
@@ -60,9 +127,14 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   const markersRef = useRef<naver.maps.Marker[]>([]);
   const suppressBoundsUntilRef = useRef(0);
   const viewportDirtyRef = useRef(false);
+  const qaFallback = !clientId && qaMode;
   const selectedPlace = selected ? places.find((candidate) => candidate.id === selected) : undefined;
   const selectedLatitude = selectedPlace?.latitude;
   const selectedLongitude = selectedPlace?.longitude;
+  const hasFloatingMapMessage = qaFallback ? Boolean(locationNotice) : Boolean(error || locationNotice);
+  const selectedOverview = selectedPlace
+    ? <SelectedPlaceOverview belowFloatingMessage={hasFloatingMapMessage} place={selectedPlace} />
+    : null;
   selectRef.current = onSelect;
   boundsRef.current = onBounds;
   pendingBoundsRef.current = onPendingBounds;
@@ -241,7 +313,6 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     }
   }, [map, selected, selectedLatitude, selectedLongitude]);
 
-  const qaFallback = !clientId && qaMode;
   const handleViewportIntent = () => {
     viewportDirtyRef.current = true;
   };
@@ -260,6 +331,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     onWheel={handleViewportIntent}
   >
     {locationNotice && <p className="map-error" role="status" aria-live="polite">{locationNotice}</p>}
+    {selectedOverview}
     <a href="#" aria-label="지도 확대" onClick={(event) => {
       event.preventDefault();
       const nextZoom = zoom + 1;
@@ -287,7 +359,9 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     })}
   </div>;
 
-  return <div className="map-canvas" ref={host} aria-label="장소 지도" data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
+  return <div className="map-canvas" aria-label="장소 지도" data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
+    <div className="map-canvas__host" ref={host} aria-hidden="true" />
     {(error || locationNotice) && <p className="map-error" role="status" aria-live="polite">{error || locationNotice}</p>}
+    {selectedOverview}
   </div>;
 }

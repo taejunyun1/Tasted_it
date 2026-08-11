@@ -317,6 +317,82 @@
   box-shadow:4px 4px 0 var(--color-ink);
 }
 
+.map-canvas__host{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+}
+
+.map-location-overview{
+  position:absolute;
+  z-index:6;
+  top:var(--space-4);
+  left:var(--space-4);
+  width:104px;
+  aspect-ratio:1;
+  display:grid;
+  place-items:center;
+  padding:var(--space-2);
+  border:1px solid var(--color-ink);
+  border-radius:var(--radius-control);
+  background:#fbfcf8;
+  box-shadow:5px 5px 0 rgba(23,34,28,.16);
+  pointer-events:none;
+  transform:translateY(0);
+  transition:transform .22s ease;
+}
+
+.map-location-overview--below-message{
+  transform:translateY(64px);
+}
+
+.map-location-overview svg{
+  width:100%;
+  height:100%;
+  display:block;
+}
+
+.map-location-overview__beltline{
+  transform-origin:50% 50%;
+}
+
+.map-location-overview__region{
+  fill:var(--surface-soft);
+  stroke:var(--color-ink);
+  stroke-width:2.4;
+  vector-effect:non-scaling-stroke;
+}
+
+.map-location-overview__district{
+  fill:none;
+  stroke:rgba(45,103,77,.42);
+  stroke-dasharray:3 4;
+  stroke-linecap:round;
+  stroke-width:.9;
+}
+
+.map-location-overview__river{
+  fill:none;
+  stroke:#9ccdec;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  stroke-width:2.4;
+}
+
+.map-location-overview__mountain-icon path{
+  fill:var(--color-accent);
+  stroke:var(--color-accent);
+  stroke-linejoin:round;
+  stroke-width:1.7;
+}
+
+.map-location-overview__dot{
+  fill:var(--atlas-tangerine,#e86436);
+  stroke:var(--color-ink);
+  stroke-width:1.8;
+}
+
 @media(max-width:760px){
   .map-explorer--curated{
     display:block;
@@ -425,10 +501,24 @@
     top:calc(var(--space-3) + var(--control-height) + var(--space-2));
     min-height:var(--control-height);
   }
+
+  .map-location-overview{
+    top:var(--space-3);
+    left:var(--space-3);
+    width:78px;
+    padding:7px;
+    border-radius:10px;
+    box-shadow:4px 4px 0 rgba(23,34,28,.16);
+  }
+
+  .map-location-overview--below-message{
+    transform:translateY(58px);
+  }
 }
 
 @media(prefers-reduced-motion:reduce){
   .home-curation-sheet,
+  .map-location-overview,
   .map-pin--ranked{
     transition:none;
     animation:none;
