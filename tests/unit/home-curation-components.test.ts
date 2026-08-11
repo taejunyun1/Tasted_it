@@ -77,6 +77,7 @@ describe("home curation presentation", () => {
     expect(html).not.toContain("표시하면 안 되는 이유");
     expect(html.match(/Golden Pick/g)).toHaveLength(1);
     expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('data-place-id="place-0"');
   });
 
   it("데스크톱 패널과 모바일 시트는 추천 내용만 공유하고 지도 전환 버튼을 갖지 않는다", () => {

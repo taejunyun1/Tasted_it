@@ -4,6 +4,25 @@ test.skip(Boolean(process.env.BASE_URL), "로컬 QA 시드가 있는 환경에�
 
 const DEFAULT_BBOX = "126.72,35.03,127.02,35.25";
 const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 리뷰어 평가가 좋은 장소를 추천합니다.";
+// Golden fallback ignores time-slot scoring. This past-Golden fixture has a
+// score gap larger than the bounded date variation, so its SSR order is fixed.
+const EVIDENCE_PLACE_IDS = [
+  "e2e-home-place-4",
+  "e2e-home-place-1",
+  "e2e-home-place-2",
+  "e2e-home-place-3",
+  "e2e-home-place-5",
+] as const;
+const MOCK_GPS = { latitude: 35.145, longitude: 126.875 };
+const MOCK_GPS_BBOX = [126.85, 35.127, 126.9, 35.163] as const;
+const QA_MAP_CENTER = { latitude: 35.1595, longitude: 126.8526 };
+const QA_ZOOMED_BBOX = [
+  126.8526 - 0.02 / 3,
+  35.1595 - 0.02 / 3,
+  126.8526 + 0.02 / 3,
+  35.1595 + 0.02 / 3,
+] as const;
+const BBOX_TOLERANCE = 0.00001;
 
 type RecommendationContract = {
   ok: boolean;
@@ -11,7 +30,7 @@ type RecommendationContract = {
     candidateCount: number;
     goldenFallback: boolean;
     notice: string | null;
-    places: Array<{ id: string; name: string; isGoldenPick: boolean }>;
+    places: Array<{ id: string; isGoldenPick: boolean }>;
   };
 };
 
@@ -56,8 +75,27 @@ async function selectMode(
   await expect(presentation.locator(".home-curation-card")).toHaveCount(5);
 }
 
-async function recommendationNames(presentation: Locator) {
-  return presentation.locator(".home-curation-card strong").allTextContents();
+async function recommendationIds(presentation: Locator) {
+  const ids = await presentation.locator(".home-curation-card")
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-place-id")));
+  expect(ids.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
+  return ids as string[];
+}
+
+function bboxFromRequestUrl(url: string) {
+  const raw = new URL(url).searchParams.get("bbox");
+  expect(raw).not.toBeNull();
+  const bbox = raw?.split(",").map(Number) ?? [];
+  expect(bbox).toHaveLength(4);
+  expect(bbox.every(Number.isFinite)).toBe(true);
+  return bbox;
+}
+
+function expectBboxNear(actual: number[], expected: readonly number[]) {
+  expect(actual).toHaveLength(4);
+  expected.forEach((value, index) => {
+    expect(Math.abs(actual[index] - value)).toBeLessThanOrEqual(BBOX_TOLERANCE);
+  });
 }
 
 async function directRecommendationContract(page: Page, mode: string) {
@@ -83,15 +121,17 @@ async function dragSheetDown(page: Page, handle: Locator) {
 }
 
 test("큐레이션 홈은 다섯 곳과 명시적 전체 탐색을 보존한다", async ({ page }, testInfo) => {
-  await page.goto("/?qa=1");
+  await page.goto("/?qa=1&mode=golden");
 
   const presentation = curationPresentation(page, testInfo.project.name);
   await expect(presentation.getByRole("heading", { name: "지금 갈 만한 5곳" })).toBeVisible();
   await expect(presentation.locator(".home-curation-card")).toHaveCount(5);
   await expect(presentation.locator(".home-curation-card").first()).toHaveAttribute("aria-pressed", "true");
   await expect(presentation).not.toContainText("QA 낮은 평가 제외");
-  await expect(presentation.getByRole("button", { name: "지금 갈 만한 곳", exact: true }))
+  await expect(presentation.getByRole("button", { name: "Golden Pick", exact: true }))
     .toHaveAttribute("aria-pressed", "true");
+  await expect(presentation.getByText(GOLDEN_FALLBACK_NOTICE, { exact: true })).toBeVisible();
+  expect(await recommendationIds(presentation)).toEqual(EVIDENCE_PLACE_IDS);
 
   if (process.env.HOME_CURATION_EVIDENCE === "1") {
     await page.evaluate(() => document.fonts.ready);
@@ -127,15 +167,15 @@ test("모드 변경은 최소 두 곳을 바꾸고 단순 UI 재렌더는 결과
   expect(initialContract.candidateCount).toBeGreaterThanOrEqual(8);
 
   await selectMode(page, presentation, "now", "지금 갈 만한 곳");
-  const nowNames = await recommendationNames(presentation);
+  const nowIds = await recommendationIds(presentation);
   await selectMode(page, presentation, "taste", "내 취향");
-  const tasteNames = await recommendationNames(presentation);
-  expect(nowNames.filter((name) => tasteNames.includes(name)).length).toBeLessThanOrEqual(3);
+  const tasteIds = await recommendationIds(presentation);
+  expect(nowIds.filter((id) => tasteIds.includes(id)).length).toBeLessThanOrEqual(3);
 
   const requestCountBeforeUiOnlyChange = recommendationRequestCount;
   await presentation.locator(".home-curation-card").nth(1).click();
   await expect(presentation.locator(".home-curation-card").nth(1)).toHaveAttribute("aria-pressed", "true");
-  expect(await recommendationNames(presentation)).toEqual(tasteNames);
+  expect(await recommendationIds(presentation)).toEqual(tasteIds);
   expect(recommendationRequestCount).toBe(requestCountBeforeUiOnlyChange);
 
   if (isMobileProject(testInfo.project.name)) {
@@ -143,7 +183,7 @@ test("모드 변경은 최소 두 곳을 바꾸고 단순 UI 재렌더는 결과
     await expect(presentation).toHaveAttribute("data-snap", "full");
     await presentation.getByRole("button", { name: "추천 목록 접기", exact: true }).click();
     await expect(presentation).toHaveAttribute("data-snap", "half");
-    expect(await recommendationNames(presentation)).toEqual(tasteNames);
+    expect(await recommendationIds(presentation)).toEqual(tasteIds);
     expect(recommendationRequestCount).toBe(requestCountBeforeUiOnlyChange);
   }
 
@@ -168,7 +208,7 @@ test("Golden 활성 후보가 없으면 정확한 안내와 근거 후보만 보
 
 test("위치와 새 지도 영역은 명시적으로 다시 추천한다", async ({ context, page }, testInfo) => {
   await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
-  await context.setGeolocation({ latitude: 35.145, longitude: 126.875 });
+  await context.setGeolocation(MOCK_GPS);
   await page.goto("/?qa=1");
 
   const presentation = curationPresentation(page, testInfo.project.name);
@@ -177,18 +217,29 @@ test("위치와 새 지도 영역은 명시적으로 다시 추천한다", async
     && new URL(response.url()).searchParams.get("locationSource") === "gps"
   ));
   await presentation.getByRole("button", { name: "내 위치", exact: true }).click();
-  expect((await locatedResponsePromise).status()).toBe(200);
+  const locatedResponse = await locatedResponsePromise;
+  expect(locatedResponse.status()).toBe(200);
+  expectBboxNear(bboxFromRequestUrl(locatedResponse.url()), MOCK_GPS_BBOX);
   await expect(presentation.locator(".home-curation-error")).toHaveCount(0);
 
   await page.getByRole("link", { name: "지도 확대", exact: true }).click();
   const retryArea = page.getByRole("button", { name: "이 지역 다시 추천", exact: true });
   await expect(retryArea).toBeVisible();
+  await expect(page.locator('.map-canvas[aria-label="장소 지도"]')).toHaveAttribute("data-map-zoom", "13");
+  expectBboxNear(bboxFromRequestUrl(page.url()), MOCK_GPS_BBOX);
   const areaResponsePromise = page.waitForResponse((response) => (
     response.url().includes("/resources/home-recommendations.data")
     && new URL(response.url()).searchParams.get("locationSource") === "map_center"
   ));
   await retryArea.click();
-  expect((await areaResponsePromise).status()).toBe(200);
+  const areaResponse = await areaResponsePromise;
+  expect(areaResponse.status()).toBe(200);
+  const areaBbox = bboxFromRequestUrl(areaResponse.url());
+  expectBboxNear(areaBbox, QA_ZOOMED_BBOX);
+  expect(Math.abs((areaBbox[0] + areaBbox[2]) / 2 - QA_MAP_CENTER.longitude))
+    .toBeLessThanOrEqual(BBOX_TOLERANCE);
+  expect(Math.abs((areaBbox[1] + areaBbox[3]) / 2 - QA_MAP_CENTER.latitude))
+    .toBeLessThanOrEqual(BBOX_TOLERANCE);
   await expect(retryArea).toHaveCount(0);
   await expect(presentation.locator(".home-curation-error")).toHaveCount(0);
 });
@@ -199,8 +250,11 @@ test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동
   const presentation = curationPresentation(page, testInfo.project.name);
   const cards = presentation.locator(".home-curation-card");
   await expect(cards).toHaveCount(5);
-  const firstName = await cards.first().locator("strong").innerText();
+  const firstId = await cards.first().getAttribute("data-place-id");
   const lastCard = cards.last();
+  const lastId = await lastCard.getAttribute("data-place-id");
+  expect(firstId).toBeTruthy();
+  expect(lastId).toBeTruthy();
 
   if (isMobileProject(testInfo.project.name)) {
     await presentation.getByRole("button", { name: "추천 목록 펼치기", exact: true }).click();
@@ -211,8 +265,7 @@ test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동
   await lastCard.click();
   await expect(lastCard).toHaveAttribute("aria-pressed", "true");
   const map = page.locator('.map-canvas[aria-label="장소 지도"]');
-  const lastSelectedId = await map.getAttribute("data-focused-place");
-  expect(lastSelectedId).toBeTruthy();
+  await expect(map).toHaveAttribute("data-focused-place", lastId!);
 
   if (isMobileProject(testInfo.project.name)) {
     const handle = presentation.getByRole("button", { name: "추천 목록 접기", exact: true });
@@ -222,9 +275,9 @@ test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동
     await expect(presentation).toHaveAttribute("data-snap", "peek");
   }
 
-  await page.getByRole("button", { name: `1번 ${firstName} 지도 핀`, exact: true }).click();
+  await page.locator(`.map-pin[data-place-id="${firstId}"]`).click();
   await expect(cards.first()).toHaveAttribute("aria-pressed", "true");
-  await expect(map).not.toHaveAttribute("data-focused-place", lastSelectedId!);
+  await expect(map).toHaveAttribute("data-focused-place", firstId!);
   if (isMobileProject(testInfo.project.name)) {
     await expect(presentation).toHaveAttribute("data-snap", "half");
   }
