@@ -250,6 +250,58 @@ describe("rankGoldenCandidates", () => {
     expect(result.notice).toBeNull();
   });
 
+  it.each([
+    ["taste", { confidence: .1, taste: 1, freshness: .3,
+      tasteMatches: [{ badgeId: "food-gukbap", strength: 1, match: "DIRECT" as const }] }, "평소 좋아하는 취향과 잘 맞아요"],
+    ["distance", { confidence: .1, distanceMeters: 100, distance: 1, freshness: .3 }, "현재 보고 있는 지역에서 가까워요"],
+    ["time", { confidence: .1, distanceMeters: 9_001, time: 1, timeCompatibility: "STRONG" as const, freshness: .3 }, "현재 시간대에 잘 맞아요"],
+    ["freshness", { confidence: .1, distanceMeters: 9_001, freshness: 1 }, "최근에 자주 보지 않은 곳이에요"],
+  ])("활성 Golden의 %s 기여가 가장 큰 보조 이유이면 실제 공식 순서로 표시한다", (_feature, featureInput, reason) => {
+    const result = rankGoldenCandidates({
+      candidates: [candidate("active", featureInput, {
+        golden: .8,
+        ratingScore: 80,
+        ratingSampleCount: 8,
+      })],
+      locationSource: "map_center",
+    });
+
+    expect(result.places[0].recommendationReasons).toEqual(["주변 Golden Pick이에요", reason]);
+    expect(result.places[0].recommendationReasons).toHaveLength(2);
+  });
+
+  it("Golden fallback의 신선도 기여가 리뷰어 기여보다 크면 이유와 primaryReason도 신선도를 우선한다", () => {
+    const result = rankGoldenCandidates({
+      candidates: [candidate("fallback", { freshness: 1 }, { reviewerConfidence: .1 })],
+      activeGoldenIds: [],
+      locationSource: "map_center",
+    });
+
+    expect(result.places[0].recommendationReasons).toEqual([
+      "최근에 자주 보지 않은 곳이에요",
+      "최근 리뷰어 평가가 좋은 곳이에요",
+    ]);
+    expect(result.places[0].primaryReason).toBe("freshness");
+  });
+
+  it("Golden 이유는 점수 값만 있고 근거가 유효하지 않은 특징을 표시하지 않는다", () => {
+    const result = rankGoldenCandidates({
+      candidates: [candidate("active", {
+        confidence: 1,
+        taste: 1,
+        tasteMatches: [],
+        distanceMeters: 9_001,
+        distance: 1,
+        time: 1,
+        timeCompatibility: "MISMATCH",
+        freshness: .3,
+      }, { golden: 1, pastGolden: .4, reviewerConfidence: 1 })],
+      locationSource: "gps",
+    });
+
+    expect(result.places[0].recommendationReasons).toEqual(["주변 Golden Pick이에요"]);
+  });
+
   it("활성 후보가 없으면 근거리 일반 장소를 섞지 않고 평가 근거 후보만 반환한다", () => {
     const generalNearby = candidate("general", { distance: 1, freshness: 1 });
     const pastGolden = candidate("past", { confidence: .4, freshness: 1 }, { pastGolden: .4 });
@@ -282,5 +334,27 @@ describe("rankGoldenCandidates", () => {
 
     expect(result.places.filter((item) => ["a", "b", "c", "d", "e"].includes(item.place.id))).toHaveLength(3);
     expect(result.places.some((item) => item.place.id === "general")).toBe(false);
+  });
+
+  it.each([5, 6])("활성 Golden %i곳 경계에 비이전 대안이 한 곳뿐이면 두 곳 교체를 위해 fallback을 넘지 않는다", (activeCount) => {
+    const activeIds = ["a", "b", "c", "d", "e", "x"].slice(0, activeCount);
+    const previousIds = activeCount === 5 ? ["a", "b", "c", "d", "outside"] : ["a", "b", "c", "d", "e"];
+    const active = activeIds.map((id) => candidate(id, {
+      confidence: .9,
+      freshness: 1,
+    }, { golden: 1 }));
+    const fallback = ["fallback-1", "fallback-2", "fallback-3"].map((id) => candidate(id, {
+      freshness: 1,
+    }, { reviewerConfidence: .9 }));
+
+    const result = rankGoldenCandidates({
+      candidates: [...active, ...fallback],
+      previousMode: "taste",
+      previousIds,
+      locationSource: "map_center",
+    });
+
+    expect(result.places.every((item) => activeIds.includes(item.place.id))).toBe(true);
+    expect(result.places.filter((item) => previousIds.includes(item.place.id))).toHaveLength(4);
   });
 });

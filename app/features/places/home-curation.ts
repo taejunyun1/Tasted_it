@@ -69,8 +69,9 @@ function sampleCount(place: DiscoveryPlace) {
 
 function passesHomeQuality(place: DiscoveryPlace) {
   const samples = sampleCount(place);
-  const visibleScore = place.ratingScore ?? (samples >= 8 ? calculateRating(place).displayScore : null);
-  return visibleScore == null || visibleScore >= 55;
+  if (samples < 8) return true;
+  const visibleScore = place.ratingScore ?? calculateRating(place).displayScore;
+  return visibleScore >= 55;
 }
 
 function slotFor(candidate: HomeRankedCandidate): HomeCurationSlot {

@@ -228,25 +228,45 @@ export function rankHomeCandidates(input: {
   }).selected;
 }
 
-function goldenContributions(candidate: HomeRankingCandidate, fallback: boolean) {
+function goldenContributions(
+  candidate: HomeRankingCandidate,
+  fallback: boolean,
+  locationSource: HomeLocationSource,
+) {
   const contributions: Array<{ key: HomeReasonKey; score: number; text: string }> = [];
   if (!fallback && (candidate.golden ?? 0) > 0) {
     contributions.push({ key: "golden", score: (candidate.golden ?? 0) * .55, text: "주변 Golden Pick이에요" });
   }
-  if ((candidate.pastGolden ?? 0) > 0) {
+  if (fallback && (candidate.pastGolden ?? 0) > 0) {
     contributions.push({ key: "past_golden", score: (candidate.pastGolden ?? 0) * .35, text: "과거 Golden Pick 기록이 있어요" });
   }
-  if ((candidate.reviewerConfidence ?? 0) > 0) {
+  if (fallback && (candidate.reviewerConfidence ?? 0) > 0) {
     contributions.push({ key: "reviewer", score: (candidate.reviewerConfidence ?? 0) * .35, text: "최근 리뷰어 평가가 좋은 곳이에요" });
   }
   const samples = candidate.place.ratingSampleCount ?? candidate.place.positive + candidate.place.negative;
-  if (samples >= 8) {
+  if (samples >= 8 && candidate.features.confidence > 0) {
     contributions.push({ key: "confidence", score: candidate.features.confidence * (fallback ? .20 : .18), text: "평가 신뢰도가 높아요" });
+  }
+  if (!fallback && candidate.features.taste > 0 && candidate.features.tasteMatches.length > 0) {
+    contributions.push({ key: "taste", score: candidate.features.taste * .10, text: "평소 좋아하는 취향과 잘 맞아요" });
+  }
+  if (!fallback && candidate.features.distance > 0 && candidate.features.distanceMeters <= 8_000) {
+    contributions.push({ key: "distance", score: candidate.features.distance * .07, text: DISTANCE_REASON[locationSource] });
+  }
+  if (!fallback && (candidate.features.timeCompatibility === "STRONG" || candidate.features.timeCompatibility === "WEAK")) {
+    contributions.push({ key: "time", score: candidate.features.time * .03, text: "현재 시간대에 잘 맞아요" });
+  }
+  if (candidate.features.freshness >= .8) {
+    contributions.push({ key: "freshness", score: candidate.features.freshness * (fallback ? .10 : .07), text: "최근에 자주 보지 않은 곳이에요" });
   }
   return contributions.sort((left, right) => right.score - left.score || stableHash(left.key) - stableHash(right.key));
 }
 
-function prepareGoldenCandidate(candidate: HomeRankingCandidate, fallback: boolean): HomeRankedCandidate {
+function prepareGoldenCandidate(
+  candidate: HomeRankingCandidate,
+  fallback: boolean,
+  locationSource: HomeLocationSource,
+): HomeRankedCandidate {
   const weightedScore = fallback
     ? (candidate.pastGolden ?? 0) * .35
       + (candidate.reviewerConfidence ?? 0) * .35
@@ -258,7 +278,7 @@ function prepareGoldenCandidate(candidate: HomeRankingCandidate, fallback: boole
       + candidate.features.distance * .07
       + candidate.features.time * .03
       + candidate.features.freshness * .07;
-  const contributions = goldenContributions(candidate, fallback);
+  const contributions = goldenContributions(candidate, fallback, locationSource);
   return {
     ...candidate,
     weightedScore,
@@ -293,10 +313,10 @@ export function rankGoldenCandidates(input: {
   const activeIds = new Set(candidates.filter((candidate) => (candidate.golden ?? 0) > 0).map((candidate) => candidate.place.id));
   const active = candidates
     .filter((candidate) => activeIds.has(candidate.place.id))
-    .map((candidate) => prepareGoldenCandidate(candidate, false));
+    .map((candidate) => prepareGoldenCandidate(candidate, false, input.locationSource));
   const fallback = candidates
     .filter((candidate) => !activeIds.has(candidate.place.id) && hasFallbackEvidence(candidate))
-    .map((candidate) => prepareGoldenCandidate(candidate, true));
+    .map((candidate) => prepareGoldenCandidate(candidate, true, input.locationSource));
   const selectedActive = selectByMmr({ candidates: active, mode: "golden", limit }).selectedFromPool;
   const selectedFallback = selectedActive.length < limit
     ? selectByMmr({

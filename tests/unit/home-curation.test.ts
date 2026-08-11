@@ -100,6 +100,27 @@ describe("rankHomeCuration", () => {
     expect(result.find((item) => item.id === "small-sample")?.slot).not.toBe("TRUSTED_PICK");
   });
 
+  it("55점 미만 품질 하한은 표본 8개 이상에만 적용한다", () => {
+    const result = rankHomeCuration({
+      places: [
+        place("small-low", { category: "noodle", neighborhood: "A", ratingScore: 54, ratingSampleCount: 4 }),
+        place("mature-low", { category: "soup", neighborhood: "B", ratingScore: 54, ratingSampleCount: 8 }),
+      ],
+      goldenPicks: [],
+      center,
+      tasteSignals: [],
+      mode: "now",
+      timeSlot: "lunch",
+      radiusMeters: 3_000,
+      history,
+      dateKey: "2026-08-11",
+      locationSource: "map_center",
+    });
+
+    expect(result.map((item) => item.id)).toContain("small-low");
+    expect(result.map((item) => item.id)).not.toContain("mature-low");
+  });
+
   it("Golden Pick 부족분은 신뢰 장소로 채우되 Golden 배지를 위조하지 않는다", () => {
     const result = rankHomeCuration({
       places: buildDiversityFixtures(),
