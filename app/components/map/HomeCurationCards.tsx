@@ -76,6 +76,7 @@ export function HomeCurationCards({
       <button
         type="button"
         className="home-curation-card"
+        data-place-id={place.id}
         aria-pressed={selectedPlaceId === place.id}
         onClick={() => onSelect(place.id)}
       >

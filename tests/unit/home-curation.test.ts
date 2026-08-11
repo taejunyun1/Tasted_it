@@ -32,12 +32,6 @@ function place(id: string, input: {
   };
 }
 
-function counts(items: DiscoveryPlace[], key: (item: DiscoveryPlace) => string) {
-  const result = new Map<string, number>();
-  items.forEach((item) => result.set(key(item), (result.get(key(item)) ?? 0) + 1));
-  return result;
-}
-
 function buildDiversityFixtures() {
   return [
     place("a1", { category: "soup", neighborhood: "A", ratingScore: 90, ratingSampleCount: 20 }),
@@ -49,6 +43,14 @@ function buildDiversityFixtures() {
   ];
 }
 
+const history = {
+  sessionSeed: "test-session",
+  recentFirst: [],
+  recentShown: [],
+  previousMode: null,
+  previousIds: [],
+};
+
 function qualityFixtures() {
   return [
     place("visible-low", { category: "soup", neighborhood: "A", ratingScore: 54, ratingSampleCount: 8 }),
@@ -58,46 +60,26 @@ function qualityFixtures() {
 }
 
 describe("rankHomeCuration", () => {
-  it("기본 모드에서 다섯 역할과 새로운 발견을 유지한다", () => {
+  it("slot-first 배정 없이 전역 모드 적합도로 1위를 고른다", () => {
     const result = rankHomeCuration({
       places: [
-        place("best", { category: "soup", neighborhood: "A", ratingScore: 88, ratingSampleCount: 20, terms: "국밥" }),
-        place("taste", { category: "noodle", neighborhood: "B", ratingScore: 82, ratingSampleCount: 14, terms: "냉면" }),
-        place("time", { category: "home-meal", neighborhood: "C", ratingScore: 79, ratingSampleCount: 10, terms: "백반" }),
-        place("trusted", { category: "seafood", neighborhood: "D", ratingScore: 91, ratingSampleCount: 40, terms: "생선" }),
-        place("new", { category: "soba", neighborhood: "E", ratingScore: 76, ratingSampleCount: 9, terms: "메밀" }),
+        place("near-no-taste", { category: "soup", neighborhood: "A", ratingScore: 88, ratingSampleCount: 20,
+          latitude: 35.1501, longitude: 126.9201 }),
+        place("far-strong-taste", { category: "noodle", neighborhood: "B", ratingScore: 82, ratingSampleCount: 14,
+          terms: "국밥", latitude: 35.17, longitude: 126.94 }),
       ],
       goldenPicks: [],
       center,
       tasteSignals: [{ badgeId: "food-gukbap", score: 1, source: "USER" }],
-      mode: "now",
+      mode: "taste",
       timeSlot: "lunch",
       radiusMeters: 3_000,
+      history,
+      dateKey: "2026-08-11",
+      locationSource: "map_center",
     });
 
-    expect(result.map((item) => item.slot)).toEqual([
-      "BEST_NOW",
-      "TASTE_MATCH",
-      "TIME_MATCH",
-      "TRUSTED_PICK",
-      "DISCOVERY",
-    ]);
-    expect(result).toHaveLength(5);
-  });
-
-  it("후보가 충분하면 같은 카테고리와 동네를 각각 두 곳까지만 선택한다", () => {
-    const result = rankHomeCuration({
-      places: buildDiversityFixtures(),
-      goldenPicks: [],
-      center,
-      tasteSignals: [],
-      mode: "now",
-      timeSlot: "lunch",
-      radiusMeters: 3_000,
-    });
-
-    expect(Math.max(...counts(result, (item) => item.primaryCategory.slug).values())).toBeLessThanOrEqual(2);
-    expect(Math.max(...counts(result, (item) => item.neighborhood).values())).toBeLessThanOrEqual(2);
+    expect(result[0].id).toBe("far-strong-taste");
   });
 
   it("표본 8개 이상 55점 미만 장소를 제외하고 소표본 장소를 신뢰 슬롯에 넣지 않는다", () => {
@@ -109,24 +91,34 @@ describe("rankHomeCuration", () => {
       mode: "now",
       timeSlot: "lunch",
       radiusMeters: 3_000,
+      history,
+      dateKey: "2026-08-11",
+      locationSource: "map_center",
     });
 
     expect(result.some((item) => item.id === "visible-low")).toBe(false);
     expect(result.find((item) => item.id === "small-sample")?.slot).not.toBe("TRUSTED_PICK");
   });
 
-  it.each(["now", "taste", "time"] as const)("%s 모드에서 새로운 발견 한 곳을 유지한다", (mode) => {
+  it("55점 미만 품질 하한은 표본 8개 이상에만 적용한다", () => {
     const result = rankHomeCuration({
-      places: buildDiversityFixtures(),
+      places: [
+        place("small-low", { category: "noodle", neighborhood: "A", ratingScore: 54, ratingSampleCount: 4 }),
+        place("mature-low", { category: "soup", neighborhood: "B", ratingScore: 54, ratingSampleCount: 8 }),
+      ],
       goldenPicks: [],
       center,
-      tasteSignals: [{ badgeId: "food-gukbap", score: 1, source: "USER" }],
-      mode,
+      tasteSignals: [],
+      mode: "now",
       timeSlot: "lunch",
       radiusMeters: 3_000,
+      history,
+      dateKey: "2026-08-11",
+      locationSource: "map_center",
     });
 
-    expect(result.some((item) => item.slot === "DISCOVERY")).toBe(true);
+    expect(result.map((item) => item.id)).toContain("small-low");
+    expect(result.map((item) => item.id)).not.toContain("mature-low");
   });
 
   it("Golden Pick 부족분은 신뢰 장소로 채우되 Golden 배지를 위조하지 않는다", () => {
@@ -138,23 +130,51 @@ describe("rankHomeCuration", () => {
       mode: "golden",
       timeSlot: "dinner",
       radiusMeters: 3_000,
+      history,
+      dateKey: "2026-08-11",
+      locationSource: "map_center",
     });
 
     expect(result).toHaveLength(5);
     expect(result.filter((item) => item.isGoldenPick).map((item) => item.id)).toEqual(["a1"]);
   });
 
-  it("추천 이유는 실제 근거가 없는 슬롯 문구를 만들지 않는다", () => {
+  it("Golden 활성 후보가 없을 때 리뷰어·전체 평가 근거가 없는 일반 후보는 반환하지 않는다", () => {
+    const result = rankHomeCuration({
+      places: [place("general", { category: "soup", neighborhood: "A", ratingSampleCount: 0 })],
+      goldenPicks: [],
+      center,
+      tasteSignals: [],
+      mode: "golden",
+      timeSlot: "dinner",
+      radiusMeters: 3_000,
+      history,
+      dateKey: "2026-08-11",
+      locationSource: "map_center",
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it.each([
+    ["gps", "현재 위치에서 가까워요"],
+    ["map_center", "현재 보고 있는 지역에서 가까워요"],
+  ] as const)("%s 거리 이유를 사용하고 실제 기여 이유를 최대 두 개만 반환한다", (locationSource, distanceReason) => {
     const result = rankHomeCuration({
       places: buildDiversityFixtures(),
       goldenPicks: [],
       center,
       tasteSignals: [],
-      mode: "taste",
+      mode: "now",
       timeSlot: "afternoon",
       radiusMeters: 3_000,
+      history,
+      dateKey: "2026-08-11",
+      locationSource,
     });
 
+    expect(result.every((item) => item.recommendationReasons.length <= 2)).toBe(true);
+    expect(result.flatMap((item) => item.recommendationReasons)).toContain(distanceReason);
     expect(result.flatMap((item) => item.recommendationReasons)).not.toContain("나의 취향과 가까움");
   });
 });

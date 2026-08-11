@@ -5,6 +5,7 @@ interface MapSearchChange {
   q?: string | null;
   category?: string | null;
   bbox?: string | null;
+  locationSource?: "gps" | "map_center" | null;
 }
 
 export function findSelectedPlace(places: PlaceSummary[], selectedId: string | null) {

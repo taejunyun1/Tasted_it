@@ -253,6 +253,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       button.type = "button";
       button.className = `map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${isSelected ? " is-selected" : ""}`;
       button.setAttribute("aria-label", `${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`);
+      button.dataset.placeId = place.id;
       button.dataset.influence = influence;
       if (markerRank) button.dataset.rank = String(markerRank);
       button.textContent = markerRank ? String(markerRank) : place.primaryCategory.emoji;
@@ -354,7 +355,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     ><span>{cluster.label}</span><strong>{cluster.count}</strong></button>) : places.map((place) => {
       const influence = getMarkerInfluence(place.positive, place.negative);
       const markerRank = markerRanks[place.id];
-      return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-influence={influence} data-rank={markerRank} onClick={() => onSelect(place.id)}>{markerRank ?? place.primaryCategory.emoji}</button>;
+      return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-place-id={place.id} data-influence={influence} data-rank={markerRank} onClick={() => onSelect(place.id)}>{markerRank ?? place.primaryCategory.emoji}</button>;
     })}
   </div>;
 

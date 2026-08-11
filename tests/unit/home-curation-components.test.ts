@@ -15,10 +15,14 @@ import {
 import type { HomeCurationPage } from "../../app/features/places/home-curation";
 
 const page: HomeCurationPage = {
+  algorithmVersion: "home-curation-v2",
   status: "READY",
   mode: "now",
   timeSlot: "lunch",
   radiusMeters: 3_000,
+  candidateCount: 5,
+  goldenFallback: false,
+  notice: null,
   places: Array.from({ length: 5 }, (_, index) => ({
     id: `place-${index}`,
     slug: `place-${index}`,
@@ -59,6 +63,8 @@ const props: HomeCurationPresentationProps = {
   onRetry: vi.fn(),
 };
 
+const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
+
 describe("home curation presentation", () => {
   it("번호·거리·평가·실제 근거 두 개와 Golden Pick만 표시한다", () => {
     const html = renderToStaticMarkup(createElement(HomeCurationCards, props));
@@ -71,6 +77,7 @@ describe("home curation presentation", () => {
     expect(html).not.toContain("표시하면 안 되는 이유");
     expect(html.match(/Golden Pick/g)).toHaveLength(1);
     expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('data-place-id="place-0"');
   });
 
   it("데스크톱 패널과 모바일 시트는 추천 내용만 공유하고 지도 전환 버튼을 갖지 않는다", () => {
@@ -83,6 +90,34 @@ describe("home curation presentation", () => {
     expect(panel).not.toContain("전체 지도");
     expect(sheet).not.toContain("전체 지도");
     expect(sheet).toContain('data-snap="half"');
+  });
+
+  it("Golden fallback 안내를 데스크톱 패널과 모바일 시트에 모두 표시한다", () => {
+    const fallbackProps: HomeCurationPresentationProps = {
+      ...props,
+      page: {
+        ...page,
+        mode: "golden",
+        radiusMeters: 5_000,
+        candidateCount: 12,
+        goldenFallback: true,
+        notice: GOLDEN_FALLBACK_NOTICE,
+        places: page.places.map((place) => ({
+          ...place,
+          isGoldenPick: false,
+          recommendationReasons: ["최근 리뷰어 평가 기록이 있어요", "평가 신뢰도 상위"],
+        })),
+      },
+    };
+    const panel = renderToStaticMarkup(createElement(HomeCurationPanel, fallbackProps));
+    const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, fallbackProps));
+
+    expect(panel).toContain(GOLDEN_FALLBACK_NOTICE);
+    expect(sheet).toContain(GOLDEN_FALLBACK_NOTICE);
+    expect(panel).toContain("5km 안에서 추천");
+    expect(sheet).toContain("5km 안에서 추천");
+    expect(panel).not.toContain('data-kind="golden"');
+    expect(sheet).not.toContain('data-kind="golden"');
   });
 
   it("36px 이상 위아래 드래그만 시트 스냅을 한 단계 바꾼다", () => {

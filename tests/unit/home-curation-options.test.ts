@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   centerOfBbox,
+  homeDateKeyAt,
   homeTimeSlotAt,
   homeTimeSlotLabel,
   parseHomeCurationState,
@@ -10,11 +11,19 @@ import {
 
 describe("home curation options", () => {
   it("알 수 없는 view와 mode를 큐레이션 기본값으로 정규화한다", () => {
-    expect(parseHomeCurationState("?view=bad&mode=bad")).toEqual({ view: "curated", mode: "now" });
+    expect(parseHomeCurationState("?view=bad&mode=bad&locationSource=bad")).toEqual({
+      view: "curated",
+      mode: "now",
+      locationSource: "map_center",
+    });
   });
 
   it("지원하는 view와 mode만 보존한다", () => {
-    expect(parseHomeCurationState("?view=browse&mode=golden")).toEqual({ view: "browse", mode: "golden" });
+    expect(parseHomeCurationState("?view=browse&mode=golden&locationSource=gps")).toEqual({
+      view: "browse",
+      mode: "golden",
+      locationSource: "gps",
+    });
   });
 
   it.each(["?category=ramen-detail", "?q=국밥"])("기존 검색·카테고리 URL은 전체 탐색으로 연다: %s", (search) => {
@@ -35,35 +44,51 @@ describe("home curation options", () => {
     expect(homeTimeSlotAt(new Date(now))).toBe(expected);
   });
 
+  it.each([
+    ["2026-08-11T14:59:59.999Z", "2026-08-11"],
+    ["2026-08-11T15:00:00.000Z", "2026-08-12"],
+  ] as const)("Asia/Seoul 자정 경계로 추천 날짜 키를 계산한다", (now, expected) => {
+    expect(homeDateKeyAt(new Date(now))).toBe(expected);
+  });
+
   it("시간대 식별자를 사용자 문구로 바꾼다", () => {
     expect(homeTimeSlotLabel("late")).toBe("늦은 시간");
   });
 
   it("추천 리소스의 모드와 bbox를 엄격하게 파싱한다", () => {
-    expect(parseHomeRecommendationRequest("?mode=golden&bbox=126.8,35,127,35.3"))
-      .toEqual({
+    expect(parseHomeRecommendationRequest("?mode=golden&bbox=126.8,35,127,35.3&requestToken=request-token-01"))
+      .toEqual(expect.objectContaining({
         mode: "golden",
         bbox: [126.8, 35, 127, 35.3],
         center: { latitude: 35.15, longitude: 126.9 },
-      });
+        requestToken: "request-token-01",
+      }));
   });
 
   it("React Router가 붙이는 정확한 리소스 식별자만 허용한다", () => {
-    expect(parseHomeRecommendationRequest("?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource"))
+    expect(parseHomeRecommendationRequest("?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-02&_routes=routes%2Fhome-recommendations-resource"))
       .toMatchObject({ mode: "now", bbox: [126.8, 35, 127, 35.3] });
+  });
+
+  it("locationSource만 허용하고 history는 손상돼도 요청을 보존한다", () => {
+    expect(parseHomeRecommendationRequest(new URL("https://x.test/r?mode=now&locationSource=gps&history=bad&requestToken=request-token-03")))
+      .toEqual(expect.objectContaining({ locationSource: "gps", history: expect.objectContaining({ recentFirst: [] }) }));
   });
 
   it.each([
     "?bbox=126.8,35,127,35.3",
-    "?mode=now",
-    "?mode=bad&bbox=126.8,35,127,35.3",
-    "?mode=now&mode=taste&bbox=126.8,35,127,35.3",
-    "?mode=now&bbox=126.8,35,127,35.3&debug=1",
-    "?mode=now&bbox=126.8,35,127,35.3&_routes=bad",
-    "?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource&_routes=routes%2Fhome-recommendations-resource",
-    "?mode=now&bbox=126.8,35,127",
-    "?mode=now&bbox=127,35.3,126.8,35",
-    "?mode=now&bbox=100,35,101,35.3",
+    "?mode=bad&bbox=126.8,35,127,35.3&requestToken=request-token-04",
+    "?mode=now&mode=taste&bbox=126.8,35,127,35.3&requestToken=request-token-04",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-04&debug=1",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-04&_routes=bad",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-04&_routes=routes%2Fhome-recommendations-resource&_routes=routes%2Fhome-recommendations-resource",
+    "?mode=now&locationSource=browser&requestToken=request-token-04",
+    "?mode=now&locationSource=gps&locationSource=map_center&requestToken=request-token-04",
+    "?mode=now&bbox=126.8,35,127&requestToken=request-token-04",
+    "?mode=now&bbox=127,35.3,126.8,35&requestToken=request-token-04",
+    "?mode=now&bbox=100,35,101,35.3&requestToken=request-token-04",
+    "?mode=now&bbox=126.8,35,127,35.3&requestToken=bad token",
+    `?mode=now&bbox=126.8,35,127,35.3&requestToken=${"a".repeat(65)}`,
   ])("모호하거나 한국 범위를 벗어난 추천 요청을 거부한다: %s", (search) => {
     expect(() => parseHomeRecommendationRequest(search)).toThrow("HOME_RECOMMENDATION_REQUEST_INVALID");
   });

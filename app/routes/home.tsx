@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useFetcher,
   useSearchParams,
@@ -19,6 +19,8 @@ import { getOptionalUser } from "../features/auth/session.server";
 import {
   parseHomeCurationState,
   type HomeCurationMode,
+  type HomeLocationSource,
+  type HomeMapView,
 } from "../features/maps/home-curation-options";
 import { resolveLocationViewport } from "../features/maps/location-policy";
 import { parseMapState } from "../features/maps/map-state";
@@ -30,8 +32,129 @@ import {
   getRegionClusterLevel,
   type RegionCluster,
 } from "../features/maps/region-cluster-policy";
+import type { HomeCurationPage } from "../features/places/home-curation";
+import {
+  encodeHomeRecommendationHistory,
+  readHomeRecommendationHistory,
+  recordHomeRecommendation,
+} from "../features/places/home-curation-history.client";
 import { getHomeCurationPage } from "../features/places/home-curation.server";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
+
+type RecommendationFetcherState = "idle" | "loading" | "submitting";
+
+export function buildRecommendationUrl(
+  mode: HomeCurationMode,
+  bbox: [number, number, number, number],
+  locationSource: HomeLocationSource,
+  requestToken: string,
+  storage: Storage = sessionStorage,
+) {
+  const params = new URLSearchParams({
+    mode,
+    bbox: bbox.join(","),
+    locationSource,
+    requestToken,
+    history: encodeHomeRecommendationHistory(readHomeRecommendationHistory(storage)),
+  });
+  return `/resources/home-recommendations?${params}`;
+}
+
+export function createHomeRecommendationRequestToken(sequence: number) {
+  return `hr-${sequence.toString(36)}-${crypto.randomUUID()}`;
+}
+
+export function beginHomeRecommendationRequest(
+  state: RecommendationFetcherState,
+  requestKey: string,
+): { pendingRequestKey: string; startedRequestKey: string | null } {
+  return {
+    pendingRequestKey: requestKey,
+    startedRequestKey: state === "idle" ? null : requestKey,
+  };
+}
+
+type NullableStringRef = { current: string | null };
+
+export function clearHomeRecommendationRequestLifecycle(input: {
+  pendingRequestKeyRef: NullableStringRef;
+  pendingRequestRouteKeyRef: NullableStringRef;
+  startedRequestKeyRef: NullableStringRef;
+}) {
+  input.pendingRequestKeyRef.current = null;
+  input.pendingRequestRouteKeyRef.current = null;
+  input.startedRequestKeyRef.current = null;
+}
+
+export function getHomeRecommendationRouteKey(input: {
+  view: HomeMapView;
+  mode: HomeCurationMode;
+  bbox: [number, number, number, number];
+  locationSource: HomeLocationSource;
+}) {
+  return [
+    input.view,
+    input.mode,
+    input.bbox.map((value) => value.toFixed(5)).join(","),
+    input.locationSource,
+  ].join("|");
+}
+
+export function isCurrentHomeRecommendationResponse(
+  state: RecommendationFetcherState,
+  response: unknown,
+  requestKey: string | null,
+  startedRequestKey: string | null,
+  requestRouteKey: string | null,
+  currentRouteKey: string,
+): response is { ok: unknown; requestToken: string } {
+  return state === "idle"
+    && Boolean(requestKey)
+    && startedRequestKey === requestKey
+    && Boolean(requestRouteKey)
+    && requestRouteKey === currentRouteKey
+    && typeof response === "object"
+    && response !== null
+    && "ok" in response
+    && "requestToken" in response
+    && response.requestToken === requestKey;
+}
+
+export function getRecordableHomeRecommendation(
+  state: RecommendationFetcherState,
+  response: unknown,
+  requestKey: string | null,
+  startedRequestKey: string | null,
+  lastRecordedRequestKey: string | null,
+  requestRouteKey: string | null,
+  currentRouteKey: string,
+): { requestKey: string; page: HomeCurationPage } | null {
+  if (
+    !isCurrentHomeRecommendationResponse(
+      state,
+      response,
+      requestKey,
+      startedRequestKey,
+      requestRouteKey,
+      currentRouteKey,
+    )
+    || !requestKey
+    || lastRecordedRequestKey === requestKey
+    || response.ok !== true
+    || !("recommendations" in response)
+    || typeof response.recommendations !== "object"
+    || response.recommendations === null
+  ) return null;
+
+  const page = response.recommendations as Partial<HomeCurationPage>;
+  if (
+    page.algorithmVersion !== "home-curation-v2"
+    || (page.status !== "READY" && page.status !== "EMPTY")
+    || !Array.isArray(page.places)
+  ) return null;
+
+  return { requestKey, page: page as HomeCurationPage };
+}
 
 export function meta() {
   return [{ title: "Re:Taste — 내 주변 맛 지도" }, { name: "description", content: "현재 위치에서 찾는 광주·전남 맛 지도" }];
@@ -85,6 +208,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     },
     mode: homeState.mode,
     now,
+    locationSource: homeState.locationSource,
   });
   return {
     ...common,
@@ -104,9 +228,21 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [pendingBounds, setPendingBounds] = useState<[number, number, number, number] | null>(null);
+  const requestSequenceRef = useRef(0);
+  const pendingRequestKeyRef = useRef<string | null>(null);
+  const pendingRequestRouteKeyRef = useRef<string | null>(null);
+  const startedRequestKeyRef = useRef<string | null>(null);
+  const lastRecordedRequestKeyRef = useRef<string | null>(null);
+  const lastRecordedLoaderCurationRef = useRef<HomeCurationPage | null>(null);
   const liveSearch = `?${params.toString()}`;
   const liveMapState = parseMapState(liveSearch);
   const liveHomeState = parseHomeCurationState(liveSearch);
+  const currentRecommendationRouteKey = getHomeRecommendationRouteKey({
+    view: liveHomeState.view,
+    mode: liveHomeState.mode,
+    bbox: liveMapState.bbox,
+    locationSource: liveHomeState.locationSource,
+  });
   const isCurated = liveHomeState.view === "curated";
   const activeCuration = curation ?? loaderData.curation;
   const activePlaces = isCurated && activeCuration ? activeCuration.places : loaderData.places;
@@ -120,39 +256,112 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const markerRanks = useMemo(() => Object.fromEntries(
     (isCurated ? activeCuration?.places ?? [] : []).map((place) => [place.id, place.rank]),
   ), [activeCuration, isCurated]);
-  const recommendationError = recommendationFetcher.data && !recommendationFetcher.data.ok
+  const recommendationResponseIsCurrent = isCurrentHomeRecommendationResponse(
+    recommendationFetcher.state,
+    recommendationFetcher.data,
+    pendingRequestKeyRef.current,
+    startedRequestKeyRef.current,
+    pendingRequestRouteKeyRef.current,
+    currentRecommendationRouteKey,
+  );
+  const recommendationError = recommendationResponseIsCurrent
+    && recommendationFetcher.data
+    && !recommendationFetcher.data.ok
     ? recommendationFetcher.data.message
     : null;
 
   useEffect(() => {
-    if (loaderData.curation) setCuration(loaderData.curation);
+    if (!loaderData.curation) return;
+    setCuration(loaderData.curation);
+    if (lastRecordedLoaderCurationRef.current !== loaderData.curation) {
+      recordHomeRecommendation(sessionStorage, loaderData.curation);
+      lastRecordedLoaderCurationRef.current = loaderData.curation;
+    }
   }, [loaderData.curation]);
 
   useEffect(() => {
-    if (recommendationFetcher.data?.ok) {
-      setCuration(recommendationFetcher.data.recommendations);
-      setPendingBounds(null);
-    }
-  }, [recommendationFetcher.data]);
+    setPendingBounds(null);
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
+  }, [loaderData.curation, loaderData.view]);
 
   useEffect(() => {
-    if (requestedSelectedId && !selectedPlace) {
+    if (
+      !pendingRequestRouteKeyRef.current
+      || pendingRequestRouteKeyRef.current === currentRecommendationRouteKey
+    ) return;
+
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
+  }, [currentRecommendationRouteKey]);
+
+  useEffect(() => {
+    if (recommendationFetcher.state !== "idle") {
+      startedRequestKeyRef.current = pendingRequestKeyRef.current;
+      return;
+    }
+
+    const completed = getRecordableHomeRecommendation(
+      recommendationFetcher.state,
+      recommendationFetcher.data,
+      pendingRequestKeyRef.current,
+      startedRequestKeyRef.current,
+      lastRecordedRequestKeyRef.current,
+      pendingRequestRouteKeyRef.current,
+      currentRecommendationRouteKey,
+    );
+    if (!completed) return;
+
+    setCuration(completed.page);
+    setPendingBounds(null);
+    recordHomeRecommendation(sessionStorage, completed.page);
+    lastRecordedRequestKeyRef.current = completed.requestKey;
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
+  }, [currentRecommendationRouteKey, recommendationFetcher.data, recommendationFetcher.state]);
+
+  useEffect(() => {
+    const curationMatchesUrl = !isCurated || activeCuration?.mode === liveHomeState.mode;
+    if (requestedSelectedId && !selectedPlace && curationMatchesUrl) {
       setParams((current) => updateMapSearch(current, { selected: null }), { replace: true });
     }
-  }, [requestedSelectedId, selectedPlace, setParams]);
+  }, [activeCuration?.mode, isCurated, liveHomeState.mode, requestedSelectedId, selectedPlace, setParams]);
 
   const loadRecommendations = (
     mode: HomeCurationMode,
     bbox: [number, number, number, number],
+    source: HomeLocationSource,
   ) => {
-    const search = new URLSearchParams({ mode, bbox: bbox.join(",") });
-    recommendationFetcher.load(`/resources/home-recommendations?${search}`);
+    const requestKey = createHomeRecommendationRequestToken(++requestSequenceRef.current);
+    const requestUrl = buildRecommendationUrl(mode, bbox, source, requestKey);
+    const lifecycle = beginHomeRecommendationRequest(recommendationFetcher.state, requestKey);
+    pendingRequestKeyRef.current = lifecycle.pendingRequestKey;
+    pendingRequestRouteKeyRef.current = getHomeRecommendationRouteKey({
+      view: "curated",
+      mode,
+      bbox,
+      locationSource: source,
+    });
+    startedRequestKeyRef.current = lifecycle.startedRequestKey;
+    void recommendationFetcher.load(requestUrl);
   };
   const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => {
     setParams((current) => updateMapSearch(current, change), { replace: true });
   };
   const setBounds = (bbox: [number, number, number, number]) => {
-    setSearch({ bbox: bbox.map((value) => value.toFixed(5)).join(",") });
+    setSearch({
+      bbox: bbox.map((value) => value.toFixed(5)).join(","),
+      locationSource: "map_center",
+    });
   };
   const setMode = (mode: HomeCurationMode) => {
     setParams((current) => {
@@ -161,7 +370,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       next.delete("selected");
       return next;
     }, { replace: true });
-    loadRecommendations(mode, liveMapState.bbox);
+    loadRecommendations(mode, liveMapState.bbox, liveHomeState.locationSource);
   };
   const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
     const result = resolveLocationViewport(coords);
@@ -170,10 +379,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("bbox", result.bbox.map((value) => value.toFixed(5)).join(","));
+      next.set("locationSource", "gps");
       next.delete("selected");
       return next;
     }, { replace: true });
-    if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox);
+    if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
   }, () => {
     setLocationNotice("위치 권한을 확인한 뒤 다시 시도해주세요.");
   }, { enableHighAccuracy: true, timeout: 8_000 });
@@ -182,12 +392,19 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("bbox", pendingBounds.map((value) => value.toFixed(5)).join(","));
+      next.set("locationSource", "map_center");
       next.delete("selected");
       return next;
     }, { replace: true });
-    loadRecommendations(liveHomeState.mode, pendingBounds);
+    loadRecommendations(liveHomeState.mode, pendingBounds, "map_center");
   };
   const browseAll = () => {
+    setPendingBounds(null);
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("view", "browse");
@@ -196,6 +413,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     });
   };
   const returnToCuration = () => {
+    setPendingBounds(null);
+    clearHomeRecommendationRequestLifecycle({
+      pendingRequestKeyRef,
+      pendingRequestRouteKeyRef,
+      startedRequestKeyRef,
+    });
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("view");
@@ -231,7 +454,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     onModeChange: setMode,
     onSelect: (id: string) => setSearch({ selected: id }),
     onLocate: locate,
-    onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox),
+    onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, liveHomeState.locationSource),
   } : null;
 
   return <main id="main" className={`map-explorer${isCurated ? " map-explorer--curated" : ""}`}>

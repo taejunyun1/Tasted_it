@@ -47,6 +47,7 @@ describe("curated place map", () => {
     }));
 
     expect(html).toContain("1번 테스트 국밥 지도 핀");
+    expect(html).toContain('data-place-id="place-1"');
     expect(html).toContain(">1</button>");
     expect(html).not.toContain("🍲");
   });

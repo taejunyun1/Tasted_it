@@ -27,6 +27,7 @@ export function homeSheetSnapForSelection(
 export function HomeCurationSheet(props: HomeCurationPresentationProps) {
   const [snap, setSnap] = useState<HomeSheetSnap>("half");
   const pointerStartY = useRef<number | null>(null);
+  const suppressClick = useRef(false);
 
   useEffect(() => {
     setSnap((current) => homeSheetSnapForSelection(current, props.selectedPlaceId));
@@ -37,26 +38,44 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
       type="button"
       className="home-curation-sheet__handle"
       aria-label={snap === "full" ? "추천 목록 접기" : "추천 목록 펼치기"}
-      onClick={() => setSnap((current) => current === "full" ? "half" : "full")}
+      onClick={() => {
+        if (suppressClick.current) {
+          suppressClick.current = false;
+          return;
+        }
+        setSnap((current) => current === "full" ? "half" : "full");
+      }}
       onPointerDown={(event) => {
+        suppressClick.current = false;
         pointerStartY.current = event.clientY;
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerUp={(event) => {
         const start = pointerStartY.current;
         pointerStartY.current = null;
-        if (start !== null) setSnap((current) => homeSheetSnapAfterDrag(current, event.clientY - start));
+        if (start !== null) {
+          const deltaY = event.clientY - start;
+          suppressClick.current = Math.abs(deltaY) >= 36;
+          setSnap((current) => homeSheetSnapAfterDrag(current, deltaY));
+        }
       }}
-      onPointerCancel={() => { pointerStartY.current = null; }}
+      onPointerCancel={() => {
+        pointerStartY.current = null;
+        suppressClick.current = false;
+      }}
     ><span aria-hidden="true" /></button>
     <div className="home-curation-sheet__summary">
       <div><p className="eyebrow">NEARBY / CURATED</p><h1>지금 갈 만한 5곳</h1></div>
       <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
     </div>
     <div className="home-curation-sheet__body">
+      {props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
       <HomeCurationModeControls {...props} />
       {props.error && <p className="home-curation-error" role="status">{props.error} <button type="button" onClick={props.onRetry}>다시 시도</button></p>}
       <HomeCurationCards {...props} />
+      <footer className="home-curation-footer">
+        <span>{props.page.radiusMeters / 1_000}km 안에서 추천</span>
+      </footer>
     </div>
   </aside>;
 }

@@ -47,10 +47,10 @@ describe("home recommendations resource", () => {
     mocks.getOptionalUser.mockResolvedValue({ id: "member-1" });
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     const result = await loader({
-      request: new Request("https://retaste.example/resources/home-recommendations?mode=golden&bbox=126.8,35,127,35.3"),
+      request: new Request("https://retaste.example/resources/home-recommendations?mode=golden&bbox=126.8,35,127,35.3&requestToken=request-token-01"),
     } as never);
 
-    expect(result).toMatchObject({ data: { ok: true } });
+    expect(result).toMatchObject({ data: { ok: true, requestToken: "request-token-01" } });
     expect(mocks.getHomeCurationPage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       userId: "member-1",
       tasteBadgeIds: [],
@@ -68,7 +68,7 @@ describe("home recommendations resource", () => {
     });
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     await loader({
-      request: new Request("https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3"),
+      request: new Request("https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-02"),
     } as never);
 
     expect(mocks.getHomeCurationPage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
@@ -79,20 +79,47 @@ describe("home recommendations resource", () => {
   it("React Router data 요청의 내부 route 식별자를 허용한다", async () => {
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     const result = await loader({
-      request: new Request("https://retaste.example/resources/home-recommendations.data?mode=now&bbox=126.8,35,127,35.3&_routes=routes%2Fhome-recommendations-resource"),
+      request: new Request("https://retaste.example/resources/home-recommendations.data?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-03&_routes=routes%2Fhome-recommendations-resource"),
     } as never);
 
     expect(result).toMatchObject({ data: { ok: true } });
     expect(mocks.getHomeCurationPage).toHaveBeenCalledOnce();
   });
 
+  it("세션 이력과 gps 위치 출처를 서버 추천 요청에 전달한다", async () => {
+    const { loader } = await import("../../app/routes/home-recommendations-resource");
+    await loader({
+      request: new Request("https://retaste.example/resources/home-recommendations?mode=taste&locationSource=gps&history=eyJzZXNzaW9uU2VlZCI6InMifQ&requestToken=request-token-04"),
+    } as never);
+
+    expect(mocks.getHomeCurationPage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      mode: "taste",
+      locationSource: "gps",
+      history: expect.objectContaining({ sessionSeed: "s" }),
+    }));
+  });
+
   it("잘못된 요청은 계산하지 않고 400으로 거부한다", async () => {
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     const result = await loader({
-      request: new Request("https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3&debug=1"),
+      request: new Request("https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-05&debug=1"),
     } as never);
 
     expect(result).toMatchObject({ data: { ok: false }, init: { status: 400 } });
+    expect(mocks.getHomeCurationPage).not.toHaveBeenCalled();
+  });
+
+  it("누락되거나 범위를 벗어난 요청 토큰은 계산 전에 거부한다", async () => {
+    const { loader } = await import("../../app/routes/home-recommendations-resource");
+    const missing = await loader({
+      request: new Request("https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3"),
+    } as never);
+    const oversized = await loader({
+      request: new Request(`https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3&requestToken=${"a".repeat(65)}`),
+    } as never);
+
+    expect(missing).toMatchObject({ data: { ok: false }, init: { status: 400 } });
+    expect(oversized).toMatchObject({ data: { ok: false }, init: { status: 400 } });
     expect(mocks.getHomeCurationPage).not.toHaveBeenCalled();
   });
 
@@ -100,11 +127,15 @@ describe("home recommendations resource", () => {
     mocks.getHomeCurationPage.mockRejectedValue(new Error("D1_UNAVAILABLE"));
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     const result = await loader({
-      request: new Request("https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3"),
+      request: new Request("https://retaste.example/resources/home-recommendations?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-06"),
     } as never);
 
     expect(result).toMatchObject({
-      data: { ok: false, message: "추천을 다시 불러오지 못했어요. 기존 결과를 유지합니다." },
+      data: {
+        ok: false,
+        requestToken: "request-token-06",
+        message: "추천을 다시 불러오지 못했어요. 기존 결과를 유지합니다.",
+      },
       init: { status: 503 },
     });
   });
