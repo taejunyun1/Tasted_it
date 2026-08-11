@@ -5,6 +5,7 @@ export default [
   route("onboarding/taste", "routes/taste-onboarding.tsx"),
   route("places", "routes/place-list.tsx"),
   route("resources/place-recommendations", "routes/place-recommendations-resource.tsx"),
+  route("resources/home-recommendations", "routes/home-recommendations-resource.tsx"),
   route("courses", "routes/course-recommendation.tsx"),
   route("maps/:categorySlug", "routes/map-category.tsx"),
   route("places/:placeSlug", "routes/place-detail.tsx"),

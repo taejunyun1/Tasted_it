@@ -54,3 +54,45 @@ export function centerOfBbox([west, south, east, north]: [number, number, number
     longitude: (west + east) / 2,
   };
 }
+
+export function parseHomeRecommendationRequest(search: string): {
+  mode: HomeCurationMode;
+  bbox: [number, number, number, number];
+  center: { latitude: number; longitude: number };
+} {
+  const params = new URLSearchParams(search);
+  const keys = [...params.keys()];
+  const validKeys = keys.every((key) => key === "mode" || key === "bbox");
+  const modeValues = params.getAll("mode");
+  const bboxValues = params.getAll("bbox");
+  const mode = modeValues[0] as HomeCurationMode | undefined;
+  const bboxNumbers = bboxValues[0]?.split(",").map(Number) ?? [];
+
+  if (
+    !validKeys
+    || keys.length !== 2
+    || modeValues.length !== 1
+    || bboxValues.length !== 1
+    || !mode
+    || !MODES.has(mode)
+    || bboxNumbers.length !== 4
+    || bboxNumbers.some((value) => !Number.isFinite(value))
+  ) {
+    throw new Error("HOME_RECOMMENDATION_REQUEST_INVALID");
+  }
+
+  const bbox = bboxNumbers as [number, number, number, number];
+  const [west, south, east, north] = bbox;
+  if (
+    west < 124
+    || east > 132
+    || south < 33
+    || north > 39
+    || west >= east
+    || south >= north
+  ) {
+    throw new Error("HOME_RECOMMENDATION_REQUEST_INVALID");
+  }
+
+  return { mode, bbox, center: centerOfBbox(bbox) };
+}

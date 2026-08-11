@@ -5,6 +5,7 @@ import {
   homeTimeSlotAt,
   homeTimeSlotLabel,
   parseHomeCurationState,
+  parseHomeRecommendationRequest,
 } from "../../app/features/maps/home-curation-options";
 
 describe("home curation options", () => {
@@ -36,5 +37,27 @@ describe("home curation options", () => {
 
   it("시간대 식별자를 사용자 문구로 바꾼다", () => {
     expect(homeTimeSlotLabel("late")).toBe("늦은 시간");
+  });
+
+  it("추천 리소스의 모드와 bbox를 엄격하게 파싱한다", () => {
+    expect(parseHomeRecommendationRequest("?mode=golden&bbox=126.8,35,127,35.3"))
+      .toEqual({
+        mode: "golden",
+        bbox: [126.8, 35, 127, 35.3],
+        center: { latitude: 35.15, longitude: 126.9 },
+      });
+  });
+
+  it.each([
+    "?bbox=126.8,35,127,35.3",
+    "?mode=now",
+    "?mode=bad&bbox=126.8,35,127,35.3",
+    "?mode=now&mode=taste&bbox=126.8,35,127,35.3",
+    "?mode=now&bbox=126.8,35,127,35.3&debug=1",
+    "?mode=now&bbox=126.8,35,127",
+    "?mode=now&bbox=127,35.3,126.8,35",
+    "?mode=now&bbox=100,35,101,35.3",
+  ])("모호하거나 한국 범위를 벗어난 추천 요청을 거부한다: %s", (search) => {
+    expect(() => parseHomeRecommendationRequest(search)).toThrow("HOME_RECOMMENDATION_REQUEST_INVALID");
   });
 });
