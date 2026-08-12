@@ -26,6 +26,8 @@ Re:Taste는 현재 기반 스택을 유지하고 전면 재작성하지 않는�
 4. 최신 코드와 불변 migration이 보여 주는 현재 구현 사실
 5. 개별 spec·plan·audit의 아직 승인되지 않은 권고
 
+승인 방식과 승인 기록의 단일 기준 원본은 [`2026-08-12-pr-merge-approval-ssot.md`](./2026-08-12-pr-merge-approval-ssot.md)를 따른다. 이 문서에서 요구하는 Product, Tech, Data, Security, Privacy, Operations 승인은 해당 역할 또는 위임 권한을 가진 담당자가 필수 증거와 실행 범위를 포함한 Pull Request를 병합하는 것으로 충족한다. 병합 후 같은 범위의 별도 채팅 승인을 다시 요청하지 않는다.
+
 `docs/superpowers/specs/2026-08-05-retaste-master-design.md`의 제품 목표와 비협상 원칙은 유지한다. 그 문서에 나온 Better Auth, R2, Cloudflare Images, Queue 등 목표 기술은 실제 도입 PR과 ADR 없이 현재 스택으로 간주하지 않는다.
 
 `docs/superpowers/plans/2026-08-07-product-ready-stage-1-100-300-ccu.md`는 `PROPOSED / HOLD` 상태다. 이 가이드는 해당 계획의 안전·운영 게이트를 재사용하지만, 계획 자체를 승인하거나 2,000 CCU 구현을 시작하지 않는다.
@@ -78,7 +80,7 @@ Re:Taste는 현재 기반 스택을 유지하고 전면 재작성하지 않는�
 - 외부 API는 route나 React component에서 직접 호출하지 않고 서버 adapter/service 경계로 감싼다.
 - timeout, 제한된 재시도, quota, kill switch, degraded UX, mock 또는 fake가 없는 공급자는 확장하지 않는다.
 - 공급자 추가와 함께 개인정보 인벤토리, 위탁·국외 이전, 비밀값, 로그 redaction, 비용 한도, 장애 절차를 갱신한다.
-- 원격 D1, Workers AI, 이메일, 유료 API 호출은 `COWORK.md`에 따라 사전 승인을 받는다.
+- 원격 D1, Workers AI, 이메일, 유료 API 호출은 대상·한도·검증·rollback을 Pull Request에 명시하고, `COWORK.md`의 병합 승인 SSOT에 따라 승인받는다.
 
 ### 4.6 가역성과 제거 가능성
 
@@ -116,7 +118,7 @@ Re:Taste는 현재 기반 스택을 유지하고 전면 재작성하지 않는�
 | 인증 | 자체 D1 session/token, 이메일 계정, Google OAuth, NAVER OIDC, `jose` | 주 인증 경로와 계정 연결·탈퇴 정책의 사람 결정 전에는 네 번째 인증 방식 또는 새 auth 프레임워크를 추가하지 않는다. |
 | 이메일 | Resend | 개인정보·위탁, rate/quota, 실패 상태, local fake와 운영 승인 필요 |
 | 공공데이터 | data.go.kr 음식점·주차·EV API | 출처·라이선스·정정 책임, fixture, quota, 수동 fallback과 kill switch 필요 |
-| AI | Workers AI 후보 분류 | 핵심 경로 사용 금지. 모델·프롬프트 변경은 고정 회귀 표본, 비용 한도, 수동 검수와 사전 승인 필요 |
+| AI | Workers AI 후보 분류 | 핵심 경로 사용 금지. 모델·프롬프트 변경은 고정 회귀 표본, 비용 한도와 수동 검수를 PR에 기록하고 병합 승인 필요 |
 | 예약 작업 | Workers cron 1개에서 여러 maintenance 작업 실행 | 기존 결합 실패를 먼저 분리·관측하기 전에는 같은 `Promise.all`에 새 작업을 추가하지 않는다. |
 | CSV | `csv-parse` 관리자 import | 관리자 전용, 크기 제한, schema 검증과 원자적 처리 유지 |
 | 스타일링 | Tailwind 4 + 전역 CSS + 디자인 토큰 | 기존 화면 유지에는 사용 가능하다. 새 utility 체계·plugin·component kit 추가는 금지하고, 토큰 SSOT와의 통합 방향을 별도 결정한다. |
@@ -163,7 +165,7 @@ Re:Taste는 현재 기반 스택을 유지하고 전면 재작성하지 않는�
 | 새 Cloudflare binding·저장소 | local/staging/production 격리, 권한, 한도, 비용, 백업·복구, mock | ADR + Operations 승인 |
 | 프레임워크·DB·호스팅 교체 | 측정된 한계, 대안 비교, 단계적 이행, dual-run 종료, 데이터 이전, 전체 rollback | 별도 RFC/ADR + Product/Tech 사람 승인 |
 
-자동 테스트 통과만으로 인증, 개인정보, 계약, 비용 또는 운영 승인을 대신할 수 없다.
+자동 테스트 통과만으로 인증, 개인정보, 계약, 비용 또는 운영 승인을 대신할 수 없다. 필수 증거와 실행 범위가 적힌 Pull Request를 권한 있는 담당자가 병합한 기록이 최종 승인이다.
 
 ## 7. 기술 변경 PR 필수 내용
 

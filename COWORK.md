@@ -24,8 +24,12 @@
 
 - 모든 Pull Request에는 변경 범위, 검증 결과, 운영 영향, 남은 위험을 기록한다.
 - UI 변경에는 데스크톱과 모바일 화면 증거를 첨부한다.
-- Pull Request는 병합 전에 작성자가 아닌 최소 1명의 승인을 받아야 한다.
-- 자동 에이전트 리뷰는 독립적인 사람의 승인을 대체하지 않는다.
+- 저장소 변경과 그에 수반되는 운영 계획의 승인 단일 기준 원본(SSOT)은 병합된 Pull Request다.
+- 저장소 소유자 또는 권한 있는 유지보수 담당자가 Pull Request를 병합하면, Pull Request 본문에 명시된 코드·migration·외부 연동·rollout·배포·원격 작업 계획은 승인 완료로 간주한다. 병합 후 동일 범위에 대한 별도 채팅 승인을 다시 받지 않는다.
+- 승인 범위를 확인할 수 있도록 Pull Request 본문에 대상 환경, 실행 명령 또는 작업, 비용·개인정보 영향, 검증, rollback을 구체적으로 기록한다.
+- Pull Request에 명시되지 않은 운영 데이터 변경, 범위가 정해지지 않은 파괴 작업, 비밀값 열람·공유는 병합으로 승인되지 않는다.
+- `PROPOSED` 또는 `HOLD` 문서는 해당 Pull Request가 상태를 `ACCEPTED` 또는 `GO`로 명시적으로 변경할 때만 구현 승인으로 본다.
+- 자동 에이전트 리뷰와 테스트는 병합 판단의 증거이며, 그 자체만으로 승인되지 않는다. 최종 승인 기록은 권한 있는 담당자의 Pull Request 병합이다.
 
 ## 5. 데이터베이스와 설정
 
@@ -37,8 +41,8 @@
 ## 6. 비밀값, 유료 서비스와 운영 환경
 
 - 비밀값, 개인정보, 실제 운영 데이터를 소스 코드, 문서, 로그 또는 Pull Request에 커밋하거나 노출하지 않는다.
-- 원격 D1 migration, Workers AI 호출, 이메일 발송, 유료 API 호출은 사전 승인이 필요하다.
-- `pnpm run deploy` 실행과 운영 데이터 변경은 지정된 배포 담당자만 수행한다.
+- 원격 D1 migration, Workers AI 호출, 이메일 발송, 유료 API 호출은 대상과 한도, 검증, rollback을 Pull Request에 명시한다. 해당 Pull Request가 병합되면 명시된 범위의 사전 승인을 충족한다.
+- `pnpm run deploy` 실행과 운영 데이터 변경은 병합된 Pull Request의 범위 안에서 지정된 배포 담당자만 수행한다. 병합은 실행 권한을 부여하지만 실제 실행 완료를 의미하지 않는다.
 - 테스트는 기본적으로 로컬 데이터베이스와 mock 외부 서비스를 사용한다.
 
 ## 7. 인수인계
@@ -82,8 +86,12 @@ This document defines the mandatory collaboration rules for all contributors and
 
 - Every Pull Request must document the changed scope, verification results, operational impact, and remaining risks.
 - UI changes must include desktop and mobile visual evidence.
-- A Pull Request must receive approval from at least one person other than its author before merging.
-- Automated agent reviews do not replace independent human approval.
+- The single source of truth (SSOT) for approval of repository changes and their associated operational plan is the merged Pull Request.
+- When the repository owner or an authorized maintainer merges a Pull Request, the code, migrations, external integrations, rollout, deployment, and remote-operation plan explicitly listed in that Pull Request are considered approved. Do not request separate chat approval again for the same scope after merge.
+- The Pull Request body must identify the target environment, commands or operations, cost and privacy impact, verification evidence, and rollback so that the approved scope is unambiguous.
+- Merge does not approve production-data changes, unbounded destructive operations, or secret access and disclosure that were not explicitly listed in the Pull Request.
+- A `PROPOSED` or `HOLD` document authorizes implementation only when the Pull Request explicitly changes its status to `ACCEPTED` or `GO`.
+- Automated agent reviews and tests are evidence used for the merge decision, not approval by themselves. The final approval record is the merge performed by an authorized maintainer.
 
 ## 5. Database and Configuration
 
@@ -95,8 +103,8 @@ This document defines the mandatory collaboration rules for all contributors and
 ## 6. Secrets, Paid Services, and Production
 
 - Do not commit or expose secrets, personal information, or production data in source code, documents, logs, or Pull Requests.
-- Remote D1 migrations, Workers AI calls, email delivery, and paid API calls require prior approval.
-- Only the designated deployment operator may run `pnpm run deploy` or modify production data.
+- List the target, limit, verification, and rollback for remote D1 migrations, Workers AI calls, email delivery, and paid API calls in the Pull Request. Merging that Pull Request satisfies prior approval for the explicitly listed scope.
+- Only the designated deployment operator may run `pnpm run deploy` or modify production data within the scope of a merged Pull Request. Merge grants authorization; it does not prove that execution completed.
 - Tests must use a local database and mocked external services by default.
 
 ## 7. Handoff
