@@ -6,6 +6,8 @@
 
 현재 기본 스택, 조건부 기술, 신규 의존성·외부 공급자·데이터 저장소의 승인 기준은 [`docs/decisions/2026-08-10-tech-stack-governance.md`](docs/decisions/2026-08-10-tech-stack-governance.md)를 따릅니다. 저장소에 이미 존재하는 기술도 해당 문서의 확장 승인을 자동으로 의미하지 않습니다.
 
+변경과 운영 계획의 승인 기록은 [`docs/decisions/2026-08-12-pr-merge-approval-ssot.md`](docs/decisions/2026-08-12-pr-merge-approval-ssot.md)를 따릅니다. 권한 있는 담당자가 Pull Request를 병합하면 본문에 명시된 범위는 승인 완료이며, 병합 뒤 같은 범위의 별도 채팅 승인을 다시 요청하지 않습니다.
+
 ## 로컬 실행
 
 Node.js와 pnpm을 준비한 뒤 다음 명령을 실행합니다.
