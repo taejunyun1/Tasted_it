@@ -543,6 +543,28 @@ export const flavorRatings = sqliteTable(
   (table) => [uniqueIndex("flavor_ratings_place_reviewer_template_idx").on(table.placeId, table.reviewerUserId, table.templateId)],
 );
 
+export const reviewerVisitReviews = sqliteTable(
+  "reviewer_visit_reviews",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "restrict" }),
+    reviewerUserId: text("reviewer_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    categoryId: text("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
+    evaluation: text("evaluation", { enum: ["RECOMMEND", "HOLD", "NOT_RECOMMEND"] }).notNull(),
+    badgesJson: text("badges_json").notNull(),
+    photoCount: integer("photo_count").notNull().default(0),
+    goldenPickEventId: text("golden_pick_event_id").references(() => goldenPickEvents.id, { onDelete: "restrict" }),
+    version: integer("version").notNull().default(1),
+    publishedAt: text("published_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("reviewer_visit_reviews_reviewer_published_idx").on(table.reviewerUserId, table.publishedAt),
+    index("reviewer_visit_reviews_place_published_idx").on(table.placeId, table.publishedAt),
+    uniqueIndex("reviewer_visit_reviews_golden_event_idx").on(table.goldenPickEventId),
+  ],
+);
+
 export const placeDailyMetrics = sqliteTable(
   "place_daily_metrics",
   {

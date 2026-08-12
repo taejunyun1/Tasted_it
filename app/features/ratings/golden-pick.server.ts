@@ -118,9 +118,23 @@ function monthBounds(iso: string) {
   };
 }
 
-export async function grantGoldenPick(db: AppDb, input: {
-  id: string; reviewerUserId: string; placeId: string; now: string;
+export async function getGoldenPickQuota(db: AppDb, reviewerUserId: string, now: string) {
+  const bounds = monthBounds(now);
+  const grants = await db.select({ id: goldenPickEvents.id }).from(goldenPickEvents).where(and(
+    eq(goldenPickEvents.reviewerUserId, reviewerUserId),
+    eq(goldenPickEvents.eventType, "GRANT"),
+    gte(goldenPickEvents.effectiveAt, bounds.start),
+    lt(goldenPickEvents.effectiveAt, bounds.end),
+  ));
+  const limit = 3;
+  return { used: grants.length, limit, remaining: Math.max(0, limit - grants.length) };
+}
+
+export async function prepareGoldenPickGrant(db: AppDb, input: {
+  id: string; reviewerUserId: string; placeId: string; reason: string; now: string;
 }) {
+  const reason = input.reason.trim();
+  if (reason.length < 15 || reason.length > 100) throw new Error("GOLDEN_PICK_REASON_LENGTH");
   const reviewer = await db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, input.reviewerUserId) });
   if (!reviewer || reviewer.status !== "ACTIVE") throw new Error("ACTIVE_REVIEWER_REQUIRED");
   const place = await db.query.places.findFirst({ where: eq(places.id, input.placeId) });
@@ -136,7 +150,13 @@ export async function grantGoldenPick(db: AppDb, input: {
   )).orderBy(asc(goldenPickEvents.effectiveAt));
   const latest = grants.at(-1);
   if (latest && new Date(input.now).getTime() < new Date(addDays(latest.effectiveAt, 90)).getTime()) throw new Error("GOLDEN_PICK_PLACE_COOLDOWN");
-  const event = { id: input.id, reviewerUserId: input.reviewerUserId, placeId: input.placeId, eventType: "GRANT" as const, previousEventId: null, reason: null, effectiveAt: input.now, expiresAt: addDays(input.now, 90), createdAt: input.now };
+  return { id: input.id, reviewerUserId: input.reviewerUserId, placeId: input.placeId, eventType: "GRANT" as const, previousEventId: null, reason, effectiveAt: input.now, expiresAt: addDays(input.now, 90), createdAt: input.now };
+}
+
+export async function grantGoldenPick(db: AppDb, input: {
+  id: string; reviewerUserId: string; placeId: string; reason: string; now: string;
+}) {
+  const event = await prepareGoldenPickGrant(db, input);
   await db.batch([
     db.insert(goldenPickEvents).values(event),
     db.update(reviewerProfiles).set({ lastActivityAt: input.now, updatedAt: input.now }).where(eq(reviewerProfiles.userId, input.reviewerUserId)),
