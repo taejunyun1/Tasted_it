@@ -160,7 +160,7 @@ Capture desktop and 390px mobile screenshots for the empty state, badge selectio
 
 Confirm no photo bytes or EXIF reach D1/logs, peer data remains hidden before publication, controls have visible text and keyboard state, and migration rollback is documented as dropping only the new snapshot table before production data exists.
 
-- [ ] **Step 4: Commit, push, and open PR**
+- [x] **Step 4: Commit, push, and open PR**
 
 Use a dated Korean commit summary, push only the feature branch, and open a PR to `main` linking Issue #85 with Data/Tech review, migration, photo HOLD, verification evidence, and rollback notes. Do not merge or deploy without human approval.
 
