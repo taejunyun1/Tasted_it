@@ -69,17 +69,24 @@ describe("candidate review service", () => {
     ]));
   });
 
-  it("keeps a karaoke bar candidate in the pending queue", async () => {
+  it("stores a live bar candidate as an adult-entertainment exclusion", async () => {
     const db = createDb(env.DB);
     const result = await upsertBusinessLicense(db, {
       ...openLicense,
-      sourceManagementNo: `karaoke-${crypto.randomUUID()}`,
-      businessName: "동네 단란주점",
-      businessSubtype: "단란주점영업",
+      sourceManagementNo: `live-bar-${crypto.randomUUID()}`,
+      businessName: "7080 별밤 라이브바",
+      businessSubtype: "일반음식점",
     }, now);
 
-    expect(result.excluded).toBe(false);
-    expect((await listPendingCandidates(db)).map((candidate) => candidate.id)).toContain(result.id);
+    expect(result.excluded).toBe(true);
+    expect((await listPendingCandidates(db)).map((candidate) => candidate.id)).not.toContain(result.id);
+    expect(await listExcludedCandidates(db)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: result.id,
+        exclusionReason: "ADULT_ENTERTAINMENT",
+        matchedRule: "NAME_LIVE_BAR",
+      }),
+    ]));
   });
 
   it("moves selected pending candidates to an admin exception and restores them", async () => {

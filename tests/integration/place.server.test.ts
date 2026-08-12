@@ -8,6 +8,7 @@ import {
   importPlaceRows,
   listAdminPlaces,
   listPlaces,
+  listRecommendationCandidates,
   upsertPlace,
 } from "../../app/features/places/place.server";
 import type { PlaceImportRow } from "../../app/features/places/place.types";
@@ -84,6 +85,36 @@ describe("place service", () => {
     expect(adminPlaces.map((place) => place.slug)).toEqual(
       expect.arrayContaining(["batch-place-1", "batch-place-2"]),
     );
+  });
+
+  it("keeps non-restaurant entertainment venues out of public lists and recommendations", async () => {
+    const db = createDb(env.DB);
+    await upsertPlace(db, {
+      id: "food-venue-place",
+      row: { ...baseRow, slug: "food-venue-place", name: "별밤 라이브카페" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "live-bar-place",
+      row: { ...baseRow, slug: "live-bar-place", name: "7080 별밤 라이브바" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "cabaret-place",
+      row: { ...baseRow, slug: "cabaret-place", name: "황금 카바레" },
+      now: "2026-08-05T00:00:00Z",
+    });
+
+    const publicNames = (await listPlaces(db, { categorySlug: "ramen" })).map((place) => place.name);
+    const recommendedNames = (await listRecommendationCandidates(db, { categorySlug: "ramen" })).map((place) => place.name);
+
+    expect(publicNames).toContain("별밤 라이브카페");
+    expect(publicNames).not.toContain("7080 별밤 라이브바");
+    expect(publicNames).not.toContain("황금 카바레");
+    expect(recommendedNames).toContain("별밤 라이브카페");
+    expect(recommendedNames).not.toContain("7080 별밤 라이브바");
+    expect(recommendedNames).not.toContain("황금 카바레");
+    await expect(getPlaceBySlug(db, "live-bar-place")).rejects.toMatchObject({ status: 404 });
   });
 
   it("resolves an absorbed place slug to its published target", async () => {

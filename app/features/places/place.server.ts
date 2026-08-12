@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, lte, notLike, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
@@ -17,6 +17,7 @@ import type {
   PlaceImportRow,
   PlaceSummary,
 } from "./place.types";
+import { NON_RESTAURANT_PUBLIC_NAME_TERMS } from "./food-venue-policy";
 
 interface UpsertPlaceInput {
   id: string;
@@ -116,9 +117,11 @@ export async function importPlaceRows(
 }
 
 function publicConditions(filters: PlaceFilters, slug?: string) {
+  const normalizedName = sql<string>`lower(replace(replace(replace(replace(replace(${places.name}, ' ', ''), '　', ''), char(9), ''), char(10), ''), char(13), ''))`;
   const conditions = [
     eq(places.status, "PUBLISHED"),
     eq(placeCategories.isPrimary, true),
+    ...NON_RESTAURANT_PUBLIC_NAME_TERMS.map((term) => notLike(normalizedName, `%${term}%`)),
   ];
 
   if (slug) conditions.push(eq(places.slug, slug));
@@ -221,6 +224,7 @@ export async function listRecommendationCandidates(
 
 export async function listPublicCategoryGroups(db: AppDb) {
   const parents = alias(categories, "category_parents");
+  const normalizedName = sql<string>`lower(replace(replace(replace(replace(replace(${places.name}, ' ', ''), '　', ''), char(9), ''), char(10), ''), char(13), ''))`;
   const rows = await db.select({
     parentId: parents.id, parentSlug: parents.slug, parentName: parents.name, parentEmoji: parents.emoji, parentSort: parents.sortOrder,
     id: categories.id, slug: categories.slug, name: categories.name, emoji: categories.emoji, sortOrder: categories.sortOrder,
@@ -229,7 +233,11 @@ export async function listPublicCategoryGroups(db: AppDb) {
     .innerJoin(parents, eq(parents.id, categories.parentId))
     .innerJoin(placeCategories, and(eq(placeCategories.categoryId, categories.id), eq(placeCategories.isPrimary, true)))
     .innerJoin(places, and(eq(places.id, placeCategories.placeId), eq(places.status, "PUBLISHED")))
-    .where(and(eq(categories.isActive, true), eq(parents.isActive, true)))
+    .where(and(
+      eq(categories.isActive, true),
+      eq(parents.isActive, true),
+      ...NON_RESTAURANT_PUBLIC_NAME_TERMS.map((term) => notLike(normalizedName, `%${term}%`)),
+    ))
     .groupBy(categories.id, parents.id).orderBy(asc(parents.sortOrder), asc(categories.sortOrder));
   const groups = new Map<string, { id: string; slug: string; name: string; emoji: string; children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }> }>();
   for (const row of rows) {
