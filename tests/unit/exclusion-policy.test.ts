@@ -36,6 +36,16 @@ describe("classifyAutomaticExclusion", () => {
     expect(classifyAutomaticExclusion(candidate)).toBeNull();
   });
 
+  it("records subtype substring evidence accurately", () => {
+    expect(classifyAutomaticExclusion({
+      businessName: "상호 없는 업소",
+      businessSubtype: "일반음식점/유흥주점영업",
+    })).toMatchObject({
+      matchedRule: "SUBTYPE_ADULT_BAR",
+      matchMethod: "SUBTYPE_CONTAINS",
+    });
+  });
+
   it("returns chain matching evidence for a high-confidence franchise", () => {
     expect(classifyAutomaticExclusion({
       businessName: "스타벅스 광주봉선DT점",

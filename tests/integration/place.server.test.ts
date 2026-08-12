@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
+import { businessLicenses, placeSourceLinks } from "../../app/db/schema";
 import {
   getPlaceBySlug,
   resolvePlaceSlugRedirect,
@@ -104,6 +105,46 @@ describe("place service", () => {
       row: { ...baseRow, slug: "cabaret-place", name: "황금 카바레" },
       now: "2026-08-05T00:00:00Z",
     });
+    await upsertPlace(db, {
+      id: "spaced-live-bar-place",
+      row: { ...baseRow, slug: "spaced-live-bar-place", name: "7080 라이브\u00a0바" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "fullwidth-live-bar-place",
+      row: { ...baseRow, slug: "fullwidth-live-bar-place", name: "7080 라이브ＢＡＲ" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "linked-karaoke-place",
+      row: { ...baseRow, slug: "linked-karaoke-place", name: "청춘회관" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await db.insert(businessLicenses).values({
+      id: "linked-karaoke-license",
+      sourceType: "GENERAL_RESTAURANT",
+      sourceManagementNo: "linked-karaoke-license",
+      businessName: "청춘회관",
+      businessSubtype: "노래연습장업",
+      normalizedStatus: "OPEN",
+      regionCode: "GWANGJU",
+      rawPayload: "{}",
+      reviewStatus: "APPROVED",
+      firstSeenAt: "2026-08-05T00:00:00Z",
+      lastSeenAt: "2026-08-05T00:00:00Z",
+      createdAt: "2026-08-05T00:00:00Z",
+      updatedAt: "2026-08-05T00:00:00Z",
+    });
+    await db.insert(placeSourceLinks).values({
+      id: "linked-karaoke-source-link",
+      placeId: "linked-karaoke-place",
+      businessLicenseId: "linked-karaoke-license",
+      isPrimary: true,
+      createdAt: "2026-08-05T00:00:00Z",
+    });
+    await env.DB.prepare("INSERT INTO place_slug_redirects (old_slug, place_id, created_at) VALUES (?, ?, ?)")
+      .bind("old-live-bar-place", "live-bar-place", "2026-08-05T00:00:00Z")
+      .run();
 
     const publicNames = (await listPlaces(db, { categorySlug: "ramen" })).map((place) => place.name);
     const recommendedNames = (await listRecommendationCandidates(db, { categorySlug: "ramen" })).map((place) => place.name);
@@ -111,10 +152,15 @@ describe("place service", () => {
     expect(publicNames).toContain("별밤 라이브카페");
     expect(publicNames).not.toContain("7080 별밤 라이브바");
     expect(publicNames).not.toContain("황금 카바레");
+    expect(publicNames).not.toContain("7080 라이브\u00a0바");
+    expect(publicNames).not.toContain("7080 라이브ＢＡＲ");
+    expect(publicNames).not.toContain("청춘회관");
     expect(recommendedNames).toContain("별밤 라이브카페");
     expect(recommendedNames).not.toContain("7080 별밤 라이브바");
     expect(recommendedNames).not.toContain("황금 카바레");
     await expect(getPlaceBySlug(db, "live-bar-place")).rejects.toMatchObject({ status: 404 });
+    await expect(getPlaceBySlug(db, "linked-karaoke-place")).rejects.toMatchObject({ status: 404 });
+    await expect(resolvePlaceSlugRedirect(db, "old-live-bar-place")).resolves.toBeNull();
   });
 
   it("resolves an absorbed place slug to its published target", async () => {

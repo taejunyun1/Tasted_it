@@ -37,7 +37,12 @@ function normalizeVenueText(value: string | null | undefined) {
   return value?.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/\s/g, "") ?? "";
 }
 
-export const NON_RESTAURANT_PUBLIC_NAME_TERMS = [...new Set(nameRules.map((rule) => rule.term))];
+export const NON_RESTAURANT_PUBLIC_NAME_TERMS = [...new Set([
+  ...nameRules.map((rule) => rule.term),
+  "라이브ＢＡＲ",
+  "라이브ｂａｒ",
+])];
+export const NON_RESTAURANT_SOURCE_SUBTYPE_TERMS = [...new Set(subtypeRules.map((rule) => rule.term))];
 
 export function matchNonRestaurantVenue(input: {
   businessName: string;
@@ -46,7 +51,7 @@ export function matchNonRestaurantVenue(input: {
   const normalizedSubtype = normalizeVenueText(input.businessSubtype);
   const subtypeMatch = subtypeRules.find((rule) => normalizedSubtype.includes(rule.term));
   if (subtypeMatch) {
-    return { matchedRule: subtypeMatch.matchedRule, matchMethod: "SUBTYPE_EXACT", confidence: 1 };
+    return { matchedRule: subtypeMatch.matchedRule, matchMethod: "SUBTYPE_CONTAINS", confidence: 1 };
   }
 
   const normalizedName = normalizeVenueText(input.businessName);
