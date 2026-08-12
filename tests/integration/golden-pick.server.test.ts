@@ -12,6 +12,7 @@ import {
 } from "../../app/features/ratings/golden-pick.server";
 
 const now = "2026-08-06T00:00:00.000Z";
+const reason = "재료 상태와 조리 완성도가 꾸준해 다시 추천하고 싶은 장소입니다.";
 
 async function seedReviewerAndPlaces(prefix: string, count = 4) {
   const db = createDb(env.DB);
@@ -27,21 +28,29 @@ describe("Golden Pick", () => {
   it("allows three grants per calendar month and rejects the fourth", async () => {
     const { db, reviewerId, placeIds } = await seedReviewerAndPlaces(`golden-limit-${crypto.randomUUID()}`);
     for (let index = 0; index < 3; index += 1) {
-      await grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[index], now });
+      await grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[index], reason, now });
     }
-    await expect(grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[3], now })).rejects.toThrow("GOLDEN_PICK_MONTHLY_LIMIT");
+    await expect(grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[3], reason, now })).rejects.toThrow("GOLDEN_PICK_MONTHLY_LIMIT");
   });
 
   it("enforces same-place ninety days and supports withdrawal and expiration", async () => {
     const { db, reviewerId, placeIds } = await seedReviewerAndPlaces(`golden-life-${crypto.randomUUID()}`, 1);
-    const grant = await grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], now });
+    const grant = await grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], reason, now });
+    expect(grant.reason).toBe(reason);
     expect(await listActiveGoldenPicks(db, "2026-08-07T00:00:00.000Z", reviewerId)).toHaveLength(1);
     await withdrawGoldenPick(db, { id: crypto.randomUUID(), grantEventId: grant.id, reviewerUserId: reviewerId, reason: "판단 변경", now: "2026-08-07T00:00:00.000Z" });
     expect(await listActiveGoldenPicks(db, "2026-08-08T00:00:00.000Z", reviewerId)).toHaveLength(0);
-    await expect(grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], now: "2026-09-01T00:00:00.000Z" })).rejects.toThrow("GOLDEN_PICK_PLACE_COOLDOWN");
-    const later = await grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], now: "2026-11-05T00:00:00.000Z" });
+    await expect(grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], reason, now: "2026-09-01T00:00:00.000Z" })).rejects.toThrow("GOLDEN_PICK_PLACE_COOLDOWN");
+    const later = await grantGoldenPick(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], reason, now: "2026-11-05T00:00:00.000Z" });
     expect(later.expiresAt).toBe("2027-02-03T00:00:00.000Z");
     expect(await expireGoldenPicks(db, { now: "2027-02-04T00:00:00.000Z", reviewerUserId: reviewerId })).toBe(1);
+  });
+
+  it("requires a 15–100 character authored reason", async () => {
+    const { db, reviewerId, placeIds } = await seedReviewerAndPlaces(`golden-reason-${crypto.randomUUID()}`, 1);
+    await expect(grantGoldenPick(db, {
+      id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], reason: "너무 짧음", now,
+    })).rejects.toThrow("GOLDEN_PICK_REASON_LENGTH");
   });
 
   it("요청 후보 ID만 D1 바인딩 한도 안에서 청크로 Golden 이력을 조회한다", async () => {

@@ -6,7 +6,10 @@ import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   plugins: [
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
+    cloudflare({
+      remoteBindings: false,
+      viteEnvironment: { name: "ssr" },
+    }),
     tailwindcss(),
     reactRouter(),
   ],

@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { castVote } from "../../app/features/ratings/vote.server";
+import { castVote, withdrawVote } from "../../app/features/ratings/vote.server";
 
 const placeId = "vote-test-place";
 const userId = "vote-test-user";
@@ -76,5 +76,52 @@ describe("castVote", () => {
       "SELECT COUNT(*) AS count FROM rating_recompute_jobs WHERE place_id = ? AND status = 'PENDING'",
     ).bind(placeId).first<{ count: number }>();
     expect(jobs?.count).toBe(1);
+  });
+
+  it("appends a withdrawal event, removes the current vote, and enqueues recompute", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+
+    await castVote(db, {
+      placeId,
+      userId,
+      value: 1,
+      now: "2026-08-05T00:02:00Z",
+      eventId: `vote-withdraw-create-${suffix}`,
+    });
+    const withdrawn = await withdrawVote(db, {
+      placeId,
+      userId,
+      now: "2026-08-05T00:03:00Z",
+      eventId: `vote-withdraw-${suffix}`,
+    });
+
+    expect(withdrawn).toBe(true);
+    expect(await env.DB.prepare(
+      "SELECT value FROM current_votes WHERE place_id = ? AND user_id = ?",
+    ).bind(placeId, userId).first()).toBeNull();
+    expect(await env.DB.prepare(
+      "SELECT event_type AS eventType, previous_event_id AS previousEventId, value FROM vote_events WHERE id = ?",
+    ).bind(`vote-withdraw-${suffix}`).first()).toEqual({
+      eventType: "WITHDRAW",
+      previousEventId: `vote-withdraw-create-${suffix}`,
+      value: 1,
+    });
+  });
+
+  it("treats HOLD without a current vote as an idempotent no-op", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const withdrawn = await withdrawVote(db, {
+      placeId,
+      userId: `no-current-vote-${suffix}`,
+      now: "2026-08-05T00:04:00Z",
+      eventId: `no-op-withdraw-${suffix}`,
+    });
+
+    expect(withdrawn).toBe(false);
+    expect(await env.DB.prepare(
+      "SELECT id FROM vote_events WHERE id = ?",
+    ).bind(`no-op-withdraw-${suffix}`).first()).toBeNull();
   });
 });

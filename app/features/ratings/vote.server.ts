@@ -75,3 +75,39 @@ export async function castVote(
     now: input.now,
   });
 }
+
+export async function withdrawVote(
+  db: AppDb,
+  input: Pick<CastVoteInput, "placeId" | "userId" | "now" | "eventId">,
+): Promise<boolean> {
+  const previous = await db.query.currentVotes.findFirst({
+    where: and(
+      eq(currentVotes.placeId, input.placeId),
+      eq(currentVotes.userId, input.userId),
+    ),
+  });
+  if (!previous) return false;
+
+  await db.batch([
+    db.insert(voteEvents).values({
+      id: input.eventId,
+      placeId: input.placeId,
+      userId: input.userId,
+      value: previous.value,
+      eventType: "WITHDRAW",
+      previousEventId: previous.eventId,
+      createdAt: input.now,
+    }),
+    db.delete(currentVotes).where(and(
+      eq(currentVotes.placeId, input.placeId),
+      eq(currentVotes.userId, input.userId),
+    )),
+  ]);
+  await markRatingStale(db, input.placeId, input.now);
+  await enqueueRatingRecompute(db, {
+    placeId: input.placeId,
+    reason: "VOTE_WITHDRAWN",
+    now: input.now,
+  });
+  return true;
+}
