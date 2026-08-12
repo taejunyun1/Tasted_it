@@ -1,12 +1,15 @@
-import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, lte, notLike, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
 import {
+  businessLicenseExclusions,
+  businessLicenses,
   categories,
   currentVotes,
   placeCategories,
+  placeSourceLinks,
   placeSlugRedirects,
   places,
 } from "../../db/schema";
@@ -17,6 +20,10 @@ import type {
   PlaceImportRow,
   PlaceSummary,
 } from "./place.types";
+import {
+  NON_RESTAURANT_PUBLIC_NAME_TERMS,
+  NON_RESTAURANT_SOURCE_SUBTYPE_TERMS,
+} from "./food-venue-policy";
 
 interface UpsertPlaceInput {
   id: string;
@@ -115,10 +122,51 @@ export async function importPlaceRows(
   if (first) await db.batch([first, ...rest]);
 }
 
+function normalizedPublicVenueText(column: typeof places.name | typeof businessLicenses.businessName | typeof businessLicenses.businessSubtype) {
+  let normalized = sql<string>`coalesce(${column}, '')`;
+  // Keep this expression shallow enough for D1's SQLite expression-depth limit.
+  // These cover ordinary imported spacing plus the common NBSP/ideographic variants;
+  // the ingestion policy still performs full Unicode NFKC + whitespace normalization.
+  for (const codePoint of [9, 10, 13, 32, 160, 12288]) {
+    normalized = sql<string>`replace(${normalized}, char(${sql.raw(String(codePoint))}), '')`;
+  }
+  return sql<string>`lower(${normalized})`;
+}
+
+function publicVenueVisibilityCondition() {
+  const normalizedPlaceName = normalizedPublicVenueText(places.name);
+  const normalizedSourceName = normalizedPublicVenueText(businessLicenses.businessName);
+  const normalizedSourceSubtype = normalizedPublicVenueText(businessLicenses.businessSubtype);
+  const nameDoesNotMatch = and(...NON_RESTAURANT_PUBLIC_NAME_TERMS.map((term) => notLike(normalizedPlaceName, `%${term}%`)))!;
+  const sourceMatch = or(
+    ...NON_RESTAURANT_PUBLIC_NAME_TERMS.map((term) => like(normalizedSourceName, `%${term}%`)),
+    ...NON_RESTAURANT_SOURCE_SUBTYPE_TERMS.map((term) => like(normalizedSourceSubtype, `%${term}%`)),
+  )!;
+  const hasAdminOverride = sql<boolean>`exists (
+    select 1 from ${placeSourceLinks}
+    inner join ${businessLicenseExclusions}
+      on ${businessLicenseExclusions.businessLicenseId} = ${placeSourceLinks.businessLicenseId}
+    where ${placeSourceLinks.placeId} = ${places.id}
+      and ${businessLicenseExclusions.status} = 'OVERRIDDEN'
+  )`;
+  const hasNoUnapprovedSourceMatch = sql<boolean>`not exists (
+    select 1 from ${placeSourceLinks}
+    inner join ${businessLicenses}
+      on ${businessLicenses.id} = ${placeSourceLinks.businessLicenseId}
+    left join ${businessLicenseExclusions}
+      on ${businessLicenseExclusions.businessLicenseId} = ${businessLicenses.id}
+    where ${placeSourceLinks.placeId} = ${places.id}
+      and (${businessLicenseExclusions.status} is null or ${businessLicenseExclusions.status} <> 'OVERRIDDEN')
+      and (${sourceMatch})
+  )`;
+  return and(or(nameDoesNotMatch, hasAdminOverride), hasNoUnapprovedSourceMatch)!;
+}
+
 function publicConditions(filters: PlaceFilters, slug?: string) {
   const conditions = [
     eq(places.status, "PUBLISHED"),
     eq(placeCategories.isPrimary, true),
+    publicVenueVisibilityCondition(),
   ];
 
   if (slug) conditions.push(eq(places.slug, slug));
@@ -229,7 +277,11 @@ export async function listPublicCategoryGroups(db: AppDb) {
     .innerJoin(parents, eq(parents.id, categories.parentId))
     .innerJoin(placeCategories, and(eq(placeCategories.categoryId, categories.id), eq(placeCategories.isPrimary, true)))
     .innerJoin(places, and(eq(places.id, placeCategories.placeId), eq(places.status, "PUBLISHED")))
-    .where(and(eq(categories.isActive, true), eq(parents.isActive, true)))
+    .where(and(
+      eq(categories.isActive, true),
+      eq(parents.isActive, true),
+      publicVenueVisibilityCondition(),
+    ))
     .groupBy(categories.id, parents.id).orderBy(asc(parents.sortOrder), asc(categories.sortOrder));
   const groups = new Map<string, { id: string; slug: string; name: string; emoji: string; children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }> }>();
   for (const row of rows) {
@@ -256,7 +308,7 @@ export async function getPlaceBySlug(
 export async function resolvePlaceSlugRedirect(db: AppDb, oldSlug: string): Promise<string | null> {
   const [result] = await db.select({ slug: places.slug }).from(placeSlugRedirects)
     .innerJoin(places, and(eq(places.id, placeSlugRedirects.placeId), eq(places.status, "PUBLISHED")))
-    .where(eq(placeSlugRedirects.oldSlug, oldSlug)).limit(1);
+    .where(and(eq(placeSlugRedirects.oldSlug, oldSlug), publicVenueVisibilityCondition())).limit(1);
   return result?.slug ?? null;
 }
 

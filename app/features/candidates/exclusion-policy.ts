@@ -1,4 +1,5 @@
 import { matchChainStore } from "./chain-store-policy";
+import { matchNonRestaurantVenue } from "../places/food-venue-policy";
 
 export type AutomaticExclusion = {
   reason: "CHAIN_STORE" | "ADULT_ENTERTAINMENT";
@@ -15,22 +16,17 @@ export function classifyAutomaticExclusion(input: {
   businessName: string;
   businessSubtype: string | null;
 }): AutomaticExclusion | null {
-  const normalizedName = input.businessName.normalize("NFKC").replace(/\s/g, "");
-  const normalizedSubtype = input.businessSubtype?.normalize("NFKC").replace(/\s/g, "") ?? "";
-  if (
-    normalizedName.includes("룸살롱") ||
-    normalizedName.includes("룸싸롱") ||
-    normalizedSubtype.includes("유흥주점영업")
-  ) {
+  const venue = matchNonRestaurantVenue(input);
+  if (venue) {
     return {
       reason: "ADULT_ENTERTAINMENT",
       exclusionCategory: "ADULT_ENTERTAINMENT",
-      matchedRule: normalizedSubtype.includes("유흥주점영업") ? "SUBTYPE_ADULT_BAR" : "NAME_ROOM_SALON",
+      matchedRule: venue.matchedRule,
       matchedBrand: null,
       matchedAlias: null,
       chainScope: null,
-      matchMethod: normalizedSubtype.includes("유흥주점영업") ? "SUBTYPE_EXACT" : "NAME_CONTAINS",
-      confidence: 1,
+      matchMethod: venue.matchMethod,
+      confidence: venue.confidence,
     };
   }
 
