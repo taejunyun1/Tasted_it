@@ -109,21 +109,13 @@ describe("place revalidation", () => {
     expect(await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.action, "CLEAR_PLACE_RECOMMENDATION_EXCLUSIONS"))).toContainEqual(expect.objectContaining({ actorUserId: adminId }));
   });
 
-  it("does not clear a manual hidden liveness outcome", async () => {
+  it("clears current suspected exclusions with old manual history but preserves current hidden exclusions", async () => {
     const db = createDb(env.DB);
     const prefix = `liveness-manual-hidden-${crypto.randomUUID()}`;
     const now = "2026-08-13T12:00:00.000Z";
     const { adminId, placeId } = await seedLivenessCase(db, prefix, now);
     const { placeId: automaticPlaceId } = await seedLivenessCase(db, `${prefix}-automatic`, now);
     const { placeId: historicalManualPlaceId } = await seedLivenessCase(db, `${prefix}-historical-manual`, now);
-    await db.insert(placeLivenessStates).values({
-      placeId,
-      status: "HIDDEN",
-      kakaoStatus: "NOT_FOUND",
-      recommendationExcluded: true,
-      evidenceJson: "{}",
-      updatedAt: now,
-    });
     await db.insert(placeRevisions).values({
       id: `${prefix}-manual-revision`,
       placeId,
@@ -133,7 +125,15 @@ describe("place revalidation", () => {
       beforeJson: "{}",
       afterJson: "{}",
       sourceType: "PLACE_LIVENESS_MANUAL",
-      createdAt: now,
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    await db.insert(placeLivenessStates).values({
+      placeId,
+      status: "HIDDEN",
+      kakaoStatus: "NOT_FOUND",
+      recommendationExcluded: true,
+      evidenceJson: "{}",
+      updatedAt: now,
     });
     await db.insert(placeLivenessStates).values({
       placeId: automaticPlaceId,

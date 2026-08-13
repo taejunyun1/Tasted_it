@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lt, notExists, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, placeLivenessStates, placeRevalidationCases, placeRevisions, places, users } from "../../db/schema";
@@ -151,17 +151,14 @@ export async function clearRecommendationExclusions(db: AppDb, input: {
   if (actor?.role !== "ADMIN") throw new Error("ADMIN_REQUIRED");
   const reason = input.reason.trim();
   if (!reason) throw new Error("REVIEW_REASON_REQUIRED");
-  const hasNoCurrentManualLivenessResolution = notExists(db.select({ id: placeRevisions.id }).from(placeRevisions).where(and(
-    eq(placeRevisions.placeId, placeLivenessStates.placeId),
-    inArray(placeRevisions.sourceType, ["PLACE_LIVENESS_MANUAL", "REVALIDATION_CASE"]),
-    gte(placeRevisions.createdAt, placeLivenessStates.updatedAt),
-  )));
-
   const [updated] = await db.batch([
     db.update(placeLivenessStates).set({
       recommendationExcluded: false,
       updatedAt: input.now,
-    }).where(and(eq(placeLivenessStates.recommendationExcluded, true), hasNoCurrentManualLivenessResolution)).returning({ placeId: placeLivenessStates.placeId }),
+    }).where(and(
+      eq(placeLivenessStates.recommendationExcluded, true),
+      eq(placeLivenessStates.status, "SUSPECTED"),
+    )).returning({ placeId: placeLivenessStates.placeId }),
     db.insert(adminAuditLogs).values({
       id: crypto.randomUUID(),
       actorUserId: input.actorUserId,
