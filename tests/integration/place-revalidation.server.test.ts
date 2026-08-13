@@ -55,7 +55,7 @@ describe("place revalidation", () => {
     }));
   });
 
-  it.each(["TEMPORARILY_CLOSED", "CLOSED", "MOVED"] as const)("requires a reason for %s", async (resolution) => {
+  it.each(["OPEN", "TEMPORARILY_CLOSED", "CLOSED", "MOVED"] as const)("requires a reason for %s", async (resolution) => {
     const db = createDb(env.DB);
     const prefix = `liveness-reason-${resolution}-${crypto.randomUUID()}`;
     const now = "2026-08-13T12:00:00.000Z";

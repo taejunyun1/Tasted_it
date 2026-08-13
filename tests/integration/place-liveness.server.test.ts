@@ -34,6 +34,7 @@ function decision(overrides: Partial<LivenessDecision> = {}): LivenessDecision {
   return {
     status: "MONITORING",
     kakaoStatus: "NOT_FOUND",
+    matchedKakaoPlaceId: null,
     consecutiveNotFound: 1,
     recommendationExcluded: false,
     shouldHide: false,
@@ -49,7 +50,7 @@ function decision(overrides: Partial<LivenessDecision> = {}): LivenessDecision {
   };
 }
 
-async function seedPlace(db: AppDb, prefix: string, options: { lastVerifiedAt?: string | null } = {}) {
+async function seedPlace(db: AppDb, prefix: string, options: { kakaoPlaceId?: string | null; lastVerifiedAt?: string | null } = {}) {
   const placeId = `${prefix}-place`;
   await db.insert(places).values({
     id: placeId,
@@ -61,7 +62,7 @@ async function seedPlace(db: AppDb, prefix: string, options: { lastVerifiedAt?: 
     latitude: 35.15,
     longitude: 126.92,
     phone: "062-123-4567",
-    kakaoPlaceId: "kakao-place",
+    kakaoPlaceId: options.kakaoPlaceId === undefined ? "kakao-place" : options.kakaoPlaceId,
     searchText: "영업 검증 식당",
     lastVerifiedAt: options.lastVerifiedAt ?? OLD,
     createdAt: NOW,
@@ -145,6 +146,62 @@ describe("place liveness server", () => {
       .resolves.not.toContainEqual(expect.objectContaining({ placeId }));
     await expect(claimDuePlaceLivenessTargets(db, { now: protectedUntil, limit: 10, leaseToken: `${prefix}-due` }))
       .resolves.toContainEqual(expect.objectContaining({ placeId, leaseToken: `${prefix}-due` }));
+  });
+
+  it("claims official status conflicts before open cases and oldest normal checks under a small limit", async () => {
+    const db = createDb(env.DB);
+    const prefix = `0000-liveness-priority-${crypto.randomUUID()}`;
+    const conflictPlaceId = await seedPlace(db, `${prefix}-01-conflict`, { lastVerifiedAt: null });
+    const casePlaceId = await seedPlace(db, `${prefix}-02-case`, { lastVerifiedAt: null });
+    const neverCheckedPlaceId = await seedPlace(db, `${prefix}-03-never`, { lastVerifiedAt: null });
+    await seedPlace(db, `${prefix}-04-newer`, { lastVerifiedAt: OLD });
+    const licenseId = `${prefix}-closed-license`;
+    await db.insert(businessLicenses).values({
+      id: licenseId,
+      sourceType: "GENERAL_RESTAURANT",
+      sourceManagementNo: licenseId,
+      businessName: "폐업 출처 장소",
+      normalizedStatus: "CLOSED",
+      regionCode: "GWANGJU",
+      rawPayload: "{}",
+      reviewStatus: "APPROVED",
+      firstSeenAt: OLD,
+      lastSeenAt: OLD,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await db.insert(placeSourceLinks).values({ id: `${prefix}-source-link`, placeId: conflictPlaceId, businessLicenseId: licenseId, createdAt: NOW });
+    await db.insert(placeRevalidationCases).values({
+      id: `${prefix}-case`,
+      placeId: casePlaceId,
+      reasonType: "UNKNOWN",
+      status: "REVIEWING",
+      evidenceJson: "{}",
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    const targets = await claimDuePlaceLivenessTargets(db, { now: NOW, limit: 3, leaseToken: `${prefix}-lease` });
+
+    expect(targets.map((target) => target.placeId)).toEqual([conflictPlaceId, casePlaceId, neverCheckedPlaceId]);
+  });
+
+  it("reuses a previously matched Kakao id when the place row has no Kakao id", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-reuse-match-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix, { kakaoPlaceId: null });
+    await db.insert(placeLivenessStates).values({
+      placeId,
+      matchedKakaoPlaceId: `${prefix}-kakao`,
+      nextCheckAt: OLD,
+      updatedAt: NOW,
+    });
+
+    await expect(claimDuePlaceLivenessTargets(db, { now: NOW, limit: 10, leaseToken: `${prefix}-lease` }))
+      .resolves.toContainEqual(expect.objectContaining({
+        placeId,
+        place: expect.objectContaining({ kakaoPlaceId: `${prefix}-kakao` }),
+      }));
   });
 
   it("aggregates only recent non-identifying reviewer, member, and open-source evidence", async () => {
@@ -238,6 +295,43 @@ describe("place liveness server", () => {
     expect(openCases).toHaveLength(1);
   });
 
+  it("stores a matched Kakao id on MATCHED and preserves it on later provider errors", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-store-match-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix, { kakaoPlaceId: null });
+    const target = await claimOne(db, placeId, `${prefix}-matched`);
+
+    await expect(applyPlaceLivenessDecision(db, {
+      target,
+      decision: decision({
+        status: "VERIFIED",
+        kakaoStatus: "MATCHED",
+        matchedKakaoPlaceId: `${prefix}-kakao`,
+        consecutiveNotFound: 0,
+      }),
+      leaseToken: `${prefix}-matched`,
+      now: NOW,
+    })).resolves.toBe("APPLIED");
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
+      .toMatchObject({ matchedKakaoPlaceId: `${prefix}-kakao`, kakaoStatus: "MATCHED" });
+
+    await db.update(placeLivenessStates).set({ nextCheckAt: NOW, updatedAt: NOW }).where(eq(placeLivenessStates.placeId, placeId));
+    const errorTarget = await claimOne(db, placeId, `${prefix}-error`, "2026-08-20T12:00:00.000Z");
+    await expect(applyPlaceLivenessDecision(db, {
+      target: errorTarget,
+      decision: decision({
+        status: "VERIFIED",
+        kakaoStatus: "ERROR",
+        matchedKakaoPlaceId: null,
+        consecutiveNotFound: 0,
+      }),
+      leaseToken: `${prefix}-error`,
+      now: "2026-08-20T12:00:00.000Z",
+    })).resolves.toBe("APPLIED");
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
+      .toMatchObject({ matchedKakaoPlaceId: `${prefix}-kakao`, kakaoStatus: "ERROR" });
+  });
+
   it("records an automatic hide with its state, case, revision, and audit log in one batch", async () => {
     const db = createDb(env.DB);
     const prefix = `liveness-hide-${crypto.randomUUID()}`;
@@ -320,6 +414,74 @@ describe("place liveness server", () => {
       .toContainEqual(expect.objectContaining({ reason: "AUTOMATED_PLACE_LIVENESS_RECOVERY", actorUserId: null, sourceType: "PLACE_LIVENESS_VERIFICATION" }));
     expect(await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.targetId, placeId)))
       .toContainEqual(expect.objectContaining({ action: "RESTORE_PLACE_FOR_LIVENESS", actorUserId: null }));
+  });
+
+  it("does not claim or recover a manually hidden liveness place automatically", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-manual-recovery-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix);
+    await db.update(places).set({ status: "HIDDEN", closedAt: NOW, updatedAt: NOW }).where(eq(places.id, placeId));
+    await db.insert(placeLivenessStates).values({
+      placeId,
+      status: "HIDDEN",
+      kakaoStatus: "NOT_FOUND",
+      recommendationExcluded: true,
+      nextCheckAt: OLD,
+      updatedAt: NOW,
+    });
+    await db.insert(placeRevisions).values({
+      id: `${prefix}-manual-revision`,
+      placeId,
+      actorUserId: null,
+      action: "STATUS_CHANGE",
+      reason: "수동 폐업 확인",
+      beforeJson: "{}",
+      afterJson: "{}",
+      sourceType: "PLACE_LIVENESS_MANUAL",
+      sourceId: `${prefix}-case`,
+      createdAt: OLD,
+    });
+
+    await expect(claimDuePlaceLivenessTargets(db, { now: NOW, limit: 10, leaseToken: `${prefix}-claim` }))
+      .resolves.not.toContainEqual(expect.objectContaining({ placeId }));
+
+    await db.update(placeLivenessStates).set({ leaseToken: `${prefix}-forced`, leaseExpiresAt: null, updatedAt: NOW })
+      .where(eq(placeLivenessStates.placeId, placeId));
+    const forcedTarget: LivenessTarget = {
+      placeId,
+      place: {
+        name: "영업 검증 식당",
+        address: "광주광역시 동구 동명로 1",
+        latitude: 35.15,
+        longitude: 126.92,
+        phone: "062-123-4567",
+        kakaoPlaceId: "kakao-place",
+      },
+      status: "HIDDEN",
+      recommendationExcluded: true,
+      consecutiveNotFound: 3,
+      firstNotFoundAt: OLD,
+      lastCheckedAt: OLD,
+      protectedUntil: null,
+      placeUpdatedAt: NOW,
+      leaseToken: `${prefix}-forced`,
+    };
+    await expect(applyPlaceLivenessDecision(db, {
+      target: forcedTarget,
+      decision: decision({
+        status: "VERIFIED",
+        kakaoStatus: "MATCHED",
+        matchedKakaoPlaceId: `${prefix}-kakao`,
+        consecutiveNotFound: 0,
+      }),
+      leaseToken: `${prefix}-forced`,
+      now: "2026-08-20T12:00:00.000Z",
+    })).resolves.toBe("APPLIED");
+
+    expect(await db.query.places.findFirst({ where: eq(places.id, placeId) }))
+      .toMatchObject({ status: "HIDDEN", closedAt: NOW });
+    expect(await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId)))
+      .not.toContainEqual(expect.objectContaining({ reason: "AUTOMATED_PLACE_LIVENESS_RECOVERY" }));
   });
 
   it("does not resolve unknown cases for a matched place without liveness recovery", async () => {

@@ -41,6 +41,7 @@ type ActivityEvidence = { active: boolean; at: string | null };
 export type LivenessDecision = {
   status: LivenessStatus;
   kakaoStatus: KakaoLivenessStatus;
+  matchedKakaoPlaceId: string | null;
   consecutiveNotFound: number;
   recommendationExcluded: boolean;
   shouldHide: boolean;
@@ -71,6 +72,7 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
     return {
       status: input.currentStatus,
       kakaoStatus: "ERROR",
+      matchedKakaoPlaceId: null,
       consecutiveNotFound: input.consecutiveNotFound,
       recommendationExcluded: input.currentRecommendationExcluded,
       shouldHide: false,
@@ -85,6 +87,7 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
     return {
       status: "VERIFIED",
       kakaoStatus: "MATCHED",
+      matchedKakaoPlaceId: match.candidateId,
       consecutiveNotFound: 0,
       recommendationExcluded: false,
       shouldHide: false,
@@ -98,6 +101,7 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
     return {
       status: "MONITORING",
       kakaoStatus: "AMBIGUOUS",
+      matchedKakaoPlaceId: null,
       consecutiveNotFound: input.consecutiveNotFound,
       recommendationExcluded: false,
       shouldHide: false,
@@ -115,6 +119,7 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
     return {
       status: "VERIFIED",
       kakaoStatus: "NOT_FOUND",
+      matchedKakaoPlaceId: null,
       consecutiveNotFound: 0,
       recommendationExcluded: false,
       shouldHide: false,
@@ -135,6 +140,7 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
   return {
     status: shouldHide ? "HIDDEN" : isSuspected ? "SUSPECTED" : "MONITORING",
     kakaoStatus: "NOT_FOUND",
+    matchedKakaoPlaceId: null,
     consecutiveNotFound,
     recommendationExcluded: input.mode !== "OBSERVE" && isSuspected,
     shouldHide,
@@ -146,7 +152,7 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
 
 function chooseCandidate(place: LivenessPlace, candidates: LivenessCandidate[]) {
   const sameKakaoId = place.kakaoPlaceId ? candidates.find((candidate) => candidate.id === place.kakaoPlaceId) : undefined;
-  if (sameKakaoId) return { status: "MATCHED" as const, score: { name: 0, address: 0, distance: 0, phone: 0, total: 100 } };
+  if (sameKakaoId) return { status: "MATCHED" as const, candidateId: sameKakaoId.id, score: { name: 0, address: 0, distance: 0, phone: 0, total: 100 } };
 
   const scored = candidates.map((candidate) => ({ candidate, score: scoreCandidate(place, candidate) }));
   const highest = scored.reduce<typeof scored[number] | null>((best, current) => !best || current.score.total > best.score.total ? current : best, null);
@@ -156,7 +162,7 @@ function chooseCandidate(place: LivenessPlace, candidates: LivenessCandidate[]) 
   if (equallyStrong || highest.score.total < 70 || !isFoodOrCafe(highest.candidate)) {
     return { status: "AMBIGUOUS" as const, score: highest.score };
   }
-  return { status: "MATCHED" as const, score: highest.score };
+  return { status: "MATCHED" as const, candidateId: highest.candidate.id, score: highest.score };
 }
 
 function scoreCandidate(place: LivenessPlace, candidate: LivenessCandidate) {

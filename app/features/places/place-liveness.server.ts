@@ -1,4 +1,4 @@
-import { and, eq, gt, gte, isNotNull, isNull, lte, max, or, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, isNull, lte, max, or, sql, type SQL } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
@@ -72,6 +72,23 @@ export async function claimDuePlaceLivenessTargets(
     isNull(placeLivenessStates.protectedUntil),
     lte(placeLivenessStates.protectedUntil, input.now),
   );
+  const automatedHiddenRecoverable = recoverableAutomatedHiddenSql(sql`${places.id}`);
+  const officialStatusConflictFirst = sql<number>`case when exists (
+    select 1
+    from place_source_links claim_source_links
+    inner join business_licenses claim_business_licenses
+      on claim_business_licenses.id = claim_source_links.business_license_id
+    where claim_source_links.place_id = ${places.id}
+      and claim_business_licenses.normalized_status in ('CLOSED', 'TEMPORARILY_CLOSED')
+  ) then 0 else 1 end`;
+  const openCaseFirst = sql<number>`case when exists (
+    select 1
+    from place_revalidation_cases claim_revalidation_cases
+    where claim_revalidation_cases.place_id = ${places.id}
+      and claim_revalidation_cases.status in ('OPEN', 'REVIEWING')
+  ) then 0 else 1 end`;
+  const neverCheckedFirst = sql<number>`case when coalesce(${placeLivenessStates.lastCheckedAt}, ${places.lastVerifiedAt}) is null then 0 else 1 end`;
+  const oldestCheckFirst = sql<string>`coalesce(${placeLivenessStates.lastCheckedAt}, ${places.lastVerifiedAt}, '0000-01-01T00:00:00.000Z')`;
   const candidates = await db.select({
     placeId: places.id,
     name: places.name,
@@ -80,6 +97,7 @@ export async function claimDuePlaceLivenessTargets(
     longitude: places.longitude,
     phone: places.phone,
     kakaoPlaceId: places.kakaoPlaceId,
+    matchedKakaoPlaceId: placeLivenessStates.matchedKakaoPlaceId,
     placeUpdatedAt: places.updatedAt,
     status: placeLivenessStates.status,
     recommendationExcluded: placeLivenessStates.recommendationExcluded,
@@ -98,12 +116,22 @@ export async function claimDuePlaceLivenessTargets(
       ),
       and(
         isNotNull(placeLivenessStates.placeId),
-        or(eq(places.status, "PUBLISHED"), eq(placeLivenessStates.status, "HIDDEN")),
+        or(
+          eq(places.status, "PUBLISHED"),
+          and(eq(placeLivenessStates.status, "HIDDEN"), automatedHiddenRecoverable),
+        ),
         stateDue,
         leaseAvailable,
         protectionExpired,
       ),
     ))
+    .orderBy(
+      officialStatusConflictFirst,
+      openCaseFirst,
+      neverCheckedFirst,
+      oldestCheckFirst,
+      places.id,
+    )
     .limit(limit * 3);
 
   const claimed: LivenessTarget[] = [];
@@ -135,7 +163,7 @@ export async function claimDuePlaceLivenessTargets(
         latitude: candidate.latitude,
         longitude: candidate.longitude,
         phone: candidate.phone,
-        kakaoPlaceId: candidate.kakaoPlaceId,
+        kakaoPlaceId: candidate.kakaoPlaceId ?? candidate.matchedKakaoPlaceId,
       },
       status: (candidate.status ?? "MONITORING") as LivenessStatus,
       recommendationExcluded: candidate.recommendationExcluded ?? false,
@@ -200,9 +228,10 @@ export async function applyPlaceLivenessDecision(
   input: { target: LivenessTarget; decision: LivenessDecision; leaseToken: string; now: string },
 ): Promise<"APPLIED" | "STALE_LEASE"> {
   if (input.target.leaseToken !== input.leaseToken) return "STALE_LEASE";
-  const [state, place] = await Promise.all([
+  const [state, place, automatedHiddenRecoverable] = await Promise.all([
     db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, input.target.placeId) }),
     db.query.places.findFirst({ where: eq(places.id, input.target.placeId) }),
+    isRecoverableAutomatedHiddenPlace(db, input.target.placeId),
   ]);
   if (!state || !place || state.leaseToken !== input.leaseToken || place.updatedAt !== input.target.placeUpdatedAt) {
     return "STALE_LEASE";
@@ -219,7 +248,8 @@ export async function applyPlaceLivenessDecision(
   const evidenceJson = JSON.stringify(input.decision.evidence);
   const shouldRecover = input.decision.kakaoStatus === "MATCHED"
     && state.status === "HIDDEN"
-    && place.status === "HIDDEN";
+    && place.status === "HIDDEN"
+    && automatedHiddenRecoverable;
   const beforeState = placeStateSnapshot(place);
   const afterState = {
     status: input.decision.shouldHide ? "HIDDEN" as const : shouldRecover ? "PUBLISHED" as const : place.status,
@@ -365,6 +395,9 @@ export async function applyPlaceLivenessDecision(
     db.update(placeLivenessStates).set({
       status: input.decision.status,
       kakaoStatus: input.decision.kakaoStatus as KakaoLivenessStatus,
+      matchedKakaoPlaceId: input.decision.kakaoStatus === "MATCHED"
+        ? input.decision.matchedKakaoPlaceId ?? state.matchedKakaoPlaceId
+        : state.matchedKakaoPlaceId,
       matchScore: input.decision.evidence.score.total,
       consecutiveNotFound: input.decision.consecutiveNotFound,
       firstNotFoundAt,
@@ -390,6 +423,40 @@ function latestTimestamp(left: string | null, right: string | null) {
   if (!left) return right;
   if (!right) return left;
   return left >= right ? left : right;
+}
+
+async function isRecoverableAutomatedHiddenPlace(db: AppDb, placeId: string) {
+  const rows = await db.select({
+    recoverable: recoverableAutomatedHiddenSql(sql`${placeId}`),
+  }).from(places).where(eq(places.id, placeId)).limit(1);
+  const recoverable = rows[0]?.recoverable as unknown;
+  return recoverable === true || recoverable === 1;
+}
+
+function recoverableAutomatedHiddenSql(placeId: SQL) {
+  return sql<boolean>`exists (
+    select 1
+    from place_revisions auto_hide
+    where auto_hide.place_id = ${placeId}
+      and auto_hide.action = 'STATUS_CHANGE'
+      and auto_hide.reason = ${AUTO_HIDE_REASON}
+      and auto_hide.source_type = ${AUTO_HIDE_SOURCE}
+      and not exists (
+        select 1
+        from place_revisions manual_change
+        where manual_change.place_id = ${placeId}
+          and manual_change.action = 'STATUS_CHANGE'
+          and manual_change.source_type in ('PLACE_LIVENESS_MANUAL', 'REVALIDATION_CASE')
+          and manual_change.created_at > (
+            select max(latest_auto_hide.created_at)
+            from place_revisions latest_auto_hide
+            where latest_auto_hide.place_id = ${placeId}
+              and latest_auto_hide.action = 'STATUS_CHANGE'
+              and latest_auto_hide.reason = ${AUTO_HIDE_REASON}
+              and latest_auto_hide.source_type = ${AUTO_HIDE_SOURCE}
+          )
+      )
+  )`;
 }
 
 function placeStateSnapshot(place: {

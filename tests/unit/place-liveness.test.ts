@@ -103,7 +103,15 @@ describe("place liveness", () => {
   it("does not merge distinct normalized names", () => {
     const decision = decidePlaceLiveness({ ...baseInput, candidates: [{ ...candidate, name: "카페 여름" }] });
     expect(decision).toMatchObject({ kakaoStatus: "AMBIGUOUS" });
+    expect(decision.matchedKakaoPlaceId).toBeNull();
     expect(decision.evidence.score.name).toBe(0);
+  });
+
+  it("returns the matched Kakao candidate id for automatic storage", () => {
+    expect(decidePlaceLiveness({ ...baseInput, candidates: [candidate] }))
+      .toMatchObject({ kakaoStatus: "MATCHED", matchedKakaoPlaceId: "kakao-1" });
+    expect(decidePlaceLiveness({ ...baseInput, place: { ...baseInput.place, kakaoPlaceId: "kakao-2" }, candidates: [{ ...candidate, id: "kakao-2" }] }))
+      .toMatchObject({ kakaoStatus: "MATCHED", matchedKakaoPlaceId: "kakao-2" });
   });
 
   it("does not treat a one-character point suffix as a branch label", () => {
@@ -113,7 +121,7 @@ describe("place liveness", () => {
 
   it("leaves the current state unchanged for provider errors", () => {
     expect(decidePlaceLiveness({ ...baseInput, currentStatus: "SUSPECTED", currentRecommendationExcluded: true, consecutiveNotFound: 2, searchError: true }))
-      .toMatchObject({ status: "SUSPECTED", kakaoStatus: "ERROR", consecutiveNotFound: 2, recommendationExcluded: true, shouldHide: false, shouldOpenCase: false });
+      .toMatchObject({ status: "SUSPECTED", kakaoStatus: "ERROR", matchedKakaoPlaceId: null, consecutiveNotFound: 2, recommendationExcluded: true, shouldHide: false, shouldOpenCase: false });
   });
 
   it.each([

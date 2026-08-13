@@ -44,7 +44,7 @@ export async function resolvePlaceLivenessCase(db: AppDb, input: {
   if (!isLivenessResolution(input.resolution)) throw new Error("INVALID_LIVENESS_RESOLUTION");
 
   const reason = input.reason.trim();
-  if (input.resolution !== "OPEN" && !reason) throw new Error("REVIEW_REASON_REQUIRED");
+  if (!reason) throw new Error("REVIEW_REASON_REQUIRED");
 
   const [actor, item] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, input.actorUserId) }),
@@ -63,7 +63,7 @@ export async function resolvePlaceLivenessCase(db: AppDb, input: {
   const protectedUntil = isOpen
     ? new Date(new Date(input.now).getTime() + MANUAL_PROTECTION_MS).toISOString()
     : null;
-  const recordedReason = reason || "정상 영업 확인";
+  const recordedReason = reason;
   const before = {
     place: placeSnapshot(place),
     liveness: state ? livenessSnapshot(state) : null,
