@@ -27,6 +27,7 @@ export default [
   route("corrections/verify", "routes/verify-correction.tsx"),
   route("reviewer/apply", "routes/reviewer-apply.tsx"),
   route("reviewer/ratings", "routes/reviewer-ratings.tsx"),
+  route("review-photos/:photoId", "routes/reviewer-photo.ts"),
   route("reviewers/:slug", "routes/reviewer-profile.tsx"),
   route("logout", "routes/logout.tsx"),
   route("admin/places", "routes/admin-places.tsx"),

@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useFetcher } from "react-router";
 
+import { AppToast, type AppToastValue } from "./app-toast";
+import {
+  prepareReviewerPhotoFiles,
+  releaseReviewerPhotoPreviews,
+  reviewerPhotoErrorMessage,
+} from "../features/ratings/reviewer-photo.client";
 import {
   REVIEWER_BADGE_CATALOG,
   type ReviewerCategoryName,
@@ -29,6 +36,7 @@ type ReviewerHistory = {
   goldenPickEventId: string | null;
   version: number;
   publishedAt: string;
+  photos: Array<{ id: string; url: string }>;
 };
 
 type Props = {
@@ -37,6 +45,8 @@ type Props = {
   history: ReviewerHistory[];
   goldenQuota: { used: number; limit: number; remaining: number };
   publishedReviewId: string | null;
+  photoUploadEnabled: boolean;
+  notice: "review-published" | "review-with-photos-published" | null;
 };
 
 type Draft = {
@@ -63,7 +73,8 @@ function parseBadges(value: string) {
   }
 }
 
-export function ReviewerVisitFlow({ places, categories, history, goldenQuota, publishedReviewId }: Props) {
+export function ReviewerVisitFlow({ places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, notice }: Props) {
+  const fetcher = useFetcher<{ ok: false; error: string }>();
   const [step, setStep] = useState(1);
   const [placeId, setPlaceId] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -72,7 +83,17 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
   const [placeQuery, setPlaceQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
   const [badgeError, setBadgeError] = useState("");
-  const [photoNames, setPhotoNames] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<Array<{ file: File; position: number; previewUrl: string }>>([]);
+  const photosRef = useRef(photos);
+  const [preparingPhotos, setPreparingPhotos] = useState(false);
+  const submitLockRef = useRef(false);
+  const [publishLocked, setPublishLocked] = useState(false);
+  const [golden, setGolden] = useState(false);
+  const [goldenReason, setGoldenReason] = useState("");
+  const [formError, setFormError] = useState("");
+  const [toast, setToast] = useState<AppToastValue | null>(() => notice
+    ? { kind: "success", message: notice === "review-with-photos-published" ? "사진과 리뷰를 발행했어요." : "리뷰를 발행했어요." }
+    : null);
   const [restored, setRestored] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -121,6 +142,28 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
     localStorage.removeItem(DRAFT_KEY);
   }, [publishedReviewId]);
 
+  useEffect(() => {
+    if (!notice) return;
+    setToast({ kind: "success", message: notice === "review-with-photos-published" ? "사진과 리뷰를 발행했어요." : "리뷰를 발행했어요." });
+  }, [notice]);
+
+  useEffect(() => () => {
+    releaseReviewerPhotoPreviews(photosRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.ok !== false) return;
+    const message = reviewerPhotoErrorMessage(fetcher.data.error);
+    setFormError(message);
+    setToast({ kind: "error", message });
+  }, [fetcher.data, fetcher.state]);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !submitLockRef.current) return;
+    submitLockRef.current = false;
+    setPublishLocked(false);
+  }, [fetcher.state]);
+
   function choosePlace(nextPlace: ReviewerPlace) {
     setPlaceId(nextPlace.placeId);
     const primary = categories.find((category) => category.id === nextPlace.categoryId);
@@ -156,9 +199,69 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
     setCategoryId("");
     setEvaluation(null);
     setBadges([]);
-    setPhotoNames([]);
+    replacePhotos([]);
+    setGolden(false);
+    setGoldenReason("");
     setRestored(false);
   }
+
+  async function selectPhotos(sourceFiles: File[], input: HTMLInputElement) {
+    setFormError("");
+    setPreparingPhotos(true);
+    try {
+      const prepared = await prepareReviewerPhotoFiles(sourceFiles);
+      replacePhotos(prepared.map((photo) => ({
+        ...photo,
+        previewUrl: URL.createObjectURL(photo.file),
+      })));
+      setToast({ kind: "info", message: `${prepared.length}장 사진을 발행 준비했어요.` });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "PHOTO_DECODE_FAILED";
+      const message = reviewerPhotoErrorMessage(code);
+      setFormError(message);
+      setToast({ kind: "error", message });
+    } finally {
+      input.value = "";
+      setPreparingPhotos(false);
+    }
+  }
+
+  function removePhoto(position: number) {
+    const removed = photosRef.current.find((photo) => photo.position === position);
+    if (removed) releaseReviewerPhotoPreviews([removed]);
+    const next = photosRef.current.filter((photo) => photo.position !== position);
+    photosRef.current = next;
+    setPhotos(next);
+  }
+
+  function replacePhotos(nextPhotos: Array<{ file: File; position: number; previewUrl: string }>) {
+    releaseReviewerPhotoPreviews(photosRef.current);
+    photosRef.current = nextPhotos;
+    setPhotos(nextPhotos);
+  }
+
+  function submitReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submitLockRef.current || fetcher.state !== "idle" || preparingPhotos) {
+      if (submitLockRef.current) setToast({ kind: "info", message: "리뷰를 발행하고 있어요." });
+      return;
+    }
+    submitLockRef.current = true;
+    setPublishLocked(true);
+    setFormError("");
+    const form = new FormData(event.currentTarget);
+    form.delete("photos");
+    [...photos].sort((first, second) => first.position - second.position).forEach((photo) => form.append("photos", photo.file));
+    fetcher.submit(form, { method: "post", encType: "multipart/form-data" });
+  }
+
+  const goldenEligible = photoUploadEnabled && photos.length > 0 && badges.length === 2;
+  const publishing = publishLocked || fetcher.state !== "idle";
+  const canPublishGolden = !golden || (goldenReason.trim().length >= 15 && goldenReason.trim().length <= 100);
+
+  useEffect(() => {
+    if (!goldenEligible) setGolden(false);
+  }, [goldenEligible]);
 
   const canContinue = step === 1 ? Boolean(selectedPlace)
     : step === 2 ? Boolean(evaluation)
@@ -202,15 +305,17 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
         ))}
       </nav>
 
-      <form method="post" className="reviewer-workspace">
+      <fetcher.Form method="post" className="reviewer-workspace" encType="multipart/form-data" onSubmit={submitReview} aria-busy={publishing || preparingPhotos}>
         <input type="hidden" name="intent" value="publish-review" />
         <input type="hidden" name="placeId" value={placeId} />
         <input type="hidden" name="categoryId" value={categoryId} />
         <input type="hidden" name="categoryName" value={selectedCategory?.name ?? ""} />
         <input type="hidden" name="evaluation" value={evaluation ?? ""} />
-        <input type="hidden" name="golden" value="0" />
-        <input type="hidden" name="goldenReason" value="" />
+        <input type="hidden" name="golden" value={golden ? "1" : "0"} />
+        <input type="hidden" name="goldenReason" value={goldenReason} />
         {badges.map((badge) => <input key={badge} type="hidden" name="badges" value={badge} />)}
+
+        {formError && <p className="reviewer-form-error" role="alert">{formError}</p>}
 
         <div className="reviewer-card-stack">
           <section className="reviewer-step-card" hidden={step !== 1} aria-labelledby="review-step-place">
@@ -281,18 +386,24 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
           <section className="reviewer-step-card" hidden={step !== 4} aria-labelledby="review-step-photo">
             <p className="eyebrow">STEP 04 / PHOTO &amp; GOLDEN</p>
             <h2 id="review-step-photo">사진은 선택 사항이에요.</h2>
-            <p>얼굴·차량 번호·영수증 개인정보는 올리지 마세요. 현재 사진은 이 기기의 미리보기로만 보이며 발행 데이터에는 포함되지 않습니다.</p>
-            <label className="reviewer-photo-picker">
-              <strong>사진 미리보기 추가</strong>
-              <span>최대 5장 · 업로드 저장소 승인 전 로컬 확인용</span>
-              <input type="file" accept="image/*" multiple onChange={(event) => setPhotoNames(Array.from(event.target.files ?? []).slice(0, 5).map((file) => file.name))} />
-            </label>
-            {photoNames.length > 0 && <ul className="reviewer-photo-list">{photoNames.map((name, index) => <li key={`${name}-${index}`}><span>{index + 1}</span>{name}<b>기기 미리보기</b></li>)}</ul>}
+            <p>얼굴·차량 번호·영수증 개인정보는 올리지 마세요. 선택한 사진은 이 기기에서 JPEG로 다시 준비한 뒤, 리뷰를 발행할 때만 저장됩니다. 발행 후 모든 사용자에게 공개됩니다.</p>
+            {photoUploadEnabled ? <>
+              <label className="reviewer-photo-picker" aria-disabled={preparingPhotos || publishing}>
+                <strong>{preparingPhotos ? "사진 준비 중" : photos.length ? "사진 교체" : "사진 선택"}</strong>
+                <span>최대 5장 · 발행 전에는 이 기기에서만 미리보기</span>
+                <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={preparingPhotos || publishing} onChange={(event) => void selectPhotos(Array.from(event.currentTarget.files ?? []), event.currentTarget)} />
+              </label>
+              {photos.length > 0 && <ul className="reviewer-photo-list">{photos.map((photo, index) => <li key={photo.position}>
+                <img src={photo.previewUrl} alt={`발행 전 사진 ${index + 1}`} />
+                <span>{index + 1}</span><b>발행 시 공개</b>
+                <button type="button" onClick={() => removePhoto(photo.position)} disabled={publishing}>제거</button>
+              </li>)}</ul>}
+            </> : <p className="reviewer-photo-unavailable">사진 발행 기능을 준비 중이에요. 사진 없이 리뷰는 발행할 수 있어요.</p>}
             <div className="reviewer-golden-disabled">
-              <div><span>Golden Pick</span><strong>사진 저장 기능 준비 중</strong></div>
-              <p>Golden Pick은 발행된 사진 1장, 맛 배지 정확히 2개, 15–100자 이유가 모두 확인된 뒤 활성화됩니다.</p>
-              <button type="button" disabled aria-describedby="golden-hold-note">Golden Pick 선택</button>
-              <small id="golden-hold-note">새 Cloudflare 사진 저장소는 운영 승인 후 연결합니다.</small>
+              <div><span>Golden Pick</span><strong>{goldenEligible ? "이 리뷰를 Golden Pick으로 남길 수 있어요" : "사진 1장과 맛 배지 2개를 먼저 선택해 주세요"}</strong></div>
+              <p>Golden Pick은 발행된 사진 1장, 맛 배지 정확히 2개, 15–100자 이유가 모두 확인된 뒤 발행됩니다.</p>
+              <button type="button" aria-pressed={golden} disabled={!goldenEligible || publishing} onClick={() => setGolden((current) => !current)}>Golden Pick 선택</button>
+              {golden && <label className="reviewer-golden-reason"><span>Golden Pick 이유</span><textarea value={goldenReason} maxLength={100} minLength={15} onChange={(event) => setGoldenReason(event.target.value)} placeholder="다른 사람에게 꼭 권하고 싶은 이유를 15자 이상 남겨주세요." /></label>}
             </div>
           </section>
 
@@ -304,7 +415,7 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
               <div><dt>평가</dt><dd>{evaluation ? evaluationLabels[evaluation] : "선택 전"}</dd></div>
               <div><dt>카테고리</dt><dd>{selectedCategory ? `${selectedCategory.emoji} ${selectedCategory.name}` : "선택 전"}</dd></div>
               <div><dt>맛 배지</dt><dd>{badges.length ? badges.join(" · ") : "선택 안 함"}</dd></div>
-              <div><dt>사진</dt><dd>발행 0장 · 로컬 미리보기 {photoNames.length}장</dd></div>
+              <div><dt>사진</dt><dd>발행 {photos.length}장{photos.length ? " · 발행 후 공개" : ""}</dd></div>
             </dl>
             <p className="reviewer-privacy-note">발행하면 평가와 배지가 추천 신호에 반영됩니다. 다른 리뷰어의 개별 신원은 공개하지 않습니다.</p>
           </section>
@@ -315,7 +426,7 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
           <strong>{selectedPlace?.placeName ?? "장소를 먼저 골라주세요"}</strong>
           <span>{evaluation ? evaluationLabels[evaluation] : "평가 미선택"} · {selectedCategory?.name ?? "카테고리 미선택"}</span>
           <div>{badges.map((badge) => <i key={badge}>{badge}</i>)}</div>
-          <small>작성 내용은 이 기기에 자동 저장됩니다.</small>
+          <small>사진은 자동 저장하지 않으며, 발행할 때만 업로드됩니다.</small>
         </aside>
 
         <div className="reviewer-actions">
@@ -325,10 +436,10 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
               {step === 1 ? "다음: 평가" : step === 2 ? "다음: 맛 배지" : step === 3 ? "다음: 사진·Golden" : "다음: 확인"}
             </button>
           ) : (
-            <button type="submit" className="reviewer-primary" disabled={!selectedPlace || !selectedCategory || !evaluation}>리뷰 발행</button>
+            <button type="submit" className="reviewer-primary" disabled={!selectedPlace || !selectedCategory || !evaluation || !canPublishGolden || publishing || preparingPhotos}>{publishing ? "발행 중…" : "리뷰 발행"}</button>
           )}
         </div>
-      </form>
+      </fetcher.Form>
 
       <section className="reviewer-history" aria-labelledby="reviewer-history-title">
         <div><p className="eyebrow">PUBLISHED / RECENT</p><h2 id="reviewer-history-title">최근 발행</h2></div>
@@ -338,10 +449,14 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
             <h3>{review.placeName}</h3>
             <p>{review.categoryName} · v{review.version}</p>
             <div>{parseBadges(review.badgesJson).map((badge) => <i key={badge}>{badge}</i>)}</div>
+            {review.photos.length > 0 && <div className="reviewer-history-photos" aria-label={`${review.placeName} 발행 사진`}>
+              {review.photos.map((photo) => <img key={photo.id} src={photo.url} alt="" loading="lazy" />)}
+            </div>}
             <time dateTime={review.publishedAt}>{new Date(review.publishedAt).toLocaleDateString("ko-KR")}</time>
           </article>
         ))}</div> : <p className="reviewer-empty">아직 발행한 방문 리뷰가 없어요. 첫 기록을 남겨보세요.</p>}
       </section>
+      <AppToast toast={toast} onClose={() => setToast(null)} />
     </main>
   );
 }

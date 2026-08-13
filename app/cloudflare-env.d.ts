@@ -13,5 +13,7 @@ declare namespace Cloudflare {
     KAKAO_REST_API_KEY: string;
     KAKAO_PLACE_VERIFICATION_ENABLED: string;
     KAKAO_PLACE_VERIFICATION_MODE: string;
+    REVIEW_PHOTO_UPLOAD_ENABLED: string;
+    REVIEW_PHOTOS: R2Bucket;
   }
 }

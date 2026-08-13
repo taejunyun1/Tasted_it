@@ -1,8 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ReviewerVisitFlow } from "../../app/components/reviewer-visit-flow";
+
+vi.mock("react-router", () => ({
+  useFetcher: () => ({ data: null, state: "idle", submit: () => {}, Form: "form" }),
+}));
 
 const props = {
   places: [{
@@ -17,6 +21,8 @@ const props = {
   history: [],
   goldenQuota: { used: 1, limit: 3, remaining: 2 },
   publishedReviewId: null,
+  photoUploadEnabled: true,
+  notice: null,
 };
 
 describe("ReviewerVisitFlow", () => {
@@ -32,7 +38,9 @@ describe("ReviewerVisitFlow", () => {
     expect(html).toContain("보류");
     expect(html).toContain("비추천");
     expect(html).toContain("서술형 후기 없이");
-    expect(html).toContain("사진 저장 기능 준비 중");
+    expect(html).toContain('name="photos"');
+    expect(html).toContain("발행 후 모든 사용자에게 공개됩니다");
+    expect(html).toContain("Golden Pick 선택");
     expect(html).toContain("이번 달 1/3 사용");
   });
 
@@ -49,10 +57,30 @@ describe("ReviewerVisitFlow", () => {
       goldenPickEventId: null,
       version: 1,
       publishedAt: "2026-08-12T00:00:00Z",
+      photos: [],
     }] }));
     expect(html).toContain("최근 발행");
     expect(html).toContain("육수 농도 선명");
     expect(html).not.toContain("동료 리뷰어 이름");
     expect(html).not.toContain("peerUserId");
+  });
+
+  it("renders public photo URLs in the reviewer’s own published history", () => {
+    const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, { ...props, history: [{
+      id: "visit-photo-1",
+      placeId: "sample-place-1",
+      placeName: "Re:Taste 샘플 라멘 동명",
+      categoryId: "cat-ramen",
+      categoryName: "라멘",
+      evaluation: "RECOMMEND",
+      badgesJson: "[]",
+      photoCount: 1,
+      goldenPickEventId: null,
+      version: 1,
+      publishedAt: "2026-08-13T00:00:00Z",
+      photos: [{ id: "public-photo-1", url: "/review-photos/public-photo-1" }],
+    }] }));
+    expect(html).toContain('src="/review-photos/public-photo-1"');
+    expect(html).not.toContain("reviews/visit-photo-1");
   });
 });

@@ -1,6 +1,5 @@
 import { env } from "cloudflare:workers";
 import { and, asc, eq } from "drizzle-orm";
-import { redirect } from "react-router";
 import type { Route } from "./+types/reviewer-ratings";
 
 import { ReviewerVisitFlow } from "../components/reviewer-visit-flow";
@@ -11,12 +10,11 @@ import { requireUser } from "../features/auth/session.server";
 import { getGoldenPickQuota } from "../features/ratings/golden-pick.server";
 import {
   REVIEWER_BADGE_CATALOG,
-  parseReviewerVisitSubmission,
 } from "../features/ratings/reviewer-visit";
 import {
   listReviewerVisitHistory,
-  publishReviewerVisit,
 } from "../features/ratings/reviewer-visit.server";
+import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit-publish.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
@@ -49,22 +47,31 @@ export async function loader({ request }: Route.LoaderArgs) {
   const reviewPlaces = placeRows.filter((place) => reviewCategoryIds.has(place.categoryId));
   const requestedPublishedId = new URL(request.url).searchParams.get("published");
   const publishedReviewId = history.some((review) => review.id === requestedPublishedId) ? requestedPublishedId : null;
-  return { places: reviewPlaces, categories: reviewCategories, history, goldenQuota, publishedReviewId };
+  const requestedNotice = new URL(request.url).searchParams.get("notice");
+  const notice: "review-published" | "review-with-photos-published" | null = publishedReviewId
+    && (requestedNotice === "review-published" || requestedNotice === "review-with-photos-published")
+    ? requestedNotice
+    : null;
+  return {
+    places: reviewPlaces,
+    categories: reviewCategories,
+    history,
+    goldenQuota,
+    publishedReviewId,
+    notice,
+    photoUploadEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED === "true",
+  };
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const user = await requireUser(request);
   assertRole(user.role, ["REVIEWER"]);
-  const submission = parseReviewerVisitSubmission(await request.formData());
-  const id = crypto.randomUUID();
-  await publishReviewerVisit(createDb(env.DB), {
-    id,
+  return publishReviewerRatingRequest(request, {
+    db: createDb(env.DB),
+    photoBucket: env.REVIEW_PHOTOS,
+    photoUploadEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED === "true",
     reviewerUserId: user.id,
-    ...submission,
-    publishedPhotoCount: 0,
-    now: new Date().toISOString(),
   });
-  return redirect(`/reviewer/ratings?published=${encodeURIComponent(id)}`);
 }
 
 export function meta() {

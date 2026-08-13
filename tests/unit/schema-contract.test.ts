@@ -47,6 +47,8 @@ import {
   productEvents,
   placeLivenessStates,
   tasteLearningStates,
+  reviewerVisitPhotos,
+  reviewerPhotoCleanupJobs,
 } from "../../app/db/schema";
 
 describe("week 1 schema", () => {
@@ -172,5 +174,29 @@ describe("week 1 schema", () => {
     expect(placeLivenessStates.recommendationExcluded.getSQLType()).toBe("integer");
     expect(placeLivenessStates.recommendationExcluded.notNull).toBe(true);
     expect(placeLivenessStates.recommendationExcluded.default).toBe(false);
+  });
+
+  it("exports reviewer visit photo metadata with bounded public ordering", () => {
+    expect(reviewerVisitPhotos.id.primary).toBe(true);
+    expect(reviewerVisitPhotos.reviewId.notNull).toBe(true);
+    expect(reviewerVisitPhotos.objectKey.notNull).toBe(true);
+    expect(reviewerVisitPhotos.contentType.notNull).toBe(true);
+    expect(reviewerVisitPhotos.byteSize.notNull).toBe(true);
+    expect(reviewerVisitPhotos.position.notNull).toBe(true);
+
+    const config = getTableConfig(reviewerVisitPhotos);
+    expect(config.foreignKeys).toEqual([
+      expect.objectContaining({ onDelete: "cascade" }),
+    ]);
+    expect(config.indexes.map((index) => index.config.name)).toEqual(expect.arrayContaining([
+      "reviewer_visit_photos_object_key_uidx",
+      "reviewer_visit_photos_review_position_uidx",
+    ]));
+  });
+
+  it("keeps a durable retry record before an uploaded photo can be published", () => {
+    expect(reviewerPhotoCleanupJobs.reviewId.primary).toBe(true);
+    expect(reviewerPhotoCleanupJobs.objectKeysJson.notNull).toBe(true);
+    expect(reviewerPhotoCleanupJobs.createdAt.notNull).toBe(true);
   });
 });

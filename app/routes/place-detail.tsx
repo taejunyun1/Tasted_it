@@ -21,6 +21,7 @@ import {
   type RecommendationSourceRail,
 } from "../components/places/PlaceCard";
 import { VoteControl } from "../components/ratings/VoteControl";
+import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
 
 const actionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -86,11 +87,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
   await recordPlaceDetailView(db, { placeId: place.id, now });
-  const [snapshot, flavorPrint, goldenPicks, hiddenGem] = await Promise.all([
+  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
     getLatestRatingSnapshot(db, place.id),
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
+    listPublishedPlaceReviewPhotos(db, place.id, 12),
   ]);
   const legacy = calculateRating(place);
   const rating = snapshot ? {
@@ -128,7 +130,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const returnTo = provenance
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
-  return { place, rating, flavorPrint, hiddenGem, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote, saved, returnTo };
+  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -185,7 +187,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 export function meta() { return [{ title: "장소 상세 — Re:Taste" }]; }
 
 export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
-  const { place, rating, flavorPrint } = loaderData;
+  const { place, rating, flavorPrint, reviewPhotos } = loaderData;
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
@@ -202,6 +204,12 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
           <VoteControl vote={loaderData.vote} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
+          {reviewPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="review-photo-gallery-title">
+            <div><p className="eyebrow">REVIEWER / PHOTO</p><h2 id="review-photo-gallery-title">리뷰어가 남긴 사진</h2></div>
+            <div>
+              {reviewPhotos.map((photo) => <img key={photo.id} src={photo.url} alt={`${place.name} 리뷰 사진`} loading="lazy" />)}
+            </div>
+          </section>}
         </article>
       </div>
     </main>
