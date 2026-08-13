@@ -17,6 +17,7 @@ const REVIEWER_SESSION = {
 async function completeReviewBeforePhotoStep(page: import("@playwright/test").Page) {
   await page.context().addCookies([REVIEWER_SESSION]);
   await page.goto("/reviewer/ratings");
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
   await page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ }).click();
   await page.getByRole("button", { name: "다음: 평가" }).click();
@@ -80,10 +81,17 @@ test("reviewer publishes a prepared EXIF JPEG and everyone can load the metadata
   await expect(historyRow).toContainText("사진 1장");
   await expect(historyRow.locator(".reviewer-history-badges i")).toHaveCount(2);
   await expect(page.locator(".reviewer-history-rail")).toHaveCount(0);
+  const historyPlaceLink = historyRow.locator(".reviewer-history-place-link");
+  await expect(historyPlaceLink).toHaveCSS("cursor", "pointer");
+  const historyPlaceLinkBox = await historyPlaceLink.boundingBox();
+  expect(historyPlaceLinkBox?.height).toBeGreaterThanOrEqual(44);
   await page.screenshot({
     path: `docs/evidence/2026-08-13-reviewer-photo-upload-${testInfo.project.name}.png`,
     fullPage: true,
   });
+  await historyPlaceLink.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/places\//);
 });
 
 test("rejects a source that is too large before it tries to prepare or publish it", async ({ page }) => {
