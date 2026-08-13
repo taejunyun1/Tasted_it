@@ -12,7 +12,7 @@ export function normalizePlaceIdentity(input: Pick<PlaceIdentityInput, "name" | 
   return { name: compact(input.name), address: compact(input.address), phone: input.phone?.replace(/\D/g, "") || null };
 }
 
-function distanceMeters(left: PlaceIdentityInput, right: PlaceIdentityInput) {
+export function distanceMeters(left: PlaceIdentityInput, right: PlaceIdentityInput) {
   if (left.latitude == null || left.longitude == null || right.latitude == null || right.longitude == null) return null;
   const radians = (degrees: number) => degrees * Math.PI / 180;
   const latitudeDelta = radians(right.latitude - left.latitude);

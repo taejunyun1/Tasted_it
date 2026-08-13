@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyPlaceDuplicate, normalizePlaceIdentity } from "../../app/features/places/place-duplicate-policy";
+import { classifyPlaceDuplicate, distanceMeters, normalizePlaceIdentity } from "../../app/features/places/place-duplicate-policy";
 
 describe("place duplicate policy", () => {
   it("normalizes spacing, punctuation, phone, and address", () => {
@@ -10,6 +10,13 @@ describe("place duplicate policy", () => {
 
   it("uses exact source id before phone and geographic signals", () => {
     expect(classifyPlaceDuplicate({ sourceManagementNo: "A-1", name: "완전 다른 곳", address: "다른 주소", latitude: 35, longitude: 126 }, { sourceManagementNo: "A-1", name: "기존", address: "광주", latitude: 34, longitude: 127 })).toMatchObject({ level: "EXACT" });
+  });
+
+  it("exports the shared geographic distance calculation", () => {
+    expect(distanceMeters(
+      { name: "기준", address: "광주", latitude: 35.149, longitude: 126.923 },
+      { name: "인근", address: "광주", latitude: 35.1492, longitude: 126.923 },
+    )).toBeCloseTo(22.24, 1);
   });
 
   it("classifies same phone within 100m as high and similar name within 100m as medium", () => {
