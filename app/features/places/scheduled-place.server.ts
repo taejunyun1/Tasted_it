@@ -134,7 +134,7 @@ async function runLivenessMaintenance(
       errorKinds.add("PLACE_LIVENESS_EVIDENCE_FAILED");
     }
 
-    if (authErrors >= 3 || (checked >= 3 && errors * 2 >= checked)) {
+    if (authErrors >= 3 || errors * 2 >= checked) {
       stopped = true;
       break;
     }
@@ -153,6 +153,7 @@ async function runLivenessMaintenance(
       errors += 1;
       errorKinds.add("PLACE_LIVENESS_APPLY_FAILED");
       stopped = true;
+      break;
     }
   }
 

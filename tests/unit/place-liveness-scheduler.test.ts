@@ -100,18 +100,13 @@ describe("place liveness scheduler", () => {
     expect(search).toHaveBeenCalledTimes(2);
   });
 
-  it("stops after three auth errors or an error rate of at least fifty percent", async () => {
-    const auth = scheduler([target(1), target(2), target(3), target(4)], vi.fn(async () => {
-      throw new KakaoLocalError("KAKAO_AUTH_FAILED");
-    }));
-    await expect(auth.run()).resolves.toMatchObject({ liveness: { status: "STOPPED", checked: 3, errors: 3 } });
-    expect(auth.search).toHaveBeenCalledTimes(3);
-
+  it("stops remaining targets immediately when the first provider error makes the error rate one hundred percent", async () => {
     const rate = scheduler([target(1), target(2), target(3), target(4)], vi.fn(async () => {
       throw new KakaoLocalError("KAKAO_REQUEST_FAILED");
     }));
-    await expect(rate.run()).resolves.toMatchObject({ liveness: { status: "STOPPED", checked: 3, errors: 3 } });
-    expect(rate.search).toHaveBeenCalledTimes(3);
+    await expect(rate.run()).resolves.toMatchObject({ liveness: { status: "STOPPED", checked: 1, errors: 1 } });
+    expect(rate.search).toHaveBeenCalledOnce();
+    expect(rate.apply).toHaveBeenCalledOnce();
   });
 
   it("does not hide a place during a provider-error-heavy run", async () => {
@@ -121,8 +116,16 @@ describe("place liveness scheduler", () => {
       .mockRejectedValueOnce(new KakaoLocalError("KAKAO_SERVER_ERROR", true))
       .mockRejectedValueOnce(new KakaoLocalError("KAKAO_SERVER_ERROR", true)), "HIDE");
 
-    await expect(task.run()).resolves.toMatchObject({ liveness: { status: "STOPPED", hidden: 0, errors: 2 } });
+    await expect(task.run()).resolves.toMatchObject({ liveness: { status: "STOPPED", hidden: 0, errors: 1 } });
     expect(task.apply.mock.calls.map((call) => call[1].decision.shouldHide)).not.toContain(true);
+  });
+
+  it("stops applying decisions after an apply failure", async () => {
+    const task = scheduler([target(1), target(2)]);
+    task.apply.mockRejectedValueOnce(new Error("apply failed"));
+
+    await expect(task.run()).resolves.toMatchObject({ liveness: { status: "STOPPED", checked: 2, errors: 1, hidden: 0 } });
+    expect(task.apply).toHaveBeenCalledOnce();
   });
 
   it("caps claims at 25 and Kakao requests at 50", async () => {
