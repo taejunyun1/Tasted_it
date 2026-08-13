@@ -44,6 +44,24 @@ afterEach(() => {
 });
 
 describe("loadRecommendationCandidateContext Golden 조회 정책", () => {
+  it("홈, 코스, 장소 추천에 공통 후보 함수를 사용한다", async () => {
+    const { loadRecommendationCandidateContext } = await import("../../app/features/places/recommendation-candidates.server");
+    const bbox: [number, number, number, number] = [126.8, 35, 127, 35.3];
+
+    await loadRecommendationCandidateContext(fakeDb() as never, {
+      bbox,
+      categorySlug: "korean",
+      now: "2026-08-11T03:00:00.000Z",
+      goldenContext: "omit",
+    });
+
+    expect(mocks.listRecommendationCandidates).toHaveBeenCalledWith(expect.anything(), {
+      bbox,
+      categorySlug: "korean",
+      limit: 500,
+    });
+  });
+
   it("Golden이 아닌 홈 모드는 Golden 이력 조회를 실행하지 않는다", async () => {
     const { loadRecommendationCandidateContext } = await import("../../app/features/places/recommendation-candidates.server");
     const context = await loadRecommendationCandidateContext(fakeDb() as never, {

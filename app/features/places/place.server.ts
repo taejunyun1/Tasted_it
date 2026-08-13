@@ -9,6 +9,7 @@ import {
   categories,
   currentVotes,
   placeCategories,
+  placeLivenessStates,
   placeSourceLinks,
   placeSlugRedirects,
   places,
@@ -190,12 +191,24 @@ function publicConditions(filters: PlaceFilters, slug?: string) {
   return and(...conditions);
 }
 
+function recommendationLivenessCondition() {
+  return sql<boolean>`not exists (
+    select 1 from ${placeLivenessStates} pls
+    where pls.place_id = ${places.id}
+      and pls.recommendation_excluded = 1
+  )`;
+}
+
 async function selectPublicPlaces(
   db: AppDb,
   filters: PlaceFilters,
   slug?: string,
-  options: { maxLimit?: number; recommendationOrder?: boolean } = {},
+  options: { maxLimit?: number; recommendationCandidates?: boolean; recommendationOrder?: boolean } = {},
 ): Promise<PlaceDetail[]> {
+  const conditions = [publicConditions(filters, slug)];
+  if (options.recommendationCandidates) {
+    conditions.push(recommendationLivenessCondition());
+  }
   const rows = await db
     .select({
       id: places.id,
@@ -220,7 +233,7 @@ async function selectPublicPlaces(
     .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
     .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
     .leftJoin(currentVotes, eq(currentVotes.placeId, places.id))
-    .where(publicConditions(filters, slug))
+    .where(and(...conditions))
     .groupBy(places.id, categories.id)
     .orderBy(...(options.recommendationOrder
       ? [desc(places.lastVerifiedAt), desc(places.updatedAt), asc(places.id)]
@@ -263,6 +276,7 @@ export async function listRecommendationCandidates(
 ): Promise<PlaceSummary[]> {
   return selectPublicPlaces(db, { ...filters, limit: Math.min(filters.limit ?? 500, 500) }, undefined, {
     maxLimit: 500,
+    recommendationCandidates: true,
     recommendationOrder: true,
   });
 }
