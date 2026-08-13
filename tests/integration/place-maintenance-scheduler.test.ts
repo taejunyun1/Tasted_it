@@ -9,7 +9,10 @@ describe("place maintenance scheduler", () => {
     const db = createDb(env.DB); const now = "2026-08-06T12:00:00.000Z";
     await db.insert(places).values({ id: "stale-scheduled", slug: "stale-scheduled", name: "오래된 공개 장소", status: "PUBLISHED", address: "광주", neighborhood: "동명동", latitude: 35.1, longitude: 126.9, searchText: "오래된 공개 장소", lastVerifiedAt: "2026-01-01T00:00:00.000Z", createdAt: now, updatedAt: now });
     const result = await runScheduledPlaceMaintenance(env, { now });
-    expect(result).toMatchObject({ scanned: 1, created: 1 });
+    expect(result).toMatchObject({
+      staleRevalidation: { scanned: 1, created: 1 },
+      liveness: { status: "DISABLED", claimed: 0, checked: 0, errors: 0, hidden: 0 },
+    });
     expect((await db.select().from(placeRevalidationCases)).some((item) => item.placeId === "stale-scheduled")).toBe(true);
   });
 });
