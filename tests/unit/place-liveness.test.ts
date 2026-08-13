@@ -128,10 +128,28 @@ describe("place liveness", () => {
     { name: "recent OPEN source", recentOpenSourceAt: "2026-08-01T00:00:00.000Z" },
     { name: "recent reviewer activity", recentReviewerActivityAt: "2026-08-01T00:00:00.000Z" },
     { name: "recent member activity", recentMemberActivityAt: "2026-08-01T00:00:00.000Z" },
-    { name: "an active protection period", protectedUntil: "2026-09-01T00:00:00.000Z" },
   ])("does not hide after three not-found results with $name", (protection) => {
     expect(decidePlaceLiveness({ ...baseInput, consecutiveNotFound: 2, firstNotFoundAt: "2026-07-01T00:00:00.000Z", lastCheckedAt: "2026-08-01T00:00:00.000Z", ...protection }))
       .toMatchObject({ status: "SUSPECTED", consecutiveNotFound: 3, shouldHide: false });
+  });
+
+  it("keeps a manually protected place verified and recommendation-eligible after a not-found result", () => {
+    expect(decidePlaceLiveness({
+      ...baseInput,
+      currentStatus: "VERIFIED",
+      consecutiveNotFound: 2,
+      firstNotFoundAt: "2026-07-01T00:00:00.000Z",
+      lastCheckedAt: "2026-08-01T00:00:00.000Z",
+      protectedUntil: "2026-09-01T00:00:00.000Z",
+    })).toMatchObject({
+      status: "VERIFIED",
+      kakaoStatus: "NOT_FOUND",
+      consecutiveNotFound: 0,
+      recommendationExcluded: false,
+      shouldHide: false,
+      shouldOpenCase: false,
+      nextCheckAt: "2026-09-01T00:00:00.000Z",
+    });
   });
 
   it("hides after three valid not-found results when no protection applies", () => {

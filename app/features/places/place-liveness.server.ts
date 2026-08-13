@@ -68,6 +68,10 @@ export async function claimDuePlaceLivenessTargets(
     isNull(placeLivenessStates.nextCheckAt),
     lte(placeLivenessStates.nextCheckAt, input.now),
   );
+  const protectionExpired = or(
+    isNull(placeLivenessStates.protectedUntil),
+    lte(placeLivenessStates.protectedUntil, input.now),
+  );
   const candidates = await db.select({
     placeId: places.id,
     name: places.name,
@@ -97,6 +101,7 @@ export async function claimDuePlaceLivenessTargets(
         or(eq(places.status, "PUBLISHED"), eq(placeLivenessStates.status, "HIDDEN")),
         stateDue,
         leaseAvailable,
+        protectionExpired,
       ),
     ))
     .limit(limit * 3);

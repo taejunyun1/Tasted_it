@@ -111,6 +111,18 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
   const consecutiveNotFound = input.consecutiveNotFound + (validNotFound ? 1 : 0);
   const firstNotFoundAt = input.firstNotFoundAt ?? (validNotFound ? input.now : null);
   const protectedByManualReview = isFuture(input.protectedUntil, now);
+  if (protectedByManualReview) {
+    return {
+      status: "VERIFIED",
+      kakaoStatus: "NOT_FOUND",
+      consecutiveNotFound: 0,
+      recommendationExcluded: false,
+      shouldHide: false,
+      shouldOpenCase: false,
+      nextCheckAt: input.protectedUntil ?? nextCheckAt,
+      evidence: { ...evidence, score: match.score },
+    };
+  }
   const canHide = consecutiveNotFound >= 3
     && hasElapsed(firstNotFoundAt, now, FIRST_NOT_FOUND_HIDE_DELAY_MS)
     && !recentReviewerActivity.active

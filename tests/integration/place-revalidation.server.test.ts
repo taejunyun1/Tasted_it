@@ -40,6 +40,7 @@ describe("place revalidation", () => {
       recommendationExcluded: false,
       consecutiveNotFound: 0,
       protectedUntil: "2026-11-11T12:00:00.000Z",
+      nextCheckAt: "2026-11-11T12:00:00.000Z",
     });
     expect(await db.query.placeRevalidationCases.findFirst({ where: eq(placeRevalidationCases.id, caseId) })).toMatchObject({ status: "RESOLVED", resolution: "OPEN", reviewedBy: adminId });
     expect(await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId))).toContainEqual(expect.objectContaining({
@@ -106,6 +107,48 @@ describe("place revalidation", () => {
     });
     expect(await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId))).toEqual([]);
     expect(await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.action, "CLEAR_PLACE_RECOMMENDATION_EXCLUSIONS"))).toContainEqual(expect.objectContaining({ actorUserId: adminId }));
+  });
+
+  it("does not clear a manual hidden liveness outcome", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-manual-hidden-${crypto.randomUUID()}`;
+    const now = "2026-08-13T12:00:00.000Z";
+    const { adminId, placeId } = await seedLivenessCase(db, prefix, now);
+    const { placeId: automaticPlaceId } = await seedLivenessCase(db, `${prefix}-automatic`, now);
+    await db.insert(placeLivenessStates).values({
+      placeId,
+      status: "HIDDEN",
+      kakaoStatus: "NOT_FOUND",
+      recommendationExcluded: true,
+      evidenceJson: "{}",
+      updatedAt: now,
+    });
+    await db.insert(placeRevisions).values({
+      id: `${prefix}-manual-revision`,
+      placeId,
+      actorUserId: adminId,
+      action: "STATUS_CHANGE",
+      reason: "수동 폐업 확인",
+      beforeJson: "{}",
+      afterJson: "{}",
+      sourceType: "PLACE_LIVENESS_MANUAL",
+      createdAt: now,
+    });
+    await db.insert(placeLivenessStates).values({
+      placeId: automaticPlaceId,
+      status: "SUSPECTED",
+      kakaoStatus: "NOT_FOUND",
+      recommendationExcluded: true,
+      evidenceJson: "{}",
+      updatedAt: now,
+    });
+
+    const result = await clearRecommendationExclusions(db, { actorUserId: adminId, reason: "자동 제외만 해제", now });
+    expect(result.updated).toBeGreaterThan(0);
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
+      .toMatchObject({ status: "HIDDEN", recommendationExcluded: true });
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, automaticPlaceId) }))
+      .toMatchObject({ status: "SUSPECTED", recommendationExcluded: false });
   });
 });
 

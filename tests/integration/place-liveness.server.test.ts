@@ -128,6 +128,25 @@ describe("place liveness server", () => {
     expect(reclaimed).toMatchObject({ placeId, leaseToken: `${prefix}-reclaimed` });
   });
 
+  it("does not claim an overdue state during a manual protection period", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-protection-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix);
+    const protectedUntil = "2026-11-11T12:00:00.000Z";
+    await db.insert(placeLivenessStates).values({
+      placeId,
+      status: "VERIFIED",
+      nextCheckAt: OLD,
+      protectedUntil,
+      updatedAt: NOW,
+    });
+
+    await expect(claimDuePlaceLivenessTargets(db, { now: NOW, limit: 10, leaseToken: `${prefix}-protected` }))
+      .resolves.not.toContainEqual(expect.objectContaining({ placeId }));
+    await expect(claimDuePlaceLivenessTargets(db, { now: protectedUntil, limit: 10, leaseToken: `${prefix}-due` }))
+      .resolves.toContainEqual(expect.objectContaining({ placeId, leaseToken: `${prefix}-due` }));
+  });
+
   it("aggregates only recent non-identifying reviewer, member, and open-source evidence", async () => {
     const db = createDb(env.DB);
     const prefix = `liveness-evidence-${crypto.randomUUID()}`;
