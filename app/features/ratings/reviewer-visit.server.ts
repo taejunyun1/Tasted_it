@@ -7,6 +7,7 @@ import {
   goldenPickEvents,
   places,
   reviewerProfiles,
+  reviewerVisitPhotos,
   reviewerVisitReviews,
   voteEvents,
 } from "../../db/schema";
@@ -18,6 +19,12 @@ import {
   type ReviewerCategoryName,
   type ReviewerEvaluation,
 } from "./reviewer-visit";
+import {
+  deleteReviewerPhotoObjects,
+  storeReviewerPhotos,
+  type PhotoObjectStore,
+} from "./reviewer-photo.server";
+import type { ValidatedReviewerPhoto } from "./reviewer-photo";
 
 export type PublishReviewerVisitInput = {
   id: string;
@@ -33,6 +40,15 @@ export type PublishReviewerVisitInput = {
   now: string;
 };
 
+export type PublishReviewerVisitWithPhotosInput = Omit<PublishReviewerVisitInput, "publishedPhotoCount"> & {
+  photos: ValidatedReviewerPhoto[];
+};
+
+export type PublishedReviewerPhoto = {
+  id: string;
+  url: string;
+};
+
 function assertBadgeContract(input: PublishReviewerVisitInput) {
   const allowed = REVIEWER_BADGE_CATALOG[input.categoryName];
   if (!allowed) throw new Error("REVIEW_CATEGORY_INVALID");
@@ -44,7 +60,17 @@ function assertBadgeContract(input: PublishReviewerVisitInput) {
   }
 }
 
-export async function publishReviewerVisit(db: AppDb, input: PublishReviewerVisitInput) {
+async function publishReviewerVisitInternal(
+  db: AppDb,
+  input: PublishReviewerVisitInput,
+  photoRows: Array<{
+    id: string;
+    objectKey: string;
+    contentType: "image/jpeg";
+    byteSize: number;
+    position: number;
+  }> = [],
+) {
   assertBadgeContract(input);
   if (!Number.isInteger(input.publishedPhotoCount) || input.publishedPhotoCount < 0 || input.publishedPhotoCount > 5) {
     throw new Error("REVIEW_PHOTO_COUNT_INVALID");
@@ -140,15 +166,22 @@ export async function publishReviewerVisit(db: AppDb, input: PublishReviewerVisi
   const reviewerUpdate = db.update(reviewerProfiles)
     .set({ lastActivityAt: input.now, updatedAt: input.now })
     .where(eq(reviewerProfiles.userId, input.reviewerUserId));
+  const photoStatements = photoRows.map((photo) => db.insert(reviewerVisitPhotos).values({
+    ...photo,
+    reviewId: input.id,
+    createdAt: input.now,
+    updatedAt: input.now,
+  }));
   if (goldenEvent) {
     await db.batch([
       db.insert(goldenPickEvents).values(goldenEvent),
       reviewInsert,
+      ...photoStatements,
       ...voteStatements,
       reviewerUpdate,
     ]);
   } else {
-    await db.batch([reviewInsert, ...voteStatements, reviewerUpdate]);
+    await db.batch([reviewInsert, ...photoStatements, ...voteStatements, reviewerUpdate]);
   }
   if (signal != null || previousVote) {
     try {
@@ -163,6 +196,38 @@ export async function publishReviewerVisit(db: AppDb, input: PublishReviewerVisi
     }
   }
   return review;
+}
+
+export async function publishReviewerVisit(db: AppDb, input: PublishReviewerVisitInput) {
+  return publishReviewerVisitInternal(db, input);
+}
+
+export async function publishReviewerVisitWithPhotos(
+  db: AppDb,
+  photoBucket: PhotoObjectStore,
+  input: PublishReviewerVisitWithPhotosInput,
+): Promise<{ review: Awaited<ReturnType<typeof publishReviewerVisit>>; photos: PublishedReviewerPhoto[] }> {
+  const storedPhotos = await storeReviewerPhotos(photoBucket, {
+    reviewId: input.id,
+    photos: input.photos,
+  });
+  try {
+    const review = await publishReviewerVisitInternal(db, {
+      ...input,
+      publishedPhotoCount: storedPhotos.length,
+    }, storedPhotos);
+    return {
+      review,
+      photos: storedPhotos.map((photo) => ({ id: photo.id, url: `/review-photos/${photo.id}` })),
+    };
+  } catch (error) {
+    try {
+      await deleteReviewerPhotoObjects(photoBucket, storedPhotos.map((photo) => photo.objectKey));
+    } catch {
+      console.error("REVIEW_PHOTO_COMPENSATION_FAILED");
+    }
+    throw error;
+  }
 }
 
 export async function listReviewerVisitHistory(db: AppDb, reviewerUserId: string, limit = 8) {
