@@ -77,11 +77,14 @@ test("reviewer publishes a prepared EXIF JPEG and everyone can load the metadata
   const historyList = page.locator(".reviewer-history-list");
   await expect(historyList).toBeVisible();
   const historyRow = historyList.locator(".reviewer-history-row").first();
-  await expect(historyRow.locator(".reviewer-history-place-link")).toHaveAttribute("href", /^\/places\//);
+  const historyPlaceLink = historyRow.locator(".reviewer-history-place-link");
+  await expect(historyPlaceLink).toHaveCount(1);
+  await expect(historyPlaceLink).toHaveAttribute("href", /^\/places\/[^/]+$/);
+  await expect(historyRow.locator("a")).toHaveCount(1);
+  await expect(historyRow.locator("button, [role=button]")).toHaveCount(0);
   await expect(historyRow).toContainText("사진 1장");
   await expect(historyRow.locator(".reviewer-history-badges i")).toHaveCount(2);
   await expect(page.locator(".reviewer-history-rail")).toHaveCount(0);
-  const historyPlaceLink = historyRow.locator(".reviewer-history-place-link");
   await expect(historyPlaceLink).toHaveCSS("cursor", "pointer");
   const historyPlaceLinkBox = await historyPlaceLink.boundingBox();
   expect(historyPlaceLinkBox?.height).toBeGreaterThanOrEqual(44);
@@ -122,7 +125,7 @@ test("unsupported photo keeps the review in place and exposes an accessible retr
   await expect(page.getByRole("button", { name: "Golden Pick 선택" })).toHaveCSS("cursor", "not-allowed");
 });
 
-test("double-clicking publish creates one review only", async ({ page }) => {
+test("double-clicking publish creates one review only", async ({ page }, testInfo) => {
   await completeReviewBeforePhotoStep(page);
   await page.getByRole("button", { name: "다음: 확인" }).click();
   const before = await page.locator(".reviewer-history article").count();
@@ -130,6 +133,25 @@ test("double-clicking publish creates one review only", async ({ page }) => {
   await page.getByRole("button", { name: "리뷰 발행" }).dblclick();
   await expect(page).toHaveURL(/notice=review-published/);
   await expect(page.locator(".reviewer-history article")).toHaveCount(before + 1);
+
+  // The newly published review is sorted first. A no-photo publication must
+  // not reserve the thumbnail column or turn the row into a general action.
+  const historyRow = page.locator(".reviewer-history-list .reviewer-history-row").first();
+  await expect(historyRow).not.toHaveAttribute("data-has-photo");
+  await expect(historyRow.locator(".reviewer-history-thumb")).toHaveCount(0);
+  await expect(historyRow).toContainText("사진 없음");
+  const historyPlaceLink = historyRow.locator(".reviewer-history-place-link");
+  await expect(historyPlaceLink).toHaveCount(1);
+  await expect(historyPlaceLink).toHaveAttribute("href", /^\/places\/[^/]+$/);
+  await expect(historyRow.locator("a")).toHaveCount(1);
+  await expect(historyRow.locator("button, [role=button]")).toHaveCount(0);
+
+  const gridTemplateColumns = await historyRow.evaluate((row) => getComputedStyle(row).gridTemplateColumns);
+  if (testInfo.project.name.includes("mobile")) {
+    expect(gridTemplateColumns.trim().split(/\s+/)).toHaveLength(1);
+  } else {
+    expect(gridTemplateColumns).not.toMatch(/^44px\b/);
+  }
 });
 
 test("reviewer can move through the review flow by keyboard", async ({ page }) => {
