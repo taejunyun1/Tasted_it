@@ -7,6 +7,7 @@ import {
   goldenPickEvents,
   places,
   reviewerProfiles,
+  reviewerPhotoCleanupJobs,
   reviewerVisitPhotos,
   reviewerVisitReviews,
   voteEvents,
@@ -21,6 +22,8 @@ import {
 } from "./reviewer-visit";
 import {
   deleteReviewerPhotoObjects,
+  assertReviewerPhotoStorageInput,
+  getReviewerPhotoObjectKey,
   storeReviewerPhotos,
   type PhotoObjectStore,
 } from "./reviewer-photo.server";
@@ -49,6 +52,63 @@ export type PublishedReviewerPhoto = {
   url: string;
 };
 
+async function readCommittedPhotoPublish(
+  db: AppDb,
+  input: PublishReviewerVisitWithPhotosInput,
+  objectKeys: string[],
+) {
+  const review = await db.select({
+    id: reviewerVisitReviews.id,
+    placeId: reviewerVisitReviews.placeId,
+    reviewerUserId: reviewerVisitReviews.reviewerUserId,
+    categoryId: reviewerVisitReviews.categoryId,
+    evaluation: reviewerVisitReviews.evaluation,
+    badgesJson: reviewerVisitReviews.badgesJson,
+    photoCount: reviewerVisitReviews.photoCount,
+    goldenPickEventId: reviewerVisitReviews.goldenPickEventId,
+    version: reviewerVisitReviews.version,
+    publishedAt: reviewerVisitReviews.publishedAt,
+    createdAt: reviewerVisitReviews.createdAt,
+    updatedAt: reviewerVisitReviews.updatedAt,
+  }).from(reviewerVisitReviews)
+    .where(and(
+      eq(reviewerVisitReviews.id, input.id),
+      eq(reviewerVisitReviews.reviewerUserId, input.reviewerUserId),
+      eq(reviewerVisitReviews.placeId, input.placeId),
+    ))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+  if (!review || review.photoCount !== input.photos.length) return null;
+
+  const expected = new Map(input.photos.map((photo, index) => [photo.id, {
+    objectKey: objectKeys[index],
+    position: photo.position,
+    byteSize: photo.byteSize,
+  }]));
+  const photos = await db.select({
+    id: reviewerVisitPhotos.id,
+    objectKey: reviewerVisitPhotos.objectKey,
+    position: reviewerVisitPhotos.position,
+    byteSize: reviewerVisitPhotos.byteSize,
+  }).from(reviewerVisitPhotos)
+    .where(and(
+      eq(reviewerVisitPhotos.reviewId, input.id),
+      inArray(reviewerVisitPhotos.id, [...expected.keys()]),
+    ));
+  if (photos.length !== expected.size || photos.some((photo) => {
+    const expectedPhoto = expected.get(photo.id);
+    return !expectedPhoto
+      || expectedPhoto.objectKey !== photo.objectKey
+      || expectedPhoto.position !== photo.position
+      || expectedPhoto.byteSize !== photo.byteSize;
+  })) return null;
+
+  return {
+    review,
+    photos: input.photos.map((photo) => ({ id: photo.id, url: `/review-photos/${photo.id}` })),
+  };
+}
+
 function assertBadgeContract(input: PublishReviewerVisitInput) {
   const allowed = REVIEWER_BADGE_CATALOG[input.categoryName];
   if (!allowed) throw new Error("REVIEW_CATEGORY_INVALID");
@@ -70,6 +130,7 @@ async function publishReviewerVisitInternal(
     byteSize: number;
     position: number;
   }> = [],
+  cleanupJobReviewId: string | null = null,
 ) {
   assertBadgeContract(input);
   if (!Number.isInteger(input.publishedPhotoCount) || input.publishedPhotoCount < 0 || input.publishedPhotoCount > 5) {
@@ -172,16 +233,23 @@ async function publishReviewerVisitInternal(
     createdAt: input.now,
     updatedAt: input.now,
   }));
+  // This removal belongs in the same D1 batch as the review rows. A cleanup
+  // job is created before R2 writes, so either the public review wins and the
+  // job disappears atomically, or an exact-key retry remains durable.
+  const cleanupStatements = cleanupJobReviewId
+    ? [db.delete(reviewerPhotoCleanupJobs).where(eq(reviewerPhotoCleanupJobs.reviewId, cleanupJobReviewId))]
+    : [];
   if (goldenEvent) {
     await db.batch([
       db.insert(goldenPickEvents).values(goldenEvent),
       reviewInsert,
       ...photoStatements,
+      ...cleanupStatements,
       ...voteStatements,
       reviewerUpdate,
     ]);
   } else {
-    await db.batch([reviewInsert, ...photoStatements, ...voteStatements, reviewerUpdate]);
+    await db.batch([reviewInsert, ...photoStatements, ...cleanupStatements, ...voteStatements, reviewerUpdate]);
   }
   if (signal != null || previousVote) {
     try {
@@ -207,24 +275,54 @@ export async function publishReviewerVisitWithPhotos(
   photoBucket: PhotoObjectStore,
   input: PublishReviewerVisitWithPhotosInput,
 ): Promise<{ review: Awaited<ReturnType<typeof publishReviewerVisit>>; photos: PublishedReviewerPhoto[] }> {
-  const storedPhotos = await storeReviewerPhotos(photoBucket, {
+  if (input.photos.length === 0) {
+    const review = await publishReviewerVisitInternal(db, {
+      ...input,
+      publishedPhotoCount: 0,
+    });
+    return { review, photos: [] };
+  }
+
+  assertReviewerPhotoStorageInput({ reviewId: input.id, photos: input.photos });
+  const objectKeys = input.photos.map((photo) => getReviewerPhotoObjectKey(input.id, photo.id));
+  const nextAttemptAt = new Date(Date.parse(input.now) + 15 * 60 * 1000).toISOString();
+  // Persist planned keys before the first R2 call. Some provider failures are
+  // ambiguous: an object may have been written even though `put` rejects.
+  await db.insert(reviewerPhotoCleanupJobs).values({
     reviewId: input.id,
-    photos: input.photos,
+    objectKeysJson: JSON.stringify(objectKeys),
+    nextAttemptAt,
+    attemptCount: 0,
+    createdAt: input.now,
+    updatedAt: input.now,
   });
+
   try {
+    const storedPhotos = await storeReviewerPhotos(photoBucket, {
+      reviewId: input.id,
+      photos: input.photos,
+    });
     const review = await publishReviewerVisitInternal(db, {
       ...input,
       publishedPhotoCount: storedPhotos.length,
-    }, storedPhotos);
+    }, storedPhotos, input.id);
     return {
       review,
       photos: storedPhotos.map((photo) => ({ id: photo.id, url: `/review-photos/${photo.id}` })),
     };
   } catch (error) {
+    // A D1 request can lose its response after the atomic batch committed. In
+    // that case rows and the cleanup job already describe a public review, so
+    // compensating R2 would create a public 404. Confirm the exact durable
+    // postcondition before deciding this was a failed publication.
+    const committed = await readCommittedPhotoPublish(db, input, objectKeys).catch(() => null);
+    if (committed) return committed;
     try {
-      await deleteReviewerPhotoObjects(photoBucket, storedPhotos.map((photo) => photo.objectKey));
+      await deleteReviewerPhotoObjects(photoBucket, objectKeys);
+      await db.delete(reviewerPhotoCleanupJobs).where(eq(reviewerPhotoCleanupJobs.reviewId, input.id));
     } catch {
-      console.error("REVIEW_PHOTO_COMPENSATION_FAILED");
+      // Do not log keys, names, or user data. The job is the recovery source.
+      console.error("REVIEW_PHOTO_COMPENSATION_PENDING", { photoCount: objectKeys.length });
     }
     throw error;
   }

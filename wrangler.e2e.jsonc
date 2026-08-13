@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "retaste-e2e",
+  "compatibility_date": "2026-08-05",
+  "main": "./workers/app.ts",
+  "vars": {
+    "ONBOARDING_ENABLED": "true",
+    "REVIEW_PHOTO_UPLOAD_ENABLED": "true"
+  },
+  "ai": { "binding": "AI" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "retaste-production",
+      "database_id": "5181489d-83a7-4f78-9384-db096cadaa2d",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "REVIEW_PHOTOS",
+      "bucket_name": "retaste-review-photos-e2e"
+    }
+  ],
+  "compatibility_flags": ["nodejs_compat"]
+}

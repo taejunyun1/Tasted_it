@@ -17,7 +17,7 @@ export default defineConfig({
     { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
   ],
   webServer: remoteBaseUrl ? undefined : {
-    command: "pnpm run db:migrate:local && pnpm run db:seed:local && pnpm exec wrangler d1 execute DB --local --file scripts/seed-admin-qa.sql && pnpm exec wrangler d1 execute DB --local --file scripts/seed-home-curation-qa.sql && pnpm dev --host 127.0.0.1",
+    command: "rm -rf .wrangler/e2e-state && pnpm exec wrangler d1 migrations apply DB --local --config wrangler.e2e.jsonc --persist-to .wrangler/e2e-state && pnpm exec wrangler d1 execute DB --local --config wrangler.e2e.jsonc --persist-to .wrangler/e2e-state --file scripts/seed-week1.sql && pnpm exec wrangler d1 execute DB --local --config wrangler.e2e.jsonc --persist-to .wrangler/e2e-state --file scripts/seed-admin-qa.sql && pnpm exec wrangler d1 execute DB --local --config wrangler.e2e.jsonc --persist-to .wrangler/e2e-state --file scripts/seed-home-curation-qa.sql && RETASTE_E2E=true CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH=wrangler.e2e.jsonc pnpm dev --host 127.0.0.1",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: false,
     timeout: 120_000,

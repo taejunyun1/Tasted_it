@@ -583,6 +583,20 @@ export const reviewerVisitPhotos = sqliteTable(
   ],
 );
 
+// This row intentionally has no review FK: it is written before R2 puts, so
+// an R2 object can still be recovered if the following D1 review batch fails.
+export const reviewerPhotoCleanupJobs = sqliteTable(
+  "reviewer_photo_cleanup_jobs",
+  {
+    reviewId: text("review_id").primaryKey(),
+    objectKeysJson: text("object_keys_json").notNull(),
+    nextAttemptAt: text("next_attempt_at").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [index("reviewer_photo_cleanup_due_idx").on(table.nextAttemptAt, table.createdAt)],
+);
+
 export const placeDailyMetrics = sqliteTable(
   "place_daily_metrics",
   {

@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getReviewerPhotoObjectKey } from "../../app/features/ratings/reviewer-photo.server";
 import { loader } from "../../app/routes/reviewer-photo";
@@ -74,6 +74,22 @@ describe("reviewer photo resource route", () => {
     await env.REVIEW_PHOTOS.delete(getReviewerPhotoObjectKey("review-missing-object", "missing-object"));
     const missing = await loader({ request: new Request("https://retaste.test/review-photos/missing-object"), params: { photoId: "missing-object" } } as never);
     expect(missing.status).toBe(404);
+  });
+
+  it("returns a safe 503 when R2 cannot read an otherwise public photo", async () => {
+    await seedPublishedPhoto("temporary-read-failure");
+    const get = vi.spyOn(env.REVIEW_PHOTOS, "get").mockRejectedValueOnce(new Error("R2_UNAVAILABLE"));
+    try {
+      const response = await loader({
+        request: new Request("https://retaste.test/review-photos/temporary-read-failure"),
+        params: { photoId: "temporary-read-failure" },
+      } as never);
+
+      expect(response.status).toBe(503);
+      await expect(response.text()).resolves.toBe("");
+    } finally {
+      get.mockRestore();
+    }
   });
 
   it("rejects unsafe ids and non-read methods", async () => {

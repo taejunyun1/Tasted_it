@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
+import { recoverPendingReviewerPhotoCleanup } from "../../app/features/ratings/reviewer-photo-deletion.server";
 import { getReviewerPhotoObjectKey } from "../../app/features/ratings/reviewer-photo.server";
 import {
   listPublishedPlaceReviewPhotos,
@@ -87,16 +88,91 @@ describe("publishReviewerVisitWithPhotos", () => {
   it("compensates stored R2 photos if the D1 publish batch fails", async () => {
     const reviewId = "photo-publish-d1-failure";
     const photoId = "photo-d1-failure";
-    await env.DB.exec("CREATE TRIGGER IF NOT EXISTS reviewer_photo_publish_failure BEFORE INSERT ON reviewer_visit_photos BEGIN SELECT RAISE(FAIL, 'REVIEW_PHOTO_TEST_TRIGGER'); END");
+    await env.DB.exec("CREATE TRIGGER reviewer_photo_publish_failure BEFORE INSERT ON reviewer_visit_photos BEGIN SELECT RAISE(FAIL, 'REVIEW_PHOTO_TEST_TRIGGER'); END");
+    try {
+      await expect(publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
+        ...reviewInput({ id: reviewId }),
+        photos: [photo(photoId)],
+      })).rejects.toThrow("REVIEW_PHOTO_TEST_TRIGGER");
 
-    await expect(publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
+      await expect(env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id = ?").bind(reviewId).first()).resolves.toBeNull();
+      await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeNull();
+    } finally {
+      await env.DB.exec("DROP TRIGGER reviewer_photo_publish_failure");
+    }
+  });
+
+  it("keeps the public object when D1 committed but its response was lost", async () => {
+    const reviewId = "photo-publish-committed-response-lost";
+    const photoId = "photo-committed-response-lost";
+    const db = createDb(env.DB);
+    const originalBatch = db.batch.bind(db);
+    const batch = vi.spyOn(db, "batch").mockImplementationOnce(async (...statements) => {
+      await originalBatch(...statements);
+      throw new Error("D1_RESPONSE_LOST");
+    });
+
+    try {
+      const result = await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
+        ...reviewInput({ id: reviewId }),
+        photos: [photo(photoId)],
+      });
+
+      expect(result).toMatchObject({ review: { id: reviewId }, photos: [{ id: photoId }] });
+      await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeTruthy();
+      await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
+        .bind(reviewId).first()).resolves.toBeNull();
+    } finally {
+      batch.mockRestore();
+    }
+  });
+
+  it("keeps a bounded cleanup job when D1 publish and immediate R2 compensation both fail", async () => {
+    const reviewId = "photo-publish-compensation-retry";
+    const photoId = "photo-compensation-retry";
+    await env.DB.exec("CREATE TRIGGER reviewer_photo_compensation_failure BEFORE INSERT ON reviewer_visit_photos BEGIN SELECT RAISE(FAIL, 'REVIEW_PHOTO_COMPENSATION_TRIGGER'); END");
+    const failingDeleteStore = {
+      put: (key: string, value: Uint8Array, options: { httpMetadata: { contentType: "image/jpeg" } }) => env.REVIEW_PHOTOS.put(key, value, options),
+      delete: async () => { throw new Error("R2_DELETE_FAILED"); },
+    };
+
+    try {
+      await expect(publishReviewerVisitWithPhotos(createDb(env.DB), failingDeleteStore, {
+        ...reviewInput({ id: reviewId }),
+        photos: [photo(photoId)],
+      })).rejects.toThrow("REVIEW_PHOTO_COMPENSATION_TRIGGER");
+
+      await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
+        .bind(reviewId).first()).resolves.toEqual({ reviewId });
+      await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeTruthy();
+      await expect(recoverPendingReviewerPhotoCleanup(createDb(env.DB), env.REVIEW_PHOTOS, { now: "2026-08-13T01:00:00.000Z" })).resolves.toEqual({ deleted: 1, pending: 0, failed: 0 });
+      await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
+        .bind(reviewId).first()).resolves.toBeNull();
+    } finally {
+      await env.DB.exec("DROP TRIGGER reviewer_photo_compensation_failure");
+    }
+  });
+
+  it("keeps a cleanup job when an R2 put may have stored an object before failing", async () => {
+    const reviewId = "photo-publish-ambiguous-put";
+    const photoId = "photo-ambiguous-put";
+    const ambiguousStore = {
+      put: async (key: string, value: Uint8Array, options: { httpMetadata: { contentType: "image/jpeg" } }) => {
+        await env.REVIEW_PHOTOS.put(key, value, options);
+        throw new Error("R2_RESPONSE_LOST");
+      },
+      delete: async () => { throw new Error("R2_DELETE_FAILED"); },
+    };
+
+    await expect(publishReviewerVisitWithPhotos(createDb(env.DB), ambiguousStore, {
       ...reviewInput({ id: reviewId }),
       photos: [photo(photoId)],
-    })).rejects.toThrow("REVIEW_PHOTO_TEST_TRIGGER");
+    })).rejects.toThrow("PHOTO_STORAGE_FAILED");
 
-    await expect(env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id = ?").bind(reviewId).first()).resolves.toBeNull();
-    await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeNull();
-    await env.DB.exec("DROP TRIGGER reviewer_photo_publish_failure");
+    await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
+      .bind(reviewId).first()).resolves.toEqual({ reviewId });
+    await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeTruthy();
+    await expect(recoverPendingReviewerPhotoCleanup(createDb(env.DB), env.REVIEW_PHOTOS, { now: "2026-08-13T01:00:00.000Z" })).resolves.toEqual({ deleted: 1, pending: 0, failed: 0 });
   });
 
   it("requires a durable uploaded photo for Golden Pick", async () => {

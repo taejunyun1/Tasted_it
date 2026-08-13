@@ -57,6 +57,7 @@ const allowedFields = new Set([
   "badges",
   "golden",
   "goldenReason",
+  "photos",
 ]);
 
 const baseSubmissionSchema = z.object({

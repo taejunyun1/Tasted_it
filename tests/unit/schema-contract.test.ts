@@ -48,6 +48,7 @@ import {
   placeLivenessStates,
   tasteLearningStates,
   reviewerVisitPhotos,
+  reviewerPhotoCleanupJobs,
 } from "../../app/db/schema";
 
 describe("week 1 schema", () => {
@@ -191,5 +192,11 @@ describe("week 1 schema", () => {
       "reviewer_visit_photos_object_key_uidx",
       "reviewer_visit_photos_review_position_uidx",
     ]));
+  });
+
+  it("keeps a durable retry record before an uploaded photo can be published", () => {
+    expect(reviewerPhotoCleanupJobs.reviewId.primary).toBe(true);
+    expect(reviewerPhotoCleanupJobs.objectKeysJson.notNull).toBe(true);
+    expect(reviewerPhotoCleanupJobs.createdAt.notNull).toBe(true);
   });
 });

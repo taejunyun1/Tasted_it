@@ -31,7 +31,7 @@ export function getReviewerPhotoObjectKey(reviewId: string, photoId: string) {
   return `reviews/${reviewId}/${photoId}.jpg`;
 }
 
-export async function deleteReviewerPhotoObjects(bucket: PhotoObjectStore, keys: string[]): Promise<void> {
+export async function deleteReviewerPhotoObjects(bucket: Pick<PhotoObjectStore, "delete">, keys: string[]): Promise<void> {
   const uniqueKeys = [...new Set(keys)];
   if (uniqueKeys.length === 0) return;
   try {
@@ -43,19 +43,28 @@ export async function deleteReviewerPhotoObjects(bucket: PhotoObjectStore, keys:
 
 function assertPhotoPositions(photos: ValidatedReviewerPhoto[]) {
   const positions = new Set<number>();
+  const ids = new Set<string>();
   for (const photo of photos) {
-    if (!Number.isInteger(photo.position) || photo.position < 0 || photo.position > 4 || positions.has(photo.position)) {
+    if (!Number.isInteger(photo.position) || photo.position < 0 || photo.position > 4 || positions.has(photo.position) || ids.has(photo.id)) {
       throw new ReviewerPhotoStorageError("PHOTO_STORAGE_FAILED");
     }
     positions.add(photo.position);
+    ids.add(photo.id);
   }
+}
+
+/** Validates every object-key component before a caller records cleanup work. */
+export function assertReviewerPhotoStorageInput(input: { reviewId: string; photos: ValidatedReviewerPhoto[] }) {
+  assertKeySegment(input.reviewId);
+  assertPhotoPositions(input.photos);
+  input.photos.forEach((photo) => getReviewerPhotoObjectKey(input.reviewId, photo.id));
 }
 
 export async function storeReviewerPhotos(
   bucket: PhotoObjectStore,
   input: { reviewId: string; photos: ValidatedReviewerPhoto[] },
 ): Promise<StoredReviewerPhoto[]> {
-  assertPhotoPositions(input.photos);
+  assertReviewerPhotoStorageInput(input);
   const stored: StoredReviewerPhoto[] = [];
   try {
     for (const photo of input.photos) {

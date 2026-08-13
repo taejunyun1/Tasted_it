@@ -25,7 +25,8 @@ test("active reviewer can open the rating workspace", async ({ page }) => {
   await expect(page.getByRole("button", { name: "토핑 상태 좋음" })).toBeDisabled();
   await expect(page.getByText("2개 선택 완료 · 선택한 배지를 해제하면 바꿀 수 있어요.")).toBeVisible();
   await page.getByRole("button", { name: "다음: 사진·Golden" }).click();
-  await expect(page.getByText("사진 저장 기능 준비 중")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사진은 선택 사항이에요." })).toBeVisible();
+  await expect(page.locator('input[name="photos"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Golden Pick 선택" })).toBeDisabled();
   await page.getByRole("button", { name: "다음: 확인" }).click();
   await expect(page.getByRole("heading", { name: "발행 전 한 번만 확인해 주세요" })).toBeVisible();

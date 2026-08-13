@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import type { Route } from "./+types/reviewer-photo";
 import { createDb } from "../db/client.server";
-import { reviewerVisitPhotos } from "../db/schema";
+import { reviewerVisitPhotos, reviewerVisitReviews } from "../db/schema";
 
 function isOpaquePhotoId(value: string | undefined) {
   return Boolean(value && /^[A-Za-z0-9_-]{1,128}$/.test(value));
@@ -19,12 +19,18 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     objectKey: reviewerVisitPhotos.objectKey,
     contentType: reviewerVisitPhotos.contentType,
   }).from(reviewerVisitPhotos)
+    .innerJoin(reviewerVisitReviews, eq(reviewerVisitReviews.id, reviewerVisitPhotos.reviewId))
     .where(eq(reviewerVisitPhotos.id, params.photoId))
     .limit(1)
     .then((rows) => rows[0] ?? null);
   if (!row) return new Response(null, { status: 404 });
 
-  const object = await env.REVIEW_PHOTOS.get(row.objectKey);
+  let object: R2ObjectBody | null;
+  try {
+    object = await env.REVIEW_PHOTOS.get(row.objectKey);
+  } catch {
+    return new Response(null, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
   if (!object) return new Response(null, { status: 404 });
   const headers = new Headers({
     "Content-Type": row.contentType,

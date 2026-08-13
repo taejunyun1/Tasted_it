@@ -36,6 +36,27 @@ function hasJpegMagicBytes(bytes: Uint8Array) {
     && bytes.at(-1) === 0xd9;
 }
 
+function hasJpegApp1Metadata(bytes: Uint8Array) {
+  let index = 2;
+  while (index + 1 < bytes.length) {
+    if (bytes[index] !== 0xff) {
+      index += 1;
+      continue;
+    }
+    while (bytes[index] === 0xff) index += 1;
+    const marker = bytes[index];
+    index += 1;
+    if (marker === 0xd9 || marker === 0xda) return false;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (index + 1 >= bytes.length) return true;
+    const segmentLength = (bytes[index] << 8) | bytes[index + 1];
+    if (segmentLength < 2 || index + segmentLength > bytes.length) return true;
+    if (marker === 0xe1) return true;
+    index += segmentLength;
+  }
+  return false;
+}
+
 export async function parseReviewerPhotoFiles(form: FormData): Promise<ValidatedReviewerPhoto[]> {
   const fileEntries = Array.from(form.entries()).filter(
     (entry): entry is [string, File] => isFile(entry[1]),
@@ -66,7 +87,7 @@ export async function parseReviewerPhotoFiles(form: FormData): Promise<Validated
 
   return Promise.all(files.map(async (file, position) => {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    if (!hasJpegMagicBytes(bytes)) {
+    if (!hasJpegMagicBytes(bytes) || hasJpegApp1Metadata(bytes)) {
       throw new ReviewerPhotoValidationError("PHOTO_FORMAT_INVALID");
     }
     return {

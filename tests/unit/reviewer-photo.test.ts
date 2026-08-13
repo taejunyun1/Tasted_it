@@ -52,6 +52,16 @@ describe("parseReviewerPhotoFiles", () => {
     await expectCode(formWithPhotos([photo(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), "image/jpeg")]), "PHOTO_FORMAT_INVALID");
   });
 
+  it("rejects JPEG bytes that still contain APP1 metadata", async () => {
+    const jpegWithExif = new Uint8Array([
+      0xff, 0xd8,
+      0xff, 0xe1, 0x00, 0x08, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+      0xff, 0xd9,
+    ]);
+
+    await expectCode(formWithPhotos([photo(jpegWithExif)]), "PHOTO_FORMAT_INVALID");
+  });
+
   it("rejects zero byte, individual size, and total size violations", async () => {
     await expectCode(formWithPhotos([photo(new Uint8Array())]), "PHOTO_EMPTY");
     await expectCode(formWithPhotos([photo(jpegBytes(MAX_REVIEWER_PHOTO_BYTES))]), "PHOTO_FILE_TOO_LARGE");

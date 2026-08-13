@@ -20,6 +20,7 @@ export default defineConfig({
         bindings: {
           ADMIN_EMAIL: "admin@example.com",
           ONBOARDING_ENABLED: "true",
+          REVIEW_PHOTO_UPLOAD_ENABLED: "true",
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, "drizzle"),
           ),

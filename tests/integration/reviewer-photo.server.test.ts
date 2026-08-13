@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  assertReviewerPhotoStorageInput,
   ReviewerPhotoStorageError,
   deleteReviewerPhotoObjects,
   getReviewerPhotoObjectKey,
@@ -86,5 +87,21 @@ describe("reviewer photo R2 adapter", () => {
     })).rejects.toMatchObject<Partial<ReviewerPhotoStorageError>>({ code: "PHOTO_STORAGE_FAILED" });
 
     await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewerId, "photo-1"))).resolves.toBeNull();
+  });
+
+  it("rejects duplicate photo ids before writing an ambiguous cleanup key", async () => {
+    await expect(storeReviewerPhotos(env.REVIEW_PHOTOS, {
+      reviewId: reviewerId,
+      photos: [storedPhoto("photo-1", 0), storedPhoto("photo-1", 1)],
+    })).rejects.toMatchObject<Partial<ReviewerPhotoStorageError>>({ code: "PHOTO_STORAGE_FAILED" });
+
+    await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewerId, "photo-1"))).resolves.toBeNull();
+  });
+
+  it("rejects duplicate ids before a publisher can create a cleanup job", () => {
+    expect(() => assertReviewerPhotoStorageInput({
+      reviewId: reviewerId,
+      photos: [storedPhoto("photo-1", 0), storedPhoto("photo-1", 1)],
+    })).toThrow("PHOTO_STORAGE_FAILED");
   });
 });

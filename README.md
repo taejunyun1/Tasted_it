@@ -37,6 +37,9 @@ pnpm dev --host 127.0.0.1
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 승인 코드 교환 | secret |
 | `NAVER_LOGIN_CLIENT_ID` | 네이버 로그인 OIDC Client ID | secret |
 | `NAVER_LOGIN_CLIENT_SECRET` | 네이버 로그인 승인 코드 교환·연동 해제 | secret |
+| `REVIEW_PHOTO_UPLOAD_ENABLED` | 리뷰어 발행 사진 신규 업로드 kill switch | 환경별 변수 (`false` 기본값) |
+
+리뷰어 사진은 Cloudflare R2 `REVIEW_PHOTOS` binding을 사용하며 비밀값이 아닙니다. bucket 생성, 원격 D1 migration `0027`까지 적용, flag rollout, 비용·삭제 절차는 [리뷰어 발행 사진 저장소 운영 절차](docs/operations/reviewer-photo-storage.md)를 따릅니다. 개발·E2E는 local Miniflare R2만 사용하며, 운영 bucket과 원격 D1을 테스트에 사용하지 않습니다.
 
 예시:
 
