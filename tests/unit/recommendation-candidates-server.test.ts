@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe("loadRecommendationCandidateContext Golden 조회 정책", () => {
-  it("홈, 코스, 장소 추천에 공통 후보 함수를 사용한다", async () => {
+  it("추천 후보 컨텍스트가 listRecommendationCandidates를 호출한다", async () => {
     const { loadRecommendationCandidateContext } = await import("../../app/features/places/recommendation-candidates.server");
     const bbox: [number, number, number, number] = [126.8, 35, 127, 35.3];
 
