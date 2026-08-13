@@ -807,6 +807,33 @@ export const tasteLearningStates = sqliteTable("taste_learning_states", {
   ...timestamps,
 });
 
+export const placeLivenessStates = sqliteTable("place_liveness_states", {
+  placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+  status: text("status", {
+    enum: ["VERIFIED", "MONITORING", "SUSPECTED", "HIDDEN"],
+  }).notNull().default("MONITORING"),
+  kakaoStatus: text("kakao_status", {
+    enum: ["MATCHED", "AMBIGUOUS", "NOT_FOUND", "ERROR", "SKIPPED"],
+  }).notNull().default("SKIPPED"),
+  matchedKakaoPlaceId: text("matched_kakao_place_id"),
+  matchScore: real("match_score"),
+  consecutiveNotFound: integer("consecutive_not_found").notNull().default(0),
+  firstNotFoundAt: text("first_not_found_at"),
+  lastMatchedAt: text("last_matched_at"),
+  lastCheckedAt: text("last_checked_at"),
+  nextCheckAt: text("next_check_at"),
+  recommendationExcluded: integer("recommendation_excluded", { mode: "boolean" })
+    .notNull().default(false),
+  protectedUntil: text("protected_until"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: text("lease_expires_at"),
+  evidenceJson: text("evidence_json").notNull().default("{}"),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("place_liveness_due_idx").on(table.nextCheckAt, table.leaseExpiresAt),
+  index("place_liveness_status_idx").on(table.status, table.recommendationExcluded),
+]);
+
 export const productEvents = sqliteTable("product_events", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),

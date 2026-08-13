@@ -1,6 +1,6 @@
 import type { AppDb } from "../../db/client.server";
 import { recommendParkingForCourse } from "../parking/parking-recommendation.server";
-import { listPlaces, listPublicCategoryGroups } from "../places/place.server";
+import { listPublicCategoryGroups, listRecommendationCandidates } from "../places/place.server";
 import type { CourseContext, CourseOptions } from "./course-options";
 import { rankCoursePairs } from "./course-score";
 
@@ -19,7 +19,7 @@ function startAt(now: Date, time: CourseContext["resolvedTime"]) {
 
 export async function recommendCourses(db: AppDb, input: { options: CourseOptions; context: CourseContext; now: Date }) {
   const [places, groups] = await Promise.all([
-    listPlaces(db, { bbox: boundingBox(input.context, input.options.radiusKm), limit: 100 }),
+    listRecommendationCandidates(db, { bbox: boundingBox(input.context, input.options.radiusKm), limit: 100 }),
     listPublicCategoryGroups(db),
   ]);
   const pairs = rankCoursePairs({

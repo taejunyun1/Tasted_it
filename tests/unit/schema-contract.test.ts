@@ -45,6 +45,7 @@ import {
   guestTasteBadges,
   recommendationFeedback,
   productEvents,
+  placeLivenessStates,
   tasteLearningStates,
 } from "../../app/db/schema";
 
@@ -137,5 +138,39 @@ describe("week 1 schema", () => {
     expect(getTableConfig(tasteLearningStates).foreignKeys).toEqual([
       expect.objectContaining({ onDelete: "cascade" }),
     ]);
+  });
+
+  it("exports place liveness state fields", () => {
+    expect(placeLivenessStates.status).toBeDefined();
+    expect(placeLivenessStates.recommendationExcluded).toBeDefined();
+    expect(placeLivenessStates.leaseToken).toBeDefined();
+    expect(placeLivenessStates.leaseExpiresAt).toBeDefined();
+  });
+
+  it("locks the place liveness Drizzle enum, default, and cascade boundaries", () => {
+    expect(placeLivenessStates.placeId.primary).toBe(true);
+    expect(getTableConfig(placeLivenessStates).foreignKeys).toEqual([
+      expect.objectContaining({ onDelete: "cascade" }),
+    ]);
+    expect(placeLivenessStates.status.enumValues).toEqual([
+      "VERIFIED",
+      "MONITORING",
+      "SUSPECTED",
+      "HIDDEN",
+    ]);
+    expect(placeLivenessStates.status.notNull).toBe(true);
+    expect(placeLivenessStates.status.default).toBe("MONITORING");
+    expect(placeLivenessStates.kakaoStatus.enumValues).toEqual([
+      "MATCHED",
+      "AMBIGUOUS",
+      "NOT_FOUND",
+      "ERROR",
+      "SKIPPED",
+    ]);
+    expect(placeLivenessStates.kakaoStatus.notNull).toBe(true);
+    expect(placeLivenessStates.kakaoStatus.default).toBe("SKIPPED");
+    expect(placeLivenessStates.recommendationExcluded.getSQLType()).toBe("integer");
+    expect(placeLivenessStates.recommendationExcluded.notNull).toBe(true);
+    expect(placeLivenessStates.recommendationExcluded.default).toBe(false);
   });
 });

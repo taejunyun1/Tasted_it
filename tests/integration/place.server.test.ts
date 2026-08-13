@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenses, placeSourceLinks } from "../../app/db/schema";
+import { businessLicenses, placeLivenessStates, placeSourceLinks } from "../../app/db/schema";
 import {
   getPlaceBySlug,
   resolvePlaceSlugRedirect,
@@ -69,6 +69,63 @@ describe("place service", () => {
     await expect(getPlaceBySlug(db, "hidden-place")).rejects.toMatchObject({
       status: 404,
     });
+  });
+
+  it("keeps liveness-excluded places public while omitting them from recommendation candidates", async () => {
+    const db = createDb(env.DB);
+    const prefix = `recommendation-liveness-${crypto.randomUUID()}`;
+    const excludedId = `${prefix}-excluded`;
+    const includedId = `${prefix}-included`;
+    const noStateId = `${prefix}-no-state`;
+    const hiddenId = `${prefix}-hidden`;
+
+    await Promise.all([
+      upsertPlace(db, {
+        id: excludedId,
+        row: { ...baseRow, slug: excludedId, name: "추천 제외 의심 장소" },
+        now: "2026-08-13T00:00:00Z",
+      }),
+      upsertPlace(db, {
+        id: includedId,
+        row: { ...baseRow, slug: includedId, name: "추천 유지 장소" },
+        now: "2026-08-13T00:00:00Z",
+      }),
+      upsertPlace(db, {
+        id: noStateId,
+        row: { ...baseRow, slug: noStateId, name: "상태 없음 장소" },
+        now: "2026-08-13T00:00:00Z",
+      }),
+      upsertPlace(db, {
+        id: hiddenId,
+        row: { ...baseRow, slug: hiddenId, name: "숨김 장소", status: "HIDDEN" },
+        now: "2026-08-13T00:00:00Z",
+      }),
+    ]);
+    await db.insert(placeLivenessStates).values([
+      {
+        placeId: excludedId,
+        status: "SUSPECTED",
+        recommendationExcluded: true,
+        updatedAt: "2026-08-13T00:00:00Z",
+      },
+      {
+        placeId: includedId,
+        status: "SUSPECTED",
+        recommendationExcluded: false,
+        updatedAt: "2026-08-13T00:00:00Z",
+      },
+    ]);
+
+    const publicSlugs = (await listPlaces(db, { categorySlug: "ramen" })).map((place) => place.slug);
+    const recommendationSlugs = (await listRecommendationCandidates(db, { categorySlug: "ramen" })).map((place) => place.slug);
+
+    expect(publicSlugs).toEqual(expect.arrayContaining([excludedId, includedId, noStateId]));
+    expect(publicSlugs).not.toContain(hiddenId);
+    expect(recommendationSlugs).not.toContain(excludedId);
+    expect(recommendationSlugs).toEqual(expect.arrayContaining([includedId, noStateId]));
+    expect(recommendationSlugs).not.toContain(hiddenId);
+    await expect(getPlaceBySlug(db, excludedId)).resolves.toMatchObject({ slug: excludedId });
+    await expect(getPlaceBySlug(db, hiddenId)).rejects.toMatchObject({ status: 404 });
   });
 
   it("imports valid rows as one administrative batch", async () => {
