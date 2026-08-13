@@ -115,6 +115,7 @@ describe("place revalidation", () => {
     const now = "2026-08-13T12:00:00.000Z";
     const { adminId, placeId } = await seedLivenessCase(db, prefix, now);
     const { placeId: automaticPlaceId } = await seedLivenessCase(db, `${prefix}-automatic`, now);
+    const { placeId: historicalManualPlaceId } = await seedLivenessCase(db, `${prefix}-historical-manual`, now);
     await db.insert(placeLivenessStates).values({
       placeId,
       status: "HIDDEN",
@@ -142,12 +143,33 @@ describe("place revalidation", () => {
       evidenceJson: "{}",
       updatedAt: now,
     });
+    await db.insert(placeRevisions).values({
+      id: `${prefix}-historical-manual-revision`,
+      placeId: historicalManualPlaceId,
+      actorUserId: adminId,
+      action: "STATUS_CHANGE",
+      reason: "이전 수동 검수",
+      beforeJson: "{}",
+      afterJson: "{}",
+      sourceType: "REVALIDATION_CASE",
+      createdAt: "2026-08-01T12:00:00.000Z",
+    });
+    await db.insert(placeLivenessStates).values({
+      placeId: historicalManualPlaceId,
+      status: "SUSPECTED",
+      kakaoStatus: "NOT_FOUND",
+      recommendationExcluded: true,
+      evidenceJson: "{}",
+      updatedAt: now,
+    });
 
     const result = await clearRecommendationExclusions(db, { actorUserId: adminId, reason: "자동 제외만 해제", now });
     expect(result.updated).toBeGreaterThan(0);
     expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
       .toMatchObject({ status: "HIDDEN", recommendationExcluded: true });
     expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, automaticPlaceId) }))
+      .toMatchObject({ status: "SUSPECTED", recommendationExcluded: false });
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, historicalManualPlaceId) }))
       .toMatchObject({ status: "SUSPECTED", recommendationExcluded: false });
   });
 });
