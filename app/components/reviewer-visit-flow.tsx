@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useFetcher } from "react-router";
+import { Link, useFetcher } from "react-router";
 
 import { AppToast, type AppToastValue } from "./app-toast";
 import {
@@ -27,6 +27,7 @@ type ReviewerCategory = { id: string; name: string; emoji: string };
 type ReviewerHistory = {
   id: string;
   placeId: string;
+  placeSlug: string;
   placeName: string;
   categoryId: string;
   categoryName: string;
@@ -443,18 +444,30 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
 
       <section className="reviewer-history" aria-labelledby="reviewer-history-title">
         <div><p className="eyebrow">PUBLISHED / RECENT</p><h2 id="reviewer-history-title">최근 발행</h2></div>
-        {history.length ? <div className="reviewer-history-rail">{history.map((review) => (
-          <article key={review.id} id={`review-${review.id}`}>
-            <span>{evaluationLabels[review.evaluation]}</span>
-            <h3>{review.placeName}</h3>
-            <p>{review.categoryName} · v{review.version}</p>
-            <div>{parseBadges(review.badgesJson).map((badge) => <i key={badge}>{badge}</i>)}</div>
-            {review.photos.length > 0 && <div className="reviewer-history-photos" aria-label={`${review.placeName} 발행 사진`}>
-              {review.photos.map((photo) => <img key={photo.id} src={photo.url} alt="" loading="lazy" />)}
-            </div>}
-            <time dateTime={review.publishedAt}>{new Date(review.publishedAt).toLocaleDateString("ko-KR")}</time>
-          </article>
-        ))}</div> : <p className="reviewer-empty">아직 발행한 방문 리뷰가 없어요. 첫 기록을 남겨보세요.</p>}
+        {history.length ? <div className="reviewer-history-list">{history.map((review) => {
+          const reviewBadges = parseBadges(review.badgesJson).slice(0, 2);
+          const firstPhoto = review.photos[0];
+          return (
+            <article className="reviewer-history-row" data-has-photo={firstPhoto ? "true" : undefined} key={review.id} id={`review-${review.id}`}>
+              {firstPhoto ? <img className="reviewer-history-thumb" src={firstPhoto.url} alt="" loading="lazy" /> : null}
+              <div className="reviewer-history-main">
+                <div className="reviewer-history-meta">
+                  <span className="reviewer-history-evaluation">{evaluationLabels[review.evaluation]}</span>
+                  {review.goldenPickEventId ? <span className="reviewer-history-golden">Golden Pick</span> : null}
+                </div>
+                <h3><Link className="reviewer-history-place-link" to={`/places/${review.placeSlug}`}>{review.placeName}</Link></h3>
+                <p>{review.categoryName}</p>
+                {reviewBadges.length ? <div className="reviewer-history-badges" aria-label={`${review.placeName} 맛 배지`}>
+                  {reviewBadges.map((badge) => <i key={badge}>{badge}</i>)}
+                </div> : null}
+              </div>
+              <div className="reviewer-history-summary">
+                <span className="reviewer-history-photo-count">{review.photos.length ? `사진 ${review.photos.length}장` : "사진 없음"}</span>
+                <time dateTime={review.publishedAt}>{new Date(review.publishedAt).toLocaleDateString("ko-KR")}</time>
+              </div>
+            </article>
+          );
+        })}</div> : <p className="reviewer-empty">아직 발행한 방문 리뷰가 없어요. 첫 기록을 남겨보세요.</p>}
       </section>
       <AppToast toast={toast} onClose={() => setToast(null)} />
     </main>

@@ -332,6 +332,7 @@ export async function listReviewerVisitHistory(db: AppDb, reviewerUserId: string
   const reviews = await db.select({
     id: reviewerVisitReviews.id,
     placeId: reviewerVisitReviews.placeId,
+    placeSlug: places.slug,
     placeName: places.name,
     categoryId: reviewerVisitReviews.categoryId,
     categoryName: categories.name,

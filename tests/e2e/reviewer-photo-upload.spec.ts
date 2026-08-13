@@ -72,6 +72,14 @@ test("reviewer publishes a prepared EXIF JPEG and everyone can load the metadata
   expect(await publicPhoto.evaluate((image: HTMLImageElement) => image.naturalWidth > 0)).toBe(true);
   const publicBytes = Buffer.from(await (await page.request.get(await publicPhoto.getAttribute("src") ?? "")).body());
   expect(publicBytes.includes(Buffer.from([0xff, 0xe1]))).toBe(false);
+
+  const historyList = page.locator(".reviewer-history-list");
+  await expect(historyList).toBeVisible();
+  const historyRow = historyList.locator(".reviewer-history-row").first();
+  await expect(historyRow.locator(".reviewer-history-place-link")).toHaveAttribute("href", /^\/places\//);
+  await expect(historyRow).toContainText("사진 1장");
+  await expect(historyRow.locator(".reviewer-history-badges i")).toHaveCount(2);
+  await expect(page.locator(".reviewer-history-rail")).toHaveCount(0);
   await page.screenshot({
     path: `docs/evidence/2026-08-13-reviewer-photo-upload-${testInfo.project.name}.png`,
     fullPage: true,
