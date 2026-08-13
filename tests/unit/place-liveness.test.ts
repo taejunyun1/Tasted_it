@@ -45,6 +45,16 @@ describe("place liveness", () => {
       expected: { kakaoStatus: "MATCHED", status: "VERIFIED", score: 100 },
     },
     {
+      name: "matches an identical Kakao ID even for a non-food category",
+      input: { ...baseInput, place: { ...baseInput.place, kakaoPlaceId: "kakao-1" }, candidates: [{ ...candidate, categoryGroupCode: "MT1" }] },
+      expected: { kakaoStatus: "MATCHED", status: "VERIFIED", score: 100 },
+    },
+    {
+      name: "matches an identical Kakao ID before tied candidate checks",
+      input: { ...baseInput, place: { ...baseInput.place, kakaoPlaceId: "kakao-1" }, candidates: [{ ...candidate, id: "kakao-2" }, candidate] },
+      expected: { kakaoStatus: "MATCHED", status: "VERIFIED", score: 100 },
+    },
+    {
       name: "combines name, address, distance, and phone scores",
       input: { ...baseInput, candidates: [candidate] },
       expected: { kakaoStatus: "MATCHED", status: "VERIFIED", score: 100 },
@@ -79,6 +89,11 @@ describe("place liveness", () => {
       input: { ...baseInput, place: { ...baseInput.place, name: "\uFF23\uFF41\uFF46\uFF45 \uBD04 (\uB3D9\uBA85\uC810)" }, candidates: [{ ...candidate, name: "Cafe\uBD04 \uB3D9\uBA85\uC810" }] },
       expected: { kakaoStatus: "MATCHED", status: "VERIFIED", score: 100 },
     },
+    {
+      name: "normalizes a no-space branch suffix",
+      input: { ...baseInput, place: { ...baseInput.place, name: "\uCE74\uD398\uBD04" }, candidates: [{ ...candidate, name: "\uCE74\uD398\uBD04\uB3D9\uBA85\uC810" }] },
+      expected: { kakaoStatus: "MATCHED", status: "VERIFIED", score: 100 },
+    },
   ])("$name", ({ input, expected }) => {
     const decision = decidePlaceLiveness(input);
     expect(decision).toMatchObject({ kakaoStatus: expected.kakaoStatus, status: expected.status });
@@ -88,6 +103,11 @@ describe("place liveness", () => {
   it("does not merge distinct normalized names", () => {
     const decision = decidePlaceLiveness({ ...baseInput, candidates: [{ ...candidate, name: "카페 여름" }] });
     expect(decision).toMatchObject({ kakaoStatus: "AMBIGUOUS" });
+    expect(decision.evidence.score.name).toBe(0);
+  });
+
+  it("does not treat a one-character point suffix as a branch label", () => {
+    const decision = decidePlaceLiveness({ ...baseInput, place: { ...baseInput.place, name: "카페봄" }, candidates: [{ ...candidate, name: "카페봄점" }] });
     expect(decision.evidence.score.name).toBe(0);
   });
 

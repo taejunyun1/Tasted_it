@@ -133,6 +133,9 @@ export function decidePlaceLiveness(input: LivenessDecisionInput): LivenessDecis
 }
 
 function chooseCandidate(place: LivenessPlace, candidates: LivenessCandidate[]) {
+  const sameKakaoId = place.kakaoPlaceId ? candidates.find((candidate) => candidate.id === place.kakaoPlaceId) : undefined;
+  if (sameKakaoId) return { status: "MATCHED" as const, score: { name: 0, address: 0, distance: 0, phone: 0, total: 100 } };
+
   const scored = candidates.map((candidate) => ({ candidate, score: scoreCandidate(place, candidate) }));
   const highest = scored.reduce<typeof scored[number] | null>((best, current) => !best || current.score.total > best.score.total ? current : best, null);
   if (!highest || highest.score.total < 50) return { status: "NOT_FOUND" as const, score: highest?.score ?? emptyScore() };
@@ -145,10 +148,9 @@ function chooseCandidate(place: LivenessPlace, candidates: LivenessCandidate[]) 
 }
 
 function scoreCandidate(place: LivenessPlace, candidate: LivenessCandidate) {
-  if (place.kakaoPlaceId && place.kakaoPlaceId === candidate.id) return { name: 0, address: 0, distance: 0, phone: 0, total: 100 };
   const placeIdentity = normalizePlaceIdentity(place);
   const candidateIdentity = normalizePlaceIdentity(candidate);
-  const name = normalizeLivenessName(place.name) === normalizeLivenessName(candidate.name) ? 40 : 0;
+  const name = sameLivenessName(place.name, candidate.name) ? 40 : 0;
   const address = placeIdentity.address === candidateIdentity.address || placeIdentity.address === normalizePlaceIdentity({ ...candidate, address: candidate.roadAddress }).address ? 30 : 0;
   const distance = (distanceMeters(place, candidate) ?? Infinity) <= 150 ? 20 : 0;
   const phone = placeIdentity.phone && placeIdentity.phone === candidateIdentity.phone ? 10 : 0;
@@ -158,9 +160,22 @@ function scoreCandidate(place: LivenessPlace, candidate: LivenessCandidate) {
 function normalizeLivenessName(value: string) {
   return value.normalize("NFKC").toLocaleLowerCase("ko-KR")
     .replace(/[\(\[\{][^\)\]\}]*[\)\]\}]/gu, "")
-    .replace(/\s+(?:본점|직영점|\d+호점|[\p{Script=Hangul}\p{N}]+점)$/gu, "")
     .replace(/\s+/gu, "")
     .replace(/[\p{P}\p{S}]/gu, "");
+}
+
+function sameLivenessName(left: string, right: string) {
+  const normalizedLeft = normalizeLivenessName(left);
+  const normalizedRight = normalizeLivenessName(right);
+  return normalizedLeft === normalizedRight
+    || hasBranchSuffix(normalizedLeft, normalizedRight)
+    || hasBranchSuffix(normalizedRight, normalizedLeft);
+}
+
+function hasBranchSuffix(value: string, base: string) {
+  if (!base || !value.startsWith(base)) return false;
+  const suffix = value.slice(base.length);
+  return /^(?:본점|직영점|\d+호점|[\p{Script=Hangul}\p{N}]+지점|[\p{Script=Hangul}\p{N}]{2,}점)$/u.test(suffix);
 }
 
 function isFoodOrCafe(candidate: LivenessCandidate) {
