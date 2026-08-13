@@ -93,6 +93,19 @@ describe("place liveness server", () => {
       .some((target) => target.placeId === placeId)).toBe(false);
   });
 
+  it("does not claim a no-state place until its seven-day normal verification boundary", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-seven-day-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix, { lastVerifiedAt: "2026-08-06T12:00:00.001Z" });
+
+    await expect(claimDuePlaceLivenessTargets(db, { now: NOW, limit: 10, leaseToken: `${prefix}-early` }))
+      .resolves.not.toContainEqual(expect.objectContaining({ placeId }));
+    await db.update(places).set({ lastVerifiedAt: "2026-08-06T12:00:00.000Z", updatedAt: "2026-08-06T12:00:00.000Z" })
+      .where(eq(places.id, placeId));
+    await expect(claimDuePlaceLivenessTargets(db, { now: NOW, limit: 10, leaseToken: `${prefix}-due` }))
+      .resolves.toContainEqual(expect.objectContaining({ placeId, leaseToken: `${prefix}-due` }));
+  });
+
   it("blocks an unexpired lease and allows the same due target after lease expiry", async () => {
     const db = createDb(env.DB);
     const prefix = `liveness-lease-${crypto.randomUUID()}`;
@@ -247,6 +260,49 @@ describe("place liveness server", () => {
     expect(audit?.afterState).not.toContain("광주광역시 동구 동명로 1");
   });
 
+  it("recovers a liveness-hidden place and resolves its unknown case in one batch", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-recovery-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix);
+    const hideTarget = await claimOne(db, placeId, `${prefix}-hide`);
+    await expect(applyPlaceLivenessDecision(db, {
+      target: hideTarget,
+      decision: decision({ status: "HIDDEN", consecutiveNotFound: 3, recommendationExcluded: true, shouldHide: true, shouldOpenCase: true }),
+      leaseToken: `${prefix}-hide`,
+      now: NOW,
+    })).resolves.toBe("APPLIED");
+
+    await db.update(placeLivenessStates).set({ nextCheckAt: NOW, updatedAt: NOW }).where(eq(placeLivenessStates.placeId, placeId));
+    const recoveryTarget = await claimOne(db, placeId, `${prefix}-recovery`);
+    let batchCalls = 0;
+    const observedDb = new Proxy(db, {
+      get(targetDb, property, receiver) {
+        if (property === "batch") return async (...input: Parameters<AppDb["batch"]>) => {
+          batchCalls += 1;
+          return targetDb.batch(...input);
+        };
+        return Reflect.get(targetDb, property, receiver);
+      },
+    }) as AppDb;
+
+    await expect(applyPlaceLivenessDecision(observedDb, {
+      target: recoveryTarget,
+      decision: decision({ status: "VERIFIED", kakaoStatus: "MATCHED", consecutiveNotFound: 0, nextCheckAt: "2026-08-27T12:00:00.000Z" }),
+      leaseToken: `${prefix}-recovery`,
+      now: "2026-08-20T12:00:00.000Z",
+    })).resolves.toBe("APPLIED");
+
+    expect(batchCalls).toBe(1);
+    expect(await db.query.places.findFirst({ where: eq(places.id, placeId) }))
+      .toMatchObject({ status: "PUBLISHED", closedAt: null, lastVerifiedAt: "2026-08-20T12:00:00.000Z" });
+    expect(await db.select().from(placeRevalidationCases).where(eq(placeRevalidationCases.placeId, placeId)))
+      .toContainEqual(expect.objectContaining({ status: "RESOLVED", resolution: "AUTOMATED_PLACE_LIVENESS_MATCHED", reviewedBy: null }));
+    expect(await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId)))
+      .toContainEqual(expect.objectContaining({ reason: "AUTOMATED_PLACE_LIVENESS_RECOVERY", actorUserId: null, sourceType: "PLACE_LIVENESS_VERIFICATION" }));
+    expect(await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.targetId, placeId)))
+      .toContainEqual(expect.objectContaining({ action: "RESTORE_PLACE_FOR_LIVENESS", actorUserId: null }));
+  });
+
   it("rolls back every write when an automatic-hide batch statement fails", async () => {
     const db = createDb(env.DB);
     const prefix = `liveness-rollback-${crypto.randomUUID()}`;
@@ -322,5 +378,41 @@ describe("place liveness server", () => {
     expect(after).toEqual(before);
     expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
       .toMatchObject({ leaseToken: `${prefix}-replacement` });
+  });
+
+  it("fails closed when the claimed place changes before the liveness batch", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-place-version-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix);
+    const target = await claimOne(db, placeId, `${prefix}-lease`);
+    const changedAt = "2026-08-13T12:00:01.000Z";
+    let raced = false;
+    const racedDb = new Proxy(db, {
+      get(targetDb, property, receiver) {
+        if (property === "batch") return async (...input: Parameters<AppDb["batch"]>) => {
+          if (!raced) {
+            raced = true;
+            await targetDb.update(places).set({ closedAt: changedAt, updatedAt: changedAt }).where(eq(places.id, placeId));
+          }
+          return targetDb.batch(...input);
+        };
+        return Reflect.get(targetDb, property, receiver);
+      },
+    }) as AppDb;
+
+    await expect(applyPlaceLivenessDecision(racedDb, {
+      target,
+      decision: decision({ status: "HIDDEN", consecutiveNotFound: 3, recommendationExcluded: true, shouldHide: true, shouldOpenCase: true }),
+      leaseToken: `${prefix}-lease`,
+      now: NOW,
+    })).resolves.toBe("STALE_LEASE");
+
+    expect(await db.query.places.findFirst({ where: eq(places.id, placeId) }))
+      .toMatchObject({ status: "PUBLISHED", closedAt: changedAt, updatedAt: changedAt });
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
+      .toMatchObject({ leaseToken: `${prefix}-lease` });
+    await expect(db.select().from(placeRevalidationCases).where(eq(placeRevalidationCases.placeId, placeId))).resolves.toEqual([]);
+    await expect(db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId))).resolves.toEqual([]);
+    await expect(db.select().from(adminAuditLogs).where(eq(adminAuditLogs.targetId, placeId))).resolves.toEqual([]);
   });
 });

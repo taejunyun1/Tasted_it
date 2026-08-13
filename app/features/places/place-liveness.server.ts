@@ -1,4 +1,4 @@
-import { and, eq, gt, gte, isNull, lte, max, or, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, isNull, lte, max, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
@@ -22,6 +22,9 @@ const RECENT_ACTIVITY_MS = 90 * 24 * 60 * 60 * 1_000;
 const AUTO_HIDE_REASON = "AUTOMATED_PLACE_LIVENESS_HIDE";
 const AUTO_HIDE_SOURCE = "PLACE_LIVENESS_VERIFICATION";
 const AUTO_HIDE_ACTION = "HIDE_PLACE_FOR_LIVENESS";
+const AUTO_RECOVERY_REASON = "AUTOMATED_PLACE_LIVENESS_RECOVERY";
+const AUTO_RECOVERY_RESOLUTION = "AUTOMATED_PLACE_LIVENESS_MATCHED";
+const AUTO_RECOVERY_ACTION = "RESTORE_PLACE_FOR_LIVENESS";
 
 export type LivenessTarget = {
   placeId: string;
@@ -32,6 +35,7 @@ export type LivenessTarget = {
   firstNotFoundAt: string | null;
   lastCheckedAt: string | null;
   protectedUntil: string | null;
+  placeUpdatedAt: string;
   leaseToken: string;
 };
 
@@ -72,6 +76,7 @@ export async function claimDuePlaceLivenessTargets(
     longitude: places.longitude,
     phone: places.phone,
     kakaoPlaceId: places.kakaoPlaceId,
+    placeUpdatedAt: places.updatedAt,
     status: placeLivenessStates.status,
     recommendationExcluded: placeLivenessStates.recommendationExcluded,
     consecutiveNotFound: placeLivenessStates.consecutiveNotFound,
@@ -81,14 +86,17 @@ export async function claimDuePlaceLivenessTargets(
   })
     .from(places)
     .leftJoin(placeLivenessStates, eq(placeLivenessStates.placeId, places.id))
-    .where(and(
-      eq(places.status, "PUBLISHED"),
-      or(
-        and(
-          isNull(placeLivenessStates.placeId),
-          or(isNull(places.lastVerifiedAt), lte(places.lastVerifiedAt, normalCheckDueAt)),
-        ),
-        and(stateDue, leaseAvailable),
+    .where(or(
+      and(
+        eq(places.status, "PUBLISHED"),
+        isNull(placeLivenessStates.placeId),
+        or(isNull(places.lastVerifiedAt), lte(places.lastVerifiedAt, normalCheckDueAt)),
+      ),
+      and(
+        isNotNull(placeLivenessStates.placeId),
+        or(eq(places.status, "PUBLISHED"), eq(placeLivenessStates.status, "HIDDEN")),
+        stateDue,
+        leaseAvailable,
       ),
     ))
     .limit(limit * 3);
@@ -130,6 +138,7 @@ export async function claimDuePlaceLivenessTargets(
       firstNotFoundAt: candidate.firstNotFoundAt,
       lastCheckedAt: candidate.lastCheckedAt,
       protectedUntil: candidate.protectedUntil,
+      placeUpdatedAt: candidate.placeUpdatedAt,
       leaseToken: input.leaseToken,
     });
   }
@@ -190,7 +199,9 @@ export async function applyPlaceLivenessDecision(
     db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, input.target.placeId) }),
     db.query.places.findFirst({ where: eq(places.id, input.target.placeId) }),
   ]);
-  if (!state || !place || state.leaseToken !== input.leaseToken) return "STALE_LEASE";
+  if (!state || !place || state.leaseToken !== input.leaseToken || place.updatedAt !== input.target.placeUpdatedAt) {
+    return "STALE_LEASE";
+  }
 
   const shouldCreateCase = input.decision.shouldOpenCase || input.decision.shouldHide;
   const firstNotFoundAt = input.decision.kakaoStatus === "MATCHED"
@@ -201,10 +212,13 @@ export async function applyPlaceLivenessDecision(
       ? input.now
       : state.firstNotFoundAt;
   const evidenceJson = JSON.stringify(input.decision.evidence);
+  const shouldRecover = input.decision.kakaoStatus === "MATCHED"
+    && state.status === "HIDDEN"
+    && place.status === "HIDDEN";
   const beforeState = placeStateSnapshot(place);
   const afterState = {
-    status: input.decision.shouldHide ? "HIDDEN" as const : place.status,
-    closedAt: input.decision.shouldHide ? input.now : place.closedAt,
+    status: input.decision.shouldHide ? "HIDDEN" as const : shouldRecover ? "PUBLISHED" as const : place.status,
+    closedAt: input.decision.shouldHide ? input.now : shouldRecover ? null : place.closedAt,
     lastVerifiedAt: input.decision.kakaoStatus === "MATCHED" ? input.now : place.lastVerifiedAt,
   };
   const commitToken = crypto.randomUUID();
@@ -216,6 +230,11 @@ export async function applyPlaceLivenessDecision(
     select 1 from ${placeLivenessStates}
     where ${committedLease}
   )`;
+  const claimedPlaceVersionExists = sql<boolean>`exists (
+    select 1 from ${places}
+    where ${places.id} = ${place.id}
+      and ${places.updatedAt} = ${input.target.placeUpdatedAt}
+  )`;
   const noOpenUnknownCase = sql<boolean>`not exists (
     select 1 from ${placeRevalidationCases}
     where ${placeRevalidationCases.placeId} = ${place.id}
@@ -226,14 +245,22 @@ export async function applyPlaceLivenessDecision(
     db.update(placeLivenessStates).set({
       leaseToken: commitToken,
       leaseExpiresAt: null,
-    }).where(and(eq(placeLivenessStates.placeId, place.id), eq(placeLivenessStates.leaseToken, input.leaseToken))),
+    }).where(and(
+      eq(placeLivenessStates.placeId, place.id),
+      eq(placeLivenessStates.leaseToken, input.leaseToken),
+      claimedPlaceVersionExists,
+    )),
     ...(input.decision.kakaoStatus === "MATCHED" || input.decision.shouldHide
       ? [db.update(places).set({
         status: afterState.status,
         closedAt: afterState.closedAt,
         lastVerifiedAt: afterState.lastVerifiedAt,
         updatedAt: input.now,
-      }).where(and(eq(places.id, place.id), committedLeaseExists))]
+      }).where(and(
+        eq(places.id, place.id),
+        eq(places.updatedAt, input.target.placeUpdatedAt),
+        committedLeaseExists,
+      ))]
       : []),
     ...(shouldCreateCase
       ? [db.insert(placeRevalidationCases).select(
@@ -256,6 +283,20 @@ export async function applyPlaceLivenessDecision(
         }).from(placeLivenessStates).where(and(committedLease, noOpenUnknownCase)),
       )]
       : []),
+    ...(input.decision.kakaoStatus === "MATCHED"
+      ? [db.update(placeRevalidationCases).set({
+        status: "RESOLVED",
+        resolution: AUTO_RECOVERY_RESOLUTION,
+        reviewedBy: null,
+        reviewedAt: input.now,
+        updatedAt: input.now,
+      }).where(and(
+        eq(placeRevalidationCases.placeId, place.id),
+        eq(placeRevalidationCases.reasonType, "UNKNOWN"),
+        or(eq(placeRevalidationCases.status, "OPEN"), eq(placeRevalidationCases.status, "REVIEWING")),
+        committedLeaseExists,
+      ))]
+      : []),
     ...(input.decision.shouldHide
       ? [
         db.insert(placeRevisions).select(
@@ -277,6 +318,36 @@ export async function applyPlaceLivenessDecision(
             id: sql<string>`${crypto.randomUUID()}`.as("id"),
             actorUserId: sql<null>`null`.as("actor_user_id"),
             action: sql<string>`${AUTO_HIDE_ACTION}`.as("action"),
+            targetType: sql<"PLACE">`'PLACE'`.as("target_type"),
+            targetId: sql<string>`${place.id}`.as("target_id"),
+            beforeState: sql<string>`${JSON.stringify(beforeState)}`.as("before_state"),
+            afterState: sql<string>`${JSON.stringify(afterState)}`.as("after_state"),
+            createdAt: sql<string>`${input.now}`.as("created_at"),
+          }).from(placeLivenessStates).where(committedLease),
+        ),
+      ]
+      : []),
+    ...(shouldRecover
+      ? [
+        db.insert(placeRevisions).select(
+          db.select({
+            id: sql<string>`${crypto.randomUUID()}`.as("id"),
+            placeId: sql<string>`${place.id}`.as("place_id"),
+            actorUserId: sql<null>`null`.as("actor_user_id"),
+            action: sql<"STATUS_CHANGE">`'STATUS_CHANGE'`.as("action"),
+            reason: sql<string>`${AUTO_RECOVERY_REASON}`.as("reason"),
+            beforeJson: sql<string>`${JSON.stringify(beforeState)}`.as("before_json"),
+            afterJson: sql<string>`${JSON.stringify(afterState)}`.as("after_json"),
+            sourceType: sql<string>`${AUTO_HIDE_SOURCE}`.as("source_type"),
+            sourceId: sql<null>`null`.as("source_id"),
+            createdAt: sql<string>`${input.now}`.as("created_at"),
+          }).from(placeLivenessStates).where(committedLease),
+        ),
+        db.insert(adminAuditLogs).select(
+          db.select({
+            id: sql<string>`${crypto.randomUUID()}`.as("id"),
+            actorUserId: sql<null>`null`.as("actor_user_id"),
+            action: sql<string>`${AUTO_RECOVERY_ACTION}`.as("action"),
             targetType: sql<"PLACE">`'PLACE'`.as("target_type"),
             targetId: sql<string>`${place.id}`.as("target_id"),
             beforeState: sql<string>`${JSON.stringify(beforeState)}`.as("before_state"),
