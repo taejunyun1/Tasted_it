@@ -283,7 +283,7 @@ export async function applyPlaceLivenessDecision(
         }).from(placeLivenessStates).where(and(committedLease, noOpenUnknownCase)),
       )]
       : []),
-    ...(input.decision.kakaoStatus === "MATCHED"
+    ...(shouldRecover
       ? [db.update(placeRevalidationCases).set({
         status: "RESOLVED",
         resolution: AUTO_RECOVERY_RESOLUTION,

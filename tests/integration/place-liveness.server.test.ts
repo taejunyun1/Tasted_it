@@ -303,6 +303,48 @@ describe("place liveness server", () => {
       .toContainEqual(expect.objectContaining({ action: "RESTORE_PLACE_FOR_LIVENESS", actorUserId: null }));
   });
 
+  it("does not resolve unknown cases for a matched place without liveness recovery", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-non-recovery-${crypto.randomUUID()}`;
+    const placeId = await seedPlace(db, prefix);
+    const target = await claimOne(db, placeId, `${prefix}-lease`);
+    await db.insert(placeRevalidationCases).values([
+      {
+        id: `${prefix}-open`,
+        placeId,
+        reasonType: "UNKNOWN",
+        status: "OPEN",
+        evidenceJson: "{}",
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+      {
+        id: `${prefix}-reviewing`,
+        placeId,
+        reasonType: "UNKNOWN",
+        status: "REVIEWING",
+        evidenceJson: "{}",
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    ]);
+
+    await expect(applyPlaceLivenessDecision(db, {
+      target,
+      decision: decision({ status: "VERIFIED", kakaoStatus: "MATCHED", consecutiveNotFound: 0 }),
+      leaseToken: `${prefix}-lease`,
+      now: NOW,
+    })).resolves.toBe("APPLIED");
+
+    expect(await db.select().from(placeRevalidationCases).where(eq(placeRevalidationCases.placeId, placeId)))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: `${prefix}-open`, status: "OPEN", resolution: null }),
+        expect.objectContaining({ id: `${prefix}-reviewing`, status: "REVIEWING", resolution: null }),
+      ]));
+    await expect(db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId))).resolves.toEqual([]);
+    await expect(db.select().from(adminAuditLogs).where(eq(adminAuditLogs.targetId, placeId))).resolves.toEqual([]);
+  });
+
   it("rolls back every write when an automatic-hide batch statement fails", async () => {
     const db = createDb(env.DB);
     const prefix = `liveness-rollback-${crypto.randomUUID()}`;
