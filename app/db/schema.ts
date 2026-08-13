@@ -565,6 +565,24 @@ export const reviewerVisitReviews = sqliteTable(
   ],
 );
 
+export const reviewerVisitPhotos = sqliteTable(
+  "reviewer_visit_photos",
+  {
+    id: text("id").primaryKey(),
+    reviewId: text("review_id").notNull().references(() => reviewerVisitReviews.id, { onDelete: "cascade" }),
+    objectKey: text("object_key").notNull(),
+    contentType: text("content_type", { enum: ["image/jpeg"] }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    position: integer("position").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("reviewer_visit_photos_object_key_uidx").on(table.objectKey),
+    uniqueIndex("reviewer_visit_photos_review_position_uidx").on(table.reviewId, table.position),
+    index("reviewer_visit_photos_review_idx").on(table.reviewId, table.position),
+  ],
+);
+
 export const placeDailyMetrics = sqliteTable(
   "place_daily_metrics",
   {

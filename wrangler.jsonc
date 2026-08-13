@@ -9,7 +9,10 @@
 	"main": "./workers/app.ts",
 	"triggers": { "crons": ["17 18 * * *"] },
 	"preview_urls": false,
-	"vars": { "ONBOARDING_ENABLED": "true" },
+	"vars": {
+		"ONBOARDING_ENABLED": "true",
+		"REVIEW_PHOTO_UPLOAD_ENABLED": "false"
+	},
 	"ai": { "binding": "AI" },
 	"d1_databases": [
 		{
@@ -17,6 +20,13 @@
 			"database_name": "retaste-production",
 			"database_id": "5181489d-83a7-4f78-9384-db096cadaa2d",
 			"migrations_dir": "drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "REVIEW_PHOTOS",
+			"bucket_name": "retaste-review-photos",
+			"preview_bucket_name": "retaste-review-photos-preview"
 		}
 	],
 	"observability": {
