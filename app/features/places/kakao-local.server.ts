@@ -59,31 +59,34 @@ export async function searchKakaoPlaces(input: {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), KAKAO_SEARCH_TIMEOUT_MS);
-  let response: Response;
   try {
-    response = await (input.fetchImpl ?? fetch)(url.toString(), {
-      headers: { Authorization: `KakaoAK ${input.apiKey}` },
-      signal: controller.signal,
-    });
-  } catch {
-    if (controller.signal.aborted) throw new KakaoLocalError("KAKAO_REQUEST_TIMEOUT");
-    throw new KakaoLocalError("KAKAO_REQUEST_FAILED");
+    let response: Response;
+    try {
+      response = await (input.fetchImpl ?? fetch)(url.toString(), {
+        headers: { Authorization: `KakaoAK ${input.apiKey}` },
+        signal: controller.signal,
+      });
+    } catch {
+      if (controller.signal.aborted) throw new KakaoLocalError("KAKAO_REQUEST_TIMEOUT");
+      throw new KakaoLocalError("KAKAO_REQUEST_FAILED");
+    }
+
+    if (!response.ok) throw httpError(response.status);
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      if (controller.signal.aborted) throw new KakaoLocalError("KAKAO_REQUEST_TIMEOUT");
+      throw new KakaoLocalError("KAKAO_RESPONSE_INVALID");
+    }
+
+    const parsed = responseSchema.safeParse(projectResponse(body));
+    if (!parsed.success) throw new KakaoLocalError("KAKAO_RESPONSE_INVALID");
+    return parsed.data;
   } finally {
     clearTimeout(timeout);
   }
-
-  if (!response.ok) throw httpError(response.status);
-
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    throw new KakaoLocalError("KAKAO_RESPONSE_INVALID");
-  }
-
-  const parsed = responseSchema.safeParse(projectResponse(body));
-  if (!parsed.success) throw new KakaoLocalError("KAKAO_RESPONSE_INVALID");
-  return parsed.data;
 }
 
 function validInput(input: { apiKey: string; query: string; longitude: number; latitude: number; radius?: number }) {

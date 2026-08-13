@@ -97,6 +97,39 @@ describe("searchKakaoPlaces", () => {
     vi.useRealTimers();
   });
 
+  it("aborts a response body that stalls after fetch resolves", async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    const response = {
+      ok: true,
+      json: vi.fn(() => new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      })),
+    } as unknown as Response;
+    const fetchImpl = vi.fn((_url: string, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return Promise.resolve(response);
+    });
+    const pending = searchKakaoPlaces({ ...input, fetchImpl });
+    const outcome = pending.then(
+      () => ({ state: "resolved" as const }),
+      (error: unknown) => ({ state: "rejected" as const, error }),
+    );
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    const result = Promise.race([
+      outcome,
+      new Promise<{ state: "pending" }>((resolve) => setTimeout(() => resolve({ state: "pending" }), 1)),
+    ]);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(result).resolves.toMatchObject({
+      state: "rejected",
+      error: expect.objectContaining({ code: "KAKAO_REQUEST_TIMEOUT", retryable: false }),
+    });
+    vi.useRealTimers();
+  });
+
   it("rejects malformed JSON without exposing request data", async () => {
     const fetchImpl = vi.fn(async () => new Response("not-json"));
 
