@@ -236,6 +236,14 @@ export async function applyPlaceLivenessDecision(
   if (!state || !place || state.leaseToken !== input.leaseToken || place.updatedAt !== input.target.placeUpdatedAt) {
     return "STALE_LEASE";
   }
+  if (
+    input.decision.kakaoStatus === "MATCHED"
+    && state.status === "HIDDEN"
+    && place.status === "HIDDEN"
+    && !automatedHiddenRecoverable
+  ) {
+    return "STALE_LEASE";
+  }
 
   const shouldCreateCase = input.decision.shouldOpenCase || input.decision.shouldHide;
   const firstNotFoundAt = input.decision.kakaoStatus === "MATCHED"

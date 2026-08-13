@@ -476,10 +476,17 @@ describe("place liveness server", () => {
       }),
       leaseToken: `${prefix}-forced`,
       now: "2026-08-20T12:00:00.000Z",
-    })).resolves.toBe("APPLIED");
+    })).resolves.toBe("STALE_LEASE");
 
     expect(await db.query.places.findFirst({ where: eq(places.id, placeId) }))
       .toMatchObject({ status: "HIDDEN", closedAt: NOW });
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
+      .toMatchObject({
+        status: "HIDDEN",
+        kakaoStatus: "NOT_FOUND",
+        matchedKakaoPlaceId: null,
+        recommendationExcluded: true,
+      });
     expect(await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId)))
       .not.toContainEqual(expect.objectContaining({ reason: "AUTOMATED_PLACE_LIVENESS_RECOVERY" }));
   });
