@@ -45,6 +45,7 @@ import {
   guestTasteBadges,
   recommendationFeedback,
   productEvents,
+  placeLivenessStates,
   tasteLearningStates,
 } from "../../app/db/schema";
 
@@ -137,5 +138,12 @@ describe("week 1 schema", () => {
     expect(getTableConfig(tasteLearningStates).foreignKeys).toEqual([
       expect.objectContaining({ onDelete: "cascade" }),
     ]);
+  });
+
+  it("exports place liveness state fields", () => {
+    expect(placeLivenessStates.status).toBeDefined();
+    expect(placeLivenessStates.recommendationExcluded).toBeDefined();
+    expect(placeLivenessStates.leaseToken).toBeDefined();
+    expect(placeLivenessStates.leaseExpiresAt).toBeDefined();
   });
 });
