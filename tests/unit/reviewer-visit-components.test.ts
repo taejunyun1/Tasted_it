@@ -49,10 +49,30 @@ describe("ReviewerVisitFlow", () => {
       goldenPickEventId: null,
       version: 1,
       publishedAt: "2026-08-12T00:00:00Z",
+      photos: [],
     }] }));
     expect(html).toContain("최근 발행");
     expect(html).toContain("육수 농도 선명");
     expect(html).not.toContain("동료 리뷰어 이름");
     expect(html).not.toContain("peerUserId");
+  });
+
+  it("renders public photo URLs in the reviewer’s own published history", () => {
+    const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, { ...props, history: [{
+      id: "visit-photo-1",
+      placeId: "sample-place-1",
+      placeName: "Re:Taste 샘플 라멘 동명",
+      categoryId: "cat-ramen",
+      categoryName: "라멘",
+      evaluation: "RECOMMEND",
+      badgesJson: "[]",
+      photoCount: 1,
+      goldenPickEventId: null,
+      version: 1,
+      publishedAt: "2026-08-13T00:00:00Z",
+      photos: [{ id: "public-photo-1", url: "/review-photos/public-photo-1" }],
+    }] }));
+    expect(html).toContain('src="/review-photos/public-photo-1"');
+    expect(html).not.toContain("reviews/visit-photo-1");
   });
 });

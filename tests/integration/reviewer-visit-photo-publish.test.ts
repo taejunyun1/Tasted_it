@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { getReviewerPhotoObjectKey } from "../../app/features/ratings/reviewer-photo.server";
 import {
+  listPublishedPlaceReviewPhotos,
+  listReviewerVisitHistory,
   publishReviewerVisitWithPhotos,
 } from "../../app/features/ratings/reviewer-visit.server";
 
@@ -119,5 +121,40 @@ describe("publishReviewerVisitWithPhotos", () => {
     expect(result.review.photoCount).toBe(1);
     await expect(env.DB.prepare("SELECT count(*) AS count FROM reviewer_visit_photos WHERE review_id = ?")
       .bind(reviewId).first<{ count: number }>()).resolves.toEqual({ count: 1 });
+  });
+
+  it("projects only opaque public photo URLs for every viewer of a place", async () => {
+    const db = createDb(env.DB);
+    await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
+      ...reviewInput({ id: "public-photo-old", now: "2026-08-13T00:00:00.000Z" }),
+      photos: [photo("public-photo-old-1")],
+    });
+    await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
+      ...reviewInput({ id: "public-photo-new", now: "2026-08-13T01:00:00.000Z" }),
+      photos: [photo("public-photo-new-1"), photo("public-photo-new-2", 1)],
+    });
+
+    const photos = await listPublishedPlaceReviewPhotos(db, placeId, 12);
+    expect(photos.slice(0, 3)).toEqual([
+      expect.objectContaining({ id: "public-photo-new-1", url: "/review-photos/public-photo-new-1", position: 0 }),
+      expect.objectContaining({ id: "public-photo-new-2", url: "/review-photos/public-photo-new-2", position: 1 }),
+      expect.objectContaining({ id: "public-photo-old-1", url: "/review-photos/public-photo-old-1", position: 0 }),
+    ]);
+    expect(photos.some((photo) => "objectKey" in photo)).toBe(false);
+  });
+
+  it("includes only opaque photo URLs in the reviewer’s own history", async () => {
+    const db = createDb(env.DB);
+    await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
+      ...reviewInput({ id: "history-photo-review" }),
+      photos: [photo("history-photo-1")],
+    });
+
+    const history = await listReviewerVisitHistory(db, reviewerUserId, 12);
+    const review = history.find((item) => item.id === "history-photo-review");
+    expect(review).toMatchObject({
+      photos: [{ id: "history-photo-1", url: "/review-photos/history-photo-1" }],
+    });
+    expect("objectKey" in (review?.photos[0] ?? {})).toBe(false);
   });
 });

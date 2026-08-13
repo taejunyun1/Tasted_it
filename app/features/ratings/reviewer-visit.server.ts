@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -231,7 +231,7 @@ export async function publishReviewerVisitWithPhotos(
 }
 
 export async function listReviewerVisitHistory(db: AppDb, reviewerUserId: string, limit = 8) {
-  return db.select({
+  const reviews = await db.select({
     id: reviewerVisitReviews.id,
     placeId: reviewerVisitReviews.placeId,
     placeName: places.name,
@@ -249,4 +249,41 @@ export async function listReviewerVisitHistory(db: AppDb, reviewerUserId: string
     .where(eq(reviewerVisitReviews.reviewerUserId, reviewerUserId))
     .orderBy(desc(reviewerVisitReviews.publishedAt), desc(reviewerVisitReviews.id))
     .limit(Math.max(1, Math.min(limit, 50)));
+  if (reviews.length === 0) return [];
+
+  const photos = await db.select({
+    id: reviewerVisitPhotos.id,
+    reviewId: reviewerVisitPhotos.reviewId,
+    position: reviewerVisitPhotos.position,
+  }).from(reviewerVisitPhotos)
+    .where(inArray(reviewerVisitPhotos.reviewId, reviews.map((review) => review.id)))
+    .orderBy(reviewerVisitPhotos.position);
+  const photosByReviewId = new Map<string, Array<{ id: string; url: string }>>();
+  for (const photo of photos) {
+    const current = photosByReviewId.get(photo.reviewId) ?? [];
+    current.push({ id: photo.id, url: `/review-photos/${photo.id}` });
+    photosByReviewId.set(photo.reviewId, current);
+  }
+  return reviews.map((review) => ({
+    ...review,
+    photos: photosByReviewId.get(review.id) ?? [],
+  }));
+}
+
+export async function listPublishedPlaceReviewPhotos(db: AppDb, placeId: string, limit = 12) {
+  const rows = await db.select({
+    id: reviewerVisitPhotos.id,
+    reviewId: reviewerVisitPhotos.reviewId,
+    position: reviewerVisitPhotos.position,
+    publishedAt: reviewerVisitReviews.publishedAt,
+  }).from(reviewerVisitPhotos)
+    .innerJoin(reviewerVisitReviews, eq(reviewerVisitReviews.id, reviewerVisitPhotos.reviewId))
+    .where(eq(reviewerVisitReviews.placeId, placeId))
+    .orderBy(desc(reviewerVisitReviews.publishedAt), desc(reviewerVisitReviews.id), reviewerVisitPhotos.position)
+    .limit(Math.max(1, Math.min(limit, 24)));
+
+  return rows.map((photo) => ({
+    ...photo,
+    url: `/review-photos/${photo.id}`,
+  }));
 }

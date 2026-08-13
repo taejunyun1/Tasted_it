@@ -29,6 +29,7 @@ type ReviewerHistory = {
   goldenPickEventId: string | null;
   version: number;
   publishedAt: string;
+  photos: Array<{ id: string; url: string }>;
 };
 
 type Props = {
@@ -338,6 +339,9 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
             <h3>{review.placeName}</h3>
             <p>{review.categoryName} · v{review.version}</p>
             <div>{parseBadges(review.badgesJson).map((badge) => <i key={badge}>{badge}</i>)}</div>
+            {review.photos.length > 0 && <div className="reviewer-history-photos" aria-label={`${review.placeName} 발행 사진`}>
+              {review.photos.map((photo) => <img key={photo.id} src={photo.url} alt="" loading="lazy" />)}
+            </div>}
             <time dateTime={review.publishedAt}>{new Date(review.publishedAt).toLocaleDateString("ko-KR")}</time>
           </article>
         ))}</div> : <p className="reviewer-empty">아직 발행한 방문 리뷰가 없어요. 첫 기록을 남겨보세요.</p>}
