@@ -15,6 +15,8 @@ export default defineConfig({
         compatibilityDate: "2026-08-05",
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB"],
+
+        r2Buckets: ["REVIEW_PHOTOS"],
         bindings: {
           ADMIN_EMAIL: "admin@example.com",
           ONBOARDING_ENABLED: "true",
