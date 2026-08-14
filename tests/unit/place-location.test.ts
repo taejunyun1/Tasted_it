@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isSupportedRegionAddress,
+  normalizeSupportedRegionAddress,
   normalizeGeocodeCandidates,
   validateAdjustedCoordinate,
   validatePlaceCoordinate,
@@ -11,8 +12,15 @@ describe("place suggestion location contract", () => {
     expect(isSupportedRegionAddress("광주광역시 동구 서석로 1")).toBe(true);
     expect(isSupportedRegionAddress("전라남도 무안군 삼향읍 남악로 12")).toBe(true);
     expect(isSupportedRegionAddress("전남 목포시 영산로 1")).toBe(true);
+    expect(isSupportedRegionAddress("전남광주 북구 용봉동 1403-1")).toBe(true);
     expect(isSupportedRegionAddress("서울특별시 종로구 세종대로 1")).toBe(false);
     expect(isSupportedRegionAddress("부산광역시 중구 중앙대로 1")).toBe(false);
+  });
+
+  it("normalizes the legacy Jeonnam-Gwangju prefix before map lookup or persistence", () => {
+    expect(normalizeSupportedRegionAddress("전남광주 북구 용봉동 1403-1")).toBe("광주광역시 북구 용봉동 1403-1");
+    expect(normalizeSupportedRegionAddress("전남광주통합특별시 동구 서석로 1")).toBe("광주광역시 동구 서석로 1");
+    expect(normalizeSupportedRegionAddress("전라남도 무안군 삼향읍 남악로 12")).toBe("전라남도 무안군 삼향읍 남악로 12");
   });
 
   it("rejects invalid or out-of-region coordinates", () => {

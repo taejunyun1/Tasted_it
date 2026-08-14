@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   isSupportedRegionAddress,
+  normalizeSupportedRegionAddress,
   extractPlaceNeighborhood,
   normalizeGeocodeCandidates,
   type GeocodedPlaceCandidate,
@@ -109,11 +110,12 @@ export function PlaceLocationPicker({
 
   async function searchAddress() {
     clearLocation();
+    const normalizedAddress = normalizeSupportedRegionAddress(address);
     if (!clientId) {
       setError("위치 검색 설정을 확인한 뒤 다시 시도해 주세요.");
       return;
     }
-    if (!isSupportedRegionAddress(address)) {
+    if (!isSupportedRegionAddress(normalizedAddress)) {
       setError("광주·전남 주소만 제안할 수 있어요.");
       return;
     }
@@ -123,7 +125,7 @@ export function PlaceLocationPicker({
     try {
       const sdk = await loadNaverMaps(clientId, { requireGeocoder: true });
       const results = await new Promise<GeocodedPlaceCandidate[]>((resolve, reject) => {
-        sdk.maps.Service.geocode({ query: address }, (geocodeStatus, response) => {
+        sdk.maps.Service.geocode({ query: normalizedAddress }, (geocodeStatus, response) => {
           if (geocodeStatus !== sdk.maps.Service.Status.OK) {
             reject(new Error("GEOCODE_FAILED"));
             return;
