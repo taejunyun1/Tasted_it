@@ -13,6 +13,7 @@
 - 브랜치와 worktree 이름에는 `jay_<작업명>`, `tj_<작업명>`과 같이 작업자별 접두사를 사용한다.
 - 다른 작업자의 브랜치를 재사용하거나 강제 Push하지 않는다.
 - 모든 신규 브랜치는 최신 `origin/main`에서 생성한다.
+- `Archive/*` 브랜치를 신규 작업의 기준으로 사용하지 않는다.
 
 ## 3. 동기화와 충돌
 
@@ -50,6 +51,9 @@
 - 인수인계 시 브랜치, Pull Request, 변경 파일, 테스트 결과, migration과 환경 변수 변경 사항을 전달한다.
 - 미완료 항목과 확인하지 못한 위험을 명확히 기록한다.
 - 병합 후 원격 feature 브랜치를 삭제하고 로컬 `main`을 `origin/main` 기준으로 최신화한다.
+- 병합 후(또는 로컬에 남은 작업이 `main`에 squash-merge된 것이 확인되면) 로컬 브랜치는 삭제하지 않고 `Archive/<원래-브랜치명>`으로 이름 변경한다.
+- 남은 worktree는 제거하여 기본 checkout이 `main`에 머물게 한다.
+- 원격: 삭제. 로컬: `Archive/` 아래에 보존.
 
 ## 8. 문서 언어
 
@@ -75,6 +79,7 @@ This document defines the mandatory collaboration rules for all contributors and
 - Use a contributor-specific prefix for branch and worktree names, such as `jay_<scope>` or `tj_<scope>`.
 - Do not reuse another contributor’s branch or force-push to it.
 - Create every new branch from the latest `origin/main`.
+- Do not use `Archive/*` branches as the base for new work.
 
 ## 3. Synchronization and Conflicts
 
@@ -112,6 +117,9 @@ This document defines the mandatory collaboration rules for all contributors and
 - At handoff, provide the branch, Pull Request, changed files, test results, migrations, and environment-variable changes.
 - Clearly document incomplete work and risks that have not been verified.
 - After merging, delete the remote feature branch and update the local `main` from `origin/main`.
+- After merge (or when leftover local work is confirmed squash-merged into `main`), rename the local branch to `Archive/<original-branch-name>` rather than deleting it.
+- Remove leftover worktrees so the primary checkout stays on `main`.
+- Remote: delete. Local: preserve under `Archive/`.
 
 ## 8. Documentation Language
 

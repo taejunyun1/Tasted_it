@@ -10,8 +10,11 @@ Apply this workflow to every development change in this repository.
 6. Wait for required checks and review the PR diff before merging.
 7. Merge the PR only when checks pass. Prefer squash merge unless the task requires preserved commits.
 8. Delete the remote feature branch after a successful merge when it is no longer needed.
-9. Deploy production from the merged `main`. Preview deployments may run from feature branches before merge.
-10. After merging, update the local `main` from `origin/main` before starting the next branch.
+9. After a PR is merged into `main` (or when leftover local work is confirmed squash-merged into `main`), rename the local feature branch to `Archive/<original-branch-name>` rather than deleting it. Remove leftover worktrees so the primary checkout stays on `main`. Do not use `Archive/*` branches as the base for new work; new branches always start from the latest `origin/main`. Remote: delete. Local: preserve under `Archive/`.
+10. Deploy production from the merged `main`. Preview deployments may run from feature branches before merge.
+11. After merging, update the local `main` from `origin/main` before starting the next branch.
+
+PR이 `main`에 병합된 뒤(또는 로컬에 남은 작업이 `main`에 squash-merge된 것이 확인되면) 원격 feature 브랜치는 삭제하고, 로컬 브랜치는 삭제하지 않고 `Archive/<원래-브랜치명>`으로 이름 변경한다. 남은 worktree는 제거하여 기본 checkout이 `main`에 머물게 한다. `Archive/*` 브랜치는 신규 작업의 기준으로 쓰지 않으며, 모든 신규 브랜치는 최신 `origin/main`에서 시작한다. 원격: 삭제. 로컬: `Archive/` 아래에 보존.
 
 The repository owner follows the same feature-branch and pull-request workflow. A direct push to `origin/main` is reserved for an explicitly approved emergency hotfix.
 
