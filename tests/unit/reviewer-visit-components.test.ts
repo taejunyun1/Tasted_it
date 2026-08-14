@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ReviewerVisitFlow } from "../../app/components/reviewer-visit-flow";
+import { formatReviewerPublishedDate, ReviewerVisitFlow } from "../../app/components/reviewer-visit-flow";
 
 vi.mock("react-router", () => ({
   useFetcher: () => ({ data: null, state: "idle", submit: () => {}, Form: "form" }),
@@ -28,6 +28,10 @@ const props = {
 };
 
 describe("ReviewerVisitFlow", () => {
+  it("formats published review dates in Korea time on both the server and browser", () => {
+    expect(formatReviewerPublishedDate("2026-08-14T18:00:00.000Z")).toBe("2026. 8. 15.");
+  });
+
   it("renders the current app-first publishing contract", () => {
     const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, props));
     expect(html).toContain("방문 리뷰 발행");

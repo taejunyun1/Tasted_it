@@ -14,7 +14,7 @@ import type { PublicDataSource, RegionCode } from "../features/candidates/public
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 import { applyCategoryReclassification, previewCategoryReclassification } from "../features/candidates/category-reclassification.server";
 import { applyNaverCategoryReverification, previewNaverCategoryReverification } from "../features/candidates/naver-category-reverification.server";
-import { createNaverLocalSearchAdapter } from "../features/candidates/naver-local-search.server";
+import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter } from "../features/candidates/naver-local-search.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
 import { getAiClassificationBadge, removeAutoClassificationParam, selectAutomaticClassificationCandidateIds, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
 import { buildCandidatePageHref } from "../features/candidates/pagination";
@@ -132,6 +132,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "naverReclassifyPreview" || intent === "naverReclassifyApply") {
     const afterPlaceId = String(form.get("afterPlaceId") ?? "").trim() || null;
     try {
+      assertNaverLocalSearchEnabled(env);
       const adapter = createNaverLocalSearchAdapter(env);
       const shared = { afterPlaceId, limit: 100, now, adapter, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 200) };
       const result = intent === "naverReclassifyPreview"
