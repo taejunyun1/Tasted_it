@@ -49,7 +49,27 @@ export function reconcileAiClassification(input: {
   ruleConfidence: ClassificationConfidence;
   ruleScore: number;
   ai: AiClassification | null;
+  authoritativeCategorySlug?: string | null;
 }) {
+  if (input.authoritativeCategorySlug) {
+    if (input.ai && input.ai.categorySlug !== input.authoritativeCategorySlug) {
+      return {
+        categorySlug: input.authoritativeCategorySlug,
+        confidence: "CONFLICT" as const,
+        confidenceScore: clampScore(input.ruleScore),
+        eligible: false,
+        reasons: ["확정 외부·원천 근거와 AI 분류 불일치", ...input.ai.reasons],
+      };
+    }
+    const confidenceScore = clampScore(input.ruleScore + (input.ai ? Math.round(input.ai.confidence * 10) : 0));
+    return {
+      categorySlug: input.authoritativeCategorySlug,
+      confidence: input.ruleConfidence === "CONFLICT" ? "CONFLICT" as const : confidenceFromScore(confidenceScore),
+      confidenceScore,
+      eligible: input.ruleConfidence !== "CONFLICT" && input.ai?.confidence != null && input.ai.confidence >= 0.85 && confidenceFromScore(confidenceScore) === "HIGH",
+      reasons: [input.ai ? "확정 외부·원천 근거와 AI 일치" : "확정 외부·원천 근거로 분류", ...(input.ai?.reasons ?? [])],
+    };
+  }
   const ruleScore = clampScore(input.ruleScore);
   if (input.ruleConfidence === "CONFLICT") return {
     categorySlug: input.ruleSlug,
