@@ -3,6 +3,10 @@ declare namespace Cloudflare {
     ADMIN_EMAIL: string;
     NAVER_MAPS_CLIENT_ID: string;
     NAVER_PLACE_GEOCODING_ENABLED: string;
+    NAVER_LOCAL_SEARCH_CLIENT_ID: string;
+    NAVER_LOCAL_SEARCH_CLIENT_SECRET: string;
+    NAVER_LOCAL_SEARCH_ENABLED: string;
+    NAVER_LOCAL_SEARCH_DAILY_LIMIT: string;
     DATA_GO_KR_SERVICE_KEY: string;
     RESEND_API_KEY: string;
     RESEND_FROM_EMAIL: string;

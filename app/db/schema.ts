@@ -359,6 +359,54 @@ export const adminAuditLogs = sqliteTable("admin_audit_logs", {
   createdAt: text("created_at").notNull(),
 });
 
+export const naverLocalCategoryVerifications = sqliteTable(
+  "naver_local_category_verifications",
+  {
+    businessLicenseId: text("business_license_id")
+      .primaryKey()
+      .references(() => businessLicenses.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["VERIFIED", "LIKELY", "AMBIGUOUS", "NO_MATCH", "OUT_OF_SCOPE", "FAILED", "SKIPPED"] }).notNull(),
+    mappedCategoryId: text("mapped_category_id").references(() => categories.id, { onDelete: "set null" }),
+    matchScore: integer("match_score").notNull(),
+    specificityScore: integer("specificity_score").notNull(),
+    confidenceScore: integer("confidence_score").notNull(),
+    evidenceCodesJson: text("evidence_codes_json").notNull(),
+    ruleVersion: text("rule_version").notNull(),
+    inputFingerprint: text("input_fingerprint").notNull(),
+    queriedAt: text("queried_at").notNull(),
+    expiresAt: text("expires_at"),
+    failureCode: text("failure_code"),
+    ...timestamps,
+  },
+  (table) => [
+    index("naver_local_category_verifications_status_queried_idx").on(table.status, table.queriedAt),
+    index("naver_local_category_verifications_expiry_idx").on(table.expiresAt),
+  ],
+);
+
+export const naverLocalCategoryRuns = sqliteTable(
+  "naver_local_category_runs",
+  {
+    id: text("id").primaryKey(),
+    mode: text("mode", { enum: ["PREVIEW", "APPLY"] }).notNull(),
+    scope: text("scope", { enum: ["PENDING", "PUBLISHED"] }).notNull(),
+    status: text("status", { enum: ["RUNNING", "COMPLETED", "FAILED", "SKIPPED"] }).notNull(),
+    afterBusinessLicenseId: text("after_business_license_id"),
+    requestedLimit: integer("requested_limit").notNull(),
+    scannedCount: integer("scanned_count").notNull().default(0),
+    verifiedCount: integer("verified_count").notNull().default(0),
+    changeCount: integer("change_count").notNull().default(0),
+    conflictCount: integer("conflict_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    apiCallCount: integer("api_call_count").notNull().default(0),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at"),
+    errorCode: text("error_code"),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (table) => [index("naver_local_category_runs_status_started_idx").on(table.status, table.startedAt)],
+);
+
 export const reviewerApplications = sqliteTable(
   "reviewer_applications",
   {
