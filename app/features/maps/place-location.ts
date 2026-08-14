@@ -9,6 +9,7 @@ export type GeocodedPlaceCandidate = Readonly<{
   address: string;
   roadAddress: string | null;
   jibunAddress: string | null;
+  neighborhood: string | null;
   coordinate: PlaceCoordinate;
 }>;
 
@@ -53,6 +54,17 @@ export function isSupportedRegionAddress(address: string) {
   return normalized !== null && /^(?:광주(?:광역시)?|전라남도|전남(?:\s|$)|전남광주통합특별시)/u.test(normalized);
 }
 
+export function extractPlaceNeighborhood(address: string | null | undefined) {
+  if (!address) return null;
+  const isNeighborhood = (token: string) => /(?:동|읍|면|리)$/u.test(token);
+  const parenthesized = [...address.matchAll(/\(([^)]*)\)/gu)]
+    .flatMap((match) => match[1].split(/[·,\s]+/u))
+    .find(isNeighborhood);
+  if (parenthesized) return parenthesized;
+  const tokens = address.split(/[·,()\s]+/u).filter(isNeighborhood);
+  return tokens.find((token) => token.endsWith("리")) ?? tokens.at(-1) ?? null;
+}
+
 export function validatePlaceCoordinate(coordinate: PlaceCoordinate): PlaceLocationValidation {
   if (!isCoordinateInSupportedBounds(coordinate)) {
     return { ok: false, code: "LOCATION_OUT_OF_SCOPE" };
@@ -92,6 +104,7 @@ function toGeocodedCandidate(item: NaverGeocodeAddress): GeocodedPlaceCandidate 
     address,
     roadAddress,
     jibunAddress,
+    neighborhood: extractPlaceNeighborhood(jibunAddress ?? address),
     coordinate: validation.coordinate,
   };
 }

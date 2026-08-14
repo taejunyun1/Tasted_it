@@ -61,6 +61,7 @@ test("a member finds an address, confirms a map pin, and submits without raw coo
   await page.getByLabel("주소").fill("광주광역시 동구 서석로 1 (서석동)");
   await page.getByRole("button", { name: "지도에서 위치 찾기" }).click();
   await page.getByLabel(/광주광역시 동구 서석로 1/).check();
+  await expect(page.getByLabel("주소")).toHaveValue("광주광역시 동구 서석로 1");
   await expect(page.getByLabel("선택한 장소 위치 지도")).toBeVisible();
   await page.getByRole("button", { name: "이 위치로 확정" }).click();
 

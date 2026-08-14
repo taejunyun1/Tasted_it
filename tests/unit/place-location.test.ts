@@ -46,7 +46,7 @@ describe("place suggestion location contract", () => {
   it("prioritizes road-address candidates, removes duplicates, and limits results to five", () => {
     const candidates = normalizeGeocodeCandidates([
       { roadAddress: "", jibunAddress: "광주광역시 동구 지산동 1", x: "126.9000", y: "35.1500" },
-      { roadAddress: "광주광역시 동구 지산로 2", jibunAddress: "", x: "126.9010", y: "35.1510" },
+      { roadAddress: "광주광역시 동구 지산로 2", jibunAddress: "광주광역시 동구 지산동 2", x: "126.9010", y: "35.1510" },
       { roadAddress: "광주광역시 동구 지산로 3", jibunAddress: "", x: "126.9020", y: "35.1520" },
       { roadAddress: "광주광역시 동구 지산로 3", jibunAddress: "", x: "126.9020", y: "35.1520" },
       { roadAddress: "광주광역시 동구 지산로 4", jibunAddress: "", x: "126.9030", y: "35.1530" },
@@ -59,6 +59,7 @@ describe("place suggestion location contract", () => {
       address: "광주광역시 동구 지산로 2",
       roadAddress: "광주광역시 동구 지산로 2",
     });
+    expect(candidates[0]?.neighborhood).toBe("지산동");
     expect(candidates.map((candidate) => candidate.address)).not.toContain("광주광역시 동구 지산동 1");
   });
 });

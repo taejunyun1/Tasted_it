@@ -177,12 +177,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   const state = parseMapState(url.search);
   const homeState = parseHomeCurationState(url.search);
   const category = url.searchParams.get("category") || undefined;
+  const qaMode = url.searchParams.has("qa");
   const db = createDb(env.DB);
   const common = {
     state,
     category: category ?? null,
-    clientId: env.NAVER_MAPS_CLIENT_ID ?? "",
-    qaMode: url.searchParams.has("qa"),
+    // QA is deliberately self-contained: it must not call the external map SDK
+    // just because an operator's local `.dev.vars` has a real Client ID.
+    clientId: qaMode ? "" : env.NAVER_MAPS_CLIENT_ID ?? "",
+    qaMode,
   };
 
   if (homeState.view === "browse") {

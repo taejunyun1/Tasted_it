@@ -3,11 +3,12 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../db/schema";
 import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput } from "./place-duplicate-policy";
-import { isSupportedRegionAddress, validatePlaceCoordinate } from "../maps/place-location";
+import { isSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
 import { slugifyPlaceName } from "./place-slug";
 
 export interface SuggestionInput extends PlaceIdentityInput {
   id: string; userId: string; neighborhood: string; categoryId: string;
+  originLatitude: number; originLongitude: number;
   latitude: number; longitude: number;
   description: string | null; duplicateOverrideReason: string | null; now: string;
 }
@@ -27,10 +28,14 @@ export async function submitPlaceSuggestion(db: AppDb, input: SuggestionInput) {
   ]);
   if (!user?.emailVerifiedAt) throw new Error("EMAIL_VERIFICATION_REQUIRED");
   if (!category) throw new Error("CATEGORY_NOT_FOUND");
-  if (input.latitude == null || input.longitude == null) throw new Error("LOCATION_REQUIRED");
+  if (input.originLatitude == null || input.originLongitude == null || input.latitude == null || input.longitude == null) throw new Error("LOCATION_REQUIRED");
   if (!isSupportedRegionAddress(input.address)) throw new Error("LOCATION_OUT_OF_SCOPE");
+  const origin = validatePlaceCoordinate({ latitude: input.originLatitude, longitude: input.originLongitude });
+  if (!origin.ok) throw new Error(origin.code);
   const location = validatePlaceCoordinate({ latitude: input.latitude, longitude: input.longitude });
   if (!location.ok) throw new Error(location.code);
+  const adjusted = validateAdjustedCoordinate(origin.coordinate, location.coordinate);
+  if (!adjusted.ok) throw new Error(adjusted.code);
   const normalized = normalizePlaceIdentity(input);
   if (!normalized.name || !normalized.address || !input.neighborhood.trim()) throw new Error("SUGGESTION_REQUIRED_FIELDS");
   const duplicates = await findSuggestionDuplicates(db, input);
@@ -57,28 +62,78 @@ async function uniqueSlug(db: AppDb, name: string) {
   return slug;
 }
 
-export async function approvePlaceSuggestion(db: AppDb, input: { suggestionId: string; actorUserId: string; placeId: string; latitude?: number | null; longitude?: number | null; reason: string; now: string }) {
+export async function approvePlaceSuggestion(db: AppDb, input: {
+  suggestionId: string;
+  actorUserId: string;
+  address?: string | null;
+  neighborhood?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  originLatitude?: number | null;
+  originLongitude?: number | null;
+  reason: string;
+  now: string;
+}) {
   const [suggestion, actor] = await Promise.all([
     db.query.placeSuggestions.findFirst({ where: eq(placeSuggestions.id, input.suggestionId) }),
     db.query.users.findFirst({ where: eq(users.id, input.actorUserId) }),
   ]);
   if (actor?.role !== "ADMIN") throw new Error("ADMIN_REQUIRED");
-  if (!suggestion || !["SUBMITTED", "NEEDS_INFO", "REVIEWING"].includes(suggestion.status)) throw new Error("SUGGESTION_NOT_REVIEWABLE");
+  if (!suggestion) throw new Error("SUGGESTION_NOT_REVIEWABLE");
+
+  // A browser can lose the response after the D1 batch commits. Treat an
+  // identical follow-up request as the already-completed approval instead of
+  // making the reviewer retry into a terminal-state error.
+  if (suggestion.status === "APPROVED" && suggestion.approvedPlaceId === suggestion.id) {
+    const existingPlace = await db.query.places.findFirst({ where: eq(places.id, suggestion.id) });
+    if (existingPlace) return { placeId: existingPlace.id, slug: existingPlace.slug, status: existingPlace.status };
+  }
+
+  if (!["SUBMITTED", "NEEDS_INFO", "REVIEWING"].includes(suggestion.status)) throw new Error("SUGGESTION_NOT_REVIEWABLE");
   if (!input.reason.trim()) throw new Error("REVIEW_REASON_REQUIRED");
+  const address = input.address?.trim() || suggestion.address;
+  const neighborhood = input.neighborhood?.trim() || suggestion.neighborhood;
+  if (!address || !neighborhood) throw new Error("SUGGESTION_REQUIRED_FIELDS");
+  if (!isSupportedRegionAddress(address)) throw new Error("LOCATION_OUT_OF_SCOPE");
   const latitude = input.latitude ?? suggestion.latitude; const longitude = input.longitude ?? suggestion.longitude;
-  if (latitude == null || longitude == null || !Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error("SUGGESTION_COORDINATES_REQUIRED");
+  if (latitude == null || longitude == null) throw new Error("SUGGESTION_COORDINATES_REQUIRED");
+  const originLatitude = input.originLatitude ?? suggestion.latitude; const originLongitude = input.originLongitude ?? suggestion.longitude;
+  if (originLatitude == null || originLongitude == null) throw new Error("SUGGESTION_COORDINATES_REQUIRED");
+  const origin = validatePlaceCoordinate({ latitude: originLatitude, longitude: originLongitude });
+  if (!origin.ok) throw new Error(origin.code);
+  const location = validatePlaceCoordinate({ latitude, longitude });
+  if (!location.ok) throw new Error(location.code);
+  const adjusted = validateAdjustedCoordinate(origin.coordinate, location.coordinate);
+  if (!adjusted.ok) throw new Error(adjusted.code);
+  const normalized = normalizePlaceIdentity({ name: suggestion.name, address, phone: suggestion.phone });
+  // One suggestion has one immutable draft ID. Retried or concurrent approvals
+  // therefore collide safely inside the same D1 batch instead of creating twins.
+  const placeId = suggestion.id;
   const slug = await uniqueSlug(db, suggestion.name);
-  const place = { id: input.placeId, slug, name: suggestion.name, status: "DRAFT" as const, address: suggestion.address, neighborhood: suggestion.neighborhood, latitude, longitude, phone: suggestion.phone, searchText: `${suggestion.name} ${suggestion.address} ${suggestion.neighborhood}`.toLocaleLowerCase("ko-KR"), lastVerifiedAt: input.now, createdAt: input.now, updatedAt: input.now };
-  await db.batch([
+  const place = { id: placeId, slug, name: suggestion.name, status: "DRAFT" as const, address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, phone: suggestion.phone, searchText: `${suggestion.name} ${address} ${neighborhood}`.toLocaleLowerCase("ko-KR"), lastVerifiedAt: input.now, createdAt: input.now, updatedAt: input.now };
+  try {
+    await db.batch([
+    // Claim with REVIEWING before the place insert. A suggestion cannot point to
+    // a draft that does not exist yet because approved_place_id is a foreign key.
+    // The D1 batch is atomic, so REVIEWING is never externally visible on failure.
+    db.update(placeSuggestions).set({ status: "REVIEWING", address, normalizedAddress: normalized.address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(eq(placeSuggestions.id, suggestion.id), inArray(placeSuggestions.status, ["SUBMITTED", "NEEDS_INFO", "REVIEWING"]))),
     db.insert(places).values(place),
-    db.insert(placeCategories).values({ placeId: input.placeId, categoryId: suggestion.categoryId, isPrimary: true }),
-    db.update(placeSuggestions).set({ status: "APPROVED", approvedPlaceId: input.placeId, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(eq(placeSuggestions.id, suggestion.id)),
+    db.insert(placeCategories).values({ placeId, categoryId: suggestion.categoryId, isPrimary: true }),
+    db.update(placeSuggestions).set({ status: "APPROVED", approvedPlaceId: placeId, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(eq(placeSuggestions.id, suggestion.id), eq(placeSuggestions.status, "REVIEWING"), eq(placeSuggestions.reviewedBy, input.actorUserId), eq(placeSuggestions.reviewedAt, input.now))),
     db.update(placeDuplicateCandidates).set({ status: "DISMISSED", resolvedBy: input.actorUserId, resolvedAt: input.now, updatedAt: input.now }).where(eq(placeDuplicateCandidates.suggestionId, suggestion.id)),
     db.update(reviewerApplications).set({ approvedSuggestionCount: sql`${reviewerApplications.approvedSuggestionCount} + 1`, updatedAt: input.now }).where(and(eq(reviewerApplications.userId, suggestion.userId), inArray(reviewerApplications.status, ["APPLIED", "REVIEWING"]))),
-    db.insert(placeRevisions).values({ id: crypto.randomUUID(), placeId: input.placeId, actorUserId: input.actorUserId, action: "CREATE_FROM_SUGGESTION", reason: input.reason.trim(), beforeJson: null, afterJson: JSON.stringify(place), sourceType: "PLACE_SUGGESTION", sourceId: suggestion.id, createdAt: input.now }),
-    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "APPROVE_PLACE_SUGGESTION", targetType: "PLACE_SUGGESTION", targetId: suggestion.id, beforeState: JSON.stringify({ status: suggestion.status }), afterState: JSON.stringify({ status: "APPROVED", placeId: input.placeId }), createdAt: input.now }),
-  ]);
-  return { placeId: input.placeId, slug, status: "DRAFT" as const };
+    db.insert(placeRevisions).values({ id: crypto.randomUUID(), placeId, actorUserId: input.actorUserId, action: "CREATE_FROM_SUGGESTION", reason: input.reason.trim(), beforeJson: null, afterJson: JSON.stringify(place), sourceType: "PLACE_SUGGESTION", sourceId: suggestion.id, createdAt: input.now }),
+    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "APPROVE_PLACE_SUGGESTION", targetType: "PLACE_SUGGESTION", targetId: suggestion.id, beforeState: JSON.stringify({ status: suggestion.status, address: suggestion.address, neighborhood: suggestion.neighborhood, latitude: suggestion.latitude, longitude: suggestion.longitude }), afterState: JSON.stringify({ status: "APPROVED", placeId, address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude }), createdAt: input.now }),
+    ]);
+  } catch (error) {
+    const alreadyApproved = await db.query.placeSuggestions.findFirst({ where: eq(placeSuggestions.id, suggestion.id) });
+    const existingPlace = await db.query.places.findFirst({ where: eq(places.id, placeId) });
+    if (alreadyApproved?.status === "APPROVED" && alreadyApproved.approvedPlaceId === placeId && existingPlace) {
+      return { placeId, slug: existingPlace.slug, status: "DRAFT" as const };
+    }
+    throw error;
+  }
+  return { placeId, slug, status: "DRAFT" as const };
 }
 
 export async function transitionPlaceSuggestion(db: AppDb, input: { suggestionId: string; actorUserId: string; status: "NEEDS_INFO" | "REVIEWING" | "REJECTED" | "DUPLICATE"; reason: string; now: string }) {

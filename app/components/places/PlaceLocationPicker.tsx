@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   isSupportedRegionAddress,
+  extractPlaceNeighborhood,
   normalizeGeocodeCandidates,
   type GeocodedPlaceCandidate,
   type PlaceCoordinate,
@@ -13,6 +14,7 @@ type PlaceLocationPickerProps = {
   clientId: string;
   namePrefix?: string;
   defaultAddress?: string;
+  defaultNeighborhood?: string | null;
   defaultLatitude?: number | null;
   defaultLongitude?: number | null;
   mode: "MEMBER" | "ADMIN";
@@ -52,6 +54,7 @@ export function PlaceLocationPicker({
   clientId,
   namePrefix = "",
   defaultAddress = "",
+  defaultNeighborhood,
   defaultLatitude,
   defaultLongitude,
   mode,
@@ -60,11 +63,13 @@ export function PlaceLocationPicker({
 }: PlaceLocationPickerProps) {
   const initial = initialCoordinate(defaultLatitude, defaultLongitude);
   const [address, setAddress] = useState(defaultAddress);
+  const [neighborhood, setNeighborhood] = useState(defaultNeighborhood ?? extractPlaceNeighborhood(defaultAddress));
   const [candidates, setCandidates] = useState<GeocodedPlaceCandidate[]>([]);
   const [origin, setOrigin] = useState<PlaceCoordinate | null>(initial);
   const [adjusted, setAdjusted] = useState<PlaceCoordinate | null>(initial);
   const [confirmed, setConfirmed] = useState(false);
   const [status, setStatus] = useState<PickerStatus>(initial ? "READY" : "IDLE");
+  const [mapVisible, setMapVisible] = useState(mode !== "ADMIN" || initial === null);
   const [error, setError] = useState("");
   const mapElementRef = useRef<HTMLDivElement | null>(null);
 
@@ -77,12 +82,17 @@ export function PlaceLocationPicker({
     setCandidates([]);
     setOrigin(null);
     setAdjusted(null);
+    setNeighborhood(null);
+    setMapVisible(false);
     clearConfirmation();
   }
 
   function selectCandidate(candidate: GeocodedPlaceCandidate) {
+    setAddress(candidate.address);
     setOrigin(candidate.coordinate);
     setAdjusted(candidate.coordinate);
+    setNeighborhood(candidate.neighborhood);
+    setMapVisible(true);
     setStatus("READY");
     setError("");
     clearConfirmation();
@@ -111,7 +121,7 @@ export function PlaceLocationPicker({
     setStatus("SEARCHING");
     setError("");
     try {
-      const sdk = await loadNaverMaps(clientId);
+      const sdk = await loadNaverMaps(clientId, { requireGeocoder: true });
       const results = await new Promise<GeocodedPlaceCandidate[]>((resolve, reject) => {
         sdk.maps.Service.geocode({ query: address }, (geocodeStatus, response) => {
           if (geocodeStatus !== sdk.maps.Service.Status.OK) {
@@ -139,6 +149,10 @@ export function PlaceLocationPicker({
       setError("주소 검색 결과에서 위치를 하나 선택해 주세요.");
       return;
     }
+    if (!neighborhood) {
+      setError("주소의 동·읍·면·리를 확인하지 못했어요. 다른 주소 결과를 선택해 주세요.");
+      return;
+    }
     const validation = validateAdjustedCoordinate(origin, adjusted);
     if (!validation.ok) {
       setError(locationErrorMessage(validation.code));
@@ -156,7 +170,7 @@ export function PlaceLocationPicker({
     let dragListener: unknown;
     let map: naver.maps.Map | null = null;
 
-    void loadNaverMaps(clientId).then((sdk) => {
+    void loadNaverMaps(clientId, { requireGeocoder: true }).then((sdk) => {
       if (disposed || !mapElementRef.current) return;
       const position = new sdk.maps.LatLng(adjusted.latitude, adjusted.longitude);
       map = new sdk.maps.Map(mapElementRef.current, { center: position, zoom: 16, zoomControl: true });
@@ -181,7 +195,7 @@ export function PlaceLocationPicker({
   }, [adjusted?.latitude, adjusted?.longitude, clientId, origin?.latitude, origin?.longitude]);
 
   const prefix = namePrefix;
-  const hasMap = origin !== null && adjusted !== null;
+  const hasMap = mapVisible && origin !== null && adjusted !== null;
   const canConfirm = hasMap && !error;
 
   return (
@@ -214,6 +228,11 @@ export function PlaceLocationPicker({
       <button className="place-location-search" type="button" onClick={() => void searchAddress()} disabled={status === "SEARCHING"}>
         {status === "SEARCHING" ? "주소 찾는 중…" : "지도에서 위치 찾기"}
       </button>
+      {mode === "ADMIN" && !mapVisible && origin && adjusted && (
+        <button className="place-location-search" type="button" onClick={() => { setMapVisible(true); clearConfirmation(); }}>
+          기존 위치 지도에서 확인
+        </button>
+      )}
 
       <p className="place-location-status" role="status" aria-live="polite">
         {status === "SEARCHING" ? "NAVER 지도에서 주소를 찾고 있어요." : ""}
@@ -263,7 +282,10 @@ export function PlaceLocationPicker({
 
       <input type="hidden" name={inputName(prefix, "latitude")} value={confirmed && adjusted ? adjusted.latitude : ""} />
       <input type="hidden" name={inputName(prefix, "longitude")} value={confirmed && adjusted ? adjusted.longitude : ""} />
+      <input type="hidden" name={inputName(prefix, "originLatitude")} value={confirmed && origin ? origin.latitude : ""} />
+      <input type="hidden" name={inputName(prefix, "originLongitude")} value={confirmed && origin ? origin.longitude : ""} />
       <input type="hidden" name={inputName(prefix, "locationConfirmed")} value={confirmed ? "true" : ""} />
+      <input type="hidden" name={inputName(prefix, "neighborhood")} value={confirmed ? neighborhood ?? "" : ""} />
     </section>
   );
 }

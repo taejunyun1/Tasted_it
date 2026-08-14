@@ -11,7 +11,7 @@
 	"preview_urls": false,
 	"vars": {
 		"ONBOARDING_ENABLED": "true",
-		"NAVER_PLACE_GEOCODING_ENABLED": "false",
+		"NAVER_PLACE_GEOCODING_ENABLED": "true",
 		"REVIEW_PHOTO_UPLOAD_ENABLED": "false"
 	},
 	"ai": { "binding": "AI" },

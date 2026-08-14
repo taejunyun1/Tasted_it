@@ -16,6 +16,8 @@ describe("PlaceLocationPicker contract", () => {
     expect(html).toContain('name="latitude" value=""');
     expect(html).toContain('name="longitude" value=""');
     expect(html).toContain('name="locationConfirmed" value=""');
+    expect(html).toContain('name="originLatitude" value=""');
+    expect(html).toContain('name="originLongitude" value=""');
     expect(html).toContain("지도에서 위치 찾기");
     expect(html).toContain('role="status"');
     expect(html).not.toContain("선택 좌표:");
@@ -31,8 +33,7 @@ describe("PlaceLocationPicker contract", () => {
     }));
 
     expect(html).toContain('data-mode="ADMIN"');
-    expect(html).toContain("선택 좌표:");
-    expect(html).toContain("원래 위치");
-    expect(html).toContain("10m 위");
+    expect(html).toContain("기존 위치 지도에서 확인");
+    expect(html).not.toContain("선택 좌표:");
   });
 });

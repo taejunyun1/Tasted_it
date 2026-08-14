@@ -9,15 +9,18 @@ import { PlaceLocationPicker } from "../components/places/PlaceLocationPicker";
 import { createDb } from "../db/client.server";
 import { categories } from "../db/schema";
 import { requireUser } from "../features/auth/session.server";
-import { extractNeighborhood } from "../features/candidates/category-suggestion";
+import { extractPlaceNeighborhood } from "../features/maps/place-location";
 import { submitPlaceSuggestion } from "../features/places/place-suggestion.server";
 
 const suggestionSchema = z.object({
   name: z.string().trim().min(1).max(120),
   address: z.string().trim().min(5).max(300),
+  originLatitude: z.coerce.number().finite(),
+  originLongitude: z.coerce.number().finite(),
   latitude: z.coerce.number().finite(),
   longitude: z.coerce.number().finite(),
   locationConfirmed: z.literal("true"),
+  neighborhood: z.string().trim().max(80).transform((value) => value || null),
   // Category IDs are stable seeded identifiers such as `cat-ramen`, not UUIDs.
   // The server still verifies that the category is active before it persists a suggestion.
   categoryId: z.string().trim().min(1).max(120),
@@ -54,9 +57,12 @@ export async function action({ request }: Route.ActionArgs) {
   const parsed = suggestionSchema.safeParse({
     name: form.get("name"),
     address: form.get("address"),
+    originLatitude: form.get("originLatitude"),
+    originLongitude: form.get("originLongitude"),
     latitude: form.get("latitude"),
     longitude: form.get("longitude"),
     locationConfirmed: form.get("locationConfirmed"),
+    neighborhood: form.get("neighborhood") ?? "",
     categoryId: form.get("categoryId"),
     phone: form.get("phone") ?? "",
     description: form.get("description") ?? "",
@@ -64,7 +70,7 @@ export async function action({ request }: Route.ActionArgs) {
   });
   if (!parsed.success) return data({ ok: false, error: "입력한 장소와 지도 위치를 다시 확인해 주세요." }, { status: 400 });
 
-  const neighborhood = extractNeighborhood(parsed.data.address);
+  const neighborhood = parsed.data.neighborhood ?? extractPlaceNeighborhood(parsed.data.address);
   if (!neighborhood) return data({ ok: false, error: "주소에서 동·읍·면·리를 확인할 수 없습니다." }, { status: 400 });
 
   try {
@@ -74,6 +80,8 @@ export async function action({ request }: Route.ActionArgs) {
       name: parsed.data.name,
       address: parsed.data.address,
       neighborhood,
+      originLatitude: parsed.data.originLatitude,
+      originLongitude: parsed.data.originLongitude,
       latitude: parsed.data.latitude,
       longitude: parsed.data.longitude,
       phone: parsed.data.phone,
