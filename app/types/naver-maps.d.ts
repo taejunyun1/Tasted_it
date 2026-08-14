@@ -1,6 +1,8 @@
 declare namespace naver.maps {
   class LatLng {
     constructor(lat: number, lng: number);
+    lat(): number;
+    lng(): number;
   }
 
   class Point {
@@ -20,8 +22,10 @@ declare namespace naver.maps {
   }
 
   class Marker {
-    constructor(options: { map: Map; position: LatLng; icon?: { content: HTMLElement; anchor: Point } });
+    constructor(options: { map: Map; position: LatLng; icon?: { content: HTMLElement; anchor: Point }; draggable?: boolean });
     setMap(map: Map | null): void;
+    getPosition(): LatLng;
+    setPosition(position: LatLng): void;
   }
 
   class LatLngBounds {
@@ -35,8 +39,25 @@ declare namespace naver.maps {
   }
 
   namespace Event {
-    function addListener(target: Map, eventName: string, listener: () => void): unknown;
+    function addListener(target: Map | Marker, eventName: string, listener: (event: { coord: LatLng }) => void): unknown;
     function removeListener(listener: unknown): void;
+  }
+
+  namespace Service {
+    enum Status {
+      OK,
+      ERROR,
+    }
+
+    function geocode(
+      options: { query: string },
+      callback: (status: Status, response: { v2: { addresses: Array<{
+        roadAddress: string;
+        jibunAddress: string;
+        x: string;
+        y: string;
+      }> } }) => void,
+    ): void;
   }
 }
 

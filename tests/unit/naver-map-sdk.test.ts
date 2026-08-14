@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildNaverMapsScriptUrl, toBoundsTuple } from "../../app/features/maps/naver-map-sdk";
 
 describe("NAVER Maps SDK helpers", () => {
-  it("builds the current Web Dynamic Map script URL", () => {
+  it("loads the Web Dynamic Map SDK with the geocoder submodule exactly once", () => {
     expect(buildNaverMapsScriptUrl("client id/+"))
-      .toBe("https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=client%20id%2F%2B");
+      .toBe("https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=client+id%2F%2B&submodules=geocoder");
   });
 
   it("converts NAVER southwest/northeast bounds to the URL bbox order", () => {

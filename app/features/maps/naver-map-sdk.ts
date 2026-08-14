@@ -1,8 +1,14 @@
 const NAVER_MAPS_SCRIPT_ID = "naver-maps-sdk";
 let sdkPromise: Promise<typeof naver> | undefined;
 
+function hasGeocoderSdk(value: unknown): value is typeof naver {
+  return typeof (value as { maps?: { Service?: { geocode?: unknown } } } | undefined)
+    ?.maps?.Service?.geocode === "function";
+}
+
 export function buildNaverMapsScriptUrl(clientId: string) {
-  return `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
+  const query = new URLSearchParams({ ncpKeyId: clientId, submodules: "geocoder" });
+  return `https://oapi.map.naver.com/openapi/v3/maps.js?${query.toString()}`;
 }
 
 export function toBoundsTuple(
@@ -13,15 +19,15 @@ export function toBoundsTuple(
 }
 
 export function loadNaverMaps(clientId: string): Promise<typeof naver> {
-  if (window.naver?.maps) return Promise.resolve(window.naver);
+  if (hasGeocoderSdk(window.naver)) return Promise.resolve(window.naver);
   if (sdkPromise) return sdkPromise;
 
-  sdkPromise = new Promise((resolve, reject) => {
+  const promise = new Promise<typeof naver>((resolve, reject) => {
     const existing = document.getElementById(NAVER_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
     const script = existing ?? document.createElement("script");
-    const onLoad = () => window.naver?.maps
+    const onLoad = () => hasGeocoderSdk(window.naver)
       ? resolve(window.naver)
-      : reject(new Error("NAVER Maps SDK가 초기화되지 않았습니다."));
+      : reject(new Error("NAVER Maps 지오코더가 초기화되지 않았습니다."));
 
     script.addEventListener("load", onLoad, { once: true });
     script.addEventListener("error", () => reject(new Error("NAVER Maps SDK를 불러오지 못했습니다.")), { once: true });
@@ -33,5 +39,9 @@ export function loadNaverMaps(clientId: string): Promise<typeof naver> {
     }
   });
 
-  return sdkPromise;
+  sdkPromise = promise;
+  void promise.catch(() => {
+    if (sdkPromise === promise) sdkPromise = undefined;
+  });
+  return promise;
 }
