@@ -4,9 +4,9 @@ import type { AppDb } from "../../db/client.server";
 import { aiClassificationRuns, categories, places } from "../../db/schema";
 import { approveCandidate, listPendingCandidates } from "./candidate.server";
 import type { CandidateFilters } from "./candidate.server";
-import { classifyCandidate } from "./category-suggestion";
+import { classifyCandidate, getAuthoritativeSubtypeCategorySlug } from "./category-suggestion";
 import { classifyReviewState } from "./review-classification";
-import { reconcileAiClassification, validateAiClassification } from "./ai-classification-policy";
+import { reconcileAiClassification, validateAiClassification, validateAiSubtypeCategoryAlignment } from "./ai-classification-policy";
 import { AI_CLASSIFICATION_PROMPT } from "./ai-classification.server";
 import { getTerminalCategoryIds } from "./category-selection";
 
@@ -58,9 +58,23 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       businessName: candidate.businessName,
       address,
     });
-    const aiRun = latestAi.get(candidate.id); let ai = null;
+    const authoritativeSubtypeCategorySlug = getAuthoritativeSubtypeCategorySlug({
+      sourceType: candidate.sourceType,
+      businessSubtype: candidate.businessSubtype,
+      businessName: candidate.businessName,
+      address,
+    }, classification);
+    const aiRun = latestAi.get(candidate.id); let ai = null; let aiValidationError: string | null = null;
     const isActualAiSuccess = aiRun?.status === "SUCCESS" && aiRun.model !== "RULE_ONLY";
-    if (isActualAiSuccess) try { ai = validateAiClassification({ categorySlug: aiRun.categorySlug, confidence: aiRun.confidence, reasons: JSON.parse(aiRun.reasonsJson ?? "[]") }, new Set(categoryRows.map((row) => row.slug))); } catch { ai = null; }
+    if (isActualAiSuccess) try {
+      ai = validateAiSubtypeCategoryAlignment(
+        validateAiClassification({ categorySlug: aiRun.categorySlug, confidence: aiRun.confidence, reasons: JSON.parse(aiRun.reasonsJson ?? "[]") }, new Set(categoryRows.map((row) => row.slug))),
+        authoritativeSubtypeCategorySlug,
+      );
+    } catch (error) {
+      ai = null;
+      aiValidationError = error instanceof Error ? error.message : "AI_OUTPUT_INVALID";
+    }
     const combined = reconcileAiClassification({ ruleSlug: classification.categorySlug, ruleConfidence: classification.confidence, ruleScore: classification.confidenceScore, ai });
     const category = categoryBySlug.get(combined.categorySlug);
     const review = classifyReviewState({
@@ -82,8 +96,8 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       confidence: combined.confidence,
       confidenceScore: combined.confidenceScore,
       neighborhood: classification.neighborhood,
-      reasons: [...classification.reasons, ...combined.reasons],
-      classificationSource: isActualAiSuccess ? "AI_RULE" as const : aiRun?.status === "FAILED" ? "AI_FAILED" as const : "RULE_ONLY" as const,
+      reasons: [...classification.reasons, ...(aiValidationError === "AI_SUBTYPE_CATEGORY_MISMATCH" ? ["원천 업태와 AI 카테고리가 달라 수동 확인 필요"] : []), ...combined.reasons],
+      classificationSource: isActualAiSuccess && ai ? "AI_RULE" as const : aiRun?.status === "FAILED" || aiValidationError ? "AI_FAILED" as const : "RULE_ONLY" as const,
       aiConfidence: aiRun?.confidence ?? null,
       blockers: review.blockers,
       reviewReasons: review.reviewReasons,

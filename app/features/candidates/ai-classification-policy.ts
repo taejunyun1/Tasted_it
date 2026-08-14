@@ -33,6 +33,13 @@ export function validateGroundedAiClassification(raw: unknown, allowedSlugs: Set
   return { ...parsed, evidence: groundedEvidence };
 }
 
+export function validateAiSubtypeCategoryAlignment(ai: AiClassification, authoritativeSubtypeCategorySlug: string | null) {
+  if (authoritativeSubtypeCategorySlug && ai.categorySlug !== authoritativeSubtypeCategorySlug) {
+    throw new Error("AI_SUBTYPE_CATEGORY_MISMATCH");
+  }
+  return ai;
+}
+
 function clampScore(score: number) {
   return Math.min(100, Math.max(0, Math.round(score)));
 }

@@ -73,5 +73,6 @@ export const subtypeCategoryRules: CategoryRule[] = [
   { pattern: /분식|김밥|떡볶이|순대/, group: "bunsik", slug: "tteokbokki", label: "원천 업태의 분식 표현", kind: "CUISINE" },
   { pattern: /커피|카페|다방/, group: "cafe", slug: "cafe", label: "원천 업태의 카페 표현", kind: "VENUE" },
   { pattern: /베이킹|제과|제빵|베이커리|과자점/, group: "cafe", slug: "bakery-detail", label: "원천 업태의 제과·제빵 표현", kind: "FOOD" },
+  { pattern: /정종|대포집|소주방|실내포장마차|포장마차|포차|소주/, group: "bar", slug: "pocha", label: "원천 업태의 정종·대포집·소주방 표현", kind: "VENUE", priority: 40, evidenceTier: 2 },
   { pattern: /호프|주점|펍|유흥|라이브|음악/, group: "bar", slug: "pub", label: "원천 업태의 호프·주점 표현", kind: "VENUE" },
 ];

@@ -5,7 +5,8 @@ test.beforeEach(async ({ context }, testInfo) => {
   await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: baseURL }]);
 });
 
-test("admin reviews only approvable automatic and manual candidates in the default list", async ({ page }) => {
+test("admin reviews only approvable automatic and manual candidates in the default list", async ({ page }, testInfo) => {
+  const automaticName = testInfo.project.name === "mobile-chromium" ? "QA 모바일 양평해장국" : "QA 양평해장국";
   await page.goto("/admin/candidates");
 
   await expect(page.getByRole("heading", { name: "장소 검수 목록" })).toBeVisible();
@@ -25,15 +26,18 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(page.getByRole("navigation", { name: "상단 페이지 이동" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "하단 페이지 이동" })).toBeVisible();
 
-  await expect(page.getByRole("checkbox", { name: /QA 양평해장국/ })).toBeEnabled();
+  await expect(page.getByRole("checkbox", { name: automaticName })).toBeEnabled();
   await page.getByRole("button", { name: "현재 페이지 선택" }).click();
   await expect(page.locator("p").filter({ hasText: "선택 · 차단 후보 제외" })).toBeVisible();
   await page.getByRole("button", { name: "현재 페이지 선택 해제" }).click();
-  await page.getByRole("checkbox", { name: /QA 양평해장국/ }).check();
+  await page.getByRole("checkbox", { name: automaticName }).check();
   await expect(page.getByRole("button", { name: "선택 장소 다시 분류" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 장소 예외 처리" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 반려" })).toHaveCount(0);
+  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveValue("cat-gukbap");
+  await page.getByLabel(`${automaticName} 대표 카테고리`).selectOption("cat-stew");
+  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveValue("cat-stew");
   await expect(page.getByLabel("QA 스시하루 대표 카테고리")).toBeVisible();
   await expect(page.getByLabel("오늘베이킹 대표 카테고리")).toHaveValue("cat-bakery");
   await expect(page.getByText("추천 · 베이커리", { exact: true })).toBeVisible();
@@ -41,6 +45,19 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명" })).toHaveCount(0);
   await expect(page.getByText("기존 공개 장소와 중복")).toHaveCount(0);
   await expect(page.getByText("QA 폐업국밥")).toHaveCount(0);
+});
+
+test("admin can override and approve an automatic high-confidence category", async ({ page }, testInfo) => {
+  const automaticName = testInfo.project.name === "mobile-chromium" ? "QA 모바일 양평해장국" : "QA 양평해장국";
+  await page.goto("/admin/candidates");
+  await page.getByRole("checkbox", { name: automaticName }).check();
+  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveValue("cat-gukbap");
+
+  await page.getByLabel(`${automaticName} 대표 카테고리`).selectOption("cat-stew");
+  await page.getByRole("button", { name: "선택 장소 승인·공개" }).click();
+
+  await expect(page.getByText("1곳 승인·공개 · 0곳 확인 필요")).toBeVisible();
+  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveCount(0);
 });
 
 test("admin excludes selected candidates with a reason and restores them from exceptions", async ({ page }) => {

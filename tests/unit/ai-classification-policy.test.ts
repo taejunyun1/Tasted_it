@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconcileAiClassification, validateAiClassification, validateGroundedAiClassification } from "../../app/features/candidates/ai-classification-policy";
+import { reconcileAiClassification, validateAiClassification, validateAiSubtypeCategoryAlignment, validateGroundedAiClassification } from "../../app/features/candidates/ai-classification-policy";
 
 const slugs = new Set(["ramen-detail", "gukbap-detail"]);
 
@@ -86,5 +86,14 @@ describe("AI category policy", () => {
       reasons: [],
     }, new Set(["bakery-detail"]), "다시마 꽈배기 제과점영업"))
       .toThrow("AI_EVIDENCE_UNGROUNDED");
+  });
+
+  it("rejects an AI result that disagrees with a concrete source subtype", () => {
+    const ai = { categorySlug: "gukbap-detail", confidence: 0.97, evidence: ["소주방"], reasons: ["원천 업태를 근거로 선택"] };
+
+    expect(() => validateAiSubtypeCategoryAlignment(ai, "pocha"))
+      .toThrow("AI_SUBTYPE_CATEGORY_MISMATCH");
+    expect(validateAiSubtypeCategoryAlignment({ ...ai, categorySlug: "pocha" }, "pocha"))
+      .toMatchObject({ categorySlug: "pocha" });
   });
 });

@@ -135,4 +135,17 @@ describe("Workers AI candidate classification", () => {
     expect(result).toMatchObject({ processed: 1, succeeded: 0, failed: 1 });
     expect((await db.select().from(aiClassificationRuns)).find((row) => row.candidateId === id)).toMatchObject({ status: "FAILED", validationError: "AI_EVIDENCE_UNGROUNDED" });
   });
+
+  it("rejects a grounded AI result that conflicts with the concrete source subtype", async () => {
+    const db = createDb(env.DB); const now = "2026-08-15T10:00:00.000Z"; const id = `subtype-mismatch-${crypto.randomUUID()}`;
+    await db.insert(businessLicenses).values({ id, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: id, businessName: "인생역전", businessSubtype: "정종/대포집/소주방", normalizedStatus: "OPEN", regionCode: "GWANGJU", rawPayload: "{}", reviewStatus: "PENDING", firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now });
+    const run = vi.fn().mockResolvedValue({ response: { categorySlug: "home-meal", confidence: 0.98, evidence: ["소주방"], reasons: ["원천 업태 근거"] }, usage: { prompt_tokens: 10, completion_tokens: 5 } });
+
+    const result = await classifyPendingCandidatesWithAi(db, { run } as never, { candidateIds: [id], now });
+
+    expect(result).toMatchObject({ processed: 1, succeeded: 0, failed: 1 });
+    expect(run).toHaveBeenCalledTimes(2);
+    expect((await db.select().from(aiClassificationRuns)).find((row) => row.candidateId === id))
+      .toMatchObject({ status: "FAILED", validationError: "AI_SUBTYPE_CATEGORY_MISMATCH" });
+  });
 });

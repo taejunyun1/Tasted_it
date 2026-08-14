@@ -2,9 +2,9 @@ import { and, asc, desc, eq, gte, inArray, lt, ne, notExists, sql } from "drizzl
 import type { AppDb } from "../../db/client.server";
 import { aiClassificationRuns, businessLicenseExclusions, businessLicenses, categories } from "../../db/schema";
 import { recordOperationalAlert } from "../operations/alerts.server";
-import { validateGroundedAiClassification } from "./ai-classification-policy";
+import { validateAiSubtypeCategoryAlignment, validateGroundedAiClassification } from "./ai-classification-policy";
 import { AI_DAILY_BLOCK_NEURONS, estimateNeurons, getAiQuotaState, type AiTokenUsage } from "./ai-usage-policy";
-import { classifyCandidate } from "./category-suggestion";
+import { classifyCandidate, getAuthoritativeSubtypeCategorySlug } from "./category-suggestion";
 import { getTerminalCategoryIds } from "./category-selection";
 import { mapWithConcurrency } from "../../lib/concurrency";
 
@@ -70,6 +70,7 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
 
   await mapWithConcurrency(candidateRows, 3, async (candidate) => {
     const rule = classifyCandidate({ sourceType: candidate.sourceType, businessSubtype: candidate.businessSubtype, businessName: candidate.businessName, address: candidate.roadAddress ?? candidate.lotAddress });
+    const authoritativeSubtypeCategorySlug = getAuthoritativeSubtypeCategorySlug({ sourceType: candidate.sourceType, businessSubtype: candidate.businessSubtype, businessName: candidate.businessName, address: candidate.roadAddress ?? candidate.lotAddress }, rule);
     const candidateSlugSet = new Set(rule.candidateSlugs);
     const candidateCategories = categoryRows.filter((category) => candidateSlugSet.has(category.slug));
     const evidenceText = `${candidate.businessName} ${candidate.businessSubtype ?? ""}`;
@@ -104,14 +105,14 @@ export async function classifyPendingCandidatesWithAi(db: AppDb, ai: Ai, input: 
       let parsed;
       if (cachedRun) {
         const storedReasons = JSON.parse(cachedRun.reasonsJson ?? "[]") as string[];
-        parsed = validateGroundedAiClassification({ categorySlug: cachedRun.categorySlug, confidence: cachedRun.confidence, evidence: storedReasons.filter((reason) => reason.startsWith("근거:")).map((reason) => reason.slice(3)), reasons: storedReasons.filter((reason) => !reason.startsWith("근거:")) }, allowed, evidenceText);
+        parsed = validateAiSubtypeCategoryAlignment(validateGroundedAiClassification({ categorySlug: cachedRun.categorySlug, confidence: cachedRun.confidence, evidence: storedReasons.filter((reason) => reason.startsWith("근거:")).map((reason) => reason.slice(3)), reasons: storedReasons.filter((reason) => !reason.startsWith("근거:")) }, allowed, evidenceText), authoritativeSubtypeCategorySlug);
       } else {
         let validationError: unknown;
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const result = await ai.run(AI_CLASSIFICATION_MODEL, { messages: [{ role: "system", content: AI_CLASSIFICATION_SYSTEM_PROMPT }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_schema", json_schema: responseSchema }, max_tokens: 260, temperature: 0 }) as AiRunResponse;
           addUsage(usage, result.usage);
           try {
-            parsed = validateGroundedAiClassification(result.response, allowed, evidenceText);
+            parsed = validateAiSubtypeCategoryAlignment(validateGroundedAiClassification(result.response, allowed, evidenceText), authoritativeSubtypeCategorySlug);
             if (!candidateSlugSet.has(parsed.categorySlug)) throw new Error("AI_CATEGORY_OUTSIDE_CANDIDATES");
             validationError = undefined;
             break;
