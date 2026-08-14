@@ -7,6 +7,7 @@ import { registerAccount } from "../features/auth/account.server";
 import { sendAccountEmail } from "../features/auth/email.server";
 import { AuthDivider, GoogleAuthButton } from "../features/auth/google-auth-ui";
 import { describeSignupFailure } from "../features/auth/signup-failure";
+import { consumeMailRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 import { AuthInput, AuthPage } from "./login";
 import { NaverAuthButton } from "../features/auth/naver-auth-ui";
 
@@ -14,6 +15,18 @@ const schema = z.object({ displayName: z.string().trim().min(2).max(40), email: 
 export async function action({ request }: Route.ActionArgs) {
   const parsed = schema.safeParse(Object.fromEntries(await request.formData()));
   if (!parsed.success) return data({ ok: false, message: "이름은 2자 이상, 비밀번호는 10자 이상 입력해 주세요." }, { status: 400 });
+  const limited = await consumeMailRateLimit(createDb(env.DB), {
+    route: "SIGNUP",
+    email: parsed.data.email,
+    ip: request.headers.get("CF-Connecting-IP"),
+    now: new Date(),
+  });
+  if (!limited.ok) {
+    return data({ ok: false, message: MAIL_RATE_LIMIT_MESSAGE }, {
+      status: 429,
+      headers: { "Retry-After": String(limited.retryAfterSeconds) },
+    });
+  }
   try {
     const account = await registerAccount(createDb(env.DB), { ...parsed.data, adminEmail: env.ADMIN_EMAIL, now: new Date() });
     if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) throw new Error("EMAIL_NOT_CONFIGURED");
