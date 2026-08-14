@@ -297,7 +297,7 @@ export const businessLicenseExclusions = sqliteTable(
   "business_license_exclusions",
   {
     businessLicenseId: text("business_license_id").primaryKey().references(() => businessLicenses.id, { onDelete: "cascade" }),
-    reason: text("reason", { enum: ["CHAIN_STORE", "ADULT_ENTERTAINMENT", "ADMIN_EXCEPTION"] }).notNull(),
+    reason: text("reason", { enum: ["CHAIN_STORE", "ADULT_ENTERTAINMENT", "NOT_RESTAURANT", "ADMIN_EXCEPTION"] }).notNull(),
     exclusionCategory: text("exclusion_category", { enum: ["CHAIN_STORE", "ADULT_ENTERTAINMENT", "BUSINESS_TYPE", "NOT_RESTAURANT", "BAD_OR_DUPLICATE_DATA", "POLICY", "OTHER"] }).notNull(),
     matchedRule: text("matched_rule"),
     chainName: text("chain_name"),

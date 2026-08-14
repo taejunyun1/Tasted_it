@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, like, lte, notLike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
@@ -22,7 +22,9 @@ import type {
   PlaceSummary,
 } from "./place.types";
 import {
+  CU_CONVENIENCE_PREFIX,
   NON_RESTAURANT_PUBLIC_NAME_TERMS,
+  NON_RESTAURANT_PUBLIC_NAME_PREFIXES,
   NON_RESTAURANT_SOURCE_SUBTYPE_TERMS,
 } from "./food-venue-policy";
 
@@ -134,14 +136,53 @@ function normalizedPublicVenueText(column: typeof places.name | typeof businessL
   return sql<string>`lower(${normalized})`;
 }
 
+function hasAnyNormalizedVenueTerm(column: ReturnType<typeof normalizedPublicVenueText>, terms: readonly string[]) {
+  // A json_each subquery stays shallow when the venue vocabulary grows. Chaining
+  // one LIKE per term exceeds D1's SQLite expression-depth limit in list/detail
+  // queries, especially after whitespace normalization.
+  return sql<boolean>`exists (
+    select 1 from json_each(${JSON.stringify(terms)})
+    where instr(${column}, json_each.value) > 0
+  )`;
+}
+
+function hasAnyNormalizedVenuePrefix(column: ReturnType<typeof normalizedPublicVenueText>, prefixes: readonly string[]) {
+  return sql<boolean>`exists (
+    select 1 from json_each(${JSON.stringify(prefixes)})
+    where ${column} like json_each.value || '%'
+  )`;
+}
+
+function hasCuConveniencePrefix(column: ReturnType<typeof normalizedPublicVenueText>) {
+  // CU branch names are normally `CU + Korean branch name` or `CU + number`.
+  // Do not turn a broad `cu%` match into a false positive for Curry-like names.
+  return sql<boolean>`(
+    ${column} = ${CU_CONVENIENCE_PREFIX}
+    or (
+      substr(${column}, 1, 2) = ${CU_CONVENIENCE_PREFIX}
+      and (
+        (substr(${column}, 3, 1) >= '가' and substr(${column}, 3, 1) <= '힣')
+        or (substr(${column}, 3, 1) >= '0' and substr(${column}, 3, 1) <= '9')
+      )
+    )
+  )`;
+}
+
 function publicVenueVisibilityCondition() {
   const normalizedPlaceName = normalizedPublicVenueText(places.name);
   const normalizedSourceName = normalizedPublicVenueText(businessLicenses.businessName);
   const normalizedSourceSubtype = normalizedPublicVenueText(businessLicenses.businessSubtype);
-  const nameDoesNotMatch = and(...NON_RESTAURANT_PUBLIC_NAME_TERMS.map((term) => notLike(normalizedPlaceName, `%${term}%`)))!;
+  const placeMatchesNonRestaurantRule = or(
+    hasAnyNormalizedVenueTerm(normalizedPlaceName, NON_RESTAURANT_PUBLIC_NAME_TERMS),
+    hasAnyNormalizedVenuePrefix(normalizedPlaceName, NON_RESTAURANT_PUBLIC_NAME_PREFIXES),
+    hasCuConveniencePrefix(normalizedPlaceName),
+  )!;
+  const nameDoesNotMatch = sql<boolean>`not (${placeMatchesNonRestaurantRule})`;
   const sourceMatch = or(
-    ...NON_RESTAURANT_PUBLIC_NAME_TERMS.map((term) => like(normalizedSourceName, `%${term}%`)),
-    ...NON_RESTAURANT_SOURCE_SUBTYPE_TERMS.map((term) => like(normalizedSourceSubtype, `%${term}%`)),
+    hasAnyNormalizedVenueTerm(normalizedSourceName, NON_RESTAURANT_PUBLIC_NAME_TERMS),
+    hasAnyNormalizedVenuePrefix(normalizedSourceName, NON_RESTAURANT_PUBLIC_NAME_PREFIXES),
+    hasCuConveniencePrefix(normalizedSourceName),
+    hasAnyNormalizedVenueTerm(normalizedSourceSubtype, NON_RESTAURANT_SOURCE_SUBTYPE_TERMS),
   )!;
   const hasAdminOverride = sql<boolean>`exists (
     select 1 from ${placeSourceLinks}

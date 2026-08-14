@@ -8,6 +8,11 @@ export type CategoryRule = {
   label: string;
   kind: SignalKind;
   priority?: number;
+  /**
+   * Lower is stronger. This keeps a concrete food signal ahead of a broad
+   * cuisine/source fallback even when their raw scores happen to be close.
+   */
+  evidenceTier?: 1 | 2 | 3 | 4 | 5;
   excludePattern?: RegExp;
 };
 
@@ -15,7 +20,8 @@ export const nameCategoryRules: CategoryRule[] = [
   { pattern: /(?<!자)연어|장어|킹크랩|크랩|대게|꽃게|홍게|랍스터|바닷가재|전복|굴(?:밥|국밥|구이|전|찜|탕|보쌈|세상|나라|마을|집|요리|전문|향|$)|꼬막|조개|가리비|낙지|주꾸미|쭈꾸미|문어|오징어|갑오징어|아귀|아구|생선|고등어|갈치|복어|복집|물회|해물|해산물|횟집|회집|사시미/, slug: "seafood-dish", group: "seafood", label: "상호의 해산물·생선 음식 표현", kind: "FOOD", priority: 25 },
   { pattern: /해장국|순대국|돼지국밥|국밥|설렁탕|곰탕/, slug: "gukbap-detail", group: "korean", label: "상호의 국밥·해장국·탕반 표현", kind: "FOOD" },
   { pattern: /육개장|찌개|전골|감자탕/, slug: "stew", group: "korean", label: "상호의 육계장·육개장·찌개·전골 표현", kind: "FOOD" },
-  { pattern: /삼겹|갈비|떡갈비|구이|고기|정육/, slug: "grill", group: "korean", label: "상호의 고기·구이 표현", kind: "FOOD" },
+  { pattern: /삼겹|갈비|떡갈비/, slug: "grill", group: "korean", label: "상호의 삼겹살·갈비 표현", kind: "FOOD", evidenceTier: 1 },
+  { pattern: /구이|고기|정육/, slug: "grill", group: "korean", label: "상호의 고기·구이 표현", kind: "FOOD", evidenceTier: 3 },
   { pattern: /족발|보쌈/, slug: "jokbal-bossam", group: "korean", label: "상호의 족발·보쌈 표현", kind: "FOOD" },
   { pattern: /한정식/, slug: "hanjeongsik", group: "korean", label: "상호의 한정식 표현", kind: "FOOD" },
   { pattern: /스시|초밥/, slug: "sushi-sashimi", group: "japanese", label: "상호의 스시·초밥 표현", kind: "FOOD" },
@@ -57,6 +63,7 @@ export const subtypeCategoryRules: CategoryRule[] = [
   { pattern: /횟집|회집|해산물|수산|생선|회센터/, slug: "seafood-dish", group: "seafood", label: "원천 업태의 해산물·생선 표현", kind: "FOOD" },
   { pattern: /해장국|순대국|돼지국밥|국밥|설렁탕|곰탕/, slug: "gukbap-detail", group: "korean", label: "원천 업태의 국밥·해장국·탕반 표현", kind: "FOOD" },
   { pattern: /육개장|찌개|전골|감자탕/, slug: "stew", group: "korean", label: "원천 업태의 찌개·전골·탕 표현", kind: "FOOD" },
+  { pattern: /식육|숯불구이|불고기|갈비구이/, slug: "grill", group: "korean", label: "원천 업태의 식육·숯불구이 표현", kind: "FOOD", evidenceTier: 2 },
   { pattern: /치킨|통닭|닭강정/, group: "chicken", slug: "chicken", label: "원천 업태의 치킨·통닭 표현", kind: "FOOD" },
   { pattern: /한식/, group: "korean", slug: "home-meal", label: "원천 업태의 한식 표현", kind: "CUISINE" },
   { pattern: /일식/, group: "japanese", slug: "japanese-rice", label: "원천 업태의 일식 표현", kind: "CUISINE" },
