@@ -8,13 +8,15 @@
 
 **기술 스택:** React 19, React Router 8 loader/action, TypeScript strict, Zod, Drizzle ORM, Cloudflare D1, NAVER Maps Dynamic Map, Vitest, Workers integration, Playwright
 
+**구현 기록 (2026-08-14):** 작업 소유자는 `codex/tj-place-suggestion-map-impl`에서 구현했다. unit 678개, Workers/D1 integration 290개, 위치·관리자 E2E 12개, 홈·일반 지도 E2E 50개, typecheck와 production build를 통과했다. PR 병합 뒤 운영 QA 계정으로 실제 NAVER 검색 한 건과 승인 한 건을 검수한 후 배포한다.
+
 ## 전역 제약
 
 - [ ] 구현은 최신 `origin/main`에서 새 `codex/` feature branch와 독립 worktree로 시작한다.
 - [ ] Issue #99 또는 구현 PR에 담당자, 아래 소유 파일, migration 없음, NAVER 외부 호출 범위, 비용·개인정보·rollback을 기록한다.
 - [ ] 새 패키지, 새 외부 공급자, 새 비밀값, 새 DB 테이블을 추가하지 않는다. 같은 NAVER 애플리케이션의 별도 계량 Geocoding 사용은 구현 PR의 비용·쿼터 승인 범위로 명시한다.
 - [ ] `NAVER_MAPS_CLIENT_ID`를 재사용하고 NAVER 장소 ID를 D1에 저장하지 않는다.
-- [ ] `NAVER_PLACE_GEOCODING_ENABLED` 기본값은 `false`이고, 콘솔 상품·허용 URL·호출 상한 확인 후에만 대상 환경에서 켠다.
+- [ ] `NAVER_PLACE_GEOCODING_ENABLED`의 안전 기본값은 `false`다. 이번 PR은 소유자가 NAVER Console의 Geocoding 상품·허용 URL·호출 상한을 확인한 뒤 운영 환경에서 `true`로 활성화하며, 롤백은 즉시 `false`로 되돌린다.
 - [ ] 실제 NAVER 호출은 수동 staging QA에서만 수행하고 unit/integration/E2E는 fake SDK로 검증한다.
 - [ ] 각 Task는 RED → 최소 GREEN → 관련 회귀 → `git diff --check` → 자체 검수 → 한국어 커밋 순서로 수행한다.
 - [ ] 제품 코드의 상태를 `PROPOSED`에서 `ACCEPTED`로 바꾸는 것은 이 계획과 설계를 포함한 PR 병합으로만 승인한다.
@@ -447,8 +449,8 @@ git commit -m "2026-08-14 장소 제안 승인 중복과 응답 유실 방어"
 
 - Create: `docs/operations/place-suggestion-map-runbook.md`
 - Modify: `README.md`
-- Create: `docs/evidence/2026-08-14-place-suggestion-admin-desktop.png`
-- Create: `docs/evidence/2026-08-14-place-suggestion-admin-mobile.png`
+- Create: `docs/evidence/2026-08-14-place-suggestion-admin-chromium.png`
+- Create: `docs/evidence/2026-08-14-place-suggestion-admin-mobile-chromium.png`
 
 ### 6.1 전체 검증
 
@@ -457,7 +459,7 @@ git commit -m "2026-08-14 장소 제안 승인 중복과 응답 유실 방어"
 ```bash
 pnpm test
 pnpm run test:integration
-pnpm exec playwright test tests/e2e/place-suggestion-location.spec.ts tests/e2e/admin-place-suggestion.spec.ts --project=chromium --project=mobile-chromium
+pnpm exec playwright test tests/e2e/place-suggestion-location.spec.ts tests/e2e/place-operations.spec.ts --project=chromium --project=mobile-chromium
 pnpm run typecheck
 pnpm run build
 git diff --check
@@ -501,7 +503,7 @@ git diff --check
 - [ ] runbook과 evidence를 커밋한다.
 
 ```bash
-git add docs/operations/place-suggestion-map-runbook.md README.md docs/evidence/2026-08-14-place-suggestion-admin-desktop.png docs/evidence/2026-08-14-place-suggestion-admin-mobile.png
+git add docs/operations/place-suggestion-map-runbook.md README.md docs/evidence/2026-08-14-place-suggestion-admin-chromium.png docs/evidence/2026-08-14-place-suggestion-admin-mobile-chromium.png
 git commit -m "2026-08-14 장소 제안 지도 운영과 QA 문서"
 ```
 

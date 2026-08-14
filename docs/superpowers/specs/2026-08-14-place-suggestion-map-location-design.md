@@ -6,7 +6,7 @@
 - 추적 이슈: [#99](https://github.com/taejunyun1/Tasted_it/issues/99)
 - 기준선: `origin/main@5a94801`
 - 범위: 장소 제안 위치 입력 UX, 관리자 위치 확인, 승인 오류·중복 승인 방어
-- 제외 범위: 제품 코드, migration, 운영 데이터, 배포 변경
+- 제외 범위: 새 공급자·비밀값·의존성·migration, 운영 장소 데이터의 대량 변경
 
 ## 1. 목적
 
