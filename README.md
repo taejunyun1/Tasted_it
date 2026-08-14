@@ -101,6 +101,10 @@ pnpm run build
 
 E2E는 로컬 D1 migration, 샘플 데이터, 관리자 QA fixture를 자동 준비합니다. 운영 데이터에는 QA fixture를 적용하지 않습니다.
 
+## 통합 기록 감사
+
+관리자는 `/admin/audit`에서 평가·리뷰 사진·Golden Pick·보존기간·추천 적격성의 읽기 전용 기준선 감사를 확인할 수 있습니다. 실행 기준, 개인정보 최소화, 결과 기록과 후속 조치 절차는 [통합 기록 감사 운영 문서](docs/operations/record-audit-runbook.md)를 따릅니다.
+
 ## 배포
 
 모든 변경은 feature branch → PR → checks 통과 → squash merge 순서로 `main`에 반영합니다. 운영 배포는 병합된 `main`에서만 실행합니다.
