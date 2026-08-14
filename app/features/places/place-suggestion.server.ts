@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../db/schema";
 import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput } from "./place-duplicate-policy";
-import { isSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
+import { isSupportedRegionAddress, normalizeSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
 import { slugifyPlaceName } from "./place-slug";
 
 export interface SuggestionInput extends PlaceIdentityInput {
@@ -29,20 +29,22 @@ export async function submitPlaceSuggestion(db: AppDb, input: SuggestionInput) {
   if (!user?.emailVerifiedAt) throw new Error("EMAIL_VERIFICATION_REQUIRED");
   if (!category) throw new Error("CATEGORY_NOT_FOUND");
   if (input.originLatitude == null || input.originLongitude == null || input.latitude == null || input.longitude == null) throw new Error("LOCATION_REQUIRED");
-  if (!isSupportedRegionAddress(input.address)) throw new Error("LOCATION_OUT_OF_SCOPE");
+  const address = normalizeSupportedRegionAddress(input.address);
+  if (!isSupportedRegionAddress(address)) throw new Error("LOCATION_OUT_OF_SCOPE");
   const origin = validatePlaceCoordinate({ latitude: input.originLatitude, longitude: input.originLongitude });
   if (!origin.ok) throw new Error(origin.code);
   const location = validatePlaceCoordinate({ latitude: input.latitude, longitude: input.longitude });
   if (!location.ok) throw new Error(location.code);
   const adjusted = validateAdjustedCoordinate(origin.coordinate, location.coordinate);
   if (!adjusted.ok) throw new Error(adjusted.code);
-  const normalized = normalizePlaceIdentity(input);
+  const normalizedInput = { ...input, address };
+  const normalized = normalizePlaceIdentity(normalizedInput);
   if (!normalized.name || !normalized.address || !input.neighborhood.trim()) throw new Error("SUGGESTION_REQUIRED_FIELDS");
-  const duplicates = await findSuggestionDuplicates(db, input);
+  const duplicates = await findSuggestionDuplicates(db, normalizedInput);
   if (duplicates.length && !input.duplicateOverrideReason?.trim()) throw new Error("DUPLICATE_CONFIRMATION_REQUIRED");
   const suggestion = {
     id: input.id, userId: input.userId, status: "SUBMITTED" as const,
-    name: input.name.trim(), normalizedName: normalized.name, address: input.address.trim(), normalizedAddress: normalized.address,
+    name: input.name.trim(), normalizedName: normalized.name, address, normalizedAddress: normalized.address,
     neighborhood: input.neighborhood.trim(), latitude: location.coordinate.latitude, longitude: location.coordinate.longitude,
     phone: normalized.phone, categoryId: input.categoryId, description: input.description?.trim() || null,
     duplicateOverrideReason: input.duplicateOverrideReason?.trim() || null, createdAt: input.now, updatedAt: input.now,
@@ -91,7 +93,7 @@ export async function approvePlaceSuggestion(db: AppDb, input: {
 
   if (!["SUBMITTED", "NEEDS_INFO", "REVIEWING"].includes(suggestion.status)) throw new Error("SUGGESTION_NOT_REVIEWABLE");
   if (!input.reason.trim()) throw new Error("REVIEW_REASON_REQUIRED");
-  const address = input.address?.trim() || suggestion.address;
+  const address = normalizeSupportedRegionAddress(input.address?.trim() || suggestion.address);
   const neighborhood = input.neighborhood?.trim() || suggestion.neighborhood;
   if (!address || !neighborhood) throw new Error("SUGGESTION_REQUIRED_FIELDS");
   if (!isSupportedRegionAddress(address)) throw new Error("LOCATION_OUT_OF_SCOPE");

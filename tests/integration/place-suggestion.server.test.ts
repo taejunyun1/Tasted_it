@@ -43,6 +43,18 @@ describe("place suggestions", () => {
       latitude: 35.146,
       longitude: 126.923,
     });
+
+    const legacyId = `${prefix}-legacy-gwangju`;
+    await submitPlaceSuggestion(db, {
+      ...input,
+      id: legacyId,
+      name: "축약 주소 식당",
+      address: "전남광주 북구 용봉동 1403-1",
+      neighborhood: "용봉동",
+      duplicateOverrideReason: "축약 주소 정규화 회귀 테스트용 별도 제안",
+    });
+    expect(await db.query.placeSuggestions.findFirst({ where: (table, { eq }) => eq(table.id, legacyId) }))
+      .toMatchObject({ address: "광주광역시 북구 용봉동 1403-1" });
   });
 
   it("rejects a confirmed pin more than 2km away from the searched address", async () => {

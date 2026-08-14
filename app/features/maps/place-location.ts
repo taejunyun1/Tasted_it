@@ -50,8 +50,18 @@ function isCoordinateInSupportedBounds({ latitude, longitude }: PlaceCoordinate)
 }
 
 export function isSupportedRegionAddress(address: string) {
-  const normalized = compactText(address);
+  const normalized = compactText(normalizeSupportedRegionAddress(address));
   return normalized !== null && /^(?:광주(?:광역시)?|전라남도|전남(?:\s|$)|전남광주통합특별시)/u.test(normalized);
+}
+
+/**
+ * Some legacy public-data rows use `전남광주` for a Gwangju address.
+ * Convert only that leading administrative prefix so map lookup and server
+ * validation share the same canonical value. All other address text remains
+ * unchanged.
+ */
+export function normalizeSupportedRegionAddress(address: string) {
+  return address.trim().replace(/^전남광주(?:통합특별시)?(?=\s|$)/u, "광주광역시");
 }
 
 export function extractPlaceNeighborhood(address: string | null | undefined) {
