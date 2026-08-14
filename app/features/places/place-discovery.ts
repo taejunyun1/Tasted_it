@@ -2,6 +2,13 @@ import { calculateRating } from "../ratings/rating-v1";
 import type { TasteBadgeSource } from "../members/profile-taste-badges";
 import type { PlaceSummary } from "./place.types";
 import { seasonForMonth, TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
+import {
+  canonicalRecommendationMatchKind,
+  publicDiscoveryMatchKind,
+  type LegacyRecommendationMatchKind,
+  type PublicDiscoveryMatchKind,
+  type RecommendationMatchKind,
+} from "./recommendation-action-values";
 
 export interface DiscoveryCenter {
   latitude: number;
@@ -25,7 +32,7 @@ export interface DiscoveryPlace extends PlaceSummary {
   userRatingSampleCount?: number;
   reviewerRatingScore?: number | null;
   reviewerRatingSampleCount?: number;
-  discoveryMode?: "FAMILIAR" | "ADJACENT" | "EXPLORATION";
+  discoveryMode?: PublicDiscoveryMatchKind;
   recommendationReasons?: string[];
 }
 
@@ -59,14 +66,15 @@ export function normalizedTasteSignalStrength(signal: RankingTasteSignal) {
 }
 
 export function personalizationBoostForDiscovery(input: {
-  mode: "FAMILIAR" | "ADJACENT" | "EXPLORATION";
+  mode: LegacyRecommendationMatchKind;
   tasteStrength: number;
   directionBoost: number;
 }) {
   const tasteStrength = clampUnit(input.tasteStrength);
-  const modeBoost = input.mode === "FAMILIAR"
+  const mode = canonicalRecommendationMatchKind(input.mode);
+  const modeBoost = mode === "DIRECT"
     ? 0.35 * tasteStrength
-    : input.mode === "ADJACENT" ? 0.22 * tasteStrength : 0.08;
+    : mode === "ADJACENT" ? 0.22 * tasteStrength : 0.08;
   const directionBoost = Math.max(0, Number.isFinite(input.directionBoost) ? input.directionBoost : 0);
   return Math.min(0.35, modeBoost + directionBoost);
 }
@@ -236,7 +244,8 @@ export function rankPersonalDiscovery(input: {
     const adjacentTasteSignal = matchedTasteSignal ? undefined : tasteSignals.find((signal) => (
       matchesTerms(place, TASTE_ADJACENCY[signal.badgeId] ?? [])
     ));
-    const mode = matchedTasteSignal ? "FAMILIAR" : adjacentTasteSignal ? "ADJACENT" : "EXPLORATION";
+    const matchKind: RecommendationMatchKind = matchedTasteSignal
+      ? "DIRECT" : adjacentTasteSignal ? "ADJACENT" : "EXPLORATION";
     const tasteStrength = normalizedTasteSignalStrength(matchedTasteSignal ?? adjacentTasteSignal ?? {
       badgeId: "",
       score: 0,
@@ -246,18 +255,28 @@ export function rankPersonalDiscovery(input: {
     const distance = distanceScore(input.center, place);
     const seasonalMatch = matchesTerms(place, seasonalTerms);
     const seasonalBoost = seasonalMatch && quality >= 0.55 ? Math.min(0.15, 0.08 + quality * 0.07) : 0;
-    const directionBoost = (wantsDiscovery && mode === "EXPLORATION" ? 0.12 : 0)
+    const directionBoost = (wantsDiscovery && matchKind === "EXPLORATION" ? 0.12 : 0)
       + (wantsNeighborhood ? distance * 0.12 : 0)
       + (wantsTrusted ? quality * 0.12 : 0);
-    const personalizationBoost = personalizationBoostForDiscovery({ mode, tasteStrength, directionBoost });
+    const personalizationBoost = personalizationBoostForDiscovery({
+      mode: matchKind,
+      tasteStrength,
+      directionBoost,
+    });
     const score = quality * 0.45 + distance * 0.2 + personalizationBoost + seasonalBoost;
     const recommendationReasons = [
-      mode === "FAMILIAR"
+      matchKind === "DIRECT"
         ? `${termsForBadge(matchedTasteSignal!.badgeId)[0] ?? "선택한"} 취향과 가까움`
-        : mode === "ADJACENT" ? "평소 취향에서 한 발짝" : "오늘의 새로운 메뉴",
+        : matchKind === "ADJACENT" ? "평소 취향에서 한 발짝" : "오늘의 새로운 메뉴",
       ...(seasonalBoost > 0 ? ["지금 먹기 좋은 메뉴"] : []),
     ].slice(0, 2);
-    return { ...place, distanceMeters: distanceInMeters(input.center, place), discoveryMode: mode as DiscoveryPlace["discoveryMode"], recommendationReasons, _score: score };
+    return {
+      ...place,
+      distanceMeters: distanceInMeters(input.center, place),
+      discoveryMode: publicDiscoveryMatchKind(matchKind),
+      recommendationReasons,
+      _score: score,
+    };
   }).sort((left, right) => right._score - left._score || left.name.localeCompare(right.name, "ko"));
   const exploration = scored.filter((item) => item.discoveryMode === "EXPLORATION");
   const output: typeof scored = [];

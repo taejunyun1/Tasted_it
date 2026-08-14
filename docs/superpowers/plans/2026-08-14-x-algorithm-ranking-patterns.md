@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-- **상태:** `PROPOSED` — 이 문서를 포함한 Pull Request가 병합되면 `ACCEPTED`. 제품 코드 구현은 별도 PR에서만 시작한다.
+- **상태:** `ACCEPTED` — 계획 PR 병합 후 별도 구현 브랜치에서 1단계 마이그레이션을 수행했다.
 - **작성일:** 2026-08-14
 - **담당자:** jay
 - **추적 이슈:** [#106](https://github.com/taejunyun1/Tasted_it/issues/106)
 - **기준선:** `origin/main@9fe0d8d`
 - **참조:** [xai-org/x-algorithm](https://github.com/xai-org/x-algorithm) Apache 2.0, commit `a389166` (2026-08-13 For You 공개분)
-- **이번 PR 범위:** 이 계획 문서만. 제품 코드, migration, 환경 변수, 배포 변경 없음.
+- **이번 PR 범위:** 승인된 계획의 1단계 구현. 제품 결과 순서, migration, 환경 변수, 배포 설정 변경 없음.
 
 **목표:** X For You 코드를 이식하지 않고, 홈 큐레이션과 장소 목록 추천에 점수와 노출 자격 분리, 행동별 가치 표, 취향 일치 vs 탐색 할인을 이름 있는 계층으로 고정한다. 1단계는 현재 추천 결과를 바꾸지 않는다.
 
@@ -65,12 +65,12 @@
 
 ## 2. 전역 제약
 
-- [ ] 구현은 이 계획 PR이 병합되어 `ACCEPTED`가 된 뒤 최신 `origin/main`의 새 브랜치 `jay_recommendation-action-layers`와 독립 worktree에서 시작한다. 이 문서 브랜치를 구현 기준으로 쓰지 않는다.
-- [ ] Issue #106 또는 구현 PR에 담당자, 아래 소유 파일, migration 없음, 운영 호출 없음을 기록한다.
-- [ ] 1단계 구현은 홈 5곳과 목록 personal/trusted/golden 순서를 바꾸지 않는다. 같은 fixture에서 장소 ID 순서가 같아야 한다.
-- [ ] 점수 공식을 바꾸면 `algorithmVersion`을 올리고 별도 PR로 분리한다. 1단계는 `home-curation-v2`를 유지한다.
-- [ ] 추천 이유는 실제 점수 기여 상위 2개만 사용한다. LLM 문구를 추가하지 않는다.
-- [ ] SQL 적격성(공개, 비음식점, liveness)을 애플리케이션으로 옮기지 않는다. 제외된 장소를 먼저 읽은 뒤 JS에서 걸러 회귀를 만들지 않는다.
+- [x] 구현은 이 계획 PR이 병합되어 `ACCEPTED`가 된 뒤 최신 `origin/main`의 새 브랜치 `codex/recommendation-action-layers`와 독립 worktree에서 시작한다. 이 문서 브랜치를 구현 기준으로 쓰지 않는다.
+- [x] Issue #106 또는 구현 PR에 담당자, 아래 소유 파일, migration 없음, 운영 호출 없음을 기록한다.
+- [x] 1단계 구현은 홈 5곳과 목록 personal/trusted/golden 순서를 바꾸지 않는다. 같은 fixture에서 장소 ID 순서가 같아야 한다.
+- [x] 점수 공식을 바꾸면 `algorithmVersion`을 올리고 별도 PR로 분리한다. 1단계는 `home-curation-v2`를 유지한다.
+- [x] 추천 이유는 실제 점수 기여 상위 2개만 사용한다. LLM 문구를 추가하지 않는다.
+- [x] SQL 적격성(공개, 비음식점, liveness)을 애플리케이션으로 옮기지 않는다. 제외된 장소를 먼저 읽은 뒤 JS에서 걸러 회귀를 만들지 않는다.
 - [ ] 각 Task는 RED → 최소 GREEN → 관련 회귀 → `git diff --check` → 자체 검수 → 한국어 커밋 순서로 수행한다.
 
 ---
@@ -192,7 +192,7 @@ export type RecommendationActionValue = {
 
 ### 1.1 RED
 
-- [ ] `passesHomeQuality`와 동일한 입력을 적격성 함수로 검증하는 테스트를 먼저 작성한다.
+- [x] `passesHomeQuality`와 동일한 입력을 적격성 함수로 검증하는 테스트를 먼저 작성한다.
 
 ```ts
 it("표본 8 미만은 점수가 낮아도 ALLOW다", () => {
@@ -228,9 +228,9 @@ pnpm vitest run tests/unit/recommendation-eligibility.test.ts tests/unit/home-cu
 
 ### 1.2 GREEN
 
-- [ ] `evaluateAppEligibility`를 순수 함수로 추가한다. SQL 이유 코드(`UNPUBLISHED`, `VENUE_POLICY`, `LIVENESS_EXCLUDED`)는 문서와 타입에만 두고, 1단계에서 호출하지 않는다.
-- [ ] `passesHomeQuality(place)`는 `evaluateAppEligibility`를 호출하는 얇은 래퍼로 남기거나, 호출부를 적격성 함수로 교체한다. 공개 점수 계산은 기존 `calculateRating` 경로를 재사용한다.
-- [ ] `rankHomeCuration`의 품질 필터가 같은 DROP 집합을 쓰게 한다.
+- [x] `evaluateAppEligibility`를 순수 함수로 추가한다. SQL 이유 코드(`UNPUBLISHED`, `VENUE_POLICY`, `LIVENESS_EXCLUDED`)는 문서와 타입에만 두고, 1단계에서 호출하지 않는다.
+- [x] `passesHomeQuality(place)`는 `evaluateAppEligibility`를 호출하는 얇은 래퍼로 남기거나, 호출부를 적격성 함수로 교체한다. 공개 점수 계산은 기존 `calculateRating` 경로를 재사용한다.
+- [x] `rankHomeCuration`의 품질 필터가 같은 DROP 집합을 쓰게 한다.
 
 ### 1.3 검증
 
@@ -253,8 +253,8 @@ pnpm vitest run tests/unit/recommendation-eligibility.test.ts tests/unit/home-cu
 
 ### 2.1 RED
 
-- [ ] 비추천 장소가 `dislikedPlaceIds`에 남고 후보 배열에서는 빠지는 기존 테스트를 유지한다.
-- [ ] 후보를 걸러낸 이유가 `CURRENT_DISLIKE`임을 단언하는 assertion을 추가한다. 공개 필드에 이유를 노출하지 않는다.
+- [x] 비추천 장소가 `dislikedPlaceIds`에 남고 후보 배열에서는 빠지는 기존 테스트를 유지한다.
+- [x] 후보를 걸러낸 이유가 `CURRENT_DISLIKE`임을 단언하는 assertion을 추가한다. 공개 필드에 이유를 노출하지 않는다.
 
 ```ts
 expect(context.dislikedPlaceIds).toEqual([dislikedPlaceId]);
@@ -269,9 +269,9 @@ pnpm vitest run tests/unit/recommendation-candidates-server.test.ts tests/integr
 
 ### 2.2 GREEN
 
-- [ ] `loadDislikedPlaceIds` 조회는 유지한다. 필터는 `evaluateAppEligibility({ currentlyDisliked: true })`가 DROP인 장소만 제거한다.
-- [ ] SQL liveness·공개 조건을 애플리케이션으로 옮기지 않는다.
-- [ ] `getHomeCurationPage`는 품질 필터를 적격성 모듈과 중복 구현하지 않는다.
+- [x] `loadDislikedPlaceIds` 조회는 유지한다. 필터는 `evaluateAppEligibility({ currentlyDisliked: true })`가 DROP인 장소만 제거한다.
+- [x] SQL liveness·공개 조건을 애플리케이션으로 옮기지 않는다.
+- [x] `getHomeCurationPage`는 품질 필터를 적격성 모듈과 중복 구현하지 않는다.
 
 ### 2.3 검증
 
@@ -315,9 +315,9 @@ pnpm vitest run tests/unit/recommendation-action-values.test.ts
 
 ### 3.2 GREEN
 
-- [ ] `RECOMMENDATION_ACTION_VALUES` 배열과 `tastePenaltyForFeedback`, `actionValue`를 추가한다.
-- [ ] `refreshInferredTasteSignals`의 `0.18` 리터럴을 `tastePenaltyForFeedback`으로 교체한다. 감점 대상은 기존과 같이 `MENU` 또는 이유 없음의 FOOD 배지만.
-- [ ] `productEvents`를 읽거나 랭킹에 연결하지 않는다.
+- [x] `RECOMMENDATION_ACTION_VALUES` 배열과 `tastePenaltyForFeedback`, `actionValue`를 추가한다.
+- [x] `refreshInferredTasteSignals`의 `0.18` 리터럴을 `tastePenaltyForFeedback`으로 교체한다. 감점 대상은 기존과 같이 `MENU` 또는 이유 없음의 FOOD 배지만.
+- [x] `productEvents`를 읽거나 랭킹에 연결하지 않는다.
 
 ### 3.3 검증
 
@@ -341,8 +341,8 @@ pnpm vitest run tests/unit/recommendation-action-values.test.ts tests/integratio
 
 ### 4.1 RED
 
-- [ ] 기존 `discoveryScore`와 `personalizationBoostForDiscovery` 테스트를 유지한다.
-- [ ] 같은 입력이 `RecommendationMatchKind`를 거쳐도 숫자가 같은지 단언을 추가한다.
+- [x] 기존 `discoveryScore`와 `personalizationBoostForDiscovery` 테스트를 유지한다.
+- [x] 같은 입력이 `RecommendationMatchKind`를 거쳐도 숫자가 같은지 단언을 추가한다.
 
 ```ts
 expect(discoveryScore({
@@ -360,9 +360,9 @@ expect(personalizationBoostForDiscovery({
 
 ### 4.2 GREEN
 
-- [ ] `DIRECT` / `ADJACENT` / `EXPLORATION`을 공통 타입으로 올린다. 홈 `TasteMatch.match`와 목록 `discoveryMode`가 같은 세 값을 쓰게 한다. `FAMILIAR`는 `DIRECT`의 별칭으로만 남기거나 호출부를 `DIRECT`로 바꾼다.
-- [ ] 숫자 공식을 재작성하지 않는다. 기존 함수 시그니처를 유지한 채 종류 이름만 공유한다.
-- [ ] 추천 이유 문구를 바꾸지 않는다.
+- [x] `DIRECT` / `ADJACENT` / `EXPLORATION`을 공통 타입으로 올린다. 홈 `TasteMatch.match`와 목록 `discoveryMode`가 같은 세 값을 쓰게 한다. `FAMILIAR`는 `DIRECT`의 별칭으로만 남기거나 호출부를 `DIRECT`로 바꾼다.
+- [x] 숫자 공식을 재작성하지 않는다. 기존 함수 시그니처를 유지한 채 종류 이름만 공유한다.
+- [x] 추천 이유 문구를 바꾸지 않는다.
 
 ### 4.3 검증
 
@@ -384,9 +384,9 @@ pnpm vitest run tests/unit/home-curation-features.test.ts tests/unit/home-curati
 
 ### 5.1 RED → GREEN
 
-- [ ] 홈 now/taste/time/discovery/golden fixture의 장소 ID 순서와 `algorithmVersion`이 `home-curation-v2`인지 확인한다.
-- [ ] 목록 personal/trusted/golden 레일 ID 순서가 같은지 확인한다.
-- [ ] 신규 공개 JSON 필드가 없는지 확인한다.
+- [x] 홈 now/taste/time/discovery/golden fixture의 장소 ID 순서와 `algorithmVersion`이 `home-curation-v2`인지 확인한다.
+- [x] 목록 personal/trusted/golden 레일 ID 순서가 같은지 확인한다.
+- [x] 신규 공개 JSON 필드가 없는지 확인한다.
 
 ```bash
 pnpm vitest run tests/unit/home-curation-features.test.ts tests/unit/home-curation-ranking.test.ts tests/unit/home-curation.test.ts tests/unit/recommendation-eligibility.test.ts tests/unit/recommendation-action-values.test.ts

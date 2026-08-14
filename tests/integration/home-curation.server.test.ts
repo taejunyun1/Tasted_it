@@ -426,6 +426,39 @@ it("공개 후보와 평가·취향·Golden Pick을 결합해 Golden 추천을 �
   expect(page.notice).toBeNull();
 });
 
+it("모드별 홈 5곳 ID 순서와 공개 Page 계약을 유지한다", async () => {
+  const fixture = await seedHomeCurationFixtures({ farTail: false });
+  const expectedOrder = {
+    now: [0, 3, 1, 2, 4],
+    taste: [0, 3, 1, 5, 2],
+    time: [1, 4, 0, 2, 3],
+    discovery: [2, 5, 3, 4, 1],
+    golden: [2, 5, 0, 3, 4],
+  } as const;
+  for (const mode of ["now", "taste", "time", "discovery", "golden"] as const) {
+    const page = await getHomeCurationPage(createDb(env.DB), {
+      userId: fixture.userId,
+      bbox: fixture.bbox,
+      center: fixture.center,
+      mode,
+      now: fixture.now,
+    });
+    expect(page.places.map((place) => fixture.placeIds.indexOf(place.id))).toEqual(expectedOrder[mode]);
+    expect(page.algorithmVersion).toBe("home-curation-v2");
+    expect(Object.keys(page).sort()).toEqual([
+      "algorithmVersion",
+      "candidateCount",
+      "goldenFallback",
+      "mode",
+      "notice",
+      "places",
+      "radiusMeters",
+      "status",
+      "timeSlot",
+    ]);
+  }
+});
+
 it("8km에도 20곳 미만이면 존재하는 품질 후보만 사용하고 거리를 붙인다", async () => {
   const fixture = await seedHomeCurationFixtures({ farTail: true });
   const page = await getHomeCurationPage(createDb(env.DB), {

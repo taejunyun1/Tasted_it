@@ -10,6 +10,7 @@ import {
   type HomeRankingCandidate,
 } from "./home-curation-ranking";
 import { distanceInMeters, type DiscoveryCenter, type DiscoveryPlace, type RankingTasteSignal } from "./place-discovery";
+import { evaluateAppEligibility } from "./recommendation-eligibility";
 
 export type HomeCurationSlot = "BEST_NOW" | "TASTE_MATCH" | "TIME_MATCH" | "TRUSTED_PICK" | "DISCOVERY";
 
@@ -73,9 +74,12 @@ function sampleCount(place: DiscoveryPlace) {
 
 export function passesHomeQuality(place: DiscoveryPlace) {
   const samples = sampleCount(place);
-  if (samples < 8) return true;
   const visibleScore = place.ratingScore ?? calculateRating(place).displayScore;
-  return visibleScore >= 55;
+  return evaluateAppEligibility({
+    sampleCount: samples,
+    visibleScore,
+    currentlyDisliked: false,
+  }).decision === "ALLOW";
 }
 
 function slotFor(candidate: HomeRankedCandidate): HomeCurationSlot {

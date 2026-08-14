@@ -13,6 +13,7 @@ import {
   type RankingTasteSignal,
 } from "./place-discovery";
 import { listRecommendationCandidates } from "./place.server";
+import { evaluateAppEligibility } from "./recommendation-eligibility";
 
 export type RecommendationCandidateContext = {
   candidates: DiscoveryPlace[];
@@ -124,7 +125,13 @@ export async function loadRecommendationCandidateContext(db: AppDb, input: {
     loadDislikedPlaceIds(db, input.userId, placeIds),
   ]);
   const disliked = new Set(dislikedPlaceIds);
-  const candidates = placesWithRatings.filter((place) => !disliked.has(place.id));
+  const candidates = placesWithRatings.filter((place) => evaluateAppEligibility({
+    // 이 공통 후보 계층은 기존 계약대로 현재 비추천 장소만 제외한다.
+    // 홈 품질 하한은 home-curation의 모드별 랭킹 단계에서 별도로 적용한다.
+    sampleCount: 0,
+    visibleScore: 100,
+    currentlyDisliked: disliked.has(place.id),
+  }).decision === "ALLOW");
   const goldenPolicy = input.goldenContext ?? "required";
   let goldenContext: Awaited<ReturnType<typeof loadGoldenPickContextForPlaces>> | null = null;
   if (goldenPolicy !== "omit") {

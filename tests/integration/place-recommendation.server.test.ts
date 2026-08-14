@@ -109,6 +109,22 @@ describe("place recommendation server", () => {
     );
     expect(Math.max(...categoryCounts.values())).toBeLessThanOrEqual(3);
     expect(Math.max(...neighborhoodCounts.values())).toBeLessThanOrEqual(2);
+    expect(result.personal.map((place) => (
+      trustedExplorationIds.indexOf(place.id) >= 0
+        ? `T${trustedExplorationIds.indexOf(place.id)}`
+        : `P${preferredFamiliarIds.indexOf(place.id)}`
+    ))).toEqual(["T0", "T1", "P0", "P2", "P3", "P4", "P5", "P6"]);
+    expect(result.trusted.map((place) => trustedExplorationIds.indexOf(place.id)))
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(result.golden).toEqual([]);
+    expect(Object.keys(result).sort()).toEqual([
+      "chips",
+      "golden",
+      "personal",
+      "selectedBadges",
+      "title",
+      "trusted",
+    ]);
   });
 
   it("uses guest taste badge ids without a member id", async () => {

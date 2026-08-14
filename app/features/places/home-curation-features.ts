@@ -9,11 +9,12 @@ import {
 } from "./place-discovery";
 import type { HomeRecommendationHistory } from "./home-curation-history.client";
 import { TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
+import type { RecommendationMatchKind } from "./recommendation-action-values";
 
 export type TasteMatch = {
   badgeId: string;
   strength: number;
-  match: "DIRECT" | "ADJACENT";
+  match: Exclude<RecommendationMatchKind, "EXPLORATION">;
 };
 
 export type TimeCompatibility = "STRONG" | "WEAK" | "UNKNOWN" | "MISMATCH";
