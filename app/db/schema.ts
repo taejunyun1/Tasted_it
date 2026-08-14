@@ -597,6 +597,19 @@ export const reviewerPhotoCleanupJobs = sqliteTable(
   (table) => [index("reviewer_photo_cleanup_due_idx").on(table.nextAttemptAt, table.createdAt)],
 );
 
+export const rateLimitWindows = sqliteTable(
+  "rate_limit_windows",
+  {
+    bucketHash: text("bucket_hash").notNull(),
+    windowStartedAt: text("window_started_at").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.bucketHash, table.windowStartedAt] }),
+    index("rate_limit_windows_started_idx").on(table.windowStartedAt),
+  ],
+);
+
 export const placeDailyMetrics = sqliteTable(
   "place_daily_metrics",
   {
