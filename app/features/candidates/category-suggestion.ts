@@ -181,6 +181,23 @@ export function getAuthoritativeSubtypeCategorySlug(
   return matchesFinalCategory ? classification.categorySlug : null;
 }
 
+/**
+ * Returns a concrete food signal found in the business name only.  Broad
+ * cuisine and venue wording intentionally do not become an authority here:
+ * they are useful context, but should not overturn a verified provider or
+ * source-subtype result on their own.
+ */
+export function getStrongestNameFoodCategorySlug(input: CandidateClassificationInput) {
+  const candidates = strongestSignalsBySlug(
+    collectSignals(input).filter((signal) => signal.origin === "NAME" && signal.kind === "FOOD"),
+  );
+  const primary = candidates[0];
+  const runnerUp = candidates[1];
+  if (!primary) return null;
+  if (runnerUp && primary.evidenceTier === runnerUp.evidenceTier && primary.score - runnerUp.score <= 20) return null;
+  return primary.slug;
+}
+
 export function suggestCategorySlugs(sourceType: PublicDataSource, subtype: string | null | undefined) {
   return classifyCandidate({ sourceType, businessSubtype: subtype, businessName: "" }).candidateSlugs;
 }

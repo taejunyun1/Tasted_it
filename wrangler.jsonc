@@ -12,6 +12,8 @@
 	"vars": {
 		"ONBOARDING_ENABLED": "true",
 		"NAVER_PLACE_GEOCODING_ENABLED": "true",
+		"NAVER_LOCAL_SEARCH_ENABLED": "false",
+		"NAVER_LOCAL_SEARCH_DAILY_LIMIT": "200",
 		"REVIEW_PHOTO_UPLOAD_ENABLED": "false"
 	},
 	"ai": { "binding": "AI" },

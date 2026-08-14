@@ -25,6 +25,7 @@ describe("automatic candidate classification trigger", () => {
   it("AI 실패 결과에 수동 확인과 구분되는 배지를 제공한다", () => {
     expect(getAiClassificationBadge("AI_FAILED")).toEqual({ label: "AI 확인 실패", tone: "error" });
     expect(getAiClassificationBadge("AI_RULE")).toEqual({ label: "AI 분류 완료", tone: "success" });
+    expect(getAiClassificationBadge("NAVER_RULE")).toEqual({ label: "NAVER 지도 확인", tone: "success" });
     expect(getAiClassificationBadge("RULE_ONLY")).toBeNull();
   });
 
@@ -32,6 +33,7 @@ describe("automatic candidate classification trigger", () => {
     const rows = [
       { id: "blocked", reviewState: "BLOCKED", classificationSource: "RULE_ONLY" },
       { id: "complete", reviewState: "AUTO", classificationSource: "AI_RULE" },
+      { id: "naver-complete", reviewState: "AUTO", classificationSource: "NAVER_RULE" },
       ...Array.from({ length: 12 }, (_, index) => ({ id: `manual-${index}`, reviewState: "MANUAL", classificationSource: "RULE_ONLY" })),
     ] as const;
 

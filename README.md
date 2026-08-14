@@ -29,6 +29,10 @@ pnpm dev --host 127.0.0.1
 | --- | --- | --- |
 | `NAVER_MAPS_CLIENT_ID` | 네이버 Web Dynamic Map Client ID | secret |
 | `NAVER_PLACE_GEOCODING_ENABLED` | 장소 제안·관리자 위치 확인용 NAVER 주소 지오코딩 kill switch | 환경별 변수 (`false` 안전 기본값, 이번 운영 배포는 `true`) |
+| `NAVER_LOCAL_SEARCH_CLIENT_ID` | NAVER 지역검색 서버 요청 식별자 | secret |
+| `NAVER_LOCAL_SEARCH_CLIENT_SECRET` | NAVER 지역검색 서버 요청 비밀값 | secret |
+| `NAVER_LOCAL_SEARCH_ENABLED` | NAVER 지역검색 카테고리 검증 kill switch | 환경별 변수 (`false` 안전 기본값) |
+| `NAVER_LOCAL_SEARCH_DAILY_LIMIT` | 하루 최대 NAVER 지역검색 호출 수 | 환경별 변수 (`200` 초기 상한) |
 | `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 일반 인증키 | secret |
 | `ADMIN_EMAIL` | 가입 시 ADMIN 역할을 부여할 운영자 이메일 | secret |
 | `RESEND_API_KEY` | 가입 인증·비밀번호 재설정 메일 발송 | secret |
@@ -46,6 +50,8 @@ pnpm dev --host 127.0.0.1
 
 ```bash
 pnpm exec wrangler secret put NAVER_MAPS_CLIENT_ID
+pnpm exec wrangler secret put NAVER_LOCAL_SEARCH_CLIENT_ID
+pnpm exec wrangler secret put NAVER_LOCAL_SEARCH_CLIENT_SECRET
 pnpm exec wrangler secret put DATA_GO_KR_SERVICE_KEY
 pnpm exec wrangler secret put ADMIN_EMAIL
 pnpm exec wrangler secret put RESEND_API_KEY
@@ -59,6 +65,10 @@ pnpm exec wrangler secret list
 ```
 
 장소 제안의 지도 위치 확인은 기존 NAVER Maps 애플리케이션의 Geocoding 기능을 재사용합니다. 새 키나 장소 ID 저장은 없으며, 주소 검색은 사용자가 `지도에서 위치 찾기`를 누를 때만 실행됩니다. 이번 운영 배포에서 `NAVER_PLACE_GEOCODING_ENABLED=true`로 활성화하며, 배포 전 NAVER Cloud의 Geocoding 상품, Web 서비스 URL, 일일 쿼터를 확인합니다. 상세 절차와 장애 시 중단 방법은 [장소 제안 지도 위치 런북](docs/operations/place-suggestion-map-runbook.md)을 따릅니다.
+
+NAVER 지역검색은 사용자 공개 화면에서 호출하지 않습니다. 새 공공데이터 후보 또는 관리자의 명시 재검증에서만 서버가 상호·주소를 전송하며, 응답의 원문·이미지·리뷰·소개·장소 ID·링크는 D1 또는 애플리케이션 로그에 저장하지 않습니다. `NAVER_LOCAL_SEARCH_ENABLED=false`로 즉시 중단할 수 있고, 중단 또는 제공자 오류 시 기존 공공데이터·상호 규칙 분류를 유지합니다.
+
+공개 장소 재분류는 NAVER 상호·주소/100m 위치·구체 카테고리와 원천 세부업태가 모두 맞는 경우만 적용합니다. 최초에는 100곳 미리보기 후 변경 수와 audit을 확인하고 적용합니다. 상세한 quota, 중단, forward-fix 절차는 [NAVER 지역검색 카테고리 검증 운영 절차](docs/operations/naver-local-category-runbook.md)를 따릅니다.
 
 Google Cloud Console의 웹 OAuth 클라이언트에는 다음 주소를 정확히 등록합니다.
 

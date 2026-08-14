@@ -58,6 +58,20 @@ describe("AI category policy", () => {
     })).toMatchObject({ categorySlug: "ramen-detail", confidence: "CONFLICT", confidenceScore: 82, eligible: false });
   });
 
+  it("keeps a verified authority above a high-confidence AI disagreement", () => {
+    expect(reconcileAiClassification({
+      ruleSlug: "home-meal",
+      ruleConfidence: "HIGH",
+      ruleScore: 90,
+      authoritativeCategorySlug: "gukbap-detail",
+      ai: { categorySlug: "ramen-detail", confidence: 0.99, reasons: ["AI 추정"] },
+    })).toMatchObject({
+      categorySlug: "gukbap-detail",
+      confidence: "CONFLICT",
+      eligible: false,
+    });
+  });
+
   it("rejects AI evidence that is absent from the supplied business data", () => {
     expect(() => validateGroundedAiClassification(
       { categorySlug: "gimbap", confidence: 0.8, evidence: ["gimbap"], reasons: ["김밥"] },
