@@ -18,6 +18,13 @@ export interface CandidateClassification {
   reasons: string[];
 }
 
+export type CandidateClassificationInput = {
+  sourceType: PublicDataSource;
+  businessSubtype?: string | null;
+  businessName: string;
+  address?: string | null;
+};
+
 type SignalOrigin = "NAME" | "SUBTYPE" | "SOURCE";
 type EvidenceTier = 1 | 2 | 3 | 4 | 5;
 type Signal = CategoryRule & { baseScore: number; score: number; origin: SignalOrigin; evidenceTier: EvidenceTier };
@@ -122,12 +129,7 @@ function rankCandidates(signals: Signal[]): RankedCandidate[] {
   }).sort((left, right) => left.evidenceTier - right.evidenceTier || right.score - left.score);
 }
 
-export function classifyCandidate(input: {
-  sourceType: PublicDataSource;
-  businessSubtype?: string | null;
-  businessName: string;
-  address?: string | null;
-}): CandidateClassification {
+export function classifyCandidate(input: CandidateClassificationInput): CandidateClassification {
   const signals = collectSignals(input);
   const ranked = rankCandidates(signals);
   const primary = ranked[0];
@@ -158,6 +160,25 @@ export function classifyCandidate(input: {
     neighborhood,
     reasons,
   };
+}
+
+/**
+ * Concrete source subtypes are an authoritative guardrail for AI output only
+ * when they agree with the final rule category. A more specific business-name
+ * food signal (for example, 라멘 under the broad 한식 subtype) still wins.
+ */
+export function getAuthoritativeSubtypeCategorySlug(
+  input: CandidateClassificationInput,
+  classification: CandidateClassification = classifyCandidate(input),
+) {
+  const subtype = input.businessSubtype?.normalize("NFKC").trim() ?? "";
+  if (!subtype || classification.confidence === "CONFLICT") return null;
+  const matchesFinalCategory = subtypeCategoryRules.some((rule) =>
+    rule.slug === classification.categorySlug
+    && rule.pattern.test(subtype)
+    && !rule.excludePattern?.test(subtype),
+  );
+  return matchesFinalCategory ? classification.categorySlug : null;
 }
 
 export function suggestCategorySlugs(sourceType: PublicDataSource, subtype: string | null | undefined) {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyCandidate,
   extractNeighborhood,
+  getAuthoritativeSubtypeCategorySlug,
 } from "../../app/features/candidates/category-suggestion";
 
 describe("classifyCandidate", () => {
@@ -193,6 +194,24 @@ describe("classifyCandidate", () => {
       expect(result.reasons.join(" ")).toContain("정종·대포집·소주방");
     },
   );
+
+  it("uses any concrete source subtype as the AI alignment authority without overriding a more specific name", () => {
+    expect(getAuthoritativeSubtypeCategorySlug({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "식육(숯불구이)",
+      businessName: "신 돼지세끼",
+    })).toBe("grill");
+    expect(getAuthoritativeSubtypeCategorySlug({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "정종/대포집/소주방",
+      businessName: "인생역전",
+    })).toBe("pocha");
+    expect(getAuthoritativeSubtypeCategorySlug({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "한식",
+      businessName: "라멘 하루",
+    })).toBeNull();
+  });
 
   it.each(["사과농장", "망고상회", "딸기마켓", "복숭아직판장"])(
     "does not infer a restaurant category from fruit-only name %s",

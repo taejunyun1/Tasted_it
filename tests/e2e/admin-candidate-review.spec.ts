@@ -34,6 +34,9 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 장소 예외 처리" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 반려" })).toHaveCount(0);
+  await expect(page.getByLabel("QA 양평해장국 대표 카테고리")).toHaveValue("cat-gukbap");
+  await page.getByLabel("QA 양평해장국 대표 카테고리").selectOption("cat-stew");
+  await expect(page.getByLabel("QA 양평해장국 대표 카테고리")).toHaveValue("cat-stew");
   await expect(page.getByLabel("QA 스시하루 대표 카테고리")).toBeVisible();
   await expect(page.getByLabel("오늘베이킹 대표 카테고리")).toHaveValue("cat-bakery");
   await expect(page.getByText("추천 · 베이커리", { exact: true })).toBeVisible();

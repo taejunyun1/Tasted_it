@@ -102,7 +102,7 @@ describe("bulk candidate review", () => {
       candidates.push(await upsertBusinessLicense(db, {
         ...license,
         sourceManagementNo: `bulk-large-${index}`,
-        businessName: `대규모 검수 식당 ${index}`,
+        businessName: `대규모 검수 해장국 ${index}`,
       }, now));
     }
     await addAiAgreement(candidates.at(-1)!.id);
@@ -133,6 +133,31 @@ describe("bulk candidate review", () => {
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
 
     expect(row).toMatchObject({ categorySlug: "stew", reviewState: "MANUAL", classificationSource: "RULE_ONLY" });
+  });
+
+  it("returns a stored AI subtype mismatch to manual review instead of marking it automatic", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, {
+      ...license,
+      sourceManagementNo: "stored-subtype-mismatch",
+      businessName: "인생역전",
+      businessSubtype: "정종/대포집/소주방",
+    }, now);
+    await db.insert(aiClassificationRuns).values({
+      id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "test",
+      promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: "home-meal", confidence: 0.98,
+      reasonsJson: '["원천 업태 근거"]', createdAt: now,
+    });
+
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+
+    expect(row).toMatchObject({
+      categorySlug: "pocha",
+      reviewState: "MANUAL",
+      eligible: false,
+      classificationSource: "AI_FAILED",
+    });
+    expect(row.reasons).toContain("원천 업태와 AI 카테고리가 달라 수동 확인 필요");
   });
 
   it("approves safe candidates and skips unsafe selections", async () => {
