@@ -1,10 +1,17 @@
 export type RecommendationMatchKind = "DIRECT" | "ADJACENT" | "EXPLORATION";
 export type LegacyRecommendationMatchKind = RecommendationMatchKind | "FAMILIAR";
+export type PublicDiscoveryMatchKind = Exclude<LegacyRecommendationMatchKind, "DIRECT">;
 
 export function canonicalRecommendationMatchKind(
   kind: LegacyRecommendationMatchKind,
 ): RecommendationMatchKind {
   return kind === "FAMILIAR" ? "DIRECT" : kind;
+}
+
+export function publicDiscoveryMatchKind(
+  kind: RecommendationMatchKind,
+): PublicDiscoveryMatchKind {
+  return kind === "DIRECT" ? "FAMILIAR" : kind;
 }
 
 export type RecommendationActionName =

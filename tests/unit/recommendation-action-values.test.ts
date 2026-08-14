@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   actionValue,
   canonicalRecommendationMatchKind,
+  publicDiscoveryMatchKind,
   tastePenaltyForFeedback,
 } from "../../app/features/places/recommendation-action-values";
 
@@ -23,5 +24,11 @@ describe("recommendation action values", () => {
     expect(canonicalRecommendationMatchKind("FAMILIAR")).toBe("DIRECT");
     expect(canonicalRecommendationMatchKind("ADJACENT")).toBe("ADJACENT");
     expect(canonicalRecommendationMatchKind("EXPLORATION")).toBe("EXPLORATION");
+  });
+
+  it("내부 DIRECT를 기존 목록 공개 계약의 FAMILIAR로만 변환한다", () => {
+    expect(publicDiscoveryMatchKind("DIRECT")).toBe("FAMILIAR");
+    expect(publicDiscoveryMatchKind("ADJACENT")).toBe("ADJACENT");
+    expect(publicDiscoveryMatchKind("EXPLORATION")).toBe("EXPLORATION");
   });
 });

@@ -17,4 +17,9 @@ describe("recommendation eligibility", () => {
     expect(evaluateAppEligibility({ sampleCount: 0, visibleScore: 90, currentlyDisliked: true }))
       .toEqual({ decision: "DROP", reason: "CURRENT_DISLIKE" });
   });
+
+  it("성숙 후보의 비정상 공개 점수는 기존 품질 하한처럼 제외한다", () => {
+    expect(evaluateAppEligibility({ sampleCount: 8, visibleScore: Number.NaN, currentlyDisliked: false }))
+      .toEqual({ decision: "DROP", reason: "QUALITY_FLOOR" });
+  });
 });

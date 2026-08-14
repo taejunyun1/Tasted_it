@@ -15,8 +15,8 @@ export function evaluateAppEligibility(input: {
   currentlyDisliked: boolean;
 }): RecommendationEligibility {
   if (input.currentlyDisliked) return { decision: "DROP", reason: "CURRENT_DISLIKE" };
-  if (input.sampleCount >= 8 && input.visibleScore < 55) {
-    return { decision: "DROP", reason: "QUALITY_FLOOR" };
-  }
-  return { decision: "ALLOW" };
+  if (input.sampleCount < 8) return { decision: "ALLOW" };
+  return input.visibleScore >= 55
+    ? { decision: "ALLOW" }
+    : { decision: "DROP", reason: "QUALITY_FLOOR" };
 }
