@@ -17,7 +17,9 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(page.getByRole("link", { name: "분류 완료" })).toBeVisible();
   await expect(page.getByRole("link", { name: "수동 확인" })).toBeVisible();
   await expect(page.getByRole("link", { name: "승인 불가·예외" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "체인점 제외" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "자동 제외" })).toBeVisible();
+  await expect(page.getByLabel("공개 장소 일괄 재분류")).toBeVisible();
+  await expect(page.getByRole("button", { name: "100곳 미리보기" })).toBeVisible();
   await expect(page.getByLabel("후보 네이버 지도")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "동네" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "상단 페이지 이동" })).toBeVisible();
@@ -57,22 +59,22 @@ test("admin excludes selected candidates with a reason and restores them from ex
   await expect(page.getByRole("heading", { name: "QA 수동예외 대상" })).toBeVisible();
   await expect(page.getByText("운영 정책 제외", { exact: true })).toBeVisible();
   await expect(page.getByText("QA 운영 정책 제외", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "QA 황제 룸싸롱" })).toBeVisible();
-  await expect(page.getByText("유흥업종 자동 제외", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "QA 황제 룸싸롱" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "QA 수동예외 대상 검수 대기로 복원" }).click();
   await expect(page.getByText("검수 대기로 복원했습니다.")).toBeVisible();
 });
 
-test("admin inspects chain exclusions without review controls", async ({ page }) => {
+test("admin inspects automatic exclusions without review controls", async ({ page }) => {
   await page.goto("/admin/candidates?state=EXCLUDED");
 
-  await expect(page.getByRole("link", { name: "체인점 제외" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "자동 제외" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "파리바게뜨 QA점" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "QA 황제 룸싸롱" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "QA 황제 룸싸롱" })).toBeVisible();
   await expect(page.getByText("체인점 자동 제외")).toBeVisible();
+  await expect(page.getByText("유흥업종 자동 제외", { exact: true })).toBeVisible();
   await expect(page.getByText("파리바게뜨", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "검수 대기로 복원" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "파리바게뜨 QA점 검수 대기로 복원" })).toBeVisible();
   await expect(page.getByRole("button", { name: "선택 장소 다시 분류" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toHaveCount(0);
 });

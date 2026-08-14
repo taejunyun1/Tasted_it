@@ -24,6 +24,14 @@ describe("public-data category suggestions", () => {
     }).categorySlug).toBe("pasta");
   });
 
+  it("routes 식육(숯불구이) to grill instead of the broad restaurant default", () => {
+    expect(classifyCandidate({
+      sourceType: "GENERAL_RESTAURANT",
+      businessSubtype: "식육(숯불구이)",
+      businessName: "신 돼지세끼",
+    })).toMatchObject({ categorySlug: "grill", confidence: "HIGH" });
+  });
+
   it("keeps a concrete western food name above the 경양식 default", () => {
     expect(classifyCandidate({
       sourceType: "GENERAL_RESTAURANT",

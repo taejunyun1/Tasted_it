@@ -89,6 +89,30 @@ describe("candidate review service", () => {
     ]));
   });
 
+  it("stores convenience stores and non-food facilities as not-restaurant exclusions", async () => {
+    const db = createDb(env.DB);
+    const candidates = await Promise.all([
+      upsertBusinessLicense(db, {
+        ...openLicense,
+        sourceManagementNo: `convenience-${crypto.randomUUID()}`,
+        businessName: "GS25 동명점",
+        businessSubtype: "휴게음식점",
+      }, now),
+      upsertBusinessLicense(db, {
+        ...openLicense,
+        sourceManagementNo: `pc-bang-${crypto.randomUUID()}`,
+        businessName: "청춘 PC방",
+        businessSubtype: "일반음식점",
+      }, now),
+    ]);
+
+    expect(candidates.every((candidate) => candidate.excluded)).toBe(true);
+    expect(await listExcludedCandidates(db)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: candidates[0]?.id, exclusionReason: "NOT_RESTAURANT", exclusionCategory: "NOT_RESTAURANT" }),
+      expect.objectContaining({ id: candidates[1]?.id, exclusionReason: "NOT_RESTAURANT", exclusionCategory: "NOT_RESTAURANT" }),
+    ]));
+  });
+
   it("moves selected pending candidates to an admin exception and restores them", async () => {
     const db = createDb(env.DB);
     const first = await upsertBusinessLicense(db, {

@@ -28,11 +28,33 @@ describe("classifyAutomaticExclusion", () => {
   });
 
   it.each([
-    { businessName: "별밤 라이브카페", businessSubtype: "일반음식점" },
     { businessName: "왕가네 치킨호프", businessSubtype: "호프/통닭" },
     { businessName: "동명동 와인바", businessSubtype: "경양식" },
     { businessName: "문화전당 펍", businessSubtype: "경양식" },
   ])("keeps food-serving bar candidate $businessName", (candidate) => {
+    expect(classifyAutomaticExclusion(candidate)).toBeNull();
+  });
+
+  it.each([
+    { businessName: "별밤 라이브카페", businessSubtype: "일반음식점" },
+    { businessName: "청춘PC방", businessSubtype: "일반음식점" },
+    { businessName: "오늘의 도자기공방", businessSubtype: "일반음식점" },
+    { businessName: "CU 광주충장로점", businessSubtype: "휴게음식점" },
+    { businessName: "GS25 동명점", businessSubtype: "일반음식점" },
+    { businessName: "세븐일레븐 광주점", businessSubtype: "휴게음식점" },
+    { businessName: "이마트24 광주점", businessSubtype: "휴게음식점" },
+  ])("excludes non-restaurant candidate $businessName", (candidate) => {
+    expect(classifyAutomaticExclusion(candidate)).toMatchObject({
+      reason: "NOT_RESTAURANT",
+      exclusionCategory: "NOT_RESTAURANT",
+      confidence: 1,
+    });
+  });
+
+  it.each([
+    { businessName: "마라공방", businessSubtype: "일반음식점" },
+    { businessName: "떡볶이공방", businessSubtype: "일반음식점" },
+  ])("keeps food businesses with an ambiguous 공방 suffix", (candidate) => {
     expect(classifyAutomaticExclusion(candidate)).toBeNull();
   });
 

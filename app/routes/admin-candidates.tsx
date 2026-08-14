@@ -12,6 +12,7 @@ import { reconcileCandidateSelection, selectCurrentPageCandidates } from "../fea
 import { excludeCandidates, listCandidateSubtypes, listExcludedCandidates, restoreExcludedCandidate } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
+import { applyCategoryReclassification, previewCategoryReclassification } from "../features/candidates/category-reclassification.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
 import { getAiClassificationBadge, removeAutoClassificationParam, selectAutomaticClassificationCandidateIds, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
 import { buildCandidatePageHref } from "../features/candidates/pagination";
@@ -27,6 +28,15 @@ const stateMeta = {
   MANUAL: { label: "수동 확인", className: "border-amber-600 bg-amber-50 text-amber-900" },
   BLOCKED: { label: "승인 불가", className: "border-rose-600 bg-rose-50 text-rose-900" },
 } as const;
+const automaticExclusionLabels: Record<string, string> = {
+  CHAIN_STORE: "체인점 자동 제외",
+  ADULT_ENTERTAINMENT: "유흥업종 자동 제외",
+  NOT_RESTAURANT: "비음식 시설 자동 제외",
+};
+
+function exclusionLabel(reason: string) {
+  return automaticExclusionLabels[reason] ?? "관리자 예외 처리";
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
@@ -71,19 +81,19 @@ export async function loader({ request }: Route.LoaderArgs) {
     neighborhood: null,
     reasons: row.exclusionReason === "CHAIN_STORE"
       ? [`${row.chainName} 체인명과 일치`]
-      : [row.exclusionReason === "ADULT_ENTERTAINMENT" ? "유흥업종 자동 제외" : "관리자 예외 처리"],
+      : [exclusionLabel(row.exclusionReason)],
     classificationSource: "RULE_ONLY" as const,
     aiConfidence: null,
     blockers: [],
-    reviewReasons: [row.exclusionReason === "CHAIN_STORE" ? "체인점 자동 제외" : row.exclusionReason === "ADULT_ENTERTAINMENT" ? "유흥업종 자동 제외" : "관리자 예외 처리"],
+    reviewReasons: [exclusionLabel(row.exclusionReason)],
     reviewState: "BLOCKED" as const,
     eligible: false,
     isExcluded: true as const,
   }));
-  const chainRows = excludedReviewRows.filter((row) => row.exclusionReason === "CHAIN_STORE");
-  const exceptionRows = excludedReviewRows.filter((row) => row.exclusionReason !== "CHAIN_STORE");
+  const automaticExclusionRows = excludedReviewRows.filter((row) => row.exclusionReason !== "ADMIN_EXCEPTION");
+  const exceptionRows = excludedReviewRows.filter((row) => row.exclusionReason === "ADMIN_EXCEPTION");
   const displayedRows = requestedState === "EXCLUDED"
-    ? chainRows
+    ? automaticExclusionRows
     : requestedState === "EXCEPTION"
       ? [...exceptionRows, ...blockedRows]
       : filteredRows;
@@ -98,7 +108,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       AUTO: reviewableRows.filter((row) => row.reviewState === "AUTO").length,
       MANUAL: reviewableRows.filter((row) => row.reviewState === "MANUAL").length,
       EXCEPTION: blockedRows.length + exceptionRows.length,
-      EXCLUDED: chainRows.length,
+      EXCLUDED: automaticExclusionRows.length,
     },
     categories: categoryRows,
     subtypes,
@@ -116,20 +126,33 @@ export async function action({ request }: Route.ActionArgs) {
   if (candidateIds.length > 25) throw new Response("한 번에 최대 25곳까지 처리할 수 있습니다.", { status: 400 });
   const db = createDb(env.DB);
   const now = new Date().toISOString();
-  if (restoreCandidateId) {
-    await restoreExcludedCandidate(db, { candidateId: restoreCandidateId, actorUserId: user.id, now });
-    return { approved: [], skipped: [], rejected: 0, error: null, ai: null, restored: 1 };
-  }
-  if (form.get("intent") === "runAi") {
+  const intent = String(form.get("intent") ?? "");
+  if (intent === "reclassifyPreview" || intent === "reclassifyApply") {
+    const afterPlaceId = String(form.get("afterPlaceId") ?? "").trim() || null;
     try {
-      const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 10, now });
-      return { approved: [], skipped: [], rejected: 0, error: ai.quota.blocked && !ai.processed ? "오늘 AI 무료 한도의 90%에 도달해 분류를 중지했습니다." : null, ai };
+      const result = intent === "reclassifyPreview"
+        ? await previewCategoryReclassification(db, { afterPlaceId, limit: 100 })
+        : await applyCategoryReclassification(db, { actorUserId: user.id, afterPlaceId, limit: 100, now });
+      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, reclassification: { mode: intent, result } };
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "알 수 없는 오류";
-      return { approved: [], skipped: [], rejected: 0, error: `AI 분류를 완료하지 못했습니다. 잠시 후 다시 시도하세요. (${detail})`, ai: null };
+      const detail = error instanceof Error ? error.message : "UNKNOWN_ERROR";
+      return { approved: [], skipped: [], rejected: 0, error: `일괄 재분류를 완료하지 못했습니다. (${detail})`, ai: null, reclassification: null };
     }
   }
-  if (form.get("intent") === "excludeSelected") {
+  if (restoreCandidateId) {
+    await restoreExcludedCandidate(db, { candidateId: restoreCandidateId, actorUserId: user.id, now });
+    return { approved: [], skipped: [], rejected: 0, error: null, ai: null, restored: 1, reclassification: null };
+  }
+  if (intent === "runAi") {
+    try {
+      const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 10, now });
+      return { approved: [], skipped: [], rejected: 0, error: ai.quota.blocked && !ai.processed ? "오늘 AI 무료 한도의 90%에 도달해 분류를 중지했습니다." : null, ai, reclassification: null };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "알 수 없는 오류";
+      return { approved: [], skipped: [], rejected: 0, error: `AI 분류를 완료하지 못했습니다. 잠시 후 다시 시도하세요. (${detail})`, ai: null, reclassification: null };
+    }
+  }
+  if (intent === "excludeSelected") {
     try {
       const result = await excludeCandidates(db, {
         candidateIds,
@@ -138,14 +161,14 @@ export async function action({ request }: Route.ActionArgs) {
         actorUserId: user.id,
         now,
       });
-      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, excluded: result.excludedIds.length };
+      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, excluded: result.excludedIds.length, reclassification: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
       const errorMessage = message === "EXCLUSION_NOTE_REQUIRED" ? "기타 사유는 메모를 입력해 주세요."
         : message === "EXCLUSION_CATEGORY_INVALID" ? "예외 사유를 선택해 주세요."
           : message === "CANDIDATE_SELECTION_REQUIRED" ? "예외 처리할 장소를 선택해 주세요."
             : "예외 처리 중 오류가 발생했습니다.";
-      return { approved: [], skipped: [], rejected: 0, error: errorMessage, ai: null, excluded: 0 };
+      return { approved: [], skipped: [], rejected: 0, error: errorMessage, ai: null, excluded: 0, reclassification: null };
     }
   }
   const result = await approveCandidateSelections(db, {
@@ -153,12 +176,13 @@ export async function action({ request }: Route.ActionArgs) {
     actorUserId: user.id,
     now,
   });
-  return { ...result, rejected: 0, error: null, ai: null };
+  return { ...result, rejected: 0, error: null, ai: null, reclassification: null };
 }
 
 export default function AdminCandidates({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const autoClassification = useFetcher<typeof action>();
+  const reclassification = useFetcher<typeof action>();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const excludedMode = params.get("state") === "EXCLUDED";
@@ -168,6 +192,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [chosenCategories, setChosenCategories] = useState<Record<string, string>>(() =>
     Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
+  const [reclassificationCursor, setReclassificationCursor] = useState<string | null>(null);
   const parents = loaderData.categories.filter((category) => !category.parentId);
   const children = loaderData.categories.filter((category) => category.parentId);
   const selectableCategories = listSelectableCategories(loaderData.categories);
@@ -177,6 +202,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const selectableIds = useMemo(() => loaderData.rows.filter((row) => !row.isExcluded && row.reviewState !== "BLOCKED").map((row) => row.id), [loaderData.rows]);
   const pageSelectionIds = selectableIds.slice(0, 25);
   const pageSelected = pageSelectionIds.length > 0 && pageSelectionIds.every((id) => selected.has(id));
+  const reclassificationData = reclassification.data?.reclassification ?? null;
 
   useEffect(() => {
     setSelected((current) => reconcileCandidateSelection(current, selectableIds));
@@ -205,6 +231,12 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
     if (!autoClassificationStarted.current || autoClassification.state !== "idle" || !autoClassification.data || params.get("autoClassify") !== "1") return;
     void navigate(removeAutoClassificationParam(params), { replace: true });
   }, [autoClassification.data, autoClassification.state, navigate, params]);
+
+  useEffect(() => {
+    if (reclassificationData?.mode === "reclassifyApply") {
+      setReclassificationCursor(reclassificationData.result.nextAfterPlaceId);
+    }
+  }, [reclassificationData]);
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -239,7 +271,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         <Summary label="분류 완료" value={loaderData.counts.AUTO} tone="text-emerald-800" />
         <Summary label="수동 확인" value={loaderData.counts.MANUAL} tone="text-amber-700" />
         <Summary label="승인 불가·예외" value={loaderData.counts.EXCEPTION} tone="text-rose-700" />
-        <Summary label="체인점 제외" value={loaderData.counts.EXCLUDED} tone="text-violet-700" />
+        <Summary label="자동 제외" value={loaderData.counts.EXCLUDED} tone="text-violet-700" />
       </section>
 
       <div className="admin-page-frame mx-auto max-w-[1500px] px-5 py-7 md:px-10">
@@ -252,7 +284,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <Tab to={tabHref()} active={!params.get("state")} label="전체" count={loaderData.counts.ALL} />
           {states.map((state) => <Tab key={state} to={tabHref(state)} active={params.get("state") === state} label={stateMeta[state].label} count={loaderData.counts[state]} />)}
           <Tab to={tabHref("EXCEPTION")} active={exceptionMode} label="승인 불가·예외" count={loaderData.counts.EXCEPTION} />
-          <Tab to={tabHref("EXCLUDED")} active={excludedMode} label="체인점 제외" count={loaderData.counts.EXCLUDED} />
+          <Tab to={tabHref("EXCLUDED")} active={excludedMode} label="자동 제외" count={loaderData.counts.EXCLUDED} />
         </nav>
 
         <Form method="get" className="mb-6 grid gap-2 border border-neutral-300 bg-white p-4 md:grid-cols-4 xl:grid-cols-8">
@@ -275,6 +307,28 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             {feedback.skipped.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{feedback.skipped.map((item) => <li key={item.candidateId}><strong>{loaderData.rows.find((row) => row.id === item.candidateId)?.businessName ?? item.candidateId}</strong> · {item.reason}</li>)}</ul>}
           </div>;
         })()}
+
+        {reviewMode && <section aria-label="공개 장소 일괄 재분류" className="mb-6 border border-emerald-800 bg-emerald-50/50 p-4">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+            <div>
+              <p className="font-mono text-[11px] font-semibold tracking-[0.16em] text-emerald-800">RULE RERUN / 100 PLACES</p>
+              <h2 className="mt-1 text-base font-semibold">새 규칙으로 공개 장소 재분류</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">공개된 원천 연동 장소를 100곳씩 읽어 새 카테고리 규칙으로 미리 확인합니다. 바뀌는 카테고리는 적용하고, 비음식 시설은 자동 제외로 기록해 공용 목록과 추천에서 숨깁니다. 자동 제외 탭에서 언제든 복원할 수 있습니다.</p>
+            </div>
+            <reclassification.Form method="post" className="flex shrink-0 flex-wrap gap-2">
+              <input type="hidden" name="afterPlaceId" value={reclassificationCursor ?? ""} />
+              <button type="submit" name="intent" value="reclassifyPreview" className="border border-emerald-800 bg-white px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={reclassification.state !== "idle"}>{reclassification.state === "submitting" ? "확인 중…" : "100곳 미리보기"}</button>
+              {reclassificationData?.mode === "reclassifyPreview" && (reclassificationData.result.changed > 0 || reclassificationData.result.excluded > 0) && <button type="submit" name="intent" value="reclassifyApply" className="bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={reclassification.state !== "idle"}>규칙 적용</button>}
+            </reclassification.Form>
+          </div>
+          {reclassificationData && <div className={`mt-4 border px-4 py-3 text-sm ${reclassification.data?.error ? "border-rose-600 bg-rose-50 text-rose-900" : "border-emerald-700 bg-white text-emerald-950"}`}>
+            {reclassification.data?.error ? <p>{reclassification.data.error}</p> : <>
+              <p><strong>{reclassificationData.mode === "reclassifyApply" ? "적용 완료" : "미리보기"}</strong> · 확인 {reclassificationData.result.scanned}곳 · 카테고리 변경 {reclassificationData.result.changed}곳 · 비음식 자동 제외 {reclassificationData.result.excluded}곳 · 수동 확인 {reclassificationData.result.conflicts}곳</p>
+              {reclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-neutral-600">{reclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).map((change) => <li key={change.placeId}>{change.fromSlug} → {change.toSlug ?? "자동 제외 후보"} · {change.reason}</li>)}</ul>}
+              {reclassificationData.mode === "reclassifyApply" && (reclassificationData.result.nextAfterPlaceId ? <p className="mt-2 text-xs text-neutral-600">다음 100곳을 계속 확인할 수 있습니다.</p> : <p className="mt-2 text-xs text-neutral-600">현재 범위의 재분류가 끝났습니다.</p>)}
+            </>}
+          </div>}
+        </section>}
 
         <Pagination pagination={loaderData.pagination} params={params} position="top" />
 
@@ -300,10 +354,10 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
             </div>
             {loaderData.rows.map((row) => {
               if (row.isExcluded) return <article key={row.id} className="grid gap-3 border-b border-neutral-200 bg-violet-50/30 px-4 py-4 last:border-b-0 xl:grid-cols-[150px_minmax(220px,1fr)_minmax(260px,1.3fr)_200px_160px]">
-                <div><span className="inline-flex rounded-full border border-violet-500 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-800">{row.exclusionReason === "CHAIN_STORE" ? "체인점 자동 제외" : row.exclusionReason === "ADULT_ENTERTAINMENT" ? "유흥업종 자동 제외" : "관리자 예외"}</span></div>
+                <div><span className="inline-flex rounded-full border border-violet-500 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-800">{exclusionLabel(row.exclusionReason)}</span></div>
                 <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">제외일 {row.excludedAt.slice(0, 10)}</p></div>
-                <div><p className="font-semibold text-violet-900">{row.exclusionReason === "CHAIN_STORE" ? row.chainName : row.exclusionReason === "ADULT_ENTERTAINMENT" ? "유흥업종 제외" : ({ BUSINESS_TYPE: "업종 제외", NOT_RESTAURANT: "음식점 아님", BAD_OR_DUPLICATE_DATA: "중복·잘못된 데이터", POLICY: "운영 정책 제외", OTHER: "기타" } as const)[row.exclusionCategory as "BUSINESS_TYPE" | "NOT_RESTAURANT" | "BAD_OR_DUPLICATE_DATA" | "POLICY" | "OTHER"]}</p><p className="mt-1 text-xs text-neutral-600">{row.exclusionReason === "CHAIN_STORE" ? `일치 표현: ${row.matchedTerm}` : row.note ?? row.matchedRule}</p></div>
+                <div><p className="font-semibold text-violet-900">{row.exclusionReason === "CHAIN_STORE" ? row.chainName : row.exclusionReason === "ADULT_ENTERTAINMENT" ? "유흥업종 제외" : row.exclusionReason === "NOT_RESTAURANT" ? "비음식 시설 제외" : ({ BUSINESS_TYPE: "업종 제외", NOT_RESTAURANT: "음식점 아님", BAD_OR_DUPLICATE_DATA: "중복·잘못된 데이터", POLICY: "운영 정책 제외", OTHER: "기타" } as const)[row.exclusionCategory as "BUSINESS_TYPE" | "NOT_RESTAURANT" | "BAD_OR_DUPLICATE_DATA" | "POLICY" | "OTHER"]}</p><p className="mt-1 text-xs text-neutral-600">{row.exclusionReason === "CHAIN_STORE" ? `일치 표현: ${row.matchedTerm}` : row.note ?? row.matchedRule}</p></div>
                 <div><button aria-label={`${row.businessName} 검수 대기로 복원`} name="restoreCandidateId" value={row.id} className="border border-neutral-900 bg-white px-3 py-2 text-xs font-semibold">검수 대기로 복원</button></div>
               </article>;
               const blocked = row.reviewState === "BLOCKED";

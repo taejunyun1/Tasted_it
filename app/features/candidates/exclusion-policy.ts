@@ -2,8 +2,8 @@ import { matchChainStore } from "./chain-store-policy";
 import { matchNonRestaurantVenue } from "../places/food-venue-policy";
 
 export type AutomaticExclusion = {
-  reason: "CHAIN_STORE" | "ADULT_ENTERTAINMENT";
-  exclusionCategory: "CHAIN_STORE" | "ADULT_ENTERTAINMENT";
+  reason: "CHAIN_STORE" | "ADULT_ENTERTAINMENT" | "NOT_RESTAURANT";
+  exclusionCategory: "CHAIN_STORE" | "ADULT_ENTERTAINMENT" | "NOT_RESTAURANT";
   matchedRule: string;
   matchedBrand: string | null;
   matchedAlias: string | null;
@@ -19,8 +19,8 @@ export function classifyAutomaticExclusion(input: {
   const venue = matchNonRestaurantVenue(input);
   if (venue) {
     return {
-      reason: "ADULT_ENTERTAINMENT",
-      exclusionCategory: "ADULT_ENTERTAINMENT",
+      reason: venue.exclusionCategory,
+      exclusionCategory: venue.exclusionCategory,
       matchedRule: venue.matchedRule,
       matchedBrand: null,
       matchedAlias: null,

@@ -145,11 +145,31 @@ describe("place service", () => {
     );
   });
 
-  it("keeps non-restaurant entertainment venues out of public lists and recommendations", async () => {
+  it("keeps non-restaurant venues out of public lists and recommendations", async () => {
     const db = createDb(env.DB);
     await upsertPlace(db, {
       id: "food-venue-place",
       row: { ...baseRow, slug: "food-venue-place", name: "별밤 라이브카페" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "pc-bang-place",
+      row: { ...baseRow, slug: "pc-bang-place", name: "청춘 PC방" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "convenience-place",
+      row: { ...baseRow, slug: "convenience-place", name: "GS25 동명점" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "cu-convenience-place",
+      row: { ...baseRow, slug: "cu-convenience-place", name: "CU 광주상무점" },
+      now: "2026-08-05T00:00:00Z",
+    });
+    await upsertPlace(db, {
+      id: "curry-place",
+      row: { ...baseRow, slug: "curry-place", name: "Curry Universe" },
       now: "2026-08-05T00:00:00Z",
     });
     await upsertPlace(db, {
@@ -206,13 +226,17 @@ describe("place service", () => {
     const publicNames = (await listPlaces(db, { categorySlug: "ramen" })).map((place) => place.name);
     const recommendedNames = (await listRecommendationCandidates(db, { categorySlug: "ramen" })).map((place) => place.name);
 
-    expect(publicNames).toContain("별밤 라이브카페");
+    expect(publicNames).not.toContain("별밤 라이브카페");
+    expect(publicNames).not.toContain("청춘 PC방");
+    expect(publicNames).not.toContain("GS25 동명점");
+    expect(publicNames).not.toContain("CU 광주상무점");
     expect(publicNames).not.toContain("7080 별밤 라이브바");
     expect(publicNames).not.toContain("황금 카바레");
     expect(publicNames).not.toContain("7080 라이브\u00a0바");
     expect(publicNames).not.toContain("7080 라이브ＢＡＲ");
     expect(publicNames).not.toContain("청춘회관");
-    expect(recommendedNames).toContain("별밤 라이브카페");
+    expect(publicNames).toContain("Curry Universe");
+    expect(recommendedNames).not.toContain("별밤 라이브카페");
     expect(recommendedNames).not.toContain("7080 별밤 라이브바");
     expect(recommendedNames).not.toContain("황금 카바레");
     await expect(getPlaceBySlug(db, "live-bar-place")).rejects.toMatchObject({ status: 404 });

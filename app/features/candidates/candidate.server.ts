@@ -63,7 +63,7 @@ export async function listCandidateSubtypes(db: AppDb) {
 export async function listExcludedCandidates(
   db: AppDb,
   filters: CandidateFilters = {},
-  reasons?: Array<"CHAIN_STORE" | "ADULT_ENTERTAINMENT" | "ADMIN_EXCEPTION">,
+  reasons?: Array<"CHAIN_STORE" | "ADULT_ENTERTAINMENT" | "NOT_RESTAURANT" | "ADMIN_EXCEPTION">,
 ) {
   const conditions = [
     eq(businessLicenses.normalizedStatus, "OPEN"),
@@ -294,7 +294,7 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
         updatedAt: now,
       },
     });
-    if (exclusion?.status !== "ACTIVE") await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: match.reason === "CHAIN_STORE" ? "AUTO_EXCLUDE_CHAIN_STORE" : "AUTO_EXCLUDE_ADULT_ENTERTAINMENT", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: exclusion?.status ?? "PENDING", afterState: "EXCLUDED", createdAt: now });
+    if (exclusion?.status !== "ACTIVE") await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: match.reason === "CHAIN_STORE" ? "AUTO_EXCLUDE_CHAIN_STORE" : match.reason === "ADULT_ENTERTAINMENT" ? "AUTO_EXCLUDE_ADULT_ENTERTAINMENT" : "AUTO_EXCLUDE_NOT_RESTAURANT", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: exclusion?.status ?? "PENDING", afterState: "EXCLUDED", createdAt: now });
     excluded = true;
   } else if (!match && exclusion?.status === "ACTIVE" && exclusion.reason !== "ADMIN_EXCEPTION") {
     await db.batch([

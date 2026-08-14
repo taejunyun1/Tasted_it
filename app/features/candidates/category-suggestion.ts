@@ -19,11 +19,13 @@ export interface CandidateClassification {
 }
 
 type SignalOrigin = "NAME" | "SUBTYPE" | "SOURCE";
-type Signal = CategoryRule & { baseScore: number; score: number; origin: SignalOrigin };
+type EvidenceTier = 1 | 2 | 3 | 4 | 5;
+type Signal = CategoryRule & { baseScore: number; score: number; origin: SignalOrigin; evidenceTier: EvidenceTier };
 type RankedCandidate = {
   slug: string;
   group: CategoryGroup;
   score: number;
+  evidenceTier: EvidenceTier;
   signals: Signal[];
 };
 
@@ -63,22 +65,35 @@ function clampScore(score: number) {
   return Math.min(100, Math.max(0, Math.round(score)));
 }
 
-export function confidenceFromScore(score: number) {
+export function confidenceFromScore(score: number, evidenceTier?: EvidenceTier) {
+  if (evidenceTier != null && evidenceTier <= 2 && score >= 65) return "HIGH" as const;
   if (score >= 78) return "HIGH" as const;
   if (score >= 50) return "MEDIUM" as const;
   return "LOW" as const;
+}
+
+function evidenceTierFor(rule: CategoryRule, origin: SignalOrigin): EvidenceTier {
+  if (rule.evidenceTier) return rule.evidenceTier;
+  if (origin === "SOURCE") return 5;
+  if (origin === "SUBTYPE") return rule.kind === "FOOD" ? 2 : 4;
+  if (rule.kind === "FOOD") return 1;
+  return 3;
+}
+
+function compareSignals(left: Signal, right: Signal) {
+  return left.evidenceTier - right.evidenceTier || right.score - left.score;
 }
 
 function collectSignals(input: { sourceType: PublicDataSource; businessSubtype?: string | null; businessName: string }) {
   const normalizedName = normalizeBusinessName(input.businessName);
   const subtype = input.businessSubtype?.normalize("NFKC").trim() ?? "";
   const signals: Signal[] = [
-    ...nameCategoryRules.filter((rule) => rule.pattern.test(normalizedName) && !rule.excludePattern?.test(normalizedName)).map((rule) => ({ ...rule, origin: "NAME" as const, ...signalScore("NAME", rule.kind, rule.priority) })),
-    ...subtypeCategoryRules.filter((rule) => rule.pattern.test(subtype) && !rule.excludePattern?.test(subtype)).map((rule) => ({ ...rule, origin: "SUBTYPE" as const, ...signalScore("SUBTYPE", rule.kind, rule.priority) })),
+    ...nameCategoryRules.filter((rule) => rule.pattern.test(normalizedName) && !rule.excludePattern?.test(normalizedName)).map((rule) => ({ ...rule, origin: "NAME" as const, evidenceTier: evidenceTierFor(rule, "NAME"), ...signalScore("NAME", rule.kind, rule.priority) })),
+    ...subtypeCategoryRules.filter((rule) => rule.pattern.test(subtype) && !rule.excludePattern?.test(subtype)).map((rule) => ({ ...rule, origin: "SUBTYPE" as const, evidenceTier: evidenceTierFor(rule, "SUBTYPE"), ...signalScore("SUBTYPE", rule.kind, rule.priority) })),
   ];
   const fallback = defaults[input.sourceType];
   const sourceScore = signalScore("SOURCE", "DEFAULT");
-  signals.push({ pattern: /(?:)/, slug: fallback.slug, group: fallback.group, label: "공공데이터 종류의 기본 분류", kind: "DEFAULT", origin: "SOURCE", ...sourceScore });
+  signals.push({ pattern: /(?:)/, slug: fallback.slug, group: fallback.group, label: "공공데이터 종류의 기본 분류", kind: "DEFAULT", origin: "SOURCE", evidenceTier: 5, ...sourceScore });
   return signals;
 }
 
@@ -86,9 +101,9 @@ function strongestSignalsBySlug(signals: Signal[]) {
   const bySlug = new Map<string, Signal>();
   for (const signal of signals) {
     const current = bySlug.get(signal.slug);
-    if (!current || signal.score > current.score) bySlug.set(signal.slug, signal);
+    if (!current || compareSignals(signal, current) < 0) bySlug.set(signal.slug, signal);
   }
-  return [...bySlug.values()].sort((left, right) => right.score - left.score);
+  return [...bySlug.values()].sort(compareSignals);
 }
 
 function rankCandidates(signals: Signal[]): RankedCandidate[] {
@@ -99,12 +114,12 @@ function rankCandidates(signals: Signal[]): RankedCandidate[] {
     bySlug.set(signal.slug, current);
   }
   return [...bySlug.entries()].map(([slug, candidateSignals]) => {
-    const ordered = [...candidateSignals].sort((left, right) => right.score - left.score);
+    const ordered = [...candidateSignals].sort(compareSignals);
     const evidenceScore = ordered.reduce((total, signal, index) => total + (index === 0 ? signal.score : Math.round(signal.baseScore * 0.3)), 0);
     const group = ordered[0].group;
     const cuisineSupport = signals.some((signal) => signal.origin === "SUBTYPE" && signal.kind === "CUISINE" && signal.group === group && signal.slug !== slug) ? 6 : 0;
-    return { slug, group, score: clampScore(evidenceScore + cuisineSupport), signals: ordered };
-  }).sort((left, right) => right.score - left.score);
+    return { slug, group, score: clampScore(evidenceScore + cuisineSupport), evidenceTier: ordered[0].evidenceTier, signals: ordered };
+  }).sort((left, right) => left.evidenceTier - right.evidenceTier || right.score - left.score);
 }
 
 export function classifyCandidate(input: {
@@ -119,16 +134,18 @@ export function classifyCandidate(input: {
   const neighborhood = extractNeighborhood(input.address);
   const concreteFoodSignals = strongestSignalsBySlug(signals.filter((signal) => signal.origin !== "SOURCE" && signal.kind === "FOOD"));
   const hasExplicitPriorityWinner = concreteFoodSignals.length > 1
+    && concreteFoodSignals[0].evidenceTier === concreteFoodSignals[1].evidenceTier
     && (concreteFoodSignals[0].priority ?? 0) > (concreteFoodSignals[1].priority ?? 0);
   const hasFoodConflict = concreteFoodSignals.length > 1
+    && concreteFoodSignals[0].evidenceTier === concreteFoodSignals[1].evidenceTier
     && concreteFoodSignals[0].score >= 65
     && concreteFoodSignals[1].score >= 65
     && concreteFoodSignals[0].score - concreteFoodSignals[1].score <= 20
     && !hasExplicitPriorityWinner;
-  const confidence: ClassificationConfidence = hasFoodConflict ? "CONFLICT" : confidenceFromScore(primary.score);
+  const confidence: ClassificationConfidence = hasFoodConflict ? "CONFLICT" : confidenceFromScore(primary.score, primary.evidenceTier);
   const reasons = signals
     .filter((signal) => signal.slug === primary.slug || (hasFoodConflict && signal.kind === "FOOD" && signal.origin !== "SOURCE"))
-    .sort((left, right) => right.score - left.score)
+    .sort(compareSignals)
     .map((signal) => `${signal.label} (${signal.score}점)`);
   if (hasFoodConflict) reasons.push("상호에 서로 다른 구체 음식 신호가 함께 있음");
   if (primary.signals.some((signal) => signal.kind === "FOOD") && signals.some((signal) => signal.kind === "VENUE" && signal.slug !== primary.slug && signal.score < primary.score)) reasons.push("구체 음식 신호를 영업 형태보다 우선 적용");
