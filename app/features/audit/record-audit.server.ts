@@ -1,4 +1,4 @@
-import { desc, gte, lte } from "drizzle-orm";
+import { desc, lte } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -89,7 +89,7 @@ export async function runRecordAudit(
       placeId: placeLivenessStates.placeId,
       status: placeLivenessStates.status,
       recommendationExcluded: placeLivenessStates.recommendationExcluded,
-    }).from(placeLivenessStates).where(gte(placeLivenessStates.updatedAt, cutoff)).limit(maxRows + 1), maxRows, caps),
+    }).from(placeLivenessStates).orderBy(desc(placeLivenessStates.updatedAt)).limit(maxRows + 1), maxRows, caps),
   ]);
 
   const findings = [

@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { productEvents } from "../../app/db/schema";
+import { placeLivenessStates, places, productEvents } from "../../app/db/schema";
 import { runRecordAudit } from "../../app/features/audit/record-audit.server";
 
 describe("runRecordAudit", () => {
@@ -41,5 +41,38 @@ describe("runRecordAudit", () => {
     ]));
     expect(report.queryCapsReached).toContain("productEvents");
     expect(JSON.stringify(report)).not.toContain(privateEmail);
+  });
+
+  it("checks active hidden liveness states even when they predate the 30-day data window", async () => {
+    const db = createDb(env.DB);
+    const now = "2026-08-14T00:00:00.000Z";
+    const placeId = `audit-place-${crypto.randomUUID()}`;
+
+    await db.insert(places).values({
+      id: placeId,
+      slug: `audit-place-${crypto.randomUUID()}`,
+      name: "감사 대상 장소",
+      status: "PUBLISHED",
+      address: "광주광역시",
+      neighborhood: "동구",
+      latitude: 35.15,
+      longitude: 126.9,
+      searchText: "감사 대상 장소",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await db.insert(placeLivenessStates).values({
+      placeId,
+      status: "HIDDEN",
+      kakaoStatus: "NOT_FOUND",
+      recommendationExcluded: false,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const report = await runRecordAudit(db, { now, sourceCommit: "test-sha" });
+
+    expect(report.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ruleId: "RECOMMENDATION_HIDDEN_PLACE_ELIGIBLE" }),
+    ]));
   });
 });
