@@ -28,6 +28,7 @@ pnpm dev --host 127.0.0.1
 | 이름 | 용도 | 관리 방식 |
 | --- | --- | --- |
 | `NAVER_MAPS_CLIENT_ID` | 네이버 Web Dynamic Map Client ID | secret |
+| `NAVER_PLACE_GEOCODING_ENABLED` | 장소 제안·관리자 위치 확인용 NAVER 주소 지오코딩 kill switch | 환경별 변수 (`false` 안전 기본값, 이번 운영 배포는 `true`) |
 | `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 일반 인증키 | secret |
 | `ADMIN_EMAIL` | 가입 시 ADMIN 역할을 부여할 운영자 이메일 | secret |
 | `RESEND_API_KEY` | 가입 인증·비밀번호 재설정 메일 발송 | secret |
@@ -56,6 +57,8 @@ pnpm exec wrangler secret put NAVER_LOGIN_CLIENT_ID
 pnpm exec wrangler secret put NAVER_LOGIN_CLIENT_SECRET
 pnpm exec wrangler secret list
 ```
+
+장소 제안의 지도 위치 확인은 기존 NAVER Maps 애플리케이션의 Geocoding 기능을 재사용합니다. 새 키나 장소 ID 저장은 없으며, 주소 검색은 사용자가 `지도에서 위치 찾기`를 누를 때만 실행됩니다. 이번 운영 배포에서 `NAVER_PLACE_GEOCODING_ENABLED=true`로 활성화하며, 배포 전 NAVER Cloud의 Geocoding 상품, Web 서비스 URL, 일일 쿼터를 확인합니다. 상세 절차와 장애 시 중단 방법은 [장소 제안 지도 위치 런북](docs/operations/place-suggestion-map-runbook.md)을 따릅니다.
 
 Google Cloud Console의 웹 OAuth 클라이언트에는 다음 주소를 정확히 등록합니다.
 

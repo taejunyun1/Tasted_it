@@ -85,6 +85,16 @@ describe("home curated route", () => {
     }));
   });
 
+  it("QA 요청은 등록된 네이버 Client ID 대신 결정적인 간이 지도를 사용한다", async () => {
+    const { loader } = await import("../../app/routes/home");
+    const result = await loader({
+      request: new Request("https://retaste.example/?qa=1"),
+    } as never);
+
+    expect(result.qaMode).toBe(true);
+    expect(result.clientId).toBe("");
+  });
+
   it("명시적 전체보기는 기존 장소·카테고리 탐색을 유지한다", async () => {
     const { loader } = await import("../../app/routes/home");
     const result = await loader({ request: new Request("https://retaste.example/?view=browse&q=국밥") } as never);

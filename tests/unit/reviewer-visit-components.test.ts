@@ -6,8 +6,8 @@ import { ReviewerVisitFlow } from "../../app/components/reviewer-visit-flow";
 
 vi.mock("react-router", () => ({
   useFetcher: () => ({ data: null, state: "idle", submit: () => {}, Form: "form" }),
-  Link: ({ to, children, className }: { to: string; children?: unknown; className?: string }) =>
-    createElement("a", { href: to, className }, children),
+  Link: ({ to, children, className, ...props }: { to: string; children?: unknown; className?: string; [key: string]: unknown }) =>
+    createElement("a", { href: to, className, ...props }, children),
 }));
 
 const props = {

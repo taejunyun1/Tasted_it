@@ -1,12 +1,15 @@
 import { env } from "cloudflare:workers";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { Children } from "react";
-import { Form, Link } from "react-router";
+import { data, Form, Link } from "react-router";
+import { z } from "zod";
 import type { Route } from "./+types/admin-place-operations";
 
+import { PlaceSuggestionReviewCard } from "../components/admin/PlaceSuggestionReviewCard";
 import { createDb } from "../db/client.server";
 import { placeCorrectionRequests, placeDuplicateCandidates, placeLivenessStates, placeRevalidationCases, placeRevisions, placeSuggestions, places } from "../db/schema";
 import { requireAdmin } from "../features/auth/session.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/places/place-correction.server";
 import { mergePlaces, restorePlaceRevision } from "../features/places/place-merge.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
@@ -16,6 +19,26 @@ type LivenessFilter = "SUSPECTED" | "HIDDEN" | "ERROR";
 type EvidenceScore = { name: number | null; address: number | null; distance: number | null; phone: number | null; total: number | null };
 type ActivityEvidence = { active: boolean; at: string | null };
 type LivenessEvidence = { source: string | null; score: EvidenceScore; reviewer: ActivityEvidence; member: ActivityEvidence; openSource: ActivityEvidence };
+
+const approvalSchema = z.object({
+  suggestionId: z.string().trim().min(1).max(160),
+  address: z.string().trim().min(5).max(300),
+  neighborhood: z.string().trim().min(1).max(80),
+  originLatitude: z.coerce.number().finite(),
+  originLongitude: z.coerce.number().finite(),
+  latitude: z.coerce.number().finite(),
+  longitude: z.coerce.number().finite(),
+  locationConfirmed: z.literal("true"),
+  reason: z.string().trim().min(1).max(300),
+});
+
+function approvalErrorMessage(code: string) {
+  if (code === "SUGGESTION_NOT_REVIEWABLE") return "이미 처리됐거나 다른 관리자가 검토 중인 제안입니다. 목록을 새로고침해 주세요.";
+  if (code === "SUGGESTION_COORDINATES_REQUIRED" || code === "LOCATION_REQUIRED") return "지도에서 위치를 확인한 뒤 승인해 주세요.";
+  if (code === "LOCATION_OUT_OF_SCOPE") return "광주·전남 범위 안의 위치만 승인할 수 있어요.";
+  if (code === "REVIEW_REASON_REQUIRED") return "승인 근거를 입력해 주세요.";
+  return "초안 승인에 실패했어요. 잠시 뒤 목록을 새로고침한 후 다시 시도해 주세요.";
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
@@ -72,22 +95,39 @@ export async function loader({ request }: Route.LoaderArgs) {
     livenessFilter,
     livenessRows: [...caseRows, ...stateRows].filter((row) => matchesLivenessFilter(row, livenessFilter)),
     revalidationCount: revalidations.length,
+    naverMapsClientId: env.NAVER_PLACE_GEOCODING_ENABLED === "true" ? env.NAVER_MAPS_CLIENT_ID ?? "" : "",
+    placeGeocodingEnabled: env.NAVER_PLACE_GEOCODING_ENABLED === "true",
   };
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const admin = await requireAdmin(request);
+  if (!isSameOriginMutation(request)) return data({ ok: false, error: "이 요청은 현재 서비스에서 다시 실행해 주세요." }, { status: 403 });
   const form = await request.formData();
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const intent = String(form.get("intent") ?? "");
   if (intent === "approve-suggestion") {
-    const latitudeRaw = String(form.get("latitude") ?? "").trim();
-    const longitudeRaw = String(form.get("longitude") ?? "").trim();
-    const latitude = latitudeRaw ? Number(latitudeRaw) : null;
-    const longitude = longitudeRaw ? Number(longitudeRaw) : null;
-    await approvePlaceSuggestion(db, { suggestionId: String(form.get("suggestionId")), actorUserId: admin.id, placeId: crypto.randomUUID(), latitude: Number.isFinite(latitude) ? latitude : null, longitude: Number.isFinite(longitude) ? longitude : null, reason: String(form.get("reason") ?? ""), now });
-    return { ok: true, message: "제안을 비공개 초안으로 승인했습니다." };
+    const suggestionId = String(form.get("suggestionId") ?? "");
+    const prefix = `approval-${suggestionId}-`;
+    const parsed = approvalSchema.safeParse({
+      suggestionId,
+      address: form.get(`${prefix}address`),
+      neighborhood: form.get(`${prefix}neighborhood`),
+      originLatitude: form.get(`${prefix}originLatitude`),
+      originLongitude: form.get(`${prefix}originLongitude`),
+      latitude: form.get(`${prefix}latitude`),
+      longitude: form.get(`${prefix}longitude`),
+      locationConfirmed: form.get(`${prefix}locationConfirmed`),
+      reason: form.get("reason"),
+    });
+    if (!parsed.success) return data({ ok: false, error: "지도에서 위치를 확인하고 승인 근거를 입력해 주세요." }, { status: 400 });
+    try {
+      const result = await approvePlaceSuggestion(db, { suggestionId: parsed.data.suggestionId, actorUserId: admin.id, address: parsed.data.address, neighborhood: parsed.data.neighborhood, originLatitude: parsed.data.originLatitude, originLongitude: parsed.data.originLongitude, latitude: parsed.data.latitude, longitude: parsed.data.longitude, reason: parsed.data.reason, now });
+      return { ok: true, suggestionId: parsed.data.suggestionId, placeId: result.placeId, slug: result.slug, message: "제안을 비공개 초안으로 승인했습니다." };
+    } catch (error) {
+      return data({ ok: false, error: approvalErrorMessage(error instanceof Error ? error.message : "UNKNOWN") }, { status: 400 });
+    }
   }
   if (intent === "transition-suggestion") {
     await transitionPlaceSuggestion(db, { suggestionId: String(form.get("suggestionId")), actorUserId: admin.id, status: String(form.get("status")) as "NEEDS_INFO" | "REVIEWING" | "REJECTED" | "DUPLICATE", reason: String(form.get("reason") ?? ""), now });
@@ -135,10 +175,11 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
       <div><p className="eyebrow">ADMIN / PLACE OPERATIONS</p><h1>장소 운영</h1><p>제안·정정·중복·폐업 검토를 지도 없이 순서대로 처리합니다.</p></div>
       <nav><Link to="/admin/candidates">공공데이터 검수</Link><Link to="/admin/ratings">평가 운영</Link></nav>
     </header>
-    {actionData?.message && <p className="admin-notice">{actionData.message}</p>}
+    {actionData && "message" in actionData && actionData.message && <p className="admin-notice" role="status">{actionData.message}</p>}
+    {actionData && "error" in actionData && actionData.error && <p className="operation-error" role="alert">{actionData.error}</p>}
     <section className="place-ops-stats"><Stat label="장소 제안" value={loaderData.suggestions.length}/><Stat label="정보 정정" value={loaderData.corrections.length}/><Stat label="영업 재검증" value={loaderData.revalidationCount}/><Stat label="중복 후보" value={loaderData.duplicates.length}/></section>
     <OpsSection title="회원 장소 제안" empty="검토할 제안이 없습니다.">
-      {loaderData.suggestions.map((item) => <article className="ops-card" key={item.id}><div><span>{item.status}</span><h3>{item.name}</h3><p>{item.address} · {item.neighborhood}</p><small>{item.description ?? "설명 없음"}</small></div><div className="ops-actions"><Form method="post" className="ops-form"><input type="hidden" name="intent" value="approve-suggestion"/><input type="hidden" name="suggestionId" value={item.id}/><div><input name="latitude" defaultValue={item.latitude ?? ""} placeholder="위도"/><input name="longitude" defaultValue={item.longitude ?? ""} placeholder="경도"/></div><input name="reason" placeholder="승인 근거" required/><button>초안 승인</button></Form><Form method="post" className="ops-form ops-form-compact"><input type="hidden" name="intent" value="transition-suggestion"/><input type="hidden" name="suggestionId" value={item.id}/><input name="reason" placeholder="추가 정보 요청 사유" required/><button className="secondary" name="status" value="NEEDS_INFO">추가 정보</button><button className="secondary" name="status" value="REJECTED">반려</button></Form></div></article>)}
+      {loaderData.suggestions.map((item) => <PlaceSuggestionReviewCard key={item.id} item={item} clientId={loaderData.naverMapsClientId} geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)} />)}
     </OpsSection>
     <OpsSection title="정보 정정·이의 제기" empty="검토할 정정 요청이 없습니다.">
       {loaderData.corrections.map((item) => <article className="ops-card" key={item.id}><div><span>{item.status} · {item.requestType}</span><h3>{item.placeId ? names.get(item.placeId) ?? item.placeId : "목록에 없는 장소"}</h3><p>{item.requesterRelation} · {item.requesterEmail}</p><code>{item.requestedChangesJson}</code><small>{item.evidenceNote}</small></div><div className="ops-actions"><Form method="post" className="ops-form"><input type="hidden" name="requestId" value={item.id}/><input name="reason" placeholder="적용 근거" required/><button name="intent" value="apply-correction">정정 적용</button></Form><Form method="post" className="ops-form ops-form-compact"><input type="hidden" name="intent" value="transition-correction"/><input type="hidden" name="requestId" value={item.id}/><input name="reason" placeholder="반려 사유" required/><button className="secondary" name="status" value="REJECTED">반려</button></Form></div></article>)}
