@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { aiClassificationRuns, businessLicenses, places } from "../../app/db/schema";
+import { aiClassificationRuns, businessLicenses, naverLocalCategoryVerifications, places } from "../../app/db/schema";
 import {
   approveCandidateSelections,
   bulkApproveCandidates,
@@ -93,6 +93,37 @@ describe("bulk candidate review", () => {
       reviewState: "MANUAL",
       eligible: false,
     });
+  });
+
+  it("uses an unexpired NAVER authority record only when the source subtype and AI both agree", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, {
+      ...license,
+      sourceManagementNo: "naver-authority-candidate",
+      businessName: "일품 양평해장국",
+      businessSubtype: "국밥",
+    }, now);
+    const category = await db.query.categories.findFirst({ where: (row, { eq }) => eq(row.slug, "gukbap-detail") });
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId: candidate.id,
+      status: "VERIFIED",
+      mappedCategoryId: category!.id,
+      matchScore: 40,
+      specificityScore: 20,
+      confidenceScore: 90,
+      evidenceCodesJson: '["NAVER_EXACT_NAME","NAVER_EXACT_ADDRESS","NAVER_SPECIFIC_CATEGORY","SOURCE_SUBTYPE_MATCH","AI_AGREES"]',
+      ruleVersion: "naver-category-v1",
+      inputFingerprint: crypto.randomUUID(),
+      queriedAt: now,
+      expiresAt: "2099-08-05T11:00:00.000Z",
+      failureCode: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await addAiAgreement(candidate.id);
+
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+    expect(row).toMatchObject({ categorySlug: "gukbap-detail", confidence: "HIGH", reviewState: "AUTO", eligible: true, classificationSource: "NAVER_RULE" });
   });
 
   it("loads AI results when the pending queue exceeds the D1 bind parameter limit", async () => {

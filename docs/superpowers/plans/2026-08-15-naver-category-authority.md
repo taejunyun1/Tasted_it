@@ -828,12 +828,8 @@ git push -u origin codex/naver-category-authority
 - **타입 일관성:** `NaverVerificationStatus`, `NaverCategoryVerification`, `CategoryAuthorityDecision`, `NaverLocalSearchAdapter`, `previewNaverCategoryReverification`, `applyNaverCategoryReverification`은 Task 1~5에서 같은 이름으로 사용한다.
 - **운영 안전성:** 실제 secret값 확인/출력, 실제 NAVER 호출, remote D1 write, 배포는 이 계획 작성 범위에 포함하지 않는다.
 
-## Execution Handoff
+## Execution record
 
-Plan complete and saved to `docs/superpowers/plans/2026-08-15-naver-category-authority.md`. Two execution options:
-
-1. **Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-
-2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
-
-Which approach?
+- 2026-08-15: Tasks 1–6 were implemented on `codex/naver-category-authority` and PR #117 was used as the approval record.
+- Public-place reclassification is limited to a 100-place admin preview/apply flow; there is no scheduled or user-request-time NAVER search.
+- The default deployment keeps `NAVER_LOCAL_SEARCH_ENABLED=false`; operations enable it only for the reviewed preview/apply sequence in the runbook.

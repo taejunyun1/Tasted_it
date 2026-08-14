@@ -1,5 +1,5 @@
 type FetcherState = "idle" | "loading" | "submitting";
-type ClassificationSource = "AI_RULE" | "AI_FAILED" | "RULE_ONLY";
+type ClassificationSource = "AI_RULE" | "NAVER_RULE" | "AI_FAILED" | "RULE_ONLY";
 
 export function shouldAutoClassify(params: URLSearchParams, fetcherState: FetcherState, started: boolean) {
   return params.get("autoClassify") === "1" && fetcherState === "idle" && !started;
@@ -13,6 +13,7 @@ export function removeAutoClassificationParam(params: URLSearchParams) {
 
 export function getAiClassificationBadge(source: ClassificationSource) {
   if (source === "AI_FAILED") return { label: "AI 확인 실패", tone: "error" as const };
+  if (source === "NAVER_RULE") return { label: "NAVER 지도 확인", tone: "success" as const };
   if (source === "AI_RULE") return { label: "AI 분류 완료", tone: "success" as const };
   return null;
 }
@@ -23,7 +24,7 @@ export function selectAutomaticClassificationCandidateIds(rows: ReadonlyArray<{
   classificationSource: string;
 }>) {
   return rows
-    .filter((row) => row.reviewState !== "BLOCKED" && row.classificationSource !== "AI_RULE")
+    .filter((row) => row.reviewState !== "BLOCKED" && row.classificationSource !== "AI_RULE" && row.classificationSource !== "NAVER_RULE")
     .slice(0, 10)
     .map((row) => row.id);
 }

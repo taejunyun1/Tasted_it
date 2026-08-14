@@ -13,6 +13,8 @@ import { excludeCandidates, listCandidateSubtypes, listExcludedCandidates, resto
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
 import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 import { applyCategoryReclassification, previewCategoryReclassification } from "../features/candidates/category-reclassification.server";
+import { applyNaverCategoryReverification, previewNaverCategoryReverification } from "../features/candidates/naver-category-reverification.server";
+import { createNaverLocalSearchAdapter } from "../features/candidates/naver-local-search.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
 import { getAiClassificationBadge, removeAutoClassificationParam, selectAutomaticClassificationCandidateIds, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
 import { buildCandidatePageHref } from "../features/candidates/pagination";
@@ -127,29 +129,48 @@ export async function action({ request }: Route.ActionArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const intent = String(form.get("intent") ?? "");
+  if (intent === "naverReclassifyPreview" || intent === "naverReclassifyApply") {
+    const afterPlaceId = String(form.get("afterPlaceId") ?? "").trim() || null;
+    try {
+      const adapter = createNaverLocalSearchAdapter(env);
+      const shared = { afterPlaceId, limit: 100, now, adapter, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 200) };
+      const result = intent === "naverReclassifyPreview"
+        ? await previewNaverCategoryReverification(db, shared)
+        : await applyNaverCategoryReverification(db, { ...shared, actorUserId: user.id });
+      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, reclassification: null, naverReclassification: { mode: intent, result } };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "UNKNOWN_ERROR";
+      const message = detail === "NAVER_LOCAL_SEARCH_DISABLED"
+        ? "NAVER 지역검색이 아직 비활성화되어 있습니다. 운영 설정을 확인해 주세요."
+        : detail === "NAVER_LOCAL_SEARCH_QUOTA"
+          ? "NAVER 지역검색 일일 한도에 도달했습니다. 내일 다시 시도해 주세요."
+          : "NAVER 지도 검증을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+      return { approved: [], skipped: [], rejected: 0, error: `${message} (${detail})`, ai: null, reclassification: null, naverReclassification: null };
+    }
+  }
   if (intent === "reclassifyPreview" || intent === "reclassifyApply") {
     const afterPlaceId = String(form.get("afterPlaceId") ?? "").trim() || null;
     try {
       const result = intent === "reclassifyPreview"
         ? await previewCategoryReclassification(db, { afterPlaceId, limit: 100 })
         : await applyCategoryReclassification(db, { actorUserId: user.id, afterPlaceId, limit: 100, now });
-      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, reclassification: { mode: intent, result } };
+      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, reclassification: { mode: intent, result }, naverReclassification: null };
     } catch (error) {
       const detail = error instanceof Error ? error.message : "UNKNOWN_ERROR";
-      return { approved: [], skipped: [], rejected: 0, error: `일괄 재분류를 완료하지 못했습니다. (${detail})`, ai: null, reclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: `일괄 재분류를 완료하지 못했습니다. (${detail})`, ai: null, reclassification: null, naverReclassification: null };
     }
   }
   if (restoreCandidateId) {
     await restoreExcludedCandidate(db, { candidateId: restoreCandidateId, actorUserId: user.id, now });
-    return { approved: [], skipped: [], rejected: 0, error: null, ai: null, restored: 1, reclassification: null };
+    return { approved: [], skipped: [], rejected: 0, error: null, ai: null, restored: 1, reclassification: null, naverReclassification: null };
   }
   if (intent === "runAi") {
     try {
       const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 10, now });
-      return { approved: [], skipped: [], rejected: 0, error: ai.quota.blocked && !ai.processed ? "오늘 AI 무료 한도의 90%에 도달해 분류를 중지했습니다." : null, ai, reclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: ai.quota.blocked && !ai.processed ? "오늘 AI 무료 한도의 90%에 도달해 분류를 중지했습니다." : null, ai, reclassification: null, naverReclassification: null };
     } catch (error) {
       const detail = error instanceof Error ? error.message : "알 수 없는 오류";
-      return { approved: [], skipped: [], rejected: 0, error: `AI 분류를 완료하지 못했습니다. 잠시 후 다시 시도하세요. (${detail})`, ai: null, reclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: `AI 분류를 완료하지 못했습니다. 잠시 후 다시 시도하세요. (${detail})`, ai: null, reclassification: null, naverReclassification: null };
     }
   }
   if (intent === "excludeSelected") {
@@ -161,14 +182,14 @@ export async function action({ request }: Route.ActionArgs) {
         actorUserId: user.id,
         now,
       });
-      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, excluded: result.excludedIds.length, reclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, excluded: result.excludedIds.length, reclassification: null, naverReclassification: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
       const errorMessage = message === "EXCLUSION_NOTE_REQUIRED" ? "기타 사유는 메모를 입력해 주세요."
         : message === "EXCLUSION_CATEGORY_INVALID" ? "예외 사유를 선택해 주세요."
           : message === "CANDIDATE_SELECTION_REQUIRED" ? "예외 처리할 장소를 선택해 주세요."
             : "예외 처리 중 오류가 발생했습니다.";
-      return { approved: [], skipped: [], rejected: 0, error: errorMessage, ai: null, excluded: 0, reclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: errorMessage, ai: null, excluded: 0, reclassification: null, naverReclassification: null };
     }
   }
   const result = await approveCandidateSelections(db, {
@@ -176,13 +197,14 @@ export async function action({ request }: Route.ActionArgs) {
     actorUserId: user.id,
     now,
   });
-  return { ...result, rejected: 0, error: null, ai: null, reclassification: null };
+  return { ...result, rejected: 0, error: null, ai: null, reclassification: null, naverReclassification: null };
 }
 
 export default function AdminCandidates({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const autoClassification = useFetcher<typeof action>();
   const reclassification = useFetcher<typeof action>();
+  const naverReclassification = useFetcher<typeof action>();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const excludedMode = params.get("state") === "EXCLUDED";
@@ -193,6 +215,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const [chosenCategories, setChosenCategories] = useState<Record<string, string>>(() =>
     Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
   const [reclassificationCursor, setReclassificationCursor] = useState<string | null>(null);
+  const [naverReclassificationCursor, setNaverReclassificationCursor] = useState<string | null>(null);
   const parents = loaderData.categories.filter((category) => !category.parentId);
   const children = loaderData.categories.filter((category) => category.parentId);
   const selectableCategories = listSelectableCategories(loaderData.categories);
@@ -203,6 +226,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const pageSelectionIds = selectableIds.slice(0, 25);
   const pageSelected = pageSelectionIds.length > 0 && pageSelectionIds.every((id) => selected.has(id));
   const reclassificationData = reclassification.data?.reclassification ?? null;
+  const naverReclassificationData = naverReclassification.data?.naverReclassification ?? null;
 
   useEffect(() => {
     setSelected((current) => reconcileCandidateSelection(current, selectableIds));
@@ -237,6 +261,12 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
       setReclassificationCursor(reclassificationData.result.nextAfterPlaceId);
     }
   }, [reclassificationData]);
+
+  useEffect(() => {
+    if (naverReclassificationData?.mode === "naverReclassifyApply") {
+      setNaverReclassificationCursor(naverReclassificationData.result.nextAfterPlaceId);
+    }
+  }, [naverReclassificationData]);
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -308,12 +338,33 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           </div>;
         })()}
 
-        {reviewMode && <section aria-label="공개 장소 일괄 재분류" className="mb-6 border border-emerald-800 bg-emerald-50/50 p-4">
+        {reviewMode && <section aria-label="NAVER 지도 우선 공개 장소 재분류" className="mb-6 border border-[#25854a] bg-emerald-50/70 p-4">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+            <div>
+              <p className="font-mono text-[11px] font-semibold tracking-[0.16em] text-[#25854a]">NAVER LOCAL / CATEGORY AUTHORITY</p>
+              <h2 className="mt-1 text-base font-semibold">NAVER 지도 근거로 공개 장소 재분류</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">상호와 주소(또는 100m 이내 좌표)가 맞고, NAVER의 구체 카테고리와 원천 세부업태가 같은 경우만 자동 변경합니다. 응답 원문·장소 ID·사진은 저장하지 않고, 내부 카테고리·점수·근거 코드만 기록합니다.</p>
+            </div>
+            <naverReclassification.Form method="post" className="flex shrink-0 flex-wrap gap-2">
+              <input type="hidden" name="afterPlaceId" value={naverReclassificationCursor ?? ""} />
+              <button type="submit" name="intent" value="naverReclassifyPreview" className="border border-[#25854a] bg-white px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={naverReclassification.state !== "idle"}>{naverReclassification.state === "submitting" ? "확인 중…" : "NAVER 100곳 미리보기"}</button>
+              {naverReclassificationData?.mode === "naverReclassifyPreview" && naverReclassificationData.result.changed > 0 && <button type="submit" name="intent" value="naverReclassifyApply" className="bg-[#25854a] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={naverReclassification.state !== "idle"}>검증 결과 적용</button>}
+            </naverReclassification.Form>
+          </div>
+          {naverReclassification.data?.error && <div className="mt-4 border border-rose-600 bg-rose-50 px-4 py-3 text-sm text-rose-900"><p>{naverReclassification.data.error}</p></div>}
+          {naverReclassificationData && <div className="mt-4 border border-[#25854a] bg-white px-4 py-3 text-sm text-emerald-950">
+            <p><strong>{naverReclassificationData.mode === "naverReclassifyApply" ? "적용 완료" : "미리보기"}</strong> · 확인 {naverReclassificationData.result.scanned}곳 · 검증 {naverReclassificationData.result.verified}곳 · 카테고리 변경 {naverReclassificationData.result.changed}곳 · 수동 확인 {naverReclassificationData.result.conflicts}곳 · 실패 {naverReclassificationData.result.failed}곳 · API 호출 {naverReclassificationData.result.apiCalls}회</p>
+            {naverReclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-neutral-600">{naverReclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).map((change) => <li key={change.placeId}>{change.fromSlug} → {change.toSlug ?? "수동 확인"} · {change.reason} · {change.confidenceScore}점</li>)}</ul>}
+            {naverReclassificationData.mode === "naverReclassifyApply" && <p className="mt-2 text-xs text-neutral-600">{naverReclassificationData.result.nextAfterPlaceId ? "다음 100곳을 이어서 확인할 수 있습니다." : "현재 범위의 NAVER 재분류가 끝났습니다."}</p>}
+          </div>}
+        </section>}
+
+        {reviewMode && <section aria-label="공개 장소 규칙 보조 재분류" className="mb-6 border border-emerald-800 bg-emerald-50/50 p-4">
           <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
             <div>
               <p className="font-mono text-[11px] font-semibold tracking-[0.16em] text-emerald-800">RULE RERUN / 100 PLACES</p>
-              <h2 className="mt-1 text-base font-semibold">새 규칙으로 공개 장소 재분류</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">공개된 원천 연동 장소를 100곳씩 읽어 새 카테고리 규칙으로 미리 확인합니다. 바뀌는 카테고리는 적용하고, 비음식 시설은 자동 제외로 기록해 공용 목록과 추천에서 숨깁니다. 자동 제외 탭에서 언제든 복원할 수 있습니다.</p>
+              <h2 className="mt-1 text-base font-semibold">규칙 기반 공개 장소 보조 재분류</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">NAVER 검증이 불가하거나 근거가 부족한 경우에만 쓰는 보조 규칙입니다. 공개된 원천 연동 장소를 100곳씩 확인하며, 비음식 시설은 자동 제외로 기록해 공용 목록과 추천에서 숨깁니다. 자동 제외 탭에서 언제든 복원할 수 있습니다.</p>
             </div>
             <reclassification.Form method="post" className="flex shrink-0 flex-wrap gap-2">
               <input type="hidden" name="afterPlaceId" value={reclassificationCursor ?? ""} />

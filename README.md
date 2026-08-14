@@ -68,6 +68,8 @@ pnpm exec wrangler secret list
 
 NAVER 지역검색은 사용자 공개 화면에서 호출하지 않습니다. 새 공공데이터 후보 또는 관리자의 명시 재검증에서만 서버가 상호·주소를 전송하며, 응답의 원문·이미지·리뷰·소개·장소 ID·링크는 D1 또는 애플리케이션 로그에 저장하지 않습니다. `NAVER_LOCAL_SEARCH_ENABLED=false`로 즉시 중단할 수 있고, 중단 또는 제공자 오류 시 기존 공공데이터·상호 규칙 분류를 유지합니다.
 
+공개 장소 재분류는 NAVER 상호·주소/100m 위치·구체 카테고리와 원천 세부업태가 모두 맞는 경우만 적용합니다. 최초에는 100곳 미리보기 후 변경 수와 audit을 확인하고 적용합니다. 상세한 quota, 중단, forward-fix 절차는 [NAVER 지역검색 카테고리 검증 운영 절차](docs/operations/naver-local-category-runbook.md)를 따릅니다.
+
 Google Cloud Console의 웹 OAuth 클라이언트에는 다음 주소를 정확히 등록합니다.
 
 승인된 JavaScript 원본:

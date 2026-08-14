@@ -19,8 +19,10 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(page.getByRole("link", { name: "수동 확인" })).toBeVisible();
   await expect(page.getByRole("link", { name: "승인 불가·예외" })).toBeVisible();
   await expect(page.getByRole("link", { name: "자동 제외" })).toBeVisible();
-  await expect(page.getByLabel("공개 장소 일괄 재분류")).toBeVisible();
-  await expect(page.getByRole("button", { name: "100곳 미리보기" })).toBeVisible();
+  await expect(page.getByLabel("NAVER 지도 우선 공개 장소 재분류")).toBeVisible();
+  await expect(page.getByRole("button", { name: "NAVER 100곳 미리보기" })).toBeVisible();
+  await expect(page.getByLabel("공개 장소 규칙 보조 재분류")).toBeVisible();
+  await expect(page.getByRole("button", { name: "100곳 미리보기", exact: true })).toBeVisible();
   await expect(page.getByLabel("후보 네이버 지도")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "동네" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "상단 페이지 이동" })).toBeVisible();
