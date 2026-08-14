@@ -5,6 +5,8 @@
   "main": "./workers/app.ts",
   "vars": {
     "ONBOARDING_ENABLED": "true",
+    "NAVER_MAPS_CLIENT_ID": "e2e-naver-map-client",
+    "NAVER_PLACE_GEOCODING_ENABLED": "true",
     "REVIEW_PHOTO_UPLOAD_ENABLED": "true"
   },
   "ai": { "binding": "AI" },

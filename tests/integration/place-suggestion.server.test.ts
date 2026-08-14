@@ -20,6 +20,31 @@ describe("place suggestions", () => {
     expect((await db.select().from(placeDuplicateCandidates)).some((item) => item.suggestionId === input.id)).toBe(true);
   });
 
+  it("requires a verified Gwangju or Jeonnam location and preserves its numeric coordinate", async () => {
+    const db = createDb(env.DB); const prefix = `location-${crypto.randomUUID()}`; const now = "2026-08-14T10:00:00.000Z";
+    const category = await db.query.categories.findFirst(); if (!category) throw new Error("category fixture missing");
+    await db.insert(users).values({ id: `${prefix}-user`, email: `${prefix}@example.com`, displayName: "제안자", role: "USER", emailVerifiedAt: now, createdAt: now, updatedAt: now });
+    const input = {
+      id: `${prefix}-suggestion`, userId: `${prefix}-user`, name: "새 위치 식당", address: "광주광역시 동구 서석로 1", neighborhood: "서석동",
+      latitude: 35.146, longitude: 126.923, phone: null, categoryId: category.id, description: null, duplicateOverrideReason: null, now,
+    };
+
+    await expect(submitPlaceSuggestion(db, { ...input, id: `${prefix}-missing`, latitude: null as unknown as number }))
+      .rejects.toThrow("LOCATION_REQUIRED");
+    await expect(submitPlaceSuggestion(db, { ...input, id: `${prefix}-invalid`, latitude: Number.NaN }))
+      .rejects.toThrow("LOCATION_OUT_OF_SCOPE");
+    await expect(submitPlaceSuggestion(db, { ...input, id: `${prefix}-outside`, address: "서울특별시 종로구 세종대로 1" }))
+      .rejects.toThrow("LOCATION_OUT_OF_SCOPE");
+
+    await submitPlaceSuggestion(db, input);
+    const saved = await db.query.placeSuggestions.findFirst({ where: (table, { eq }) => eq(table.id, input.id) });
+    expect(saved).toMatchObject({
+      address: "광주광역시 동구 서석로 1",
+      latitude: 35.146,
+      longitude: 126.923,
+    });
+  });
+
   it("approves into a draft place with revision and reviewer qualification count", async () => {
     const db = createDb(env.DB); const prefix = `approve-${crypto.randomUUID()}`; const now = "2026-08-06T10:00:00.000Z";
     const category = await db.query.categories.findFirst(); if (!category) throw new Error("category fixture missing");

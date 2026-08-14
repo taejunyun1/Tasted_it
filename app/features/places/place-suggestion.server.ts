@@ -3,10 +3,12 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../db/schema";
 import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput } from "./place-duplicate-policy";
+import { isSupportedRegionAddress, validatePlaceCoordinate } from "../maps/place-location";
 import { slugifyPlaceName } from "./place-slug";
 
-interface SuggestionInput extends PlaceIdentityInput {
+export interface SuggestionInput extends PlaceIdentityInput {
   id: string; userId: string; neighborhood: string; categoryId: string;
+  latitude: number; longitude: number;
   description: string | null; duplicateOverrideReason: string | null; now: string;
 }
 
@@ -25,6 +27,10 @@ export async function submitPlaceSuggestion(db: AppDb, input: SuggestionInput) {
   ]);
   if (!user?.emailVerifiedAt) throw new Error("EMAIL_VERIFICATION_REQUIRED");
   if (!category) throw new Error("CATEGORY_NOT_FOUND");
+  if (input.latitude == null || input.longitude == null) throw new Error("LOCATION_REQUIRED");
+  if (!isSupportedRegionAddress(input.address)) throw new Error("LOCATION_OUT_OF_SCOPE");
+  const location = validatePlaceCoordinate({ latitude: input.latitude, longitude: input.longitude });
+  if (!location.ok) throw new Error(location.code);
   const normalized = normalizePlaceIdentity(input);
   if (!normalized.name || !normalized.address || !input.neighborhood.trim()) throw new Error("SUGGESTION_REQUIRED_FIELDS");
   const duplicates = await findSuggestionDuplicates(db, input);
@@ -32,7 +38,7 @@ export async function submitPlaceSuggestion(db: AppDb, input: SuggestionInput) {
   const suggestion = {
     id: input.id, userId: input.userId, status: "SUBMITTED" as const,
     name: input.name.trim(), normalizedName: normalized.name, address: input.address.trim(), normalizedAddress: normalized.address,
-    neighborhood: input.neighborhood.trim(), latitude: input.latitude ?? null, longitude: input.longitude ?? null,
+    neighborhood: input.neighborhood.trim(), latitude: location.coordinate.latitude, longitude: location.coordinate.longitude,
     phone: normalized.phone, categoryId: input.categoryId, description: input.description?.trim() || null,
     duplicateOverrideReason: input.duplicateOverrideReason?.trim() || null, createdAt: input.now, updatedAt: input.now,
   };
