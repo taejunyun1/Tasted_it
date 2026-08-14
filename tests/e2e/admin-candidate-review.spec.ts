@@ -62,6 +62,16 @@ test("admin can override and approve an automatic high-confidence category", asy
   await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveCount(0);
 });
 
+test("admin receives a safe notice when NAVER category verification is not enabled", async ({ page }) => {
+  await page.goto("/admin/candidates");
+
+  await page.getByRole("button", { name: "NAVER 100곳 미리보기" }).click();
+
+  await expect(page.getByText("NAVER 지역검색이 아직 비활성화되어 있습니다. 운영 설정을 확인해 주세요.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "검증 결과 적용" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "QA 스시하루" })).toBeVisible();
+});
+
 test("admin excludes selected candidates with a reason and restores them from exceptions", async ({ page }) => {
   await page.goto("/admin/candidates");
   await page.getByRole("checkbox", { name: /QA 수동예외 대상/ }).check();

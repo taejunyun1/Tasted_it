@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   NaverLocalSearchError,
+  assertNaverLocalSearchEnabled,
   createNaverLocalSearchAdapter,
 } from "../../app/features/candidates/naver-local-search.server";
 
@@ -39,6 +40,11 @@ function errorDetails(error: unknown) {
 }
 
 describe("NAVER 지역검색 서버 어댑터", () => {
+  it("rejects a disabled feature before an admin batch run is created", () => {
+    expect(() => assertNaverLocalSearchEnabled({ ...enabledEnv, NAVER_LOCAL_SEARCH_ENABLED: "false" }))
+      .toThrow("NAVER_LOCAL_SEARCH_DISABLED");
+  });
+
   it("sends one bounded request and projects only matcher-safe fields", async () => {
     const fetcher = vi.fn(async () => localResponse());
     const adapter = createNaverLocalSearchAdapter(enabledEnv, fetcher);

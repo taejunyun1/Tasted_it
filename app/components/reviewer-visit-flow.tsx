@@ -64,6 +64,16 @@ const evaluationLabels: Record<ReviewerEvaluation, string> = {
   HOLD: "보류",
   NOT_RECOMMEND: "비추천",
 };
+const publishedDateFormatter = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+});
+
+export function formatReviewerPublishedDate(value: string) {
+  return publishedDateFormatter.format(new Date(value));
+}
 
 function parseBadges(value: string) {
   try {
@@ -463,7 +473,7 @@ export function ReviewerVisitFlow({ places, categories, history, goldenQuota, pu
               </div>
               <div className="reviewer-history-summary">
                 <span className="reviewer-history-photo-count">{review.photos.length ? `사진 ${review.photos.length}장` : "사진 없음"}</span>
-                <time dateTime={review.publishedAt}>{new Date(review.publishedAt).toLocaleDateString("ko-KR")}</time>
+                <time dateTime={review.publishedAt}>{formatReviewerPublishedDate(review.publishedAt)}</time>
               </div>
             </article>
           );

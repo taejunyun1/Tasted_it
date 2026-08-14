@@ -62,15 +62,19 @@ export class NaverLocalSearchError extends Error {
   }
 }
 
+export function assertNaverLocalSearchEnabled(env: NaverLocalSearchEnv) {
+  if (env.NAVER_LOCAL_SEARCH_ENABLED !== "true" || !hasCredentials(env)) {
+    throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_DISABLED");
+  }
+}
+
 export function createNaverLocalSearchAdapter(
   env: NaverLocalSearchEnv,
   fetchImpl: typeof fetch = fetch,
 ): NaverLocalSearchAdapter {
   return {
     async search(input) {
-      if (env.NAVER_LOCAL_SEARCH_ENABLED !== "true" || !hasCredentials(env)) {
-        throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_DISABLED");
-      }
+      assertNaverLocalSearchEnabled(env);
       if (!validInput(input)) throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_REJECTED");
 
       const url = new URL(NAVER_LOCAL_SEARCH_URL);
