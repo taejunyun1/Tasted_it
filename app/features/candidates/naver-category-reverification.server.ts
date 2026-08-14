@@ -269,7 +269,10 @@ async function prepare(db: AppDb, input: Input) {
         });
       } catch (error) {
         code = failureCode(error);
-        if (code !== "NAVER_LOCAL_SEARCH_DISABLED") apiCalls += 1;
+        // A disabled feature is an operation-level state, not a failed result for
+        // every individual place. Let the route surface the safe-stop notice.
+        if (code === "NAVER_LOCAL_SEARCH_DISABLED") throw error;
+        apiCalls += 1;
         match = { status: "FAILED", mappedCategorySlug: null, matchScore: 0, specificityScore: 0, confidenceScore: 0, evidenceCodes: [] };
       }
     }

@@ -6,7 +6,7 @@ import { createDb } from "../../app/db/client.server";
 import { adminAuditLogs, categories, naverLocalCategoryVerifications, placeCategories, placeSourceLinks, places } from "../../app/db/schema";
 import { upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
 import { applyNaverCategoryReverification, previewNaverCategoryReverification } from "../../app/features/candidates/naver-category-reverification.server";
-import type { NaverLocalSearchAdapter } from "../../app/features/candidates/naver-local-search.server";
+import { NaverLocalSearchError, type NaverLocalSearchAdapter } from "../../app/features/candidates/naver-local-search.server";
 import { upsertPlace } from "../../app/features/places/place.server";
 
 const now = "2026-08-15T01:00:00.000Z";
@@ -87,5 +87,22 @@ describe("NAVER category reverification", () => {
       actorUserId: "naver-reverify-admin", afterPlaceId: null, limit: 100, now: "2026-08-15T01:01:00.000Z", adapter, dailyLimit: 200,
     })).resolves.toMatchObject({ changed: 0, apiCalls: 0 });
     expect(adapter.search).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the whole run when the NAVER feature is disabled instead of recording every place as a failed lookup", async () => {
+    const { db, licenseId } = await seedPublishedPlace();
+    const adapter = {
+      search: vi.fn(async () => {
+        throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_DISABLED");
+      }),
+    } satisfies NaverLocalSearchAdapter;
+
+    await expect(previewNaverCategoryReverification(db, {
+      afterPlaceId: null, limit: 100, now, adapter, dailyLimit: 200,
+    })).rejects.toThrow("NAVER_LOCAL_SEARCH_DISABLED");
+    expect(adapter.search).toHaveBeenCalledTimes(1);
+    await expect(db.query.naverLocalCategoryVerifications.findFirst({
+      where: eq(naverLocalCategoryVerifications.businessLicenseId, licenseId),
+    })).resolves.toBeUndefined();
   });
 });
