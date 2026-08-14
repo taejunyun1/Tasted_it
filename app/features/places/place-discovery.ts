@@ -2,6 +2,10 @@ import { calculateRating } from "../ratings/rating-v1";
 import type { TasteBadgeSource } from "../members/profile-taste-badges";
 import type { PlaceSummary } from "./place.types";
 import { seasonForMonth, TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
+import {
+  canonicalRecommendationMatchKind,
+  type LegacyRecommendationMatchKind,
+} from "./recommendation-action-values";
 
 export interface DiscoveryCenter {
   latitude: number;
@@ -59,14 +63,15 @@ export function normalizedTasteSignalStrength(signal: RankingTasteSignal) {
 }
 
 export function personalizationBoostForDiscovery(input: {
-  mode: "FAMILIAR" | "ADJACENT" | "EXPLORATION";
+  mode: LegacyRecommendationMatchKind;
   tasteStrength: number;
   directionBoost: number;
 }) {
   const tasteStrength = clampUnit(input.tasteStrength);
-  const modeBoost = input.mode === "FAMILIAR"
+  const mode = canonicalRecommendationMatchKind(input.mode);
+  const modeBoost = mode === "DIRECT"
     ? 0.35 * tasteStrength
-    : input.mode === "ADJACENT" ? 0.22 * tasteStrength : 0.08;
+    : mode === "ADJACENT" ? 0.22 * tasteStrength : 0.08;
   const directionBoost = Math.max(0, Number.isFinite(input.directionBoost) ? input.directionBoost : 0);
   return Math.min(0.35, modeBoost + directionBoost);
 }

@@ -12,6 +12,7 @@ import {
 } from "../../db/schema";
 import { listMemberTaste } from "./member.server";
 import { inferTasteBadges, type TasteBadgeScore } from "./profile-taste-badges";
+import { tastePenaltyForFeedback } from "../places/recommendation-action-values";
 
 export type FeedbackReason = "MENU" | "DISTANCE" | "PRICE" | "ATMOSPHERE" | "ALREADY_VISITED";
 
@@ -60,14 +61,14 @@ export async function recordRecommendationFeedback(db: AppDb, input: {
   });
 }
 
-function applyFoodPenalties(inferred: TasteBadgeScore[], foodBadgeIds: string[]) {
+function applyFoodPenalties(inferred: TasteBadgeScore[], foodBadgeIds: string[], penalty: number) {
   const penaltyCounts = new Map<string, number>();
   for (const badgeId of foodBadgeIds) {
     penaltyCounts.set(badgeId, (penaltyCounts.get(badgeId) ?? 0) + 1);
   }
   return inferred.map((badge) => ({
     ...badge,
-    score: Math.max(0, badge.score - (penaltyCounts.get(badge.badgeId) ?? 0) * 0.18),
+    score: Math.max(0, badge.score - (penaltyCounts.get(badge.badgeId) ?? 0) * penalty),
   }));
 }
 
@@ -120,7 +121,10 @@ export async function refreshInferredTasteSignals(
       rated: [{ name: row.name, categoryName: row.categoryName, value: 1 }],
       flavorDimensions: [],
     }).filter((badge) => badge.badgeId.startsWith("food-")).map((badge) => badge.badgeId));
-  const adjusted = applyFoodPenalties(inferred, negativeFoodBadgeIds);
+  const adjusted = applyFoodPenalties(inferred, negativeFoodBadgeIds, tastePenaltyForFeedback({
+    value: -1,
+    reason: "MENU",
+  }));
 
   await options.afterSnapshot?.();
 

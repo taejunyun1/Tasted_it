@@ -141,6 +141,11 @@ describe("personal discovery safeguards", () => {
       tasteStrength: partialUser,
       directionBoost: 0,
     })).toBeCloseTo(0.14, 10);
+    expect(personalizationBoostForDiscovery({
+      mode: "DIRECT",
+      tasteStrength: partialUser,
+      directionBoost: 0,
+    })).toBeCloseTo(0.14, 10);
   });
 
   it("gives an inferred zero-score badge no familiar boost", () => {
