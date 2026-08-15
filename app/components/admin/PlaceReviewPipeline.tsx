@@ -47,7 +47,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     return groups;
   }, {}), [duplicateCandidates]);
   const pageKey = `${query.step}:${query.page}:${query.pageSize}:${query.status ?? ""}:${query.region ?? ""}:${query.query}`;
-  const selectionLimit = query.step === 2 ? 5 : 25;
+  const selectionLimit = query.step === 2 ? 10 : 25;
   useEffect(() => setSelectedIds([]), [pageKey]);
   useEffect(() => {
     if (nextStep === 3 && query.step === 2 && navigation.state === "idle") {
@@ -71,7 +71,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     {message && <p className="admin-notice" role="status">{message}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
-    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>NAVER 검증은 Worker 한도 보호를 위해 한 번에 최대 5곳씩 실행합니다.</p></div>
+    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>NAVER 검증은 Worker 한도 보호를 위해 한 번에 최대 10곳씩 실행합니다.</p></div>
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />

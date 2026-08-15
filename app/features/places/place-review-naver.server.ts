@@ -9,7 +9,7 @@ import { advancePlaceReviewWorkItems } from "./place-review-work-items.server";
 
 // NAVER verification performs one external request plus several D1 writes per item.
 // Keep this deliberately small to stay below the Cloudflare Worker request resource limit.
-export const MAX_NAVER_REVIEW_BATCH_SIZE = 5;
+export const MAX_NAVER_REVIEW_BATCH_SIZE = 10;
 
 export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   workItemIds: string[];
