@@ -39,7 +39,7 @@
 - Produces: `homeSheetSnapAfterPlaceSelect(): HomeSheetSnap`, `HomeCurationSheet`의 `snap`/`onSnapChange` props
 - Consumes: `HomeCurationPresentationProps.onSelect(placeId: string)`
 
-- [ ] **Step 1: 장소 선택 뒤 `peek`을 요구하는 실패 테스트를 작성한다.**
+- [x] **Step 1: 장소 선택 뒤 `peek`을 요구하는 실패 테스트를 작성한다.**
 
 ```ts
 import {
@@ -55,12 +55,12 @@ it("추천 행을 선택하면 지도 확인용 peek 상태로 접는다", () =>
 
 기존 `homeSheetSnapForSelection("peek", "place-1") === "half"` 테스트는 삭제한다. 그 규칙은 선택 후 시트를 다시 펼쳐 A안을 깨기 때문이다.
 
-- [ ] **Step 2: 실패를 확인한다.**
+- [x] **Step 2: 실패를 확인한다.**
 
 Run: `pnpm test -- tests/unit/home-curation-components.test.ts`
 Expected: `homeSheetSnapAfterPlaceSelect is not exported`로 FAIL.
 
-- [ ] **Step 3: 최소 구현을 작성한다.**
+- [x] **Step 3: 최소 구현을 작성한다.**
 
 ```tsx
 export function homeSheetSnapAfterPlaceSelect(): HomeSheetSnap {
@@ -84,12 +84,12 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps & {
 
 `useEffect`와 `homeSheetSnapForSelection`을 제거한다. `home.tsx`에서 `const [sheetSnap, setSheetSnap] = useState<HomeSheetSnap>("half")`를 만들고 `<HomeCurationSheet {...presentationProps} snap={sheetSnap} onSnapChange={setSheetSnap} />`로 전달한다. `returnToCuration`은 `setSheetSnap("half")` 후 기존 URL 전환을 수행한다. URL의 초기 `selected` 값은 시트를 접는 사용자 동작이 아니므로, 초기 상태를 바꾸면 안 된다.
 
-- [ ] **Step 4: GREEN을 확인한다.**
+- [x] **Step 4: GREEN을 확인한다.**
 
 Run: `pnpm test -- tests/unit/home-curation-components.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋한다.**
+- [x] **Step 5: 커밋한다.**
 
 ```bash
 git add app/components/map/HomeCurationSheet.tsx app/routes/home.tsx tests/unit/home-curation-components.test.ts
@@ -106,7 +106,7 @@ git commit -m "2026-08-15 모바일 장소 선택 시트 전환"
 - Consumes: `data-snap="peek" | "half" | "full"` from `HomeCurationSheet`.
 - Produces: mobile A안 CSS contract.
 
-- [ ] **Step 1: A안의 실패 CSS 계약을 작성한다.**
+- [x] **Step 1: A안의 실패 CSS 계약을 작성한다.**
 
 ```ts
 it("모바일 기본 추천 시트는 70%이고 장소 확인 시트는 112px이다", () => {
@@ -116,12 +116,12 @@ it("모바일 기본 추천 시트는 70%이고 장소 확인 시트는 112px이
 });
 ```
 
-- [ ] **Step 2: 실패를 확인한다.**
+- [x] **Step 2: 실패를 확인한다.**
 
 Run: `pnpm test -- tests/unit/home-curation-design.test.ts`
 Expected: `52%`와 `118px` 현재 값 때문에 FAIL.
 
-- [ ] **Step 3: 최소 CSS를 작성한다.**
+- [x] **Step 3: 최소 CSS를 작성한다.**
 
 ```css
 @media(max-width:760px){
@@ -136,12 +136,12 @@ Expected: `52%`와 `118px` 현재 값 때문에 FAIL.
 
 `full`의 `calc(100% - var(--space-4))`, 기존 종이 카드 스타일과 `prefers-reduced-motion` 규칙은 유지한다.
 
-- [ ] **Step 4: GREEN을 확인한다.**
+- [x] **Step 4: GREEN을 확인한다.**
 
 Run: `pnpm test -- tests/unit/home-curation-design.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋한다.**
+- [x] **Step 5: 커밋한다.**
 
 ```bash
 git add app/styles/design-system.css tests/unit/home-curation-design.test.ts
@@ -157,7 +157,7 @@ git commit -m "2026-08-15 모바일 추천 시트 높이 보정"
 - Consumes: `.home-curation-sheet[data-snap]`, `.home-curation-card[data-place-id]`, `.map-canvas[data-focused-place]`, `selected` URL 검색 파라미터.
 - Produces: A안의 실제 상호작용 회귀 방지.
 
-- [ ] **Step 1: 모바일에서 두 번째 장소를 탭하는 실패 E2E를 추가한다.**
+- [x] **Step 1: 모바일에서 두 번째 장소를 탭하는 실패 E2E를 추가한다.**
 
 ```ts
 test("모바일 추천 행 선택은 시트를 접고 같은 장소를 지도 중심으로 삼는다", async ({ page }, testInfo) => {
@@ -175,21 +175,21 @@ test("모바일 추천 행 선택은 시트를 접고 같은 장소를 지도 �
 });
 ```
 
-- [ ] **Step 2: RED를 확인한다.**
+- [x] **Step 2: RED를 확인한다.**
 
 Run: `pnpm exec playwright test tests/e2e/home-curation.spec.ts --project=mobile-chromium`
 Expected: 현재 선택 뒤 `data-snap="half"`가 남아 FAIL.
 
-- [ ] **Step 3: Task 1·2 구현이 실제 E2E를 만족하는지 확인하고 필요한 최소 선택자 안정화만 한다.**
+- [x] **Step 3: Task 1·2 구현이 실제 E2E를 만족하는지 확인하고 필요한 최소 선택자 안정화만 한다.**
 
 `HomeCurationSheet`의 `props.onSelect(placeId)`는 `home.tsx`의 `setSearch({ selected: id })`로 연결되고, `PlaceMap`은 `data-focused-place={selected}`를 렌더하므로 별도 데이터 요청·라우트 변경을 추가하지 않는다.
 
-- [ ] **Step 4: GREEN을 확인한다.**
+- [x] **Step 4: GREEN을 확인한다.**
 
 Run: `pnpm exec playwright test tests/e2e/home-curation.spec.ts --project=chromium --project=mobile-chromium`
 Expected: desktop·mobile 모두 PASS; desktop은 기존 좌측 패널을 계속 사용한다.
 
-- [ ] **Step 5: 시각 증거와 최종 검증을 남긴다.**
+- [x] **Step 5: 시각 증거와 최종 검증을 남긴다.**
 
 Run:
 
@@ -202,7 +202,7 @@ git diff --check
 
 Expected: 모두 PASS. `HOME_CURATION_EVIDENCE=1`로 데스크톱·모바일 스크린샷을 생성해 PR에 첨부한다.
 
-- [ ] **Step 6: 커밋한다.**
+- [x] **Step 6: 커밋한다.**
 
 ```bash
 git add tests/e2e/home-curation.spec.ts docs/evidence/2026-08-15-mobile-curation-sheet-*.png
@@ -254,7 +254,7 @@ Expected: merge와 production deploy가 모두 성공. 배포 뒤 `/`의 모바�
 - Produces: `HomeCurationSheetProps = HomeCurationPresentationProps & { snap: HomeSheetSnap; onSnapChange(snap: HomeSheetSnap): void }`
 - Consumes: `HomeSheetSnap` from `HomeCurationSheet` and existing `setSearch({ selected: id })` route callback.
 
-- [ ] **Step 1: 제어형 시트 계약의 실패 단위 테스트를 작성한다.**
+- [x] **Step 1: 제어형 시트 계약의 실패 단위 테스트를 작성한다.**
 
 ```ts
 it("시트는 라우트가 전달한 현재 스냅을 렌더한다", () => {
@@ -269,12 +269,12 @@ it("시트는 라우트가 전달한 현재 스냅을 렌더한다", () => {
 
 기존 `HomeCurationSheet` 렌더용 fixture에도 `snap: "half"`와 `onSnapChange: vi.fn()`을 넣는다.
 
-- [ ] **Step 2: 실패를 확인한다.**
+- [x] **Step 2: 실패를 확인한다.**
 
 Run: `node_modules/.bin/vitest run tests/unit/home-curation-components.test.ts`
 Expected: 현재 `HomeCurationSheet` props에 `snap`이 없고, 전달값을 무시하므로 `data-snap="peek"` 계약이 FAIL.
 
-- [ ] **Step 3: 라우트 제어형 최소 구현을 작성한다.**
+- [x] **Step 3: 라우트 제어형 최소 구현을 작성한다.**
 
 ```tsx
 // HomeCurationSheet.tsx
@@ -304,12 +304,12 @@ const returnToCuration = () => {
 
 `HomeCurationSheet`의 로컬 `useState`와 선택 감시 `useEffect`는 제거한다. `home.tsx`의 상태가 URL 파라미터 변경 뒤에도 살아 있으므로, 시트가 재마운트돼도 방금 선택한 `peek`을 유지한다.
 
-- [ ] **Step 4: GREEN을 확인한다.**
+- [x] **Step 4: GREEN을 확인한다.**
 
 Run: `node_modules/.bin/vitest run tests/unit/home-curation-components.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: 커밋한다.**
+- [x] **Step 5: 커밋한다.**
 
 ```bash
 git add app/components/map/HomeCurationSheet.tsx app/routes/home.tsx tests/unit/home-curation-components.test.ts
@@ -379,11 +379,11 @@ git commit -m "2026-08-15 모바일 선택 확인 UX 보강"
 **Files:**
 - Modify: `tests/e2e/home-curation.spec.ts`
 
-- [ ] **Step 1: GPS 권한 origin 계약을 실패 테스트로 고정한다.**
+- [x] **Step 1: GPS 권한 origin 계약을 실패 테스트로 고정한다.**
 
 `BASE_URL=http://127.0.0.1:5190`처럼 허용된 loopback 서버에서 전체 `home-curation` 데스크톱·모바일 시나리오를 실행할 때, GPS 권한은 하드코딩된 `5173`이 아니라 실제 페이지 origin에 부여되어야 한다. 새 helper 또는 기존 fixture 변경은 `page.url()` 또는 Playwright `baseURL`에서 origin을 계산한다.
 
-- [ ] **Step 2: 실패를 확인한다.**
+- [x] **Step 2: 실패를 확인한다.**
 
 ```bash
 BASE_URL=http://127.0.0.1:5190 node_modules/.bin/playwright test tests/e2e/home-curation.spec.ts --project=chromium --project=mobile-chromium
@@ -391,11 +391,11 @@ BASE_URL=http://127.0.0.1:5190 node_modules/.bin/playwright test tests/e2e/home-
 
 Expected: 기존 `5173` 고정 권한에서는 GPS resource 대기 시나리오가 timeout으로 FAIL.
 
-- [ ] **Step 3: 최소 구현과 전체 실행을 완료한다.**
+- [x] **Step 3: 최소 구현과 전체 실행을 완료한다.**
 
 각 `grantPermissions` 호출은 실제 `page` origin을 사용해야 한다. loopback allowlist와 외부 URL skip 정책은 그대로 둔다. 임시 서버·D1 시드는 테스트 범위 내에서만 사용하고 외부 네트워크·운영 데이터에는 접근하지 않는다.
 
-- [ ] **Step 4: GREEN과 변이 검증을 확인한다.**
+- [x] **Step 4: GREEN과 변이 검증을 확인한다.**
 
 권한 origin을 임시로 잘못된 loopback 포트로 바꾸면 GPS 시나리오가 실패해야 하며, 정확한 origin으로 복구하면 다음 전체 명령이 완료되어야 한다.
 
@@ -406,7 +406,7 @@ pnpm run typecheck
 git diff --check
 ```
 
-- [ ] **Step 5: 커밋한다.**
+- [x] **Step 5: 커밋한다.**
 
 ```bash
 git add tests/e2e/home-curation.spec.ts
@@ -419,15 +419,15 @@ git commit -m "2026-08-15 모바일 GPS QA origin 보정"
 - Create: `docs/evidence/2026-08-15-mobile-curation-sheet-desktop.png`
 - Create: `docs/evidence/2026-08-15-mobile-curation-sheet-mobile.png`
 
-- [ ] **Step 1: 최신 브랜치의 로컬 QA 데이터를 준비한다.**
+- [x] **Step 1: 최신 브랜치의 로컬 QA 데이터를 준비한다.**
 
 로컬 D1 migration과 홈 큐레이션 QA seed를 적용하고, loopback 개발 서버를 띄운다. 외부 서비스나 운영 데이터에는 접근하지 않는다.
 
-- [ ] **Step 2: 실제 브라우저에서 캡처한다.**
+- [x] **Step 2: 실제 브라우저에서 캡처한다.**
 
 데스크톱은 `/`의 추천 지도와 좌측 패널을, 모바일은 추천 행을 선택한 뒤 `peek` 시트에 순위·상호명이 보이고 지도 선택 핀이 강조된 상태를 캡처한다. 기존 2026-08-11 증거 파일을 재사용하지 않는다.
 
-- [ ] **Step 3: 커밋한다.**
+- [x] **Step 3: 커밋한다.**
 
 ```bash
 git add docs/evidence/2026-08-15-mobile-curation-sheet-desktop.png docs/evidence/2026-08-15-mobile-curation-sheet-mobile.png
