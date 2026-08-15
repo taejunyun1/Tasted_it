@@ -95,6 +95,8 @@ describe("bulk candidate review", () => {
       classificationSource: "RULE_ONLY",
       reviewState: "MANUAL",
       eligible: false,
+      categoryId: null,
+      suggestedCategoryId: expect.any(String),
     });
   });
 
@@ -221,10 +223,10 @@ describe("bulk candidate review", () => {
       ...license, sourceManagementNo: "manual-conflict", businessName: "타코야끼앤버거", businessSubtype: "한식",
     }, now);
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
-    expect(row.reviewState).toBe("MANUAL");
+    expect(row).toMatchObject({ reviewState: "MANUAL", categoryId: null });
 
     const result = await approveCandidateSelections(db, {
-      selections: [{ candidateId: candidate.id, categoryId: row.categoryId! }], actorUserId: "bulk-admin", now,
+      selections: [{ candidateId: candidate.id, categoryId: "cat-tteokbokki" }], actorUserId: "bulk-admin", now,
     });
 
     expect(result.approved).toEqual([expect.objectContaining({ candidateId: candidate.id })]);

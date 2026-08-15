@@ -23,6 +23,32 @@ function rule(input: { businessName: string; businessSubtype?: string | null }) 
 }
 
 describe("NAVER local category authority", () => {
+  it("automatically classifies a generic general restaurant when NAVER confirms its name, location, and specific category", () => {
+    const candidate = rule({ businessName: "테스트 식당", businessSubtype: "기타" });
+    const naver = matchNaverLocalCategory({
+      businessName: "테스트 식당",
+      address: "광주광역시 동구 테스트로 1",
+      latitude: 35.15,
+      longitude: 126.92,
+      regionCode: "GWANGJU",
+      terminalSlugs,
+      results: [{
+        name: "테스트식당",
+        category: "음식점>일식>라멘",
+        address: "광주광역시 동구 테스트로 1",
+        latitude: 35.15,
+        longitude: 126.92,
+      }],
+    });
+
+    expect(decideCategoryAuthority({
+      rule: candidate,
+      subtypeSlug: null,
+      nameSlug: null,
+      naver,
+    })).toMatchObject({ categorySlug: "ramen-detail", confidence: "HIGH", confidenceScore: 80, automatic: true });
+  });
+
   it("uses an exact name/address match and specific meat category when the source agrees", () => {
     const candidate = rule({ businessName: "신 돼지세끼", businessSubtype: "식육(숯불구이)" });
     const naver = matchNaverLocalCategory({
@@ -44,7 +70,7 @@ describe("NAVER local category authority", () => {
     expect(naver).toMatchObject({
       status: "VERIFIED",
       mappedCategorySlug: "grill",
-      matchScore: 40,
+      matchScore: 60,
       specificityScore: 20,
       evidenceCodes: expect.arrayContaining(["NAVER_BRANCH_NORMALIZED_NAME", "NAVER_EXACT_ADDRESS", "NAVER_SPECIFIC_CATEGORY"]),
     });
@@ -53,7 +79,7 @@ describe("NAVER local category authority", () => {
       subtypeSlug: getAuthoritativeSubtypeCategorySlug({ sourceType: "GENERAL_RESTAURANT", businessName: "신 돼지세끼", businessSubtype: "식육(숯불구이)" }, candidate),
       nameSlug: getStrongestNameFoodCategorySlug({ sourceType: "GENERAL_RESTAURANT", businessName: "신 돼지세끼", businessSubtype: "식육(숯불구이)" }),
       naver,
-    })).toMatchObject({ categorySlug: "grill", confidence: "HIGH", confidenceScore: 80, automatic: true });
+    })).toMatchObject({ categorySlug: "grill", confidence: "HIGH", confidenceScore: 100, automatic: true });
   });
 
   it("keeps a concrete 정종·대포집·소주방 subtype when NAVER only returns a broad restaurant category", () => {

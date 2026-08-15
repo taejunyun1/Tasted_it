@@ -44,8 +44,9 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(categoryDialog).toHaveCount(0);
   await expect(page.locator("main")).not.toHaveAttribute("inert", "");
   await expect(automaticCategory).toContainText("찌개·전골·탕");
-  await expect(page.getByRole("button", { name: "QA 스시하루 대표 카테고리" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "오늘베이킹 대표 카테고리" })).toContainText("베이커리");
+  await expect(page.getByRole("button", { name: "QA 스시하루 대표 카테고리" })).toContainText("직접 선택");
+  await expect(page.getByText("추천 · 초밥·회", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "오늘베이킹 대표 카테고리" })).toContainText("직접 선택");
   await expect(page.getByText("추천 · 베이커리", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "QA 카페봄" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명" })).toHaveCount(0);
