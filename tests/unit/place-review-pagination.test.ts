@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlaceReviewPageHref, parsePlaceReviewQuery } from "../../app/features/places/place-review-pagination";
+import { buildPlaceReviewNextStepHref, buildPlaceReviewPageHref, parsePlaceReviewQuery } from "../../app/features/places/place-review-pagination";
 
 describe("place review pagination", () => {
   it("bounds page and page size", () => {
@@ -29,5 +29,16 @@ describe("place review pagination", () => {
       region: "JEONNAM",
       query: "김밥",
     }, 2)).toBe("?flow=review&step=3&page=2&pageSize=50&status=attention&region=JEONNAM&q=%EA%B9%80%EB%B0%A5");
+  });
+
+  it("moves NAVER verification to category confirmation without retaining a stale page", () => {
+    expect(buildPlaceReviewNextStepHref({
+      step: 2,
+      page: 4,
+      pageSize: 50,
+      status: "pending",
+      region: "GWANGJU",
+      query: "국밥",
+    })).toBe("?flow=review&step=3&page=1&pageSize=50&status=pending&region=GWANGJU&q=%EA%B5%AD%EB%B0%A5");
   });
 });

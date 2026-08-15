@@ -44,3 +44,8 @@ export function buildPlaceReviewPageHref(query: PlaceReviewQuery, page: number) 
 
   return `?${params.toString()}`;
 }
+
+export function buildPlaceReviewNextStepHref(query: PlaceReviewQuery) {
+  const nextStep = Math.min(5, query.step + 1) as ReviewStepNumber;
+  return buildPlaceReviewPageHref({ ...query, step: nextStep, page: 1 }, 1);
+}
