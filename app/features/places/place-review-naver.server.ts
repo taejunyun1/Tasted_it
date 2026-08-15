@@ -7,7 +7,9 @@ import type { NaverLocalSearchAdapter } from "../candidates/naver-local-search.s
 import { verifyPlacesLivenessWithNaver } from "./naver-place-liveness.server";
 import { advancePlaceReviewWorkItems } from "./place-review-work-items.server";
 
-const MAX_REVIEW_BATCH_SIZE = 25;
+// NAVER verification performs one external request plus several D1 writes per item.
+// Keep this deliberately small to stay below the Cloudflare Worker request resource limit.
+export const MAX_NAVER_REVIEW_BATCH_SIZE = 5;
 
 export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   workItemIds: string[];
@@ -17,7 +19,7 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   adapter: NaverLocalSearchAdapter;
 }) {
   const workItemIds = [...new Set(input.workItemIds.filter(Boolean))];
-  if (!workItemIds.length || workItemIds.length > MAX_REVIEW_BATCH_SIZE) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
+  if (!workItemIds.length || workItemIds.length > MAX_NAVER_REVIEW_BATCH_SIZE) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
   const workItems = await db.select().from(placeReviewWorkItems).where(inArray(placeReviewWorkItems.id, workItemIds));
   const eligible = workItems.filter((item) => item.status === "ACTIVE" && item.stage === "NAVER_VERIFICATION");
   const businessIds = eligible.flatMap((item) => item.businessLicenseId ? [item.businessLicenseId] : []);
