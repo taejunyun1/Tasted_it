@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenseExclusions, placeRevalidationCases, places } from "../../app/db/schema";
+import { businessLicenseExclusions, placeRevalidationCases, placeReviewWorkItems, places } from "../../app/db/schema";
 import { approveCandidate, excludeCandidates, listExcludedCandidates, listPendingCandidates, restoreExcludedCandidate, upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
 import type { NormalizedLicense } from "../../app/features/candidates/public-data";
 
@@ -32,6 +32,17 @@ describe("candidate review service", () => {
     const candidates = await listPendingCandidates(db);
     expect(candidates.map((candidate) => candidate.businessName)).toContain("후보식당");
     expect(candidates.map((candidate) => candidate.businessName)).not.toContain("폐업식당");
+  });
+
+  it("creates a first-stage review item for a new open public-data candidate", async () => {
+    const db = createDb(env.DB);
+    const result = await upsertBusinessLicense(db, {
+      ...openLicense,
+      sourceManagementNo: `pipeline-${crypto.randomUUID()}`,
+    }, now);
+
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.businessLicenseId, result.id) }))
+      .resolves.toMatchObject({ sourceKind: "PUBLIC_DATA", stage: "SOURCE_REVIEW", status: "ACTIVE" });
   });
 
   it("stores a new chain candidate as an active exclusion", async () => {

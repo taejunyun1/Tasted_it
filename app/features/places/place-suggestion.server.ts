@@ -1,10 +1,11 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../db/schema";
+import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeReviewWorkItems, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../db/schema";
 import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput } from "./place-duplicate-policy";
 import { isSupportedRegionAddress, normalizeSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
 import { slugifyPlaceName } from "./place-slug";
+import { newReviewWorkItemValues } from "./place-review-work-items.server";
 
 export interface SuggestionInput extends PlaceIdentityInput {
   id: string; userId: string; neighborhood: string; categoryId: string;
@@ -121,6 +122,7 @@ export async function approvePlaceSuggestion(db: AppDb, input: {
     db.update(placeSuggestions).set({ status: "REVIEWING", address, normalizedAddress: normalized.address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(eq(placeSuggestions.id, suggestion.id), inArray(placeSuggestions.status, ["SUBMITTED", "NEEDS_INFO", "REVIEWING"]))),
     db.insert(places).values(place),
     db.insert(placeCategories).values({ placeId, categoryId: suggestion.categoryId, isPrimary: true }),
+    db.insert(placeReviewWorkItems).values(newReviewWorkItemValues({ placeId, sourceKind: "PLACE_SUGGESTION", now: input.now })).onConflictDoNothing(),
     db.update(placeSuggestions).set({ status: "APPROVED", approvedPlaceId: placeId, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(eq(placeSuggestions.id, suggestion.id), eq(placeSuggestions.status, "REVIEWING"), eq(placeSuggestions.reviewedBy, input.actorUserId), eq(placeSuggestions.reviewedAt, input.now))),
     db.update(placeDuplicateCandidates).set({ status: "DISMISSED", resolvedBy: input.actorUserId, resolvedAt: input.now, updatedAt: input.now }).where(eq(placeDuplicateCandidates.suggestionId, suggestion.id)),
     db.update(reviewerApplications).set({ approvedSuggestionCount: sql`${reviewerApplications.approvedSuggestionCount} + 1`, updatedAt: input.now }).where(and(eq(reviewerApplications.userId, suggestion.userId), inArray(reviewerApplications.status, ["APPLIED", "REVIEWING"]))),

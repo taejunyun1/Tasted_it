@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { categories, placeCategories, placeDuplicateCandidates, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../app/db/schema";
+import { categories, placeCategories, placeDuplicateCandidates, placeReviewWorkItems, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../app/db/schema";
 import { approvePlaceSuggestion, submitPlaceSuggestion } from "../../app/features/places/place-suggestion.server";
 
 describe("place suggestions", () => {
@@ -102,6 +102,9 @@ describe("place suggestions", () => {
       ...confirmedLocation,
     });
     expect((await db.select().from(placeRevisions)).some((item) => item.placeId === result.placeId && item.action === "CREATE_FROM_SUGGESTION")).toBe(true);
+    expect((await db.select().from(placeReviewWorkItems)).find((item) => item.placeId === result.placeId)).toMatchObject({
+      sourceKind: "PLACE_SUGGESTION", stage: "SOURCE_REVIEW", status: "ACTIVE",
+    });
     expect((await db.select().from(reviewerApplications)).find((item) => item.id === `${prefix}-application`)?.approvedSuggestionCount).toBe(1);
   });
 

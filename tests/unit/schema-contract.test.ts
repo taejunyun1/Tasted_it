@@ -45,6 +45,8 @@ import {
   recommendationFeedback,
   productEvents,
   placeLivenessStates,
+  placeReviewDuplicateResolutions,
+  placeReviewWorkItems,
   tasteLearningStates,
   reviewerVisitPhotos,
   reviewerPhotoCleanupJobs,
@@ -144,6 +146,18 @@ describe("week 1 schema", () => {
     expect(placeLivenessStates.recommendationExcluded).toBeDefined();
     expect(placeLivenessStates.leaseToken).toBeDefined();
     expect(placeLivenessStates.leaseExpiresAt).toBeDefined();
+  });
+
+  it("exports the durable place review workflow tables", () => {
+    expect(placeReviewWorkItems.stage).toBeDefined();
+    expect(placeReviewWorkItems.status).toBeDefined();
+    expect(placeReviewWorkItems.stageVersion).toBeDefined();
+    expect(placeReviewDuplicateResolutions.decision).toBeDefined();
+    expect(getTableConfig(placeReviewWorkItems).indexes.map((item) => item.config.name)).toEqual(expect.arrayContaining([
+      "place_review_stage_status_updated_idx",
+      "place_review_active_business_idx",
+      "place_review_active_place_idx",
+    ]));
   });
 
   it("locks the place liveness Drizzle enum, default, and cascade boundaries", () => {

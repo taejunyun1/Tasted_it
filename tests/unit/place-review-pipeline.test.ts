@@ -1,0 +1,45 @@
+import { describe, expect, it } from "vitest";
+import { evaluateReviewAdvance } from "../../app/features/places/place-review-pipeline";
+
+const ready = {
+  sourceReady: true,
+  naverDecision: "VERIFIED" as const,
+  selectedCategoryId: "cat-local",
+  categoryActive: true,
+  openDuplicateCount: 0,
+  activeExclusion: false,
+};
+
+describe("place review stage gates", () => {
+  it("moves exactly one stage", () => {
+    expect(evaluateReviewAdvance("SOURCE_REVIEW", ready)).toEqual({ ok: true, nextStage: "NAVER_VERIFICATION" });
+    expect(evaluateReviewAdvance("NAVER_VERIFICATION", ready)).toEqual({ ok: true, nextStage: "CATEGORY_CONFIRMATION" });
+  });
+
+  it("blocks NAVER failures and permits a recorded manual evidence approval", () => {
+    expect(evaluateReviewAdvance("NAVER_VERIFICATION", { ...ready, naverDecision: "FAILED" }))
+      .toEqual({ ok: false, code: "NAVER_RETRY_REQUIRED" });
+    expect(evaluateReviewAdvance("NAVER_VERIFICATION", { ...ready, naverDecision: "MANUAL_OVERRIDE" }))
+      .toEqual({ ok: true, nextStage: "CATEGORY_CONFIRMATION" });
+  });
+
+  it("blocks unresolved duplicates and exclusions", () => {
+    expect(evaluateReviewAdvance("DUPLICATE_REVIEW", { ...ready, openDuplicateCount: 1 }))
+      .toEqual({ ok: false, code: "DUPLICATE_REVIEW_REQUIRED" });
+    expect(evaluateReviewAdvance("DUPLICATE_REVIEW", { ...ready, activeExclusion: true }))
+      .toEqual({ ok: false, code: "ACTIVE_EXCLUSION" });
+  });
+
+  it("requires source and category evidence before their respective next stages", () => {
+    expect(evaluateReviewAdvance("SOURCE_REVIEW", { ...ready, sourceReady: false }))
+      .toEqual({ ok: false, code: "SOURCE_NOT_READY" });
+    expect(evaluateReviewAdvance("CATEGORY_CONFIRMATION", { ...ready, selectedCategoryId: null }))
+      .toEqual({ ok: false, code: "CATEGORY_REQUIRED" });
+    expect(evaluateReviewAdvance("CATEGORY_CONFIRMATION", { ...ready, categoryActive: false }))
+      .toEqual({ ok: false, code: "CATEGORY_INACTIVE" });
+  });
+
+  it("does not advance beyond final approval", () => {
+    expect(evaluateReviewAdvance("FINAL_APPROVAL", ready)).toEqual({ ok: false, code: "ALREADY_FINAL" });
+  });
+});

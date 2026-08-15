@@ -1,7 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { adminAuditLogs, places } from "../../db/schema";
+import { adminAuditLogs, placeReviewWorkItems, places } from "../../db/schema";
+import { newReviewWorkItemValues } from "./place-review-work-items.server";
 
 const recallAction = "RECALL_PUBLISHED_PLACES_FOR_CATEGORY_AUDIT";
 const restoreAction = "RESTORE_PUBLISHED_PLACES_FOR_CATEGORY_AUDIT";
@@ -26,6 +27,9 @@ export async function recallPublishedPlaces(db: AppDb, input: { actorUserId: str
       afterState: JSON.stringify({ status: "HIDDEN", auditRunAt: input.now, reason: input.reason }),
       createdAt: input.now,
     })),
+    ...targetIds.map((targetId) => db.insert(placeReviewWorkItems).values(
+      newReviewWorkItemValues({ placeId: targetId, sourceKind: "CATEGORY_RECALL", now: input.now }),
+    ).onConflictDoNothing()),
     db.update(places).set({ status: "HIDDEN", updatedAt: input.now }).where(inArray(places.id, targetIds)),
   ];
   const [firstStatement, ...remainingStatements] = statements;
