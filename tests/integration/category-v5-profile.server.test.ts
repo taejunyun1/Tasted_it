@@ -37,4 +37,18 @@ describe("place category v5 profile", () => {
     const count = await env.DB.prepare("SELECT count(*) AS count FROM place_category_v5_profiles WHERE place_id = 'v5-profile-place'").first<{ count: number }>();
     expect(count?.count).toBe(1);
   });
+
+  it("persists bounded NAVER evidence without persisting provider content", async () => {
+    const db = createDb(env.DB);
+    await savePlaceCategoryV5Profile(db, {
+      placeId: "v5-profile-place", businessName: "신 돼지세끼", businessSubtype: "식육(숯불구이)", sourceType: "GENERAL_RESTAURANT", now, mode: "SHADOW",
+      verification: {
+        naver: { status: "VERIFIED", categorySlug: "grill", categoryVerification: "SPECIFIC", placeType: "FOOD", matchKind: "NAME_ADDRESS", distanceMeters: 0, evidenceCodes: ["NAVER_EXACT_ADDRESS"] },
+        ai: null,
+      },
+    });
+    const stored = await env.DB.prepare("SELECT reason_codes_json FROM place_category_v5_profiles WHERE place_id = 'v5-profile-place'").first<{ reason_codes_json: string }>();
+    expect(stored?.reason_codes_json).toContain("NAVER_V2_SPECIFIC_MATCH");
+    expect(stored?.reason_codes_json).not.toContain("광주광역시");
+  });
 });

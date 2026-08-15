@@ -2,12 +2,23 @@ import type { AppDb } from "../../db/client.server";
 import { placeCategoryV5Profiles } from "../../db/schema";
 import { classifyPlaceCategoryV5 } from "./category-v5";
 import type { PlaceCategoryV5Input } from "./category-v5.types";
+import { reconcileCategoryV5Verification } from "./category-v5-verification";
+import type { NaverV2Verification } from "./naver-local-category-v2";
+import type { AiCategoryVerifierV2Output } from "./ai-category-verifier-v2";
 
 export async function savePlaceCategoryV5Profile(
   db: AppDb,
-  input: PlaceCategoryV5Input & { placeId: string; now: string; mode: "SHADOW" | "APPLY_VERIFIED" },
+  input: PlaceCategoryV5Input & {
+    placeId: string;
+    now: string;
+    mode: "SHADOW" | "APPLY_VERIFIED";
+    verification?: { naver: NaverV2Verification | null; ai: AiCategoryVerifierV2Output | null };
+  },
 ) {
-  const profile = classifyPlaceCategoryV5(input);
+  const ruleProfile = classifyPlaceCategoryV5(input);
+  const profile = input.verification
+    ? reconcileCategoryV5Verification(ruleProfile, input.verification)
+    : ruleProfile;
   const values = {
     placeId: input.placeId,
     primaryCategorySlug: profile.primarySlug,

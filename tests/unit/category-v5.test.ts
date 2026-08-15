@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifyPlaceCategoryV5 } from "../../app/features/candidates/category-v5";
+import { reconcileCategoryV5Verification } from "../../app/features/candidates/category-v5-verification";
 
 const input = (businessName: string, businessSubtype: string | null = null) => ({
   sourceType: "GENERAL_RESTAURANT" as const,
@@ -47,5 +48,22 @@ describe("place-category-v5", () => {
     expect(result.secondarySlugs.length).toBeLessThanOrEqual(4);
     expect(new Set(result.secondarySlugs).size).toBe(result.secondarySlugs.length);
     expect(result.traits).toContain("alcoholFriendly");
+  });
+
+  it("keeps external verification bounded to already-derived categories", () => {
+    const profile = classifyPlaceCategoryV5(input("신 돼지세끼", "식육(숯불구이)"));
+    expect(reconcileCategoryV5Verification(profile, {
+      naver: { status: "VERIFIED", categorySlug: "grill", categoryVerification: "SPECIFIC", placeType: "FOOD", matchKind: "NAME_ADDRESS", distanceMeters: 0, evidenceCodes: ["NAVER_EXACT_ADDRESS"] },
+      ai: null,
+    }).reasonCodes).toContain("NAVER_V2_SPECIFIC_MATCH");
+  });
+
+  it("lets AI block automatic treatment but never manufacture another category", () => {
+    const profile = classifyPlaceCategoryV5(input("신 돼지세끼", "식육(숯불구이)"));
+    const reconciled = reconcileCategoryV5Verification(profile, {
+      naver: null,
+      ai: { verdict: "CONFLICT", candidateSlug: null, evidenceCodes: [] },
+    });
+    expect(reconciled).toMatchObject({ primarySlug: "grill", decision: "MANUAL" });
   });
 });
