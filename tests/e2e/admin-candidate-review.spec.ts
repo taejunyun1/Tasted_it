@@ -34,11 +34,18 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 장소 예외 처리" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 반려" })).toHaveCount(0);
-  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveValue("cat-gukbap");
-  await page.getByLabel(`${automaticName} 대표 카테고리`).selectOption("cat-stew");
-  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveValue("cat-stew");
-  await expect(page.getByLabel("QA 스시하루 대표 카테고리")).toBeVisible();
-  await expect(page.getByLabel("오늘베이킹 대표 카테고리")).toHaveValue("cat-bakery");
+  const automaticCategory = page.getByRole("button", { name: `${automaticName} 대표 카테고리` });
+  await expect(automaticCategory).toContainText("국밥·해장국");
+  await automaticCategory.click();
+  const categoryDialog = page.getByRole("dialog", { name: "카테고리 선택" });
+  await expect(categoryDialog).toBeVisible();
+  await expect(page.locator("main")).toHaveAttribute("inert", "");
+  await categoryDialog.getByRole("button", { name: "찌개·전골·탕" }).click();
+  await expect(categoryDialog).toHaveCount(0);
+  await expect(page.locator("main")).not.toHaveAttribute("inert", "");
+  await expect(automaticCategory).toContainText("찌개·전골·탕");
+  await expect(page.getByRole("button", { name: "QA 스시하루 대표 카테고리" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "오늘베이킹 대표 카테고리" })).toContainText("베이커리");
   await expect(page.getByText("추천 · 베이커리", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "QA 카페봄" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명" })).toHaveCount(0);
@@ -50,13 +57,30 @@ test("admin can override and approve an automatic high-confidence category", asy
   const automaticName = testInfo.project.name === "mobile-chromium" ? "QA 모바일 양평해장국" : "QA 양평해장국";
   await page.goto("/admin/candidates");
   await page.getByRole("checkbox", { name: automaticName }).check();
-  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveValue("cat-gukbap");
+  const automaticCategory = page.getByRole("button", { name: `${automaticName} 대표 카테고리` });
+  await expect(automaticCategory).toContainText("국밥·해장국");
 
-  await page.getByLabel(`${automaticName} 대표 카테고리`).selectOption("cat-stew");
+  await automaticCategory.click();
+  await page.getByRole("dialog", { name: "카테고리 선택" }).getByRole("button", { name: "찌개·전골·탕" }).click();
   await page.getByRole("button", { name: "선택 장소 승인·공개" }).click();
 
   await expect(page.getByText("1곳 승인·공개 · 0곳 확인 필요")).toBeVisible();
-  await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: `${automaticName} 대표 카테고리` })).toHaveCount(0);
+});
+
+test("admin applies one category to every selected candidate before approving", async ({ page }) => {
+  await page.goto("/admin/candidates");
+  await page.getByRole("checkbox", { name: "QA 스시하루 선택" }).check();
+  await page.getByRole("checkbox", { name: "오늘베이킹 선택" }).check();
+
+  await page.getByRole("button", { name: "선택 카테고리 일괄 적용" }).click();
+  const categoryDialog = page.getByRole("dialog", { name: "선택한 2곳 카테고리 적용" });
+  await expect(categoryDialog).toBeVisible();
+  await expect(page.locator("main")).toHaveAttribute("inert", "");
+  await categoryDialog.getByRole("button", { name: "라멘" }).click();
+
+  await expect(page.getByRole("button", { name: "QA 스시하루 대표 카테고리" })).toContainText("라멘");
+  await expect(page.getByRole("button", { name: "오늘베이킹 대표 카테고리" })).toContainText("라멘");
 });
 
 test("admin receives a safe notice when selected NAVER verification is not enabled", async ({ page }) => {
