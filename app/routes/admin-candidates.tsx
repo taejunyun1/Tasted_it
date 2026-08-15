@@ -82,6 +82,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       ? [`${row.chainName} 체인명과 일치`]
       : [exclusionLabel(row.exclusionReason)],
     classificationSource: "RULE_ONLY" as const,
+    naverEvidence: { status: null, evidenceCodes: [], confidenceScore: null, failureCode: null },
     blockers: [],
     reviewReasons: [exclusionLabel(row.exclusionReason)],
     reviewState: "BLOCKED" as const,

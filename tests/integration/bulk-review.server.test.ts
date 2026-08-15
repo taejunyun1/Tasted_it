@@ -124,7 +124,44 @@ describe("bulk candidate review", () => {
       updatedAt: now,
     });
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
-    expect(row).toMatchObject({ categorySlug: "gukbap-detail", confidence: "HIGH", reviewState: "AUTO", eligible: true, classificationSource: "NAVER_RULE" });
+    expect(row).toMatchObject({
+      categorySlug: "gukbap-detail",
+      confidence: "HIGH",
+      reviewState: "AUTO",
+      eligible: true,
+      classificationSource: "NAVER_RULE",
+      naverEvidence: { status: "VERIFIED", confidenceScore: 90, evidenceCodes: expect.arrayContaining(["NAVER_EXACT_NAME"]) },
+    });
+  });
+
+  it("exposes a failed NAVER lookup as safe evidence and keeps the candidate manual", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "naver-failed-candidate" }, now);
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId: candidate.id,
+      status: "FAILED",
+      mappedCategoryId: null,
+      matchScore: 0,
+      specificityScore: 0,
+      confidenceScore: 0,
+      evidenceCodesJson: "[]",
+      ruleVersion: "naver-category-v1",
+      inputFingerprint: crypto.randomUUID(),
+      queriedAt: now,
+      expiresAt: null,
+      failureCode: "NAVER_LOCAL_SEARCH_TIMEOUT",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+
+    expect(row).toMatchObject({
+      classificationSource: "NAVER_FAILED",
+      reviewState: "MANUAL",
+      naverEvidence: { status: "FAILED", confidenceScore: 0, evidenceCodes: [], failureCode: "NAVER_LOCAL_SEARCH_TIMEOUT" },
+    });
+    expect(JSON.stringify(row.naverEvidence)).not.toContain("provider");
   });
 
   it("loads NAVER evidence when the pending queue exceeds the D1 bind parameter limit", async () => {

@@ -22,24 +22,55 @@ const allowedEvidenceCodes = new Set<NaverEvidenceCode>([
   "SOURCE_SUBTYPE_CONFLICT",
   "NAME_FOOD_MATCH",
 ]);
+const allowedFailureCodes = new Set([
+  "NAVER_LOCAL_SEARCH_DISABLED",
+  "NAVER_LOCAL_SEARCH_TIMEOUT",
+  "NAVER_LOCAL_SEARCH_QUOTA",
+  "NAVER_LOCAL_SEARCH_REJECTED",
+  "NAVER_LOCAL_SEARCH_UNAVAILABLE",
+  "NAVER_LOCAL_SEARCH_RESPONSE_INVALID",
+]);
+
+export type CandidateNaverEvidence = {
+  status: NaverVerificationStatus | null;
+  evidenceCodes: NaverEvidenceCode[];
+  confidenceScore: number | null;
+  failureCode: string | null;
+};
+
+function safeEvidenceCodes(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((code): code is NaverEvidenceCode => typeof code === "string" && allowedEvidenceCodes.has(code as NaverEvidenceCode))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function storedNaverEvidence(row: typeof naverLocalCategoryVerifications.$inferSelect | undefined): CandidateNaverEvidence {
+  if (!row) return { status: null, evidenceCodes: [], confidenceScore: null, failureCode: null };
+  return {
+    status: row.status as NaverVerificationStatus,
+    evidenceCodes: safeEvidenceCodes(row.evidenceCodesJson),
+    confidenceScore: row.confidenceScore,
+    failureCode: row.failureCode && allowedFailureCodes.has(row.failureCode) ? row.failureCode : null,
+  };
+}
 
 function storedNaverMatch(
   row: typeof naverLocalCategoryVerifications.$inferSelect | undefined,
   categoryById: Map<string, (typeof categories.$inferSelect)>,
 ) : NaverLocalCategoryMatch | null {
   if (!row || row.status !== "VERIFIED" || !row.expiresAt || row.expiresAt <= new Date().toISOString()) return null;
-  let evidenceCodes: NaverEvidenceCode[] = [];
-  try {
-    const parsed = JSON.parse(row.evidenceCodesJson);
-    if (Array.isArray(parsed)) evidenceCodes = parsed.filter((code): code is NaverEvidenceCode => typeof code === "string" && allowedEvidenceCodes.has(code as NaverEvidenceCode));
-  } catch { /* A malformed cache is treated as unavailable, never as authority. */ }
   return {
     status: row.status as NaverVerificationStatus,
     mappedCategorySlug: row.mappedCategoryId ? categoryById.get(row.mappedCategoryId)?.slug ?? null : null,
     matchScore: row.matchScore,
     specificityScore: row.specificityScore,
     confidenceScore: row.confidenceScore,
-    evidenceCodes,
+    evidenceCodes: safeEvidenceCodes(row.evidenceCodesJson),
   };
 }
 
@@ -88,6 +119,7 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       businessName: candidate.businessName,
       address,
     }, classification);
+    const naverEvidence = storedNaverEvidence(latestNaver.get(candidate.id));
     const naver = storedNaverMatch(latestNaver.get(candidate.id), categoryById);
     const authority = decideCategoryAuthority({
       rule: classification,
@@ -117,8 +149,9 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       confidence: combined.confidence,
       confidenceScore: combined.confidenceScore,
       neighborhood: classification.neighborhood,
-      reasons: [...classification.reasons, ...combined.reasons],
-      classificationSource: naverCompleted ? "NAVER_RULE" as const : "RULE_ONLY" as const,
+      reasons: [...classification.reasons, ...(naverEvidence.status === "FAILED" ? ["NAVER 검증을 완료하지 못함"] : []), ...combined.reasons],
+      classificationSource: naverCompleted ? "NAVER_RULE" as const : naverEvidence.status === "FAILED" ? "NAVER_FAILED" as const : "RULE_ONLY" as const,
+      naverEvidence,
       blockers: review.blockers,
       reviewReasons: review.reviewReasons,
       reviewState: displayState,
