@@ -4,7 +4,7 @@
 
 **Goal:** 모바일 추천 지도의 첫 화면은 70% 높이의 추천 시트로 열고, 추천 행을 선택하면 112px 위치 확인 시트와 선택 장소 지도 포커스로 전환한다.
 
-**Architecture:** 선택 장소는 기존 `selected` URL 검색 파라미터를 계속 단일 기준 원본(SSOT)으로 사용한다. `HomeCurationSheet`가 행 클릭만 감싸서 시트를 `peek`으로 즉시 전환하고, 기존 `PlaceMap` 효과가 URL의 선택 장소를 지도 중심·강조 마커로 바꾼다. CSS는 모바일 미디어쿼리 안의 세 스냅 높이만 조정하며 데스크톱 분할 패널은 건드리지 않는다.
+**Architecture:** 선택 장소는 기존 `selected` URL 검색 파라미터를 계속 단일 기준 원본(SSOT)으로 사용한다. `home.tsx`가 일시적 시트 스냅을 제어하고, `HomeCurationSheet`가 행 클릭 때 이를 `peek`으로 바꾼 뒤 기존 URL 선택을 호출한다. 따라서 URL 이동으로 시트가 재마운트돼도 지도 확인 상태가 유지되고, 기존 `PlaceMap` 효과가 선택 장소를 지도 중심·강조 마커로 바꾼다. CSS는 모바일 미디어쿼리 안의 세 스냅 높이만 조정하며 데스크톱 분할 패널은 건드리지 않는다.
 
 **Tech Stack:** React 19, React Router Framework Mode, TypeScript, CSS, Vitest, Playwright
 
@@ -21,7 +21,8 @@
 
 ## 파일 구조
 
-- `app/components/map/HomeCurationSheet.tsx`: 모바일 시트의 선택 이벤트·스냅 상태만 담당한다.
+- `app/components/map/HomeCurationSheet.tsx`: 모바일 시트의 선택 이벤트·제어형 스냅 표시만 담당한다.
+- `app/routes/home.tsx`: URL 이동을 지나 보존되는 일시적 모바일 시트 스냅을 담당한다.
 - `app/styles/design-system.css`: 모바일 세 스냅 높이·안전 영역·시각 전환을 담당한다.
 - `tests/unit/home-curation-components.test.ts`: 순수 스냅 상태 전이와 SSR 마크업 계약을 검증한다.
 - `tests/unit/home-curation-design.test.ts`: 모바일 CSS 수치와 접근성·모션 계약을 검증한다.
@@ -32,9 +33,10 @@
 **Files:**
 - Modify: `tests/unit/home-curation-components.test.ts:8-15, 123-134`
 - Modify: `app/components/map/HomeCurationSheet.tsx:9-34, 67-76`
+- Modify: `app/routes/home.tsx:451-495`
 
 **Interfaces:**
-- Produces: `homeSheetSnapAfterPlaceSelect(): HomeSheetSnap`
+- Produces: `homeSheetSnapAfterPlaceSelect(): HomeSheetSnap`, `HomeCurationSheet`의 `snap`/`onSnapChange` props
 - Consumes: `HomeCurationPresentationProps.onSelect(placeId: string)`
 
 - [ ] **Step 1: 장소 선택 뒤 `peek`을 요구하는 실패 테스트를 작성한다.**
@@ -65,10 +67,12 @@ export function homeSheetSnapAfterPlaceSelect(): HomeSheetSnap {
   return "peek";
 }
 
-export function HomeCurationSheet(props: HomeCurationPresentationProps) {
-  const [snap, setSnap] = useState<HomeSheetSnap>("half");
+export function HomeCurationSheet(props: HomeCurationPresentationProps & {
+  snap: HomeSheetSnap;
+  onSnapChange: (snap: HomeSheetSnap) => void;
+}) {
   const handlePlaceSelect = (placeId: string) => {
-    setSnap(homeSheetSnapAfterPlaceSelect());
+    props.onSnapChange(homeSheetSnapAfterPlaceSelect());
     props.onSelect(placeId);
   };
 
@@ -78,7 +82,7 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
 }
 ```
 
-`useEffect`와 `homeSheetSnapForSelection`을 제거한다. URL의 초기 `selected` 값은 시트를 접는 사용자 동작이 아니므로, 초기 상태를 바꾸면 안 된다.
+`useEffect`와 `homeSheetSnapForSelection`을 제거한다. `home.tsx`에서 `const [sheetSnap, setSheetSnap] = useState<HomeSheetSnap>("half")`를 만들고 `<HomeCurationSheet {...presentationProps} snap={sheetSnap} onSnapChange={setSheetSnap} />`로 전달한다. `returnToCuration`은 `setSheetSnap("half")` 후 기존 URL 전환을 수행한다. URL의 초기 `selected` 값은 시트를 접는 사용자 동작이 아니므로, 초기 상태를 바꾸면 안 된다.
 
 - [ ] **Step 4: GREEN을 확인한다.**
 
@@ -88,7 +92,7 @@ Expected: PASS.
 - [ ] **Step 5: 커밋한다.**
 
 ```bash
-git add app/components/map/HomeCurationSheet.tsx tests/unit/home-curation-components.test.ts
+git add app/components/map/HomeCurationSheet.tsx app/routes/home.tsx tests/unit/home-curation-components.test.ts
 git commit -m "2026-08-15 모바일 장소 선택 시트 전환"
 ```
 
