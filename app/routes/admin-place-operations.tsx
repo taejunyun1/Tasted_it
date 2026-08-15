@@ -14,7 +14,8 @@ import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/pla
 import { mergePlaces, restorePlaceRevision } from "../features/places/place-merge.server";
 import { recallPublishedPlaces, restoreRecalledPlaces } from "../features/places/place-publication-recall.server";
 import { groupPlacesByNormalizedName } from "../features/places/place-name-groups";
-import { verifyPlacesLivenessWithNaver } from "../features/places/naver-place-liveness.server";
+import { buildSafeSameNameMergeGroups, mergeSafeSameNamePlaces } from "../features/places/place-same-name-merge.server";
+import { getNaverLocalSearchApiCallsToday, verifyPlacesLivenessWithNaver } from "../features/places/naver-place-liveness.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { approvePlaceSuggestion, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
 import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter, NaverLocalSearchError } from "../features/candidates/naver-local-search.server";
@@ -48,13 +49,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
   const db = createDb(env.DB);
   const livenessFilter = parseLivenessFilter(new URL(request.url).searchParams.get("liveness"));
-  const [suggestions, corrections, revalidations, revisions, duplicates, placeRows, livenessStates] = await Promise.all([
+  const now = new Date().toISOString();
+  const [suggestions, corrections, revalidations, revisions, duplicates, placeRows, livenessStates, naverDailyUsage] = await Promise.all([
     db.select().from(placeSuggestions).where(inArray(placeSuggestions.status, ["SUBMITTED", "NEEDS_INFO", "REVIEWING"])).orderBy(asc(placeSuggestions.createdAt)).limit(200),
     db.select().from(placeCorrectionRequests).where(inArray(placeCorrectionRequests.status, ["SUBMITTED", "REVIEWING"])).orderBy(asc(placeCorrectionRequests.createdAt)).limit(200),
     db.select().from(placeRevalidationCases).where(inArray(placeRevalidationCases.status, ["OPEN", "REVIEWING"])).orderBy(asc(placeRevalidationCases.createdAt)).limit(200),
     db.select().from(placeRevisions).orderBy(desc(placeRevisions.createdAt)).limit(100),
     db.select().from(placeDuplicateCandidates).where(inArray(placeDuplicateCandidates.status, ["OPEN"])).orderBy(desc(placeDuplicateCandidates.createdAt)).limit(100),
-    db.select({ id: places.id, name: places.name, address: places.address, slug: places.slug, status: places.status }).from(places).orderBy(asc(places.name)).limit(1_000),
+    db.select({ id: places.id, name: places.name, address: places.address, slug: places.slug, status: places.status, latitude: places.latitude, longitude: places.longitude, createdAt: places.createdAt }).from(places).orderBy(asc(places.name)).limit(1_000),
     db.select({
       placeId: placeLivenessStates.placeId,
       placeName: places.name,
@@ -69,6 +71,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       evidenceJson: placeLivenessStates.evidenceJson,
       updatedAt: placeLivenessStates.updatedAt,
     }).from(placeLivenessStates).innerJoin(places, eq(places.id, placeLivenessStates.placeId)).orderBy(desc(placeLivenessStates.updatedAt)).limit(1_000),
+    getNaverLocalSearchApiCallsToday(db, now),
   ]);
   const names = new Map(placeRows.map((place) => [place.id, place.name]));
   const statesByPlace = new Map(livenessStates.map((state) => [state.placeId, state]));
@@ -102,6 +105,9 @@ export async function loader({ request }: Route.LoaderArgs) {
     livenessFilter,
     livenessRows: [...caseRows, ...stateRows].filter((row) => matchesLivenessFilter(row, livenessFilter)),
     sameNameGroups: groupPlacesByNormalizedName(placeRows),
+    safeSameNameMergeGroups: buildSafeSameNameMergeGroups(placeRows),
+    naverDailyUsage,
+    naverDailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000),
     revalidationCount: revalidations.length,
     naverMapsClientId: env.NAVER_PLACE_GEOCODING_ENABLED === "true" ? env.NAVER_MAPS_CLIENT_ID ?? "" : "",
     placeGeocodingEnabled: env.NAVER_PLACE_GEOCODING_ENABLED === "true",
@@ -133,12 +139,24 @@ export async function action({ request }: Route.ActionArgs) {
     try {
       assertNaverLocalSearchEnabled(env);
       const result = await verifyPlacesLivenessWithNaver(db, {
-        placeIds, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 200), adapter: createNaverLocalSearchAdapter(env), actorUserId: admin.id,
+        placeIds, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env), actorUserId: admin.id,
       });
       return { ok: true, message: `NAVER 근거 확인 ${result.scanned}곳: 일치 ${result.matched} · 수동 확인 ${result.manual} · 실패 ${result.failed}` };
     } catch (error) {
       const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
       return data({ ok: false, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
+    }
+  }
+  if (intent === "merge-safe-same-name-places") {
+    try {
+      const result = await mergeSafeSameNamePlaces(db, {
+        actorUserId: admin.id,
+        now,
+        reason: String(form.get("reason") ?? "동일 상호·동일 위치 운영 병합"),
+      });
+      return { ok: true, message: `${result.groups}개 동일 상호 묶음에서 ${result.merged}개 중복 장소를 병합했습니다.` };
+    } catch (error) {
+      return data({ ok: false, error: `동일 상호 병합을 완료하지 못했습니다: ${error instanceof Error ? error.message : "UNKNOWN"}` }, { status: 400 });
     }
   }
   if (intent === "approve-suggestion") {
@@ -213,7 +231,8 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
     {actionData && "error" in actionData && actionData.error && <p className="operation-error" role="alert">{actionData.error}</p>}
     <section className="place-ops-stats"><Stat label="장소 제안" value={loaderData.suggestions.length}/><Stat label="정보 정정" value={loaderData.corrections.length}/><Stat label="영업 재검증" value={loaderData.revalidationCount}/><Stat label="중복 후보" value={loaderData.duplicates.length}/></section>
     <section className="ops-section"><div className="ops-section-head"><h2>카테고리 근거 감사</h2><p>현재 공개 장소를 삭제하지 않고 지도·공개 목록에서 회수합니다. NAVER 근거 또는 수동 승인 전에는 다시 공개하지 않습니다.</p></div><Form method="post" className="ops-form"><input type="hidden" name="intent" value="recall-published-for-category-audit"/><input name="reason" aria-label="공개 회수 근거" placeholder="카테고리 근거 재검증" required/><button className="secondary">현재 공개 장소 전체 회수</button></Form></section>
-    <PlaceNaverVerificationPanel places={loaderData.places} groups={loaderData.sameNameGroups}/>
+    <SafeSameNameMergePanel groups={loaderData.safeSameNameMergeGroups}/>
+    <PlaceNaverVerificationPanel places={loaderData.places} groups={loaderData.sameNameGroups} dailyUsage={loaderData.naverDailyUsage} dailyLimit={loaderData.naverDailyLimit}/>
     <OpsSection title="회원 장소 제안" empty="검토할 제안이 없습니다.">
       {loaderData.suggestions.map((item) => <PlaceSuggestionReviewCard key={item.id} item={item} clientId={loaderData.naverMapsClientId} geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)} />)}
     </OpsSection>
@@ -370,22 +389,33 @@ function formatNaverStatus(value: LivenessStateRow["naverStatus"]) {
   return ({ MATCHED: "일치", AMBIGUOUS: "모호", NOT_FOUND: "미검색", ERROR: "공급자 오류", SKIPPED: "미확인" } as Record<string, string>)[value];
 }
 
-function PlaceNaverVerificationPanel({ places, groups }: {
+function SafeSameNameMergePanel({ groups }: { groups: Array<{ id: string; label: string; count: number; sourcePlaceIds: string[] }> }) {
+  const absorbedCount = groups.reduce((total, group) => total + group.sourcePlaceIds.length, 0);
+  return <section className="place-ops-section same-name-merge">
+    <div className="ops-section-head"><p className="eyebrow">SAFE DUPLICATE MERGE</p><h2>동일 상호 중복 병합</h2><p>프랜차이즈는 제외합니다. 같은 상호이면서 주소가 같거나 좌표가 100m 이내인 장소만 하나로 합칩니다. 다른 지점은 남겨 둡니다.</p></div>
+    {groups.length ? <><div className="same-name-merge-summary"><strong>{groups.length}개 묶음</strong><span>보존할 장소 {groups.length}곳 · 흡수할 중복 {absorbedCount}곳</span><Form method="post"><input type="hidden" name="intent" value="merge-safe-same-name-places"/><input type="hidden" name="reason" value="동일 상호·동일 위치 운영 병합"/><button>{groups.length}개 묶음 병합하기</button></Form></div><ul className="same-name-merge-list">{groups.slice(0, 12).map((group) => <li key={group.id}><strong>{group.label}</strong><span>동일 위치 {group.count}곳 → 1곳으로 병합</span></li>)}</ul>{groups.length > 12 && <p className="same-name-merge-more">외 {groups.length - 12}개 묶음도 같은 기준으로 처리됩니다.</p>}</> : <p className="same-name-merge-empty">지금은 자동 병합 기준을 만족하는 비프랜차이즈 중복 장소가 없습니다.</p>}
+  </section>;
+}
+
+function PlaceNaverVerificationPanel({ places, groups, dailyUsage, dailyLimit }: {
   places: Array<{ id: string; name: string; address: string; slug: string; status: "DRAFT" | "PUBLISHED" | "HIDDEN" }>;
   groups: Array<{ normalizedName: string; label: string; placeIds: string[]; count: number }>;
+  dailyUsage: number;
+  dailyLimit: number;
 }) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => places.slice(0, 25).map((place) => place.id));
   const selected = new Set(selectedIds);
   const selectableGroups = groups.filter((group) => group.count <= 25);
   const toggle = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < 25 ? [...current, id] : current);
-  const selectGroup = (ids: string[]) => setSelectedIds((current) => [...new Set([...current, ...ids])].slice(0, 25));
+  const selectGroup = (ids: string[]) => setSelectedIds((current) => ids.every((id) => current.includes(id)) ? current.filter((id) => !ids.includes(id)) : [...new Set([...current, ...ids])].slice(0, 25));
   const selectPage = () => setSelectedIds(places.slice(0, 25).map((place) => place.id));
   return <section className="place-ops-section naver-place-selection">
-    <div className="ops-section-head"><h2>NAVER 근거 일괄 확인</h2><p>상호·주소·좌표를 각각 대조합니다. 같은 상호는 필터링과 선택을 위한 묶음일 뿐, 지점 병합이나 자동 공개를 하지 않습니다.</p></div>
+    <div className="ops-section-head"><p className="eyebrow">NAVER LOCAL EVIDENCE</p><h2>NAVER 근거 일괄 확인</h2><p>상호·주소·좌표를 각각 대조합니다. NAVER API Hub 전체 사용량과 별도로 이 화면에서 실행한 요청을 기록합니다.</p></div>
     <Form method="post"><input type="hidden" name="intent" value="verify-places-with-naver"/>
+      <div className="naver-usage-strip"><div><span>이 앱의 오늘 NAVER 요청</span><strong>{dailyUsage.toLocaleString()} / {dailyLimit.toLocaleString()}회</strong></div><p>이번 실행은 최대 25곳입니다. 개별 상호·주소·좌표를 다시 확인해 자동 공개하지 않습니다.</p></div>
       <div className="naver-selection-toolbar"><strong>{selectedIds.length} / 25 선택</strong><button type="button" className="secondary" onClick={selectPage}>현재 목록 25곳 선택</button><button type="button" className="secondary" onClick={() => setSelectedIds([])}>선택 해제</button><button disabled={!selectedIds.length}>선택 장소 NAVER 근거 확인</button></div>
       {selectedIds.map((id) => <input key={id} type="hidden" name="placeId" value={id}/>)}
-      {selectableGroups.length > 0 && <div className="same-name-groups"><h3>동일 상호 필터</h3>{selectableGroups.map((group) => <button key={group.normalizedName} type="button" onClick={() => selectGroup(group.placeIds)}>{group.label} <span>{group.count}곳 선택</span></button>)}</div>}
+      {selectableGroups.length > 0 && <div className="same-name-groups"><h3>동일 상호 빠른 선택</h3>{selectableGroups.map((group) => <button key={group.normalizedName} type="button" aria-pressed={group.placeIds.every((id) => selected.has(id))} onClick={() => selectGroup(group.placeIds)}>{group.label} <span>{group.count}곳</span></button>)}</div>}
       <div className="naver-place-list">{places.slice(0, 25).map((place) => <label key={place.id}><input type="checkbox" checked={selected.has(place.id)} onChange={() => toggle(place.id)}/><span><strong>{place.name}</strong><small>{place.address} · {place.status}</small></span></label>)}</div>
     </Form>
   </section>;
