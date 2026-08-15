@@ -29,18 +29,24 @@ test("verified member can open the place suggestion and status pages", async ({ 
   await expect(page.getByRole("heading", { name: "내 장소 제안" })).toBeVisible();
 });
 
-test("admin can inspect every place operations queue", async ({ page }) => {
+test("admin switches place operations queues with URL-backed tabs", async ({ page }) => {
   await page.context().addCookies([{ name: "retaste_session", value: "qa-admin-session", domain: "127.0.0.1", path: "/" }]);
   await page.goto("/admin/place-operations");
   await expect(page.getByRole("heading", { name: "장소 운영" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "회원 장소 제안" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "정보 정정·이의 제기" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "영업 상태 재검증" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "동일 상호 중복 병합" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /NAVER 검증/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("heading", { name: "NAVER 근거 일괄 확인" })).toBeVisible();
   await expect(page.locator(".naver-usage-strip")).toContainText("이 앱의 오늘 NAVER 요청");
   await expect(page.locator(".naver-selection-toolbar strong")).toHaveText(/^[1-9]\d* \/ 25 선택$/);
   await expect(page.getByRole("button", { name: "선택 장소 NAVER 근거 확인" })).toBeEnabled();
+
+  await page.getByRole("tab", { name: /영업 재검증/ }).click();
+  await expect(page).toHaveURL(/tab=liveness/);
+  await expect(page.getByRole("heading", { name: "영업 상태 재검증" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /영업 재검증/ })).toHaveAttribute("aria-selected", "true");
+
+  await page.getByRole("tab", { name: /중복·이력/ }).click();
+  await expect(page).toHaveURL(/tab=duplicates/);
+  await expect(page.getByRole("heading", { name: "동일 상호 중복 병합" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "중복 장소 병합" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "최근 변경·복원" })).toBeVisible();
 });
