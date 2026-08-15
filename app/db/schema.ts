@@ -1,4 +1,5 @@
 import {
+  check,
   index,
   integer,
   primaryKey,
@@ -1003,6 +1004,67 @@ export const placeLivenessStates = sqliteTable("place_liveness_states", {
   index("place_liveness_due_idx").on(table.nextCheckAt, table.leaseExpiresAt),
   index("place_liveness_status_idx").on(table.status, table.recommendationExcluded),
 ]);
+
+export const placeReviewWorkItems = sqliteTable(
+  "place_review_work_items",
+  {
+    id: text("id").primaryKey(),
+    businessLicenseId: text("business_license_id").references(() => businessLicenses.id, { onDelete: "cascade" }),
+    placeId: text("place_id").references(() => places.id, { onDelete: "cascade" }),
+    sourceKind: text("source_kind", {
+      enum: ["PUBLIC_DATA", "PLACE_SUGGESTION", "CATEGORY_RECALL", "LIVENESS_RECHECK"],
+    }).notNull(),
+    stage: text("stage", {
+      enum: ["SOURCE_REVIEW", "NAVER_VERIFICATION", "CATEGORY_CONFIRMATION", "DUPLICATE_REVIEW", "FINAL_APPROVAL"],
+    }).notNull(),
+    status: text("status", { enum: ["ACTIVE", "ON_HOLD", "COMPLETED", "EXCLUDED"] }).notNull().default("ACTIVE"),
+    selectedCategoryId: text("selected_category_id").references(() => categories.id, { onDelete: "set null" }),
+    categoryOverrideReason: text("category_override_reason"),
+    manualEvidenceReason: text("manual_evidence_reason"),
+    stageVersion: integer("stage_version").notNull().default(0),
+    claimToken: text("claim_token"),
+    claimedBy: text("claimed_by").references(() => users.id, { onDelete: "set null" }),
+    claimedAt: text("claimed_at"),
+    lastTransitionBy: text("last_transition_by").references(() => users.id, { onDelete: "set null" }),
+    lastTransitionAt: text("last_transition_at"),
+    holdCode: text("hold_code"),
+    holdNote: text("hold_note"),
+    completedAt: text("completed_at"),
+    ...timestamps,
+  },
+  (table) => [
+    index("place_review_stage_status_updated_idx").on(table.stage, table.status, table.updatedAt, table.id),
+    uniqueIndex("place_review_active_business_idx")
+      .on(table.businessLicenseId)
+      .where(sql`${table.businessLicenseId} is not null and ${table.status} in ('ACTIVE', 'ON_HOLD')`),
+    uniqueIndex("place_review_active_place_idx")
+      .on(table.placeId)
+      .where(sql`${table.placeId} is not null and ${table.status} in ('ACTIVE', 'ON_HOLD')`),
+    check(
+      "place_review_single_subject_check",
+      sql`(${table.businessLicenseId} is not null and ${table.placeId} is null) or (${table.businessLicenseId} is null and ${table.placeId} is not null)`,
+    ),
+    check("place_review_stage_version_check", sql`${table.stageVersion} >= 0`),
+  ],
+);
+
+export const placeReviewDuplicateResolutions = sqliteTable(
+  "place_review_duplicate_resolutions",
+  {
+    id: text("id").primaryKey(),
+    workItemId: text("work_item_id").notNull().references(() => placeReviewWorkItems.id, { onDelete: "cascade" }),
+    candidatePlaceId: text("candidate_place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    decision: text("decision", { enum: ["LINK_EXISTING", "MERGE", "DISTINCT"] }).notNull(),
+    reason: text("reason").notNull(),
+    reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: text("reviewed_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("place_review_duplicate_resolution_idx").on(table.workItemId, table.candidatePlaceId),
+    index("place_review_duplicate_work_idx").on(table.workItemId, table.decision),
+  ],
+);
 
 export const productEvents = sqliteTable("product_events", {
   id: text("id").primaryKey(),
