@@ -18,6 +18,7 @@ import { extractNeighborhood } from "./category-suggestion";
 import { getTerminalCategoryIds } from "./category-selection";
 import { classifyAutomaticExclusion } from "./exclusion-policy";
 import { validateManualExclusion } from "./manual-exclusion";
+import { createReviewWorkItem } from "../places/place-review-work-items.server";
 
 export interface CandidateFilters {
   query?: string;
@@ -319,6 +320,13 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
       if (!openCase) statements.push(db.insert(placeRevalidationCases).values({ id: crypto.randomUUID(), placeId: link.placeId, reasonType, status: "OPEN", evidenceJson: JSON.stringify({ businessLicenseId: id, normalizedStatus: input.normalizedStatus, salesStatusName: input.salesStatusName }), createdAt: now, updatedAt: now }));
       const [first, ...rest] = statements; if (first) await db.batch([first, ...rest]);
     }
+  }
+  if (!existing && input.normalizedStatus === "OPEN") {
+    await createReviewWorkItem(db, {
+      businessLicenseId: id,
+      sourceKind: "PUBLIC_DATA",
+      now,
+    });
   }
   return { id, inserted: !existing, excluded };
 }

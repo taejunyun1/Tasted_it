@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { adminAuditLogs, places } from "../../app/db/schema";
+import { adminAuditLogs, placeReviewWorkItems, places } from "../../app/db/schema";
 import { recallPublishedPlaces, restoreRecalledPlaces } from "../../app/features/places/place-publication-recall.server";
 
 const NOW = "2026-08-15T06:30:00.000Z";
@@ -28,6 +28,10 @@ describe("place publication recall", () => {
     ]));
     expect(await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.action, "RECALL_PUBLISHED_PLACES_FOR_CATEGORY_AUDIT"))).toEqual(expect.arrayContaining([
       expect.objectContaining({ targetId: publishedIds[0], createdAt: NOW }), expect.objectContaining({ targetId: publishedIds[1], createdAt: NOW }),
+    ]));
+    expect(await db.select().from(placeReviewWorkItems).where(inArray(placeReviewWorkItems.placeId, publishedIds))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ placeId: publishedIds[0], sourceKind: "CATEGORY_RECALL", stage: "SOURCE_REVIEW" }),
+      expect.objectContaining({ placeId: publishedIds[1], sourceKind: "CATEGORY_RECALL", stage: "SOURCE_REVIEW" }),
     ]));
 
     const restored = await restoreRecalledPlaces(db, { actorUserId: null, auditRunAt: NOW, now: RESTORE_NOW, reason: "검증 롤백" });
