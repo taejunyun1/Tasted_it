@@ -14,6 +14,7 @@ import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/pla
 import { mergePlaces, restorePlaceRevision } from "../features/places/place-merge.server";
 import { recallPublishedPlaces, restoreRecalledPlaces } from "../features/places/place-publication-recall.server";
 import { groupPlacesByNormalizedName } from "../features/places/place-name-groups";
+import { parsePlaceOperationsTab, type PlaceOperationsTab } from "../features/places/place-operations-tabs";
 import { buildSafeSameNameMergeGroups, mergeSafeSameNamePlaces } from "../features/places/place-same-name-merge.server";
 import { getNaverLocalSearchApiCallsToday, verifyPlacesLivenessWithNaver } from "../features/places/naver-place-liveness.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
@@ -48,7 +49,9 @@ function approvalErrorMessage(code: string) {
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
   const db = createDb(env.DB);
-  const livenessFilter = parseLivenessFilter(new URL(request.url).searchParams.get("liveness"));
+  const searchParams = new URL(request.url).searchParams;
+  const livenessFilter = parseLivenessFilter(searchParams.get("liveness"));
+  const activeTab = parsePlaceOperationsTab(searchParams.get("tab"));
   const now = new Date().toISOString();
   const [suggestions, corrections, revalidations, revisions, duplicates, placeRows, livenessStates, naverDailyUsage] = await Promise.all([
     db.select().from(placeSuggestions).where(inArray(placeSuggestions.status, ["SUBMITTED", "NEEDS_INFO", "REVIEWING"])).orderBy(asc(placeSuggestions.createdAt)).limit(200),
@@ -102,6 +105,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     revisions,
     duplicates,
     places: placeRows,
+    activeTab,
     livenessFilter,
     livenessRows: [...caseRows, ...stateRows].filter((row) => matchesLivenessFilter(row, livenessFilter)),
     sameNameGroups: groupPlacesByNormalizedName(placeRows),
@@ -222,6 +226,14 @@ export function meta() { return [{ title: "장소 운영 — Re:Taste Admin" }];
 
 export default function AdminPlaceOperations({ loaderData, actionData }: Route.ComponentProps) {
   const names = new Map(loaderData.places.map((place) => [place.id, place.name]));
+  const tabs: Array<{ id: PlaceOperationsTab; label: string; count: number }> = [
+    { id: "audit", label: "근거 감사", count: loaderData.places.length },
+    { id: "naver", label: "NAVER 검증", count: loaderData.places.length },
+    { id: "liveness", label: "영업 재검증", count: loaderData.revalidationCount },
+    { id: "suggestions", label: "장소 제안", count: loaderData.suggestions.length },
+    { id: "corrections", label: "정보 정정", count: loaderData.corrections.length },
+    { id: "duplicates", label: "중복·이력", count: loaderData.duplicates.length + loaderData.safeSameNameMergeGroups.length },
+  ];
   return <main id="main" className="place-ops shell">
     <header className="place-ops-head">
       <div><p className="eyebrow">ADMIN / PLACE OPERATIONS</p><h1>장소 운영</h1><p>제안·정정·중복·폐업 검토를 지도 없이 순서대로 처리합니다.</p></div>
@@ -230,29 +242,30 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
     {actionData && "message" in actionData && actionData.message && <p className="admin-notice" role="status">{actionData.message}</p>}
     {actionData && "error" in actionData && actionData.error && <p className="operation-error" role="alert">{actionData.error}</p>}
     <section className="place-ops-stats"><Stat label="장소 제안" value={loaderData.suggestions.length}/><Stat label="정보 정정" value={loaderData.corrections.length}/><Stat label="영업 재검증" value={loaderData.revalidationCount}/><Stat label="중복 후보" value={loaderData.duplicates.length}/></section>
-    <section className="ops-section"><div className="ops-section-head"><h2>카테고리 근거 감사</h2><p>현재 공개 장소를 삭제하지 않고 지도·공개 목록에서 회수합니다. NAVER 근거 또는 수동 승인 전에는 다시 공개하지 않습니다.</p></div><Form method="post" className="ops-form"><input type="hidden" name="intent" value="recall-published-for-category-audit"/><input name="reason" aria-label="공개 회수 근거" placeholder="카테고리 근거 재검증" required/><button className="secondary">현재 공개 장소 전체 회수</button></Form></section>
-    <SafeSameNameMergePanel groups={loaderData.safeSameNameMergeGroups}/>
-    <PlaceNaverVerificationPanel places={loaderData.places} groups={loaderData.sameNameGroups} dailyUsage={loaderData.naverDailyUsage} dailyLimit={loaderData.naverDailyLimit}/>
-    <OpsSection title="회원 장소 제안" empty="검토할 제안이 없습니다.">
+    <nav className="place-ops-tabs" aria-label="장소 운영 작업" role="tablist">{tabs.map((tab) => <Link key={tab.id} role="tab" aria-selected={loaderData.activeTab === tab.id} aria-controls={`place-ops-panel-${tab.id}`} to={`/admin/place-operations?tab=${tab.id}`}><span>{tab.label}</span><strong>{tab.count}</strong></Link>)}</nav>
+    <div id={`place-ops-panel-${loaderData.activeTab}`} className="place-ops-tab-panel" role="tabpanel">
+    {loaderData.activeTab === "audit" && <section className="ops-section"><div className="ops-section-head"><h2>카테고리 근거 감사</h2><p>현재 공개 장소를 삭제하지 않고 지도·공개 목록에서 회수합니다. NAVER 근거 또는 수동 승인 전에는 다시 공개하지 않습니다.</p></div><Form method="post" className="ops-form"><input type="hidden" name="intent" value="recall-published-for-category-audit"/><input name="reason" aria-label="공개 회수 근거" placeholder="카테고리 근거 재검증" required/><button className="secondary">현재 공개 장소 전체 회수</button></Form></section>}
+    {loaderData.activeTab === "naver" && <PlaceNaverVerificationPanel places={loaderData.places} groups={loaderData.sameNameGroups} dailyUsage={loaderData.naverDailyUsage} dailyLimit={loaderData.naverDailyLimit}/>}
+    {loaderData.activeTab === "suggestions" && <OpsSection title="회원 장소 제안" empty="검토할 제안이 없습니다.">
       {loaderData.suggestions.map((item) => <PlaceSuggestionReviewCard key={item.id} item={item} clientId={loaderData.naverMapsClientId} geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)} />)}
-    </OpsSection>
-    <OpsSection title="정보 정정·이의 제기" empty="검토할 정정 요청이 없습니다.">
+    </OpsSection>}
+    {loaderData.activeTab === "corrections" && <OpsSection title="정보 정정·이의 제기" empty="검토할 정정 요청이 없습니다.">
       {loaderData.corrections.map((item) => <article className="ops-card" key={item.id}><div><span>{item.status} · {item.requestType}</span><h3>{item.placeId ? names.get(item.placeId) ?? item.placeId : "목록에 없는 장소"}</h3><p>{item.requesterRelation} · {item.requesterEmail}</p><code>{item.requestedChangesJson}</code><small>{item.evidenceNote}</small></div><div className="ops-actions"><Form method="post" className="ops-form"><input type="hidden" name="requestId" value={item.id}/><input name="reason" placeholder="적용 근거" required/><button name="intent" value="apply-correction">정정 적용</button></Form><Form method="post" className="ops-form ops-form-compact"><input type="hidden" name="intent" value="transition-correction"/><input type="hidden" name="requestId" value={item.id}/><input name="reason" placeholder="반려 사유" required/><button className="secondary" name="status" value="REJECTED">반려</button></Form></div></article>)}
-    </OpsSection>
-    <OpsSection title="영업 상태 재검증" empty="검수할 영업 상태가 없습니다.">
+    </OpsSection>}
+    {loaderData.activeTab === "liveness" && <OpsSection title="영업 상태 재검증" empty="검수할 영업 상태가 없습니다.">
       <div className="liveness-toolbar">
-        <Form method="get" className="liveness-filters"><label>상태 필터<select name="liveness" defaultValue={loaderData.livenessFilter ?? ""} aria-label="영업 상태 필터"><option value="">전체</option><option value="SUSPECTED">운영 의심</option><option value="HIDDEN">임시 숨김</option><option value="ERROR">공급자 오류</option></select></label><button>적용</button><Link to="/admin/place-operations">초기화</Link></Form>
+        <Form method="get" className="liveness-filters"><input type="hidden" name="tab" value="liveness"/><label>상태 필터<select name="liveness" defaultValue={loaderData.livenessFilter ?? ""} aria-label="영업 상태 필터"><option value="">전체</option><option value="SUSPECTED">운영 의심</option><option value="HIDDEN">임시 숨김</option><option value="ERROR">공급자 오류</option></select></label><button>적용</button><Link to="/admin/place-operations?tab=liveness">초기화</Link></Form>
         <Form method="post" className="liveness-reset-form"><input type="hidden" name="intent" value="clear-recommendation-exclusions"/><input name="reason" aria-label="자동 추천 제외 해제 근거" placeholder="해제 근거" required/><button className="secondary">자동 추천 제외 전체 해제</button></Form>
       </div>
       {loaderData.livenessRows.length ? loaderData.livenessRows.map((item) => <article className="ops-card liveness-card" key={`${item.caseId ?? "state"}-${item.placeId}`}>
         <div><span>{formatReasonType(item.reasonType)} · {formatLivenessStatus(item.status)}</span><h3>{item.placeName}</h3><LivenessEvidenceView item={item}/></div>
         {item.caseId ? <Form method="post" className="ops-form liveness-action-form"><input type="hidden" name="intent" value="resolve-liveness"/><input type="hidden" name="caseId" value={item.caseId}/><select name="resolution" aria-label={`${item.placeName} 검수 결과`}><option value="OPEN">정상 영업</option><option value="TEMPORARILY_CLOSED">임시 휴업</option><option value="CLOSED">폐업</option><option value="MOVED">이전</option></select><input name="reason" aria-label={`${item.placeName} 검수 근거`} placeholder="검수 근거" required/><button>검수 반영</button></Form> : <p className="liveness-readonly">자동 검증 상태</p>}
       </article>) : <p>검수할 영업 상태가 없습니다.</p>}
-    </OpsSection>
-    <OpsSection title="중복 장소 병합" empty=""><Form method="post" className="merge-form"><input type="hidden" name="intent" value="merge"/><label>남길 장소<select name="targetPlaceId">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name} · {place.status}</option>)}</select></label><label>흡수할 장소<select name="sourcePlaceId">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name} · {place.status}</option>)}</select></label><input name="reason" placeholder="병합 근거" required/><button>병합 실행</button></Form></OpsSection>
-    <OpsSection title="최근 변경·복원" empty="변경 이력이 없습니다.">
+    </OpsSection>}
+    {loaderData.activeTab === "duplicates" && <><SafeSameNameMergePanel groups={loaderData.safeSameNameMergeGroups}/><OpsSection title="중복 장소 병합" empty=""><Form method="post" className="merge-form"><input type="hidden" name="intent" value="merge"/><label>남길 장소<select name="targetPlaceId">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name} · {place.status}</option>)}</select></label><label>흡수할 장소<select name="sourcePlaceId">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name} · {place.status}</option>)}</select></label><input name="reason" placeholder="병합 근거" required/><button>병합 실행</button></Form></OpsSection><OpsSection title="최근 변경·복원" empty="변경 이력이 없습니다.">
       {loaderData.revisions.map((item) => <article className="ops-revision" key={item.id}><div><strong>{item.action}</strong><span>{names.get(item.placeId) ?? item.placeId}</span><small>{item.reason} · {item.createdAt}</small></div>{item.beforeJson && <Form method="post"><input type="hidden" name="intent" value="restore"/><input type="hidden" name="revisionId" value={item.id}/><input name="reason" placeholder="복원 사유" required/><button>이 값으로 복원</button></Form>}</article>)}
-    </OpsSection>
+    </OpsSection></>}
+    </div>
   </main>;
 }
 
