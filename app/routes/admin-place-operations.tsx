@@ -12,6 +12,7 @@ import { requireAdmin } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/places/place-correction.server";
 import { mergePlaces, restorePlaceRevision } from "../features/places/place-merge.server";
+import { recallPublishedPlaces, restoreRecalledPlaces } from "../features/places/place-publication-recall.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { approvePlaceSuggestion, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
 
@@ -107,6 +108,19 @@ export async function action({ request }: Route.ActionArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const intent = String(form.get("intent") ?? "");
+  if (intent === "recall-published-for-category-audit") {
+    const reason = String(form.get("reason") ?? "").trim();
+    if (!reason) return data({ ok: false, error: "공개 회수 근거를 입력해 주세요." }, { status: 400 });
+    const result = await recallPublishedPlaces(db, { actorUserId: admin.id, now, reason });
+    return { ok: true, message: `${result.recalled}곳을 지도·공개 목록에서 회수했습니다.`, recallRunAt: result.auditRunAt };
+  }
+  if (intent === "restore-category-audit-recall") {
+    const auditRunAt = String(form.get("auditRunAt") ?? "");
+    const reason = String(form.get("reason") ?? "").trim();
+    if (!auditRunAt || !reason) return data({ ok: false, error: "복구 대상 실행 시각과 근거를 입력해 주세요." }, { status: 400 });
+    const result = await restoreRecalledPlaces(db, { actorUserId: admin.id, auditRunAt, now, reason });
+    return { ok: true, message: `${result.restored}곳을 해당 회수 실행분에서만 복구했습니다.` };
+  }
   if (intent === "approve-suggestion") {
     const suggestionId = String(form.get("suggestionId") ?? "");
     const prefix = `approval-${suggestionId}-`;
@@ -178,6 +192,7 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
     {actionData && "message" in actionData && actionData.message && <p className="admin-notice" role="status">{actionData.message}</p>}
     {actionData && "error" in actionData && actionData.error && <p className="operation-error" role="alert">{actionData.error}</p>}
     <section className="place-ops-stats"><Stat label="장소 제안" value={loaderData.suggestions.length}/><Stat label="정보 정정" value={loaderData.corrections.length}/><Stat label="영업 재검증" value={loaderData.revalidationCount}/><Stat label="중복 후보" value={loaderData.duplicates.length}/></section>
+    <section className="ops-section"><div className="ops-section-head"><h2>카테고리 근거 감사</h2><p>현재 공개 장소를 삭제하지 않고 지도·공개 목록에서 회수합니다. NAVER 근거 또는 수동 승인 전에는 다시 공개하지 않습니다.</p></div><Form method="post" className="ops-form"><input type="hidden" name="intent" value="recall-published-for-category-audit"/><input name="reason" aria-label="공개 회수 근거" placeholder="카테고리 근거 재검증" required/><button className="secondary">현재 공개 장소 전체 회수</button></Form></section>
     <OpsSection title="회원 장소 제안" empty="검토할 제안이 없습니다.">
       {loaderData.suggestions.map((item) => <PlaceSuggestionReviewCard key={item.id} item={item} clientId={loaderData.naverMapsClientId} geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)} />)}
     </OpsSection>
