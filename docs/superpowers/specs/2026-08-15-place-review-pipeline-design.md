@@ -1,6 +1,6 @@
 # 장소 검수 5단계 파이프라인 설계
 
-- 상태: 설계 확정, 구현 계획 작성 전 사용자 검토 필요
+- 상태: 사용자 검토 완료, 구현 계획 작성
 - 작성일: 2026-08-15
 - 추적 이슈: [#135](https://github.com/taejunyun1/Tasted_it/issues/135)
 - 대상 화면: `/admin/place-operations`
@@ -118,7 +118,7 @@ NAVER 검증 성공만으로 장소를 자동 공개하지 않는다. 앞의 네
 
 - 알려진 전국·지역·로컬 프랜차이즈는 동일 상호라는 이유로 병합하지 않는다.
 - 비프랜차이즈이며 동일 주소 또는 100m 이내인 후보만 안전 병합 후보로 표시한다.
-- 관리자는 `병합`, `서로 다른 장소`, `보류` 중 하나를 선택한다.
+- 공공데이터 후보가 기존 장소와 같으면 `기존 장소에 원천 연결`, 기존 장소끼리 같으면 `병합`, 다른 지점이면 `서로 다른 장소`, 판단할 수 없으면 `보류`를 선택한다.
 - 열린 중복 후보가 하나라도 있으면 5단계로 이동할 수 없다.
 - 병합은 기존 URL 리다이렉트와 수정 이력을 그대로 남긴다.
 
@@ -156,6 +156,7 @@ NAVER 검증 성공만으로 장소를 자동 공개하지 않는다. 앞의 네
 - `category_override_reason`
 - `manual_evidence_reason`
 - `stage_version`: 낙관적 동시성 제어용 정수
+- `claim_token`, `claimed_by`, `claimed_at`: 최종 공개 중복 실행을 막는 단기 claim
 - 마지막 단계 변경 관리자와 시각, 최종 완료 시각
 - `hold_code`, `hold_note`
 - `created_at`, `updated_at`
@@ -164,9 +165,18 @@ NAVER 검증 성공만으로 장소를 자동 공개하지 않는다. 앞의 네
 
 - `ACTIVE` 또는 `ON_HOLD` 작업은 `business_license_id` 또는 `place_id`당 하나만 존재하도록 부분 고유 인덱스를 둔다. 완료 후 영업 재검증으로 새 회차를 만들 수 있다.
 - 다음 단계 이동은 현재 `stage`와 `stage_version`이 일치할 때만 성공한다.
+- 최종 공개는 먼저 조건부 update로 작업을 claim한 관리자만 실행한다. 10분 이상 지난 claim은 재검증 후 회수할 수 있다.
 - 단계 이동 서비스는 기존 근거 테이블을 다시 조회해 조건을 검증한다.
 - 클라이언트가 보낸 점수, 단계 또는 공개 가능 여부를 신뢰하지 않는다.
 - 단계별 변경 이력은 기존 `admin_audit_logs`에 기록한다. `COMPLETED`와 `EXCLUDED` 작업은 운영 감사 목적으로 보존하고 관리자 계정 삭제 시 담당자 참조는 `SET NULL`로 처리한다.
+
+새 `place_review_duplicate_resolutions` 테이블은 작업 항목과 중복 후보 장소 사이의 관리자 결정을 저장한다.
+
+- `decision`: `LINK_EXISTING`, `MERGE`, `DISTINCT`
+- `work_item_id + candidate_place_id`를 고유 키로 사용한다.
+- 결정 관리자, 시각과 필수 근거를 저장한다.
+- 공공데이터 후보의 `LINK_EXISTING`은 5단계에서 새 장소를 만들지 않고 기존 장소에 `place_source_links`를 추가한다.
+- `PLACE` 작업의 `MERGE`는 5단계에서 기존 병합 서비스로 처리하고 생존 장소를 공개 대상으로 사용한다.
 
 새 테이블은 D1의 기존 Drizzle ORM과 순차 migration만 사용한다. 새 데이터베이스, Queue, AI 또는 외부 공급자를 추가하지 않는다.
 
