@@ -38,7 +38,7 @@ export async function runCategoryV5Shadow(db: AppDb, input: { afterPlaceId?: str
         businessName: row.businessName,
         businessSubtype: row.businessSubtype,
         sourceType: row.sourceType,
-        overridden: row.exclusionStatus === "OVERRIDDEN",
+        exclusionStatus: row.exclusionStatus === "OVERRIDDEN" ? "OVERRIDDEN" : null,
         now: input.now,
         mode: "SHADOW",
       });

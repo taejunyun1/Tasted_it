@@ -91,14 +91,19 @@ function ParkingResult({ parking }: { parking: Route.ComponentProps["loaderData"
   </div>;
 }
 
+function availabilityFor(course: Route.ComponentProps["loaderData"]["courses"][number], stop: "first" | "second") {
+  const availability = (course as { availability?: { first?: unknown; second?: unknown } }).availability?.[stop];
+  return availability === "OPEN" || availability === "UNKNOWN" ? availability : undefined;
+}
+
 function CourseCard({ course, index }: { course: Route.ComponentProps["loaderData"]["courses"][number]; index: number }) {
   return <section className="course-result-card">
     <header className="course-result-head"><div><span>COURSE {String(index + 1).padStart(2, "0")}</span><h2>두 곳을 이렇게 이어요</h2></div><strong>{course.score}<small>/100</small></strong></header>
     <div className="course-value-badges">{course.badges.map((badge, badgeIndex) => <span key={badge} data-primary={badgeIndex === 0 || undefined}>{badge}</span>)}</div>
     <div className="course-route-ribbon">
-      <PlaceStop index={1} place={course.first} role="한 끼" score={course.score} availability={"availability" in course ? course.availability.first : undefined} />
+      <PlaceStop index={1} place={course.first} role="한 끼" score={course.score} availability={availabilityFor(course, "first")} />
       <div className="course-leg"><i /><span>예상 이동 {distance(course.betweenPlacesMeters)}</span><i /></div>
-      <PlaceStop index={2} place={course.second} role="카페·디저트" availability={"availability" in course ? course.availability.second : undefined} />
+      <PlaceStop index={2} place={course.second} role="카페·디저트" availability={availabilityFor(course, "second")} />
     </div>
     <section className="course-parking"><header><div><span>PARKING / COMPARE</span><h3>어디에 주차할까요?</h3></div><small>거리 우선 · 공공데이터 기준</small></header><ParkingResult parking={course.parking} />{course.parking.snapshot?.referenceDate && <p className="course-data-date">주차장 데이터 기준일 {course.parking.snapshot.referenceDate}</p>}</section>
   </section>;
