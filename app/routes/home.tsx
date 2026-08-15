@@ -9,7 +9,7 @@ import {
 import type { Route } from "./+types/home";
 import type { loader as homeRecommendationLoader } from "./home-recommendations-resource";
 import { HomeCurationPanel } from "../components/map/HomeCurationPanel";
-import { HomeCurationSheet } from "../components/map/HomeCurationSheet";
+import { HomeCurationSheet, type HomeSheetSnap } from "../components/map/HomeCurationSheet";
 import { MapExplorerPanel } from "../components/map/MapExplorerPanel";
 import { MapPlaceDetail } from "../components/map/MapPlaceDetail";
 import { PlaceMap } from "../components/map/PlaceMap";
@@ -226,6 +226,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
   const recommendationFetcher = useFetcher<typeof homeRecommendationLoader>();
   const [curation, setCuration] = useState(loaderData.curation);
+  const [homeSheetSnap, setHomeSheetSnap] = useState<HomeSheetSnap>("half");
   const [mapZoom, setMapZoom] = useState(12);
   const [focusCluster, setFocusCluster] = useState<RegionCluster | null>(null);
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
@@ -417,6 +418,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   };
   const returnToCuration = () => {
     setPendingBounds(null);
+    setHomeSheetSnap("half");
     clearHomeRecommendationRequestLifecycle({
       pendingRequestKeyRef,
       pendingRequestRouteKeyRef,
@@ -496,7 +498,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         onClusterSelect={focusRegion}
       />
       {isCurated && pendingBounds && <button type="button" className="home-curation-reload-area" onClick={recommendPendingArea}>이 지역 다시 추천</button>}
-      {isCurated && presentationProps && <HomeCurationSheet {...presentationProps} />}
+      {isCurated && presentationProps && <HomeCurationSheet
+        {...presentationProps}
+        snap={homeSheetSnap}
+        onSnapChange={setHomeSheetSnap}
+      />}
       <button
         type="button"
         className="home-curation-view-toggle"

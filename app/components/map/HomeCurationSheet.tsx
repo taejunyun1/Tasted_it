@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 
 import {
   HomeCurationCards,
@@ -7,6 +7,11 @@ import {
 } from "./HomeCurationCards";
 
 export type HomeSheetSnap = "peek" | "half" | "full";
+
+export type HomeCurationSheetProps = HomeCurationPresentationProps & {
+  snap: HomeSheetSnap;
+  onSnapChange: (snap: HomeSheetSnap) => void;
+};
 
 const SNAP_ORDER: HomeSheetSnap[] = ["peek", "half", "full"];
 
@@ -21,13 +26,12 @@ export function homeSheetSnapAfterPlaceSelect(): HomeSheetSnap {
   return "peek";
 }
 
-export function HomeCurationSheet(props: HomeCurationPresentationProps) {
-  const [snap, setSnap] = useState<HomeSheetSnap>("half");
+export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCurationSheetProps) {
   const pointerStartY = useRef<number | null>(null);
   const suppressClick = useRef(false);
 
   const handlePlaceSelect = (placeId: string) => {
-    setSnap(homeSheetSnapAfterPlaceSelect());
+    onSnapChange(homeSheetSnapAfterPlaceSelect());
     props.onSelect(placeId);
   };
 
@@ -41,7 +45,7 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
           suppressClick.current = false;
           return;
         }
-        setSnap((current) => current === "full" ? "half" : "full");
+        onSnapChange(snap === "full" ? "half" : "full");
       }}
       onPointerDown={(event) => {
         suppressClick.current = false;
@@ -54,7 +58,7 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
         if (start !== null) {
           const deltaY = event.clientY - start;
           suppressClick.current = Math.abs(deltaY) >= 36;
-          setSnap((current) => homeSheetSnapAfterDrag(current, deltaY));
+          onSnapChange(homeSheetSnapAfterDrag(snap, deltaY));
         }
       }}
       onPointerCancel={() => {
