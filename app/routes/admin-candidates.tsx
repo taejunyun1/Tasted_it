@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { asc, eq } from "drizzle-orm";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Form, Link, useFetcher, useNavigation, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/admin-candidates";
@@ -14,7 +15,7 @@ import type { PublicDataSource, RegionCode } from "../features/candidates/public
 import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter } from "../features/candidates/naver-local-search.server";
 import { verifyPendingCandidatesWithNaver } from "../features/candidates/naver-pending-candidate-verification.server";
 import { CandidateEvidenceChain, EvidenceStatusRail } from "../features/candidates/candidate-evidence-ui";
-import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
+import { listSelectableCategories, setCandidateCategories, setCandidateCategory } from "../features/candidates/category-selection";
 import { buildCandidatePageHref } from "../features/candidates/pagination";
 
 const sources: Array<[PublicDataSource, string]> = [
@@ -33,6 +34,8 @@ const automaticExclusionLabels: Record<string, string> = {
   ADULT_ENTERTAINMENT: "유흥업종 자동 제외",
   NOT_RESTAURANT: "비음식 시설 자동 제외",
 };
+
+type CategoryPickerTarget = { candidateId: string } | { candidateId: null };
 
 function exclusionLabel(reason: string) {
   return automaticExclusionLabels[reason] ?? "관리자 예외 처리";
@@ -189,10 +192,8 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [chosenCategories, setChosenCategories] = useState<Record<string, string>>(() =>
     Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
-  const parents = loaderData.categories.filter((category) => !category.parentId);
-  const children = loaderData.categories.filter((category) => category.parentId);
+  const [categoryPickerTarget, setCategoryPickerTarget] = useState<CategoryPickerTarget | null>(null);
   const selectableCategories = listSelectableCategories(loaderData.categories);
-  const leafParents = selectableCategories.filter((category) => !category.parentId);
   const isSubmitting = navigation.state === "submitting";
   const selectedRows = loaderData.rows.filter((row) => selected.has(row.id));
   const selectableIds = useMemo(() => loaderData.rows.filter((row) => !row.isExcluded && row.reviewState !== "BLOCKED").map((row) => row.id), [loaderData.rows]);
@@ -223,8 +224,25 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
     return `/admin/candidates${next.size ? `?${next}` : ""}`;
   }
 
+  const activeCategoryPickerCandidate = categoryPickerTarget?.candidateId
+    ? loaderData.rows.find((row) => row.id === categoryPickerTarget.candidateId)
+    : null;
+  const categoryPickerTitle = categoryPickerTarget?.candidateId
+    ? "카테고리 선택"
+    : `선택한 ${selected.size}곳 카테고리 적용`;
+
+  function chooseCategory(categoryId: string) {
+    if (categoryPickerTarget?.candidateId) {
+      setChosenCategories((current) => setCandidateCategory(current, categoryPickerTarget.candidateId, categoryId));
+    } else if (categoryPickerTarget) {
+      setChosenCategories((current) => setCandidateCategories(current, selected, categoryId));
+    }
+    setCategoryPickerTarget(null);
+  }
+
   return (
-    <main className="admin-page candidate-workbench">
+    <>
+    <main className="admin-page candidate-workbench" inert={Boolean(categoryPickerTarget)}>
       <header className="candidate-workbench__header">
         <div className="admin-page-frame">
           <div>
@@ -291,6 +309,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
               <button className="self-end border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 disabled:opacity-40" name="intent" value="excludeSelected" disabled={!selected.size || isSubmitting}>선택 장소 예외 처리</button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" className="border border-white px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" onClick={() => setCategoryPickerTarget({ candidateId: null })} disabled={!selected.size}>선택 카테고리 일괄 적용</button>
               <button type="button" className="border border-white px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" onClick={() => { const data = new FormData(); data.set("intent", "verifyNaverSelected"); for (const candidateId of selected) data.append("candidateIds", candidateId); void naverVerification.submit(data, { method: "post" }); }} disabled={!selected.size || naverVerification.state !== "idle"}>{naverVerification.state === "submitting" ? "근거 확인 중…" : "선택 장소 NAVER 근거 확인"}</button>
               <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 장소 승인·공개"}</button>
             </div>
@@ -314,7 +333,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
                 <div><span className={`inline-flex border-l-4 px-2 py-1 text-xs font-semibold ${stateMeta[row.reviewState].className}`}>{stateMeta[row.reviewState].label}</span></div>
                 <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">{row.neighborhood ?? "동네 추출 실패"} · {row.latitude?.toFixed(5) ?? "—"}, {row.longitude?.toFixed(5) ?? "—"}</p>{row.blockers.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{row.blockers.map((blocker) => <li key={blocker} className="border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">{blocker}</li>)}</ul>}</div>
-                <div>{!blocked ? <label className="grid gap-1 text-[10px] font-medium text-neutral-600"><span>{row.reviewState === "AUTO" ? "자동 추천" : "추천"} · {loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</span><select aria-label={`${row.businessName} 대표 카테고리`} value={chosenCategories[row.id] ?? ""} onChange={(event) => { const categoryId = event.currentTarget.value; setChosenCategories((current) => setCandidateCategory(current, row.id, categoryId)); }} className={`w-full border px-2 py-1.5 text-xs text-neutral-950 ${row.reviewState === "AUTO" ? "border-emerald-500 bg-emerald-50" : "border-amber-500 bg-amber-50"}`}><option value="">직접 선택</option>{leafParents.map((category) => <option key={category.id} value={category.id}>{category.emoji} {category.name}</option>)}{parents.filter((parent) => children.some((child) => child.parentId === parent.id)).map((parent) => <optgroup key={parent.id} label={`${parent.emoji} ${parent.name}`}>{children.filter((child) => child.parentId === parent.id).map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}</optgroup>)}</select></label> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
+                <div>{!blocked ? <CategoryPickerTrigger businessName={row.businessName} reviewState={row.reviewState} suggestedCategoryName={loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"} selectedCategory={loaderData.categories.find((category) => category.id === chosenCategories[row.id])} onOpen={() => setCategoryPickerTarget({ candidateId: row.id })} /> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
                 <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}</p><CandidateEvidenceChain row={row} /><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
               </article>;
             })}
@@ -325,7 +344,59 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         <Pagination pagination={loaderData.pagination} params={params} position="bottom" />
       </div>
     </main>
+    <CategoryPickerDialog
+      open={Boolean(categoryPickerTarget)}
+      title={categoryPickerTitle}
+      categories={loaderData.categories}
+      selectableCategories={selectableCategories}
+      currentCategoryId={activeCategoryPickerCandidate ? chosenCategories[activeCategoryPickerCandidate.id] ?? "" : ""}
+      onClose={() => setCategoryPickerTarget(null)}
+      onSelect={chooseCategory}
+    />
+    </>
   );
+}
+
+function CategoryPickerTrigger({ businessName, reviewState, suggestedCategoryName, selectedCategory, onOpen }: { businessName: string; reviewState: keyof typeof stateMeta; suggestedCategoryName: string; selectedCategory: { name: string; emoji: string } | undefined; onOpen: () => void }) {
+  return <div className="grid gap-1 text-[10px] font-medium text-neutral-600"><span>{reviewState === "AUTO" ? "자동 추천" : "추천"} · {suggestedCategoryName}</span><button type="button" aria-label={`${businessName} 대표 카테고리`} aria-haspopup="dialog" className={`candidate-category-trigger ${reviewState === "AUTO" ? "is-automatic" : "is-manual"}`} onClick={onOpen}><span>{selectedCategory ? `${selectedCategory.emoji} ${selectedCategory.name}` : "직접 선택"}</span><span aria-hidden="true">⌄</span></button></div>;
+}
+
+function CategoryPickerDialog({ open, title, categories, selectableCategories, currentCategoryId, onClose, onSelect }: { open: boolean; title: string; categories: Array<{ id: string; name: string; emoji: string; parentId: string | null }>; selectableCategories: Array<{ id: string; name: string; emoji: string; parentId: string | null }>; currentCategoryId: string; onClose: () => void; onSelect: (categoryId: string) => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+      activeElement?.focus();
+    };
+  }, [onClose, open]);
+
+  if (!open || typeof document === "undefined") return null;
+  const groups = categories.filter((category) => !category.parentId)
+    .map((parent) => ({ parent, items: selectableCategories.filter((category) => category.parentId === parent.id) }))
+    .filter((group) => group.items.length > 0);
+  const directCategories = selectableCategories.filter((category) => !category.parentId);
+
+  return createPortal(<div className="candidate-category-dialog-layer">
+    <button type="button" aria-label="카테고리 메뉴 닫기" className="candidate-category-dialog-backdrop" onClick={onClose} />
+    <section role="dialog" aria-modal="true" aria-label={title} className="candidate-category-dialog" tabIndex={-1}>
+      <header><div><p>대표 카테고리</p><h2>{title}</h2></div><button type="button" aria-label="카테고리 메뉴 닫기" onClick={onClose}>닫기</button></header>
+      <div className="candidate-category-dialog__body">
+        <button type="button" className={`candidate-category-option ${!currentCategoryId ? "is-selected" : ""}`} onClick={() => onSelect("")}>직접 선택</button>
+        {directCategories.map((category) => <CategoryPickerOption key={category.id} category={category} currentCategoryId={currentCategoryId} onSelect={onSelect} />)}
+        {groups.map(({ parent, items }) => <section key={parent.id} className="candidate-category-group"><h3>{parent.emoji} {parent.name}</h3><div>{items.map((category) => <CategoryPickerOption key={category.id} category={category} currentCategoryId={currentCategoryId} onSelect={onSelect} />)}</div></section>)}
+      </div>
+    </section>
+  </div>, document.body);
+}
+
+function CategoryPickerOption({ category, currentCategoryId, onSelect }: { category: { id: string; name: string; emoji: string }; currentCategoryId: string; onSelect: (categoryId: string) => void }) {
+  return <button type="button" className={`candidate-category-option ${currentCategoryId === category.id ? "is-selected" : ""}`} onClick={() => onSelect(category.id)}>{category.emoji} {category.name}</button>;
 }
 
 function Summary({ label, value, tone = "text-neutral-950" }: { label: string; value: number; tone?: string }) {
