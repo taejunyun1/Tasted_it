@@ -78,15 +78,6 @@ VALUES
 ('qa-adult','ENTERTAINMENT_BAR','qa-adult','QA 황제 룸싸롱','유흥주점영업','OPEN','광주광역시 서구 상무연하로 1 (치평동)',35.153000,126.850000,'GWANGJU','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z'),
 ('qa-closed','GENERAL_RESTAURANT','qa-closed','QA 폐업국밥','한식','CLOSED','광주광역시 북구 용봉로 1 (용봉동)',35.176000,126.911000,'GWANGJU','{}','PENDING','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z','2026-08-05T12:00:00Z');
 
-DELETE FROM ai_classification_runs
-WHERE candidate_id IN ('qa-high', 'qa-high-mobile') AND prompt_version = 'place-category-v4';
-
-INSERT OR REPLACE INTO ai_classification_runs
-(id,candidate_id,input_hash,model,prompt_version,status,category_slug,confidence,reasons_json,attempt_count,created_at)
-VALUES
-('qa-high-ai','qa-high','qa-high-ai-input','test','place-category-v4','SUCCESS','gukbap-detail',0.95,'["규칙과 AI가 일치"]',1,'2026-08-05T12:00:00Z'),
-('qa-high-mobile-ai','qa-high-mobile','qa-high-mobile-ai-input','test','place-category-v4','SUCCESS','gukbap-detail',0.95,'["규칙과 AI가 일치"]',1,'2026-08-05T12:00:00Z');
-
 INSERT OR REPLACE INTO business_license_exclusions
 (business_license_id,reason,exclusion_category,matched_rule,chain_name,matched_term,matched_brand,matched_alias,chain_scope,match_method,match_confidence,note,excluded_by,status,excluded_at,overridden_by,overridden_at,created_at,updated_at)
 VALUES

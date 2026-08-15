@@ -11,9 +11,9 @@ import { approveCandidateSelections, listBulkReviewGroups } from "../features/ca
 import { reconcileCandidateSelection, selectCurrentPageCandidates } from "../features/candidates/bulk-selection";
 import { excludeCandidates, listCandidateSubtypes, listExcludedCandidates, restoreExcludedCandidate } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
-import { applyCategoryReclassification, previewCategoryReclassification } from "../features/candidates/category-reclassification.server";
-import { applyNaverCategoryReverification, previewNaverCategoryReverification } from "../features/candidates/naver-category-reverification.server";
 import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter } from "../features/candidates/naver-local-search.server";
+import { verifyPendingCandidatesWithNaver } from "../features/candidates/naver-pending-candidate-verification.server";
+import { CandidateEvidenceChain, EvidenceStatusRail } from "../features/candidates/candidate-evidence-ui";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
 import { buildCandidatePageHref } from "../features/candidates/pagination";
 
@@ -125,16 +125,19 @@ export async function action({ request }: Route.ActionArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const intent = String(form.get("intent") ?? "");
-  if (intent === "naverReclassifyPreview" || intent === "naverReclassifyApply") {
-    const afterPlaceId = String(form.get("afterPlaceId") ?? "").trim() || null;
+  if (intent === "verifyNaverSelected") {
     try {
       assertNaverLocalSearchEnabled(env);
       const adapter = createNaverLocalSearchAdapter(env);
-      const shared = { afterPlaceId, limit: 100, now, adapter, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 200) };
-      const result = intent === "naverReclassifyPreview"
-        ? await previewNaverCategoryReverification(db, shared)
-        : await applyNaverCategoryReverification(db, { ...shared, actorUserId: user.id });
-      return { approved: [], skipped: [], rejected: 0, error: null, reclassification: null, naverReclassification: { mode: intent, result } };
+      const result = await verifyPendingCandidatesWithNaver(db, {
+        candidateIds,
+        limit: 25,
+        now,
+        adapter,
+        dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 200),
+        actorUserId: user.id,
+      });
+      return { approved: [], skipped: [], rejected: 0, error: null, naverVerification: result };
     } catch (error) {
       const detail = error instanceof Error ? error.message : "UNKNOWN_ERROR";
       const message = detail === "NAVER_LOCAL_SEARCH_DISABLED"
@@ -142,24 +145,12 @@ export async function action({ request }: Route.ActionArgs) {
         : detail === "NAVER_LOCAL_SEARCH_QUOTA"
           ? "NAVER 지역검색 일일 한도에 도달했습니다. 내일 다시 시도해 주세요."
           : "NAVER 지도 검증을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
-      return { approved: [], skipped: [], rejected: 0, error: `${message} (${detail})`, reclassification: null, naverReclassification: null };
-    }
-  }
-  if (intent === "reclassifyPreview" || intent === "reclassifyApply") {
-    const afterPlaceId = String(form.get("afterPlaceId") ?? "").trim() || null;
-    try {
-      const result = intent === "reclassifyPreview"
-        ? await previewCategoryReclassification(db, { afterPlaceId, limit: 100 })
-        : await applyCategoryReclassification(db, { actorUserId: user.id, afterPlaceId, limit: 100, now });
-      return { approved: [], skipped: [], rejected: 0, error: null, reclassification: { mode: intent, result }, naverReclassification: null };
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "UNKNOWN_ERROR";
-      return { approved: [], skipped: [], rejected: 0, error: `일괄 재분류를 완료하지 못했습니다. (${detail})`, reclassification: null, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: `${message} (${detail})`, naverVerification: null };
     }
   }
   if (restoreCandidateId) {
     await restoreExcludedCandidate(db, { candidateId: restoreCandidateId, actorUserId: user.id, now });
-    return { approved: [], skipped: [], rejected: 0, error: null, restored: 1, reclassification: null, naverReclassification: null };
+    return { approved: [], skipped: [], rejected: 0, error: null, restored: 1, naverVerification: null };
   }
   if (intent === "excludeSelected") {
     try {
@@ -170,14 +161,14 @@ export async function action({ request }: Route.ActionArgs) {
         actorUserId: user.id,
         now,
       });
-      return { approved: [], skipped: [], rejected: 0, error: null, excluded: result.excludedIds.length, reclassification: null, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: null, excluded: result.excludedIds.length, naverVerification: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
       const errorMessage = message === "EXCLUSION_NOTE_REQUIRED" ? "기타 사유는 메모를 입력해 주세요."
         : message === "EXCLUSION_CATEGORY_INVALID" ? "예외 사유를 선택해 주세요."
           : message === "CANDIDATE_SELECTION_REQUIRED" ? "예외 처리할 장소를 선택해 주세요."
             : "예외 처리 중 오류가 발생했습니다.";
-      return { approved: [], skipped: [], rejected: 0, error: errorMessage, excluded: 0, reclassification: null, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: errorMessage, excluded: 0, naverVerification: null };
     }
   }
   const result = await approveCandidateSelections(db, {
@@ -185,13 +176,12 @@ export async function action({ request }: Route.ActionArgs) {
     actorUserId: user.id,
     now,
   });
-  return { ...result, rejected: 0, error: null, reclassification: null, naverReclassification: null };
+  return { ...result, rejected: 0, error: null, naverVerification: null };
 }
 
 export default function AdminCandidates({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
-  const reclassification = useFetcher<typeof action>();
-  const naverReclassification = useFetcher<typeof action>();
+  const naverVerification = useFetcher<typeof action>();
   const [params] = useSearchParams();
   const excludedMode = params.get("state") === "EXCLUDED";
   const exceptionMode = params.get("state") === "EXCEPTION";
@@ -199,8 +189,6 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [chosenCategories, setChosenCategories] = useState<Record<string, string>>(() =>
     Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
-  const [reclassificationCursor, setReclassificationCursor] = useState<string | null>(null);
-  const [naverReclassificationCursor, setNaverReclassificationCursor] = useState<string | null>(null);
   const parents = loaderData.categories.filter((category) => !category.parentId);
   const children = loaderData.categories.filter((category) => category.parentId);
   const selectableCategories = listSelectableCategories(loaderData.categories);
@@ -210,8 +198,6 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   const selectableIds = useMemo(() => loaderData.rows.filter((row) => !row.isExcluded && row.reviewState !== "BLOCKED").map((row) => row.id), [loaderData.rows]);
   const pageSelectionIds = selectableIds.slice(0, 25);
   const pageSelected = pageSelectionIds.length > 0 && pageSelectionIds.every((id) => selected.has(id));
-  const reclassificationData = reclassification.data?.reclassification ?? null;
-  const naverReclassificationData = naverReclassification.data?.naverReclassification ?? null;
 
   useEffect(() => {
     setSelected((current) => reconcileCandidateSelection(current, selectableIds));
@@ -220,18 +206,6 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   useEffect(() => {
     setChosenCategories(Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
   }, [loaderData.rows]);
-
-  useEffect(() => {
-    if (reclassificationData?.mode === "reclassifyApply") {
-      setReclassificationCursor(reclassificationData.result.nextAfterPlaceId);
-    }
-  }, [reclassificationData]);
-
-  useEffect(() => {
-    if (naverReclassificationData?.mode === "naverReclassifyApply") {
-      setNaverReclassificationCursor(naverReclassificationData.result.nextAfterPlaceId);
-    }
-  }, [naverReclassificationData]);
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -250,18 +224,18 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   }
 
   return (
-    <main className="admin-page min-h-screen bg-[#f5f6f2] text-neutral-950">
-      <header className="border-b border-neutral-300 bg-white">
-        <div className="admin-page-frame mx-auto max-w-[1500px] px-5 py-8 md:px-10">
+    <main className="admin-page candidate-workbench">
+      <header className="candidate-workbench__header">
+        <div className="admin-page-frame">
           <div>
-            <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-emerald-800">ADMIN / PLACE REVIEW</p>
-            <h1 className="mt-2 text-[21px] font-semibold tracking-[-0.04em] md:text-[33.6px]">장소 검수 목록</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">자동 분류 결과를 목록에서 확인하고, 애매한 후보만 카테고리를 직접 정합니다. 동네는 주소에서 자동 계산됩니다.</p>
+            <p className="candidate-eyebrow">ADMIN / EVIDENCE WORKBENCH</p>
+            <h1 className="text-[21px] md:text-[33.6px]">장소 검수</h1>
+            <p>공공데이터 후보를 NAVER 상호·위치·카테고리 근거와 함께 확인합니다. 자동 변경은 상호·위치·상세 카테고리·원천 업태가 모두 일치할 때만 허용됩니다.</p>
           </div>
         </div>
       </header>
 
-      <section className="admin-page-frame mx-auto grid max-w-[1500px] grid-cols-2 border-x border-b border-neutral-300 bg-white md:grid-cols-5">
+      <section className="admin-page-frame candidate-workbench__summary">
         <Summary label="전체 대기" value={loaderData.counts.ALL} />
         <Summary label="분류 완료" value={loaderData.counts.AUTO} tone="text-emerald-800" />
         <Summary label="수동 확인" value={loaderData.counts.MANUAL} tone="text-amber-700" />
@@ -269,7 +243,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
         <Summary label="자동 제외" value={loaderData.counts.EXCLUDED} tone="text-violet-700" />
       </section>
 
-      <div className="admin-page-frame mx-auto max-w-[1500px] px-5 py-7 md:px-10">
+      <div className="admin-page-frame candidate-workbench__body">
         <nav aria-label="검수 상태" className="mb-5 flex overflow-x-auto border-b border-neutral-900 text-sm font-medium">
           <Tab to={tabHref()} active={!params.get("state")} label="전체" count={loaderData.counts.ALL} />
           {states.map((state) => <Tab key={state} to={tabHref(state)} active={params.get("state") === state} label={stateMeta[state].label} count={loaderData.counts[state]} />)}
@@ -277,75 +251,39 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <Tab to={tabHref("EXCLUDED")} active={excludedMode} label="자동 제외" count={loaderData.counts.EXCLUDED} />
         </nav>
 
-        <Form method="get" className="mb-6 grid gap-2 border border-neutral-300 bg-white p-4 md:grid-cols-4 xl:grid-cols-8">
+        {reviewMode && <EvidenceStatusRail rows={loaderData.rows} />}
+
+        <Form method="get" className="candidate-filter-panel">
           <Filter label="검색"><input name="q" defaultValue={loaderData.filters.q ?? ""} placeholder="상호명 또는 주소" /></Filter>
           <Filter label="지역"><select name="region" defaultValue={loaderData.filters.region ?? ""}><option value="">광주·전남 전체</option><option value="GWANGJU">광주</option><option value="JEONNAM">전남</option></select></Filter>
           <Filter label="공공데이터"><select name="source" defaultValue={loaderData.filters.source ?? ""}><option value="">전체</option>{sources.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Filter>
-          <Filter label="원천 세부업태"><select name="subtype" defaultValue={loaderData.filters.subtype ?? ""}><option value="">전체</option>{loaderData.subtypes.map((value) => <option key={value}>{value}</option>)}</select></Filter>
-          {reviewMode && <Filter label="추천 카테고리"><select name="category" defaultValue={loaderData.filters.category ?? ""}><option value="">전체</option>{selectableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Filter>}
-          {reviewMode && <Filter label="신뢰도"><select name="confidence" defaultValue={loaderData.filters.confidence ?? ""}><option value="">전체</option>{Object.entries(confidenceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Filter>}
-          <Filter label="페이지 크기"><select name="pageSize" defaultValue={String(loaderData.pagination.pageSize)}><option>25</option><option>50</option><option>100</option></select></Filter>
+          <details className="candidate-filter-panel__details"><summary>상세 필터</summary><div>
+            <Filter label="원천 세부업태"><select name="subtype" defaultValue={loaderData.filters.subtype ?? ""}><option value="">전체</option>{loaderData.subtypes.map((value) => <option key={value}>{value}</option>)}</select></Filter>
+            {reviewMode && <Filter label="추천 카테고리"><select name="category" defaultValue={loaderData.filters.category ?? ""}><option value="">전체</option>{selectableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Filter>}
+            {reviewMode && <Filter label="신뢰도"><select name="confidence" defaultValue={loaderData.filters.confidence ?? ""}><option value="">전체</option>{Object.entries(confidenceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Filter>}
+            <Filter label="페이지 크기"><select name="pageSize" defaultValue={String(loaderData.pagination.pageSize)}><option>25</option><option>50</option><option>100</option></select></Filter>
+          </div></details>
           {params.get("state") && <input type="hidden" name="state" value={params.get("state")!} />}
           <div className="flex items-end gap-2"><button className="h-10 flex-1 whitespace-nowrap bg-neutral-950 px-3 text-xs font-semibold text-white">필터 적용</button><Link className="grid h-10 place-items-center whitespace-nowrap border border-neutral-300 px-3 text-xs" to="/admin/candidates">초기화</Link></div>
         </Form>
 
         {(() => {
           const feedback = actionData;
-          return feedback && <div className={`mb-5 border px-4 py-3 text-sm ${feedback.error || feedback.skipped.length ? "border-amber-600 bg-amber-50" : "border-emerald-700 bg-emerald-50"}`}>
-            <p>{feedback.error ?? ("restored" in feedback && feedback.restored ? "검수 대기로 복원했습니다." : "excluded" in feedback && feedback.excluded ? `${feedback.excluded}곳을 승인 불가·예외로 이동했습니다.` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</p>
+          return feedback && <div className={`candidate-workbench__notice ${feedback.error || feedback.skipped.length ? "is-warning" : ""}`}>
+            <p>{feedback.error ?? (feedback.naverVerification ? `NAVER 근거 확인 ${feedback.naverVerification.scanned}곳 · 검증 ${feedback.naverVerification.verified}곳 · 자동 분류 ${feedback.naverVerification.automatic}곳 · 수동 확인 ${feedback.naverVerification.manual}곳` : "restored" in feedback && feedback.restored ? "검수 대기로 복원했습니다." : "excluded" in feedback && feedback.excluded ? `${feedback.excluded}곳을 승인 불가·예외로 이동했습니다.` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</p>
             {feedback.skipped.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{feedback.skipped.map((item) => <li key={item.candidateId}><strong>{loaderData.rows.find((row) => row.id === item.candidateId)?.businessName ?? item.candidateId}</strong> · {item.reason}</li>)}</ul>}
           </div>;
         })()}
-
-        {reviewMode && <section aria-label="NAVER 지도 우선 공개 장소 재분류" className="mb-6 border border-[#25854a] bg-emerald-50/70 p-4">
-          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-            <div>
-              <p className="font-mono text-[11px] font-semibold tracking-[0.16em] text-[#25854a]">NAVER LOCAL / CATEGORY AUTHORITY</p>
-              <h2 className="mt-1 text-base font-semibold">NAVER 지도 근거로 공개 장소 재분류</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">상호와 주소(또는 100m 이내 좌표)가 맞고, NAVER의 구체 카테고리와 원천 세부업태가 같은 경우만 자동 변경합니다. 응답 원문·장소 ID·사진은 저장하지 않고, 내부 카테고리·점수·근거 코드만 기록합니다.</p>
-            </div>
-            <naverReclassification.Form method="post" className="flex shrink-0 flex-wrap gap-2">
-              <input type="hidden" name="afterPlaceId" value={naverReclassificationCursor ?? ""} />
-              <button type="submit" name="intent" value="naverReclassifyPreview" className="border border-[#25854a] bg-white px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={naverReclassification.state !== "idle"}>{naverReclassification.state === "submitting" ? "확인 중…" : "NAVER 100곳 미리보기"}</button>
-              {naverReclassificationData?.mode === "naverReclassifyPreview" && naverReclassificationData.result.changed > 0 && <button type="submit" name="intent" value="naverReclassifyApply" className="bg-[#25854a] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={naverReclassification.state !== "idle"}>검증 결과 적용</button>}
-            </naverReclassification.Form>
-          </div>
-          {naverReclassification.data?.error && <div className="mt-4 border border-rose-600 bg-rose-50 px-4 py-3 text-sm text-rose-900"><p>{naverReclassification.data.error}</p></div>}
-          {naverReclassificationData && <div className="mt-4 border border-[#25854a] bg-white px-4 py-3 text-sm text-emerald-950">
-            <p><strong>{naverReclassificationData.mode === "naverReclassifyApply" ? "적용 완료" : "미리보기"}</strong> · 확인 {naverReclassificationData.result.scanned}곳 · 검증 {naverReclassificationData.result.verified}곳 · 카테고리 변경 {naverReclassificationData.result.changed}곳 · 수동 확인 {naverReclassificationData.result.conflicts}곳 · 실패 {naverReclassificationData.result.failed}곳 · API 호출 {naverReclassificationData.result.apiCalls}회</p>
-            {naverReclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-neutral-600">{naverReclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).map((change) => <li key={change.placeId}>{change.fromSlug} → {change.toSlug ?? "수동 확인"} · {change.reason} · {change.confidenceScore}점</li>)}</ul>}
-            {naverReclassificationData.mode === "naverReclassifyApply" && <p className="mt-2 text-xs text-neutral-600">{naverReclassificationData.result.nextAfterPlaceId ? "다음 100곳을 이어서 확인할 수 있습니다." : "현재 범위의 NAVER 재분류가 끝났습니다."}</p>}
-          </div>}
-        </section>}
-
-        {reviewMode && <section aria-label="공개 장소 규칙 보조 재분류" className="mb-6 border border-emerald-800 bg-emerald-50/50 p-4">
-          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-            <div>
-              <p className="font-mono text-[11px] font-semibold tracking-[0.16em] text-emerald-800">RULE RERUN / 100 PLACES</p>
-              <h2 className="mt-1 text-base font-semibold">규칙 기반 공개 장소 보조 재분류</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">NAVER 검증이 불가하거나 근거가 부족한 경우에만 쓰는 보조 규칙입니다. 공개된 원천 연동 장소를 100곳씩 확인하며, 비음식 시설은 자동 제외로 기록해 공용 목록과 추천에서 숨깁니다. 자동 제외 탭에서 언제든 복원할 수 있습니다.</p>
-            </div>
-            <reclassification.Form method="post" className="flex shrink-0 flex-wrap gap-2">
-              <input type="hidden" name="afterPlaceId" value={reclassificationCursor ?? ""} />
-              <button type="submit" name="intent" value="reclassifyPreview" className="border border-emerald-800 bg-white px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={reclassification.state !== "idle"}>{reclassification.state === "submitting" ? "확인 중…" : "100곳 미리보기"}</button>
-              {reclassificationData?.mode === "reclassifyPreview" && (reclassificationData.result.changed > 0 || reclassificationData.result.excluded > 0) && <button type="submit" name="intent" value="reclassifyApply" className="bg-emerald-800 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={reclassification.state !== "idle"}>규칙 적용</button>}
-            </reclassification.Form>
-          </div>
-          {reclassificationData && <div className={`mt-4 border px-4 py-3 text-sm ${reclassification.data?.error ? "border-rose-600 bg-rose-50 text-rose-900" : "border-emerald-700 bg-white text-emerald-950"}`}>
-            {reclassification.data?.error ? <p>{reclassification.data.error}</p> : <>
-              <p><strong>{reclassificationData.mode === "reclassifyApply" ? "적용 완료" : "미리보기"}</strong> · 확인 {reclassificationData.result.scanned}곳 · 카테고리 변경 {reclassificationData.result.changed}곳 · 비음식 자동 제외 {reclassificationData.result.excluded}곳 · 수동 확인 {reclassificationData.result.conflicts}곳</p>
-              {reclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-neutral-600">{reclassificationData.result.changes.filter((change) => change.decision !== "KEEP").slice(0, 5).map((change) => <li key={change.placeId}>{change.fromSlug} → {change.toSlug ?? "자동 제외 후보"} · {change.reason}</li>)}</ul>}
-              {reclassificationData.mode === "reclassifyApply" && (reclassificationData.result.nextAfterPlaceId ? <p className="mt-2 text-xs text-neutral-600">다음 100곳을 계속 확인할 수 있습니다.</p> : <p className="mt-2 text-xs text-neutral-600">현재 범위의 재분류가 끝났습니다.</p>)}
-            </>}
-          </div>}
-        </section>}
+        {naverVerification.data && <div className={`candidate-workbench__notice ${naverVerification.data.error ? "is-warning" : ""}`}>
+          <p>{naverVerification.data.error ?? (naverVerification.data.naverVerification ? `NAVER 근거 확인 ${naverVerification.data.naverVerification.scanned}곳 · 검증 ${naverVerification.data.naverVerification.verified}곳 · 자동 분류 ${naverVerification.data.naverVerification.automatic}곳 · 수동 확인 ${naverVerification.data.naverVerification.manual}곳` : "NAVER 근거 확인을 마쳤습니다.")}</p>
+        </div>}
 
         <Pagination pagination={loaderData.pagination} params={params} position="top" />
 
         <Form method="post">
           {[...selected].map((id) => <input key={id} type="hidden" name="candidateIds" value={id} />)}
           {selectedRows.map((row) => <input key={`category-${row.id}`} type="hidden" name={`category:${row.id}`} value={chosenCategories[row.id] ?? ""} />)}
-          {reviewMode && <div className="sticky top-0 z-20 mb-3 flex flex-col gap-3 border border-neutral-900 bg-[#1f2a24] px-4 py-3 text-white shadow-sm xl:flex-row xl:items-end xl:justify-between">
+          {reviewMode && <div className="candidate-selection-workbench">
             <div className="flex flex-wrap items-center gap-3"><p className="text-sm"><span className="font-semibold">{selected.size} / 25</span> 선택 · 차단 후보 제외</p><button type="button" className="border border-neutral-500 px-3 py-2 text-xs text-neutral-200" onClick={() => setSelected(pageSelected ? new Set() : selectCurrentPageCandidates(selectableIds))}>{pageSelected ? "현재 페이지 선택 해제" : "현재 페이지 선택"}</button></div>
             <div className="grid gap-2 sm:grid-cols-[160px_220px_auto]">
               <label className="grid gap-1 text-[10px] text-neutral-200"><span>예외 사유</span><select aria-label="예외 사유" name="exclusionCategory" defaultValue="" className="h-9 bg-white px-2 text-xs text-neutral-950"><option value="">사유 선택</option><option value="BUSINESS_TYPE">업종 제외</option><option value="NOT_RESTAURANT">음식점 아님</option><option value="BAD_OR_DUPLICATE_DATA">중복·잘못된 데이터</option><option value="POLICY">운영 정책 제외</option><option value="OTHER">기타</option></select></label>
@@ -353,6 +291,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
               <button className="self-end border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 disabled:opacity-40" name="intent" value="excludeSelected" disabled={!selected.size || isSubmitting}>선택 장소 예외 처리</button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" className="border border-white px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" onClick={() => { const data = new FormData(); data.set("intent", "verifyNaverSelected"); for (const candidateId of selected) data.append("candidateIds", candidateId); void naverVerification.submit(data, { method: "post" }); }} disabled={!selected.size || naverVerification.state !== "idle"}>{naverVerification.state === "submitting" ? "근거 확인 중…" : "선택 장소 NAVER 근거 확인"}</button>
               <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 장소 승인·공개"}</button>
             </div>
           </div>}
@@ -376,7 +315,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
                 <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">{row.neighborhood ?? "동네 추출 실패"} · {row.latitude?.toFixed(5) ?? "—"}, {row.longitude?.toFixed(5) ?? "—"}</p>{row.blockers.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{row.blockers.map((blocker) => <li key={blocker} className="border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">{blocker}</li>)}</ul>}</div>
                 <div>{!blocked ? <label className="grid gap-1 text-[10px] font-medium text-neutral-600"><span>{row.reviewState === "AUTO" ? "자동 추천" : "추천"} · {loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</span><select aria-label={`${row.businessName} 대표 카테고리`} value={chosenCategories[row.id] ?? ""} onChange={(event) => { const categoryId = event.currentTarget.value; setChosenCategories((current) => setCandidateCategory(current, row.id, categoryId)); }} className={`w-full border px-2 py-1.5 text-xs text-neutral-950 ${row.reviewState === "AUTO" ? "border-emerald-500 bg-emerald-50" : "border-amber-500 bg-amber-50"}`}><option value="">직접 선택</option>{leafParents.map((category) => <option key={category.id} value={category.id}>{category.emoji} {category.name}</option>)}{parents.filter((parent) => children.some((child) => child.parentId === parent.id)).map((parent) => <optgroup key={parent.id} label={`${parent.emoji} ${parent.name}`}>{children.filter((child) => child.parentId === parent.id).map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}</optgroup>)}</select></label> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
-                <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}</p><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
+                <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}</p><CandidateEvidenceChain row={row} /><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
               </article>;
             })}
             {!loaderData.rows.length && <p className="px-5 py-16 text-center text-sm text-neutral-500">현재 조건에 맞는 검수 후보가 없습니다.</p>}

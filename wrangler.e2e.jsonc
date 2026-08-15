@@ -9,7 +9,6 @@
     "NAVER_PLACE_GEOCODING_ENABLED": "true",
     "REVIEW_PHOTO_UPLOAD_ENABLED": "true"
   },
-  "ai": { "binding": "AI" },
   "d1_databases": [
     {
       "binding": "DB",
