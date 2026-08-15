@@ -60,7 +60,11 @@ test("a member finds an address, confirms a map pin, and submits without raw coo
   await expect(submit).toBeDisabled();
   await page.getByLabel("주소").fill("광주광역시 동구 서석로 1 (서석동)");
   await page.getByRole("button", { name: "지도에서 위치 찾기" }).click();
-  await page.getByLabel(/광주광역시 동구 서석로 1/).check();
+  const candidate = page.locator(".place-location-candidate").first();
+  await expect(candidate).toContainText("광주광역시 동구 서석로 1");
+  await expect(candidate).toHaveAttribute("aria-pressed", "false");
+  await candidate.click();
+  await expect(candidate).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("주소")).toHaveValue("광주광역시 동구 서석로 1");
   await expect(page.getByLabel("선택한 장소 위치 지도")).toBeVisible();
   await page.getByRole("button", { name: "이 위치로 확정" }).click();
@@ -80,7 +84,7 @@ test("changing the address clears a confirmed location before a member can submi
   await page.goto("/suggestions/new");
   await page.getByLabel("주소").fill("광주광역시 동구 서석로 1 (서석동)");
   await page.getByRole("button", { name: "지도에서 위치 찾기" }).click();
-  await page.getByLabel(/광주광역시 동구 서석로 1/).check();
+  await page.locator(".place-location-candidate").first().click();
   await page.getByRole("button", { name: "이 위치로 확정" }).click();
   await expect(page.locator('input[name="locationConfirmed"]')).toHaveValue("true");
 

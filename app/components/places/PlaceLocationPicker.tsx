@@ -248,19 +248,20 @@ export function PlaceLocationPicker({
         <fieldset className="place-location-candidates">
           <legend>찾은 주소</legend>
           {candidates.map((candidate, index) => (
-            <label key={`${candidate.address}-${candidate.coordinate.latitude}-${candidate.coordinate.longitude}`}>
-              <input
-                type="radio"
-                name={`${prefix}geocodeCandidate`}
-                checked={origin?.latitude === candidate.coordinate.latitude && origin.longitude === candidate.coordinate.longitude}
-                onChange={() => selectCandidate(candidate)}
-              />
+            <button
+              key={`${candidate.address}-${candidate.coordinate.latitude}-${candidate.coordinate.longitude}`}
+              className="place-location-candidate"
+              type="button"
+              aria-pressed={origin?.latitude === candidate.coordinate.latitude && origin.longitude === candidate.coordinate.longitude}
+              onClick={() => selectCandidate(candidate)}
+            >
               <span>
-                <b>{candidate.roadAddress ?? candidate.jibunAddress}</b>
+                <b>{candidate.roadAddress ?? candidate.jibunAddress ?? candidate.address}</b>
                 {candidate.roadAddress && candidate.jibunAddress && <small>{candidate.jibunAddress}</small>}
-                <i>후보 {index + 1}</i>
+                <i>후보 {index + 1} · 지도에서 확인</i>
               </span>
-            </label>
+              <em aria-hidden="true">선택</em>
+            </button>
           ))}
         </fieldset>
       )}
