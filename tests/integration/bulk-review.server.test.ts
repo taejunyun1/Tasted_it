@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { aiClassificationRuns, businessLicenses, naverLocalCategoryVerifications, places } from "../../app/db/schema";
+import { businessLicenses, naverLocalCategoryVerifications, places } from "../../app/db/schema";
 import {
   approveCandidateSelections,
   bulkApproveCandidates,
@@ -10,7 +10,6 @@ import {
 } from "../../app/features/candidates/bulk-review.server";
 import { upsertBusinessLicense } from "../../app/features/candidates/candidate.server";
 import type { NormalizedLicense } from "../../app/features/candidates/public-data";
-import { AI_CLASSIFICATION_PROMPT } from "../../app/features/candidates/ai-classification.server";
 
 const now = "2026-08-05T11:00:00.000Z";
 const license: NormalizedLicense = {
@@ -39,8 +38,25 @@ beforeEach(async () => {
   await env.DB.prepare("INSERT OR IGNORE INTO users (id,email,display_name,role,created_at,updated_at) VALUES ('bulk-admin','bulk-admin@example.com','관리자','ADMIN',?,?)").bind(now, now).run();
 });
 
-async function addAiAgreement(candidateId: string) {
-  await createDb(env.DB).insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId, inputHash: crypto.randomUUID(), model: "test", promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: "gukbap-detail", confidence: 0.95, reasonsJson: '["규칙과 일치"]', createdAt: now });
+async function addVerifiedNaverEvidence(candidateId: string) {
+  const db = createDb(env.DB);
+  const category = await db.query.categories.findFirst({ where: (row, { eq }) => eq(row.slug, "gukbap-detail") });
+  await db.insert(naverLocalCategoryVerifications).values({
+    businessLicenseId: candidateId,
+    status: "VERIFIED",
+    mappedCategoryId: category!.id,
+    matchScore: 40,
+    specificityScore: 20,
+    confidenceScore: 80,
+    evidenceCodesJson: '["NAVER_EXACT_NAME","NAVER_EXACT_ADDRESS","NAVER_SPECIFIC_CATEGORY","SOURCE_SUBTYPE_MATCH"]',
+    ruleVersion: "naver-category-v1",
+    inputFingerprint: crypto.randomUUID(),
+    queriedAt: now,
+    expiresAt: "2099-08-05T11:00:00.000Z",
+    failureCode: null,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 describe("bulk candidate review", () => {
@@ -55,11 +71,11 @@ describe("bulk candidate review", () => {
       latitude: null,
       longitude: null,
     }, now);
-    await addAiAgreement(safe.id);
+    await addVerifiedNaverEvidence(safe.id);
 
     const groups = await listBulkReviewGroups(db);
     const rows = groups.flatMap((group) => group.candidates);
-    expect(rows.find((row) => row.id === safe.id)).toMatchObject({ confidence: "HIGH", eligible: true, neighborhood: "운림동" });
+    expect(rows.find((row) => row.id === safe.id)).toMatchObject({ confidence: "MEDIUM", eligible: false, neighborhood: "운림동" });
     expect(rows.find((row) => row.id === unsafe.id)).toMatchObject({ confidence: "LOW", eligible: false, classificationSource: "RULE_ONLY" });
   });
 
@@ -71,19 +87,6 @@ describe("bulk candidate review", () => {
       businessName: "전주해장국",
       businessSubtype: "한식",
     }, now);
-    await db.insert(aiClassificationRuns).values({
-      id: crypto.randomUUID(),
-      candidateId: candidate.id,
-      inputHash: crypto.randomUUID(),
-      model: "RULE_ONLY",
-      promptVersion: AI_CLASSIFICATION_PROMPT,
-      status: "SUCCESS",
-      categorySlug: "gukbap-detail",
-      confidence: 1,
-      reasonsJson: '["규칙 분류"]',
-      createdAt: now,
-    });
-
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
 
     expect(row).toMatchObject({
@@ -95,7 +98,7 @@ describe("bulk candidate review", () => {
     });
   });
 
-  it("uses an unexpired NAVER authority record only when the source subtype and AI both agree", async () => {
+  it("uses an unexpired NAVER authority record when source subtype agrees", async () => {
     const db = createDb(env.DB);
     const candidate = await upsertBusinessLicense(db, {
       ...license,
@@ -111,7 +114,7 @@ describe("bulk candidate review", () => {
       matchScore: 40,
       specificityScore: 20,
       confidenceScore: 90,
-      evidenceCodesJson: '["NAVER_EXACT_NAME","NAVER_EXACT_ADDRESS","NAVER_SPECIFIC_CATEGORY","SOURCE_SUBTYPE_MATCH","AI_AGREES"]',
+      evidenceCodesJson: '["NAVER_EXACT_NAME","NAVER_EXACT_ADDRESS","NAVER_SPECIFIC_CATEGORY","SOURCE_SUBTYPE_MATCH"]',
       ruleVersion: "naver-category-v1",
       inputFingerprint: crypto.randomUUID(),
       queriedAt: now,
@@ -120,13 +123,48 @@ describe("bulk candidate review", () => {
       createdAt: now,
       updatedAt: now,
     });
-    await addAiAgreement(candidate.id);
-
     const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
-    expect(row).toMatchObject({ categorySlug: "gukbap-detail", confidence: "HIGH", reviewState: "AUTO", eligible: true, classificationSource: "NAVER_RULE" });
+    expect(row).toMatchObject({
+      categorySlug: "gukbap-detail",
+      confidence: "HIGH",
+      reviewState: "AUTO",
+      eligible: true,
+      classificationSource: "NAVER_RULE",
+      naverEvidence: { status: "VERIFIED", confidenceScore: 90, evidenceCodes: expect.arrayContaining(["NAVER_EXACT_NAME"]) },
+    });
   });
 
-  it("loads AI results when the pending queue exceeds the D1 bind parameter limit", async () => {
+  it("exposes a failed NAVER lookup as safe evidence and keeps the candidate manual", async () => {
+    const db = createDb(env.DB);
+    const candidate = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "naver-failed-candidate" }, now);
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId: candidate.id,
+      status: "FAILED",
+      mappedCategoryId: null,
+      matchScore: 0,
+      specificityScore: 0,
+      confidenceScore: 0,
+      evidenceCodesJson: "[]",
+      ruleVersion: "naver-category-v1",
+      inputFingerprint: crypto.randomUUID(),
+      queriedAt: now,
+      expiresAt: null,
+      failureCode: "NAVER_LOCAL_SEARCH_TIMEOUT",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
+
+    expect(row).toMatchObject({
+      classificationSource: "NAVER_FAILED",
+      reviewState: "MANUAL",
+      naverEvidence: { status: "FAILED", confidenceScore: 0, evidenceCodes: [], failureCode: "NAVER_LOCAL_SEARCH_TIMEOUT" },
+    });
+    expect(JSON.stringify(row.naverEvidence)).not.toContain("provider");
+  });
+
+  it("loads NAVER evidence when the pending queue exceeds the D1 bind parameter limit", async () => {
     const db = createDb(env.DB);
     const candidates = [];
     for (let index = 0; index < 120; index += 1) {
@@ -136,71 +174,24 @@ describe("bulk candidate review", () => {
         businessName: `대규모 검수 해장국 ${index}`,
       }, now));
     }
-    await addAiAgreement(candidates.at(-1)!.id);
+    await addVerifiedNaverEvidence(candidates.at(-1)!.id);
 
     const rows = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates);
 
     expect(rows.length).toBeGreaterThanOrEqual(120);
-    expect(rows.find((row) => row.id === candidates.at(-1)!.id)?.classificationSource).toBe("AI_RULE");
-  });
-
-  it("approves a specific sushi name when a high-confidence AI result agrees", async () => {
-    const db = createDb(env.DB);
-    const candidate = await upsertBusinessLicense(db, {
-      ...license, sourceManagementNo: "ai-completed-conflict", businessName: "스시 충돌", businessSubtype: "한식",
-    }, now);
-    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "test", promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: "sushi-sashimi", confidence: 0.96, reasonsJson: '["AI 분류 완료"]', createdAt: now });
-
-    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
-
-    expect(row).toMatchObject({ categorySlug: "sushi-sashimi", confidence: "HIGH", reviewState: "AUTO", eligible: true, classificationSource: "AI_RULE" });
-  });
-
-  it("ignores a legacy AI result and returns the candidate to manual review", async () => {
-    const db = createDb(env.DB);
-    const candidate = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "legacy-ai-result", businessName: "콩물동부육계장", businessSubtype: "기타" }, now);
-    await db.insert(aiClassificationRuns).values({ id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "legacy", promptVersion: "place-category-v1", status: "SUCCESS", categorySlug: "gimbap", confidence: 0.8, reasonsJson: '["gimbap"]', createdAt: now });
-
-    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
-
-    expect(row).toMatchObject({ categorySlug: "stew", reviewState: "MANUAL", classificationSource: "RULE_ONLY" });
-  });
-
-  it("returns a stored AI subtype mismatch to manual review instead of marking it automatic", async () => {
-    const db = createDb(env.DB);
-    const candidate = await upsertBusinessLicense(db, {
-      ...license,
-      sourceManagementNo: "stored-subtype-mismatch",
-      businessName: "인생역전",
-      businessSubtype: "정종/대포집/소주방",
-    }, now);
-    await db.insert(aiClassificationRuns).values({
-      id: crypto.randomUUID(), candidateId: candidate.id, inputHash: crypto.randomUUID(), model: "test",
-      promptVersion: AI_CLASSIFICATION_PROMPT, status: "SUCCESS", categorySlug: "home-meal", confidence: 0.98,
-      reasonsJson: '["원천 업태 근거"]', createdAt: now,
-    });
-
-    const row = (await listBulkReviewGroups(db)).flatMap((group) => group.candidates).find((item) => item.id === candidate.id)!;
-
-    expect(row).toMatchObject({
-      categorySlug: "pocha",
-      reviewState: "MANUAL",
-      eligible: false,
-      classificationSource: "AI_FAILED",
-    });
-    expect(row.reasons).toContain("원천 업태와 AI 카테고리가 달라 수동 확인 필요");
+    expect(rows.find((row) => row.id === candidates.at(-1)!.id)?.classificationSource).toBe("RULE_ONLY");
   });
 
   it("approves safe candidates and skips unsafe selections", async () => {
     const db = createDb(env.DB);
-    const safe = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "bulk-approve-safe" }, now);
+    const safe = await upsertBusinessLicense(db, { ...license, sourceManagementNo: "bulk-approve-safe", businessSubtype: "국밥" }, now);
     const unsafe = await upsertBusinessLicense(db, {
       ...license,
       sourceManagementNo: "bulk-approve-unsafe",
       businessName: "타코야끼앤버거",
       businessSubtype: "한식",
     }, now);
-    await addAiAgreement(safe.id);
+    await addVerifiedNaverEvidence(safe.id);
 
     const result = await bulkApproveCandidates(db, {
       candidateIds: [safe.id, unsafe.id],

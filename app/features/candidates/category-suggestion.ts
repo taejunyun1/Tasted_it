@@ -163,7 +163,7 @@ export function classifyCandidate(input: CandidateClassificationInput): Candidat
 }
 
 /**
- * Concrete source subtypes are an authoritative guardrail for AI output only
+ * Concrete source subtypes are an authoritative guardrail for automated output only
  * when they agree with the final rule category. A more specific business-name
  * food signal (for example, 라멘 under the broad 한식 subtype) still wins.
  */

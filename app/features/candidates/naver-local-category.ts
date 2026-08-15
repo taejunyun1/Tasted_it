@@ -1,4 +1,3 @@
-import type { AiClassification } from "./ai-classification-policy";
 import type { CandidateClassification, ClassificationConfidence } from "./category-suggestion";
 import type { NaverLocalSearchResult } from "./naver-local-search.server";
 import type { RegionCode } from "./public-data";
@@ -23,9 +22,7 @@ export type NaverEvidenceCode =
   | "NAVER_BROAD_CATEGORY"
   | "SOURCE_SUBTYPE_MATCH"
   | "SOURCE_SUBTYPE_CONFLICT"
-  | "NAME_FOOD_MATCH"
-  | "AI_AGREES"
-  | "AI_DISAGREES";
+  | "NAME_FOOD_MATCH";
 
 export type NaverLocalCategoryMatch = {
   status: NaverVerificationStatus;
@@ -188,15 +185,14 @@ function authorityNaver(naver: NaverLocalCategoryMatch, confidenceScore: number,
 
 /**
  * Applies the evidence ordering: exclusion happens before this function,
- * verified + specific NAVER data may lead, while broad data and any AI output
- * stay supportive only. Concrete source subtype conflicts are manual-review
+ * verified + specific NAVER data may lead, while broad data remains
+ * supportive only. Concrete source subtype conflicts are manual-review
  * decisions rather than automatic overwrites.
  */
 export function decideCategoryAuthority(input: {
   rule: CandidateClassification;
   subtypeSlug: string | null;
   nameSlug: string | null;
-  ai: AiClassification | null;
   naver: NaverLocalCategoryMatch | null;
 }): CategoryAuthorityDecision {
   const fallback: CategoryAuthorityDecision = {
@@ -231,14 +227,8 @@ export function decideCategoryAuthority(input: {
     confidenceScore += 10;
     evidenceCodes.push("NAME_FOOD_MATCH");
   }
-  if (input.ai?.categorySlug === naver.mappedCategorySlug) {
-    confidenceScore += 10;
-    evidenceCodes.push("AI_AGREES");
-  } else if (input.ai) {
-    evidenceCodes.push("AI_DISAGREES");
-  }
   confidenceScore = Math.min(100, confidenceScore);
-  const confidence: ClassificationConfidence = confidenceScore >= 85 ? "HIGH"
+  const confidence: ClassificationConfidence = confidenceScore >= 80 ? "HIGH"
     : confidenceScore >= 65 ? "MEDIUM"
       : "LOW";
   return {

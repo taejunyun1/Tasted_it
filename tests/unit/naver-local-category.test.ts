@@ -23,7 +23,7 @@ function rule(input: { businessName: string; businessSubtype?: string | null }) 
 }
 
 describe("NAVER local category authority", () => {
-  it("uses an exact name/address match and specific meat category when the source and AI agree", () => {
+  it("uses an exact name/address match and specific meat category when the source agrees", () => {
     const candidate = rule({ businessName: "신 돼지세끼", businessSubtype: "식육(숯불구이)" });
     const naver = matchNaverLocalCategory({
       businessName: "신 돼지세끼",
@@ -52,9 +52,8 @@ describe("NAVER local category authority", () => {
       rule: candidate,
       subtypeSlug: getAuthoritativeSubtypeCategorySlug({ sourceType: "GENERAL_RESTAURANT", businessName: "신 돼지세끼", businessSubtype: "식육(숯불구이)" }, candidate),
       nameSlug: getStrongestNameFoodCategorySlug({ sourceType: "GENERAL_RESTAURANT", businessName: "신 돼지세끼", businessSubtype: "식육(숯불구이)" }),
-      ai: { categorySlug: "grill", confidence: 0.95, reasons: [] },
       naver,
-    })).toMatchObject({ categorySlug: "grill", confidence: "HIGH", confidenceScore: 90, automatic: true });
+    })).toMatchObject({ categorySlug: "grill", confidence: "HIGH", confidenceScore: 80, automatic: true });
   });
 
   it("keeps a concrete 정종·대포집·소주방 subtype when NAVER only returns a broad restaurant category", () => {
@@ -80,7 +79,6 @@ describe("NAVER local category authority", () => {
       rule: candidate,
       subtypeSlug: "pocha",
       nameSlug: null,
-      ai: null,
       naver,
     })).toMatchObject({ categorySlug: "pocha", automatic: false });
   });
@@ -108,7 +106,6 @@ describe("NAVER local category authority", () => {
       rule: candidate,
       subtypeSlug: null,
       nameSlug: "seafood-dish",
-      ai: null,
       naver,
     })).toMatchObject({ categorySlug: "seafood-dish", automatic: false });
   });
@@ -135,7 +132,6 @@ describe("NAVER local category authority", () => {
       rule: candidate,
       subtypeSlug: "grill",
       nameSlug: null,
-      ai: { categorySlug: "bakery-detail", confidence: 0.99, reasons: [] },
       naver,
     })).toMatchObject({ categorySlug: "grill", confidence: "CONFLICT", automatic: false });
   });

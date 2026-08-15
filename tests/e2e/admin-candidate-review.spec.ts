@@ -9,20 +9,17 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   const automaticName = testInfo.project.name === "mobile-chromium" ? "QA 모바일 양평해장국" : "QA 양평해장국";
   await page.goto("/admin/candidates");
 
-  await expect(page.getByRole("heading", { name: "장소 검수 목록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "장소 검수" })).toBeVisible();
   await expect(page.getByRole("link", { name: "리뷰어 관리" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "다음 10곳 AI 분류" })).toHaveCount(0);
-  await expect(page.getByLabel("AI 일일 사용량")).toContainText("앱 집계 기준");
+  await expect(page.getByLabel("NAVER 근거 상태")).toContainText("검증됨");
   await expect(page.getByRole("link", { name: "운영 현황" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "전체" })).toBeVisible();
   await expect(page.getByRole("link", { name: "분류 완료" })).toBeVisible();
   await expect(page.getByRole("link", { name: "수동 확인" })).toBeVisible();
   await expect(page.getByRole("link", { name: "승인 불가·예외" })).toBeVisible();
   await expect(page.getByRole("link", { name: "자동 제외" })).toBeVisible();
-  await expect(page.getByLabel("NAVER 지도 우선 공개 장소 재분류")).toBeVisible();
-  await expect(page.getByRole("button", { name: "NAVER 100곳 미리보기" })).toBeVisible();
-  await expect(page.getByLabel("공개 장소 규칙 보조 재분류")).toBeVisible();
-  await expect(page.getByRole("button", { name: "100곳 미리보기", exact: true })).toBeVisible();
+  await expect(page.getByText("상세 필터")).toBeVisible();
+  await expect(page.getByText("근거 체인").first()).toBeVisible();
   await expect(page.getByLabel("후보 네이버 지도")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "동네" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "상단 페이지 이동" })).toBeVisible();
@@ -33,7 +30,7 @@ test("admin reviews only approvable automatic and manual candidates in the defau
   await expect(page.locator("p").filter({ hasText: "선택 · 차단 후보 제외" })).toBeVisible();
   await page.getByRole("button", { name: "현재 페이지 선택 해제" }).click();
   await page.getByRole("checkbox", { name: automaticName }).check();
-  await expect(page.getByRole("button", { name: "선택 장소 다시 분류" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "선택 장소 NAVER 근거 확인" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 장소 예외 처리" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "선택 반려" })).toHaveCount(0);
@@ -62,13 +59,14 @@ test("admin can override and approve an automatic high-confidence category", asy
   await expect(page.getByLabel(`${automaticName} 대표 카테고리`)).toHaveCount(0);
 });
 
-test("admin receives a safe notice when NAVER category verification is not enabled", async ({ page }) => {
+test("admin receives a safe notice when selected NAVER verification is not enabled", async ({ page }) => {
   await page.goto("/admin/candidates");
 
-  await page.getByRole("button", { name: "NAVER 100곳 미리보기" }).click();
+  await page.getByRole("checkbox", { name: "QA 스시하루 선택" }).check();
+  await page.getByRole("button", { name: "선택 장소 NAVER 근거 확인" }).click();
 
   await expect(page.getByText("NAVER 지역검색이 아직 비활성화되어 있습니다. 운영 설정을 확인해 주세요.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "검증 결과 적용" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "선택 장소 NAVER 근거 확인" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "QA 스시하루" })).toBeVisible();
 });
 
@@ -104,7 +102,7 @@ test("admin inspects automatic exclusions without review controls", async ({ pag
   await expect(page.getByText("유흥업종 자동 제외", { exact: true })).toBeVisible();
   await expect(page.getByText("파리바게뜨", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "파리바게뜨 QA점 검수 대기로 복원" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "선택 장소 다시 분류" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "선택 장소 NAVER 근거 확인" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toHaveCount(0);
 });
 
@@ -120,5 +118,5 @@ test("admin inspects operational metrics and alerts", async ({ page }) => {
 test("legacy bulk URL redirects to the unified review list", async ({ page }) => {
   await page.goto("/admin/candidates/bulk");
   await expect(page).toHaveURL(/\/admin\/candidates$/);
-  await expect(page.getByRole("heading", { name: "장소 검수 목록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "장소 검수" })).toBeVisible();
 });
