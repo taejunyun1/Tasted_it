@@ -47,6 +47,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     return groups;
   }, {}), [duplicateCandidates]);
   const pageKey = `${query.step}:${query.page}:${query.pageSize}:${query.status ?? ""}:${query.region ?? ""}:${query.query}`;
+  const selectionLimit = query.step === 2 ? 10 : 25;
   useEffect(() => setSelectedIds([]), [pageKey]);
   useEffect(() => {
     if (nextStep === 3 && query.step === 2 && navigation.state === "idle") {
@@ -56,10 +57,10 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
 
   const toggle = (id: string) => setSelectedIds((current) => current.includes(id)
     ? current.filter((item) => item !== id)
-    : current.length >= 25 ? current : [...current, id]);
+    : current.length >= selectionLimit ? current : [...current, id]);
   const togglePageSelection = () => setSelectedIds((current) => current.length
     ? []
-    : page.rows.slice(0, 25).map((row) => row.workItemId));
+    : page.rows.slice(0, selectionLimit).map((row) => row.workItemId));
   const submitting = navigation.state !== "idle" && navigation.formData?.get("intent") != null;
   const actionMessage = query.step === 2 ? "NAVER 근거를 확인하는 중입니다" : "검수 결과를 저장하는 중입니다";
 
@@ -70,7 +71,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     {message && <p className="admin-notice" role="status">{message}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
-    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>한 번에 최대 25곳만 검증하며, 응답 원문은 저장하지 않습니다.</p></div>
+    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>NAVER 검증은 Worker 한도 보호를 위해 한 번에 최대 10곳씩 실행합니다.</p></div>
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />
@@ -80,8 +81,8 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         return <span key={id}><input type="hidden" name="workItem" value={`${id}|${row?.stageVersion ?? 0}`} /><input type="hidden" name="workItemId" value={id} /></span>;
       })}
       <div className="place-review-selection-bar">
-        <strong>{selectedIds.length} / 25 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다.</span>
-        <button type="button" className="secondary" onClick={togglePageSelection}>{selectedIds.length ? "선택 해제" : `현재 페이지 ${page.rows.length}곳 선택`}</button>
+        <strong>{selectedIds.length} / {selectionLimit} 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다.</span>
+        <button type="button" className="secondary" onClick={togglePageSelection}>{selectedIds.length ? "선택 해제" : `현재 페이지 ${Math.min(page.rows.length, selectionLimit)}곳 선택`}</button>
         {query.step === 1 && <button className="danger" name="intent" value="auto-exclude-non-food-review-items" disabled={!page.rows.length}>비음식점 자동 제외</button>}
       </div>
       <div className="place-review-grid">

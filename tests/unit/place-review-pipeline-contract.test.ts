@@ -21,4 +21,13 @@ describe("place review selection controls", () => {
     expect(component).toContain("useNavigate");
     expect(component).toContain("buildPlaceReviewNextStepHref(query)");
   });
+
+  it("keeps the NAVER verification UI and server batch guard at ten places", () => {
+    const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
+    const verification = readFileSync("app/features/places/place-review-naver.server.ts", "utf8");
+
+    expect(component).toContain("const selectionLimit = query.step === 2 ? 10 : 25;");
+    expect(component).toContain("한 번에 최대 10곳씩 실행합니다.");
+    expect(verification).toContain("MAX_NAVER_REVIEW_BATCH_SIZE = 10");
+  });
 });
