@@ -19,8 +19,9 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   adapter: NaverLocalSearchAdapter;
 }) {
   const workItemIds = [...new Set(input.workItemIds.filter(Boolean))];
-  if (!workItemIds.length || workItemIds.length > MAX_NAVER_REVIEW_BATCH_SIZE) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
-  const workItems = await db.select().from(placeReviewWorkItems).where(inArray(placeReviewWorkItems.id, workItemIds));
+  if (!workItemIds.length) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
+  const batchWorkItemIds = workItemIds.slice(0, MAX_NAVER_REVIEW_BATCH_SIZE);
+  const workItems = await db.select().from(placeReviewWorkItems).where(inArray(placeReviewWorkItems.id, batchWorkItemIds));
   const eligible = workItems.filter((item) => item.status === "ACTIVE" && item.stage === "NAVER_VERIFICATION");
   const businessIds = eligible.flatMap((item) => item.businessLicenseId ? [item.businessLicenseId] : []);
   const placeIds = eligible.flatMap((item) => item.placeId ? [item.placeId] : []);
@@ -42,6 +43,8 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
     attention: Math.max(0, eligible.length - advancedResult.advanced.length - candidateFailed - placeFailed),
     failed: candidateFailed + placeFailed,
     skipped: advancedResult.skipped,
+    processedWorkItemIds: batchWorkItemIds,
+    deferred: workItemIds.length - batchWorkItemIds.length,
   };
 }
 

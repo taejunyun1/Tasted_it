@@ -12,22 +12,24 @@ describe("place review selection controls", () => {
     expect(component).not.toContain('onClick={() => setSelectedIds([])}>선택 해제</button>');
   });
 
-  it("keeps NAVER verification responses in the route and moves successful work client-side", () => {
+  it("keeps NAVER verification on the current page until an admin explicitly opens the next step", () => {
     const route = readFileSync("app/routes/admin-place-operations.tsx", "utf8");
     const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
 
     expect(route).not.toContain("return redirect(");
     expect(route).toContain("nextStep: 3");
-    expect(component).toContain("useNavigate");
-    expect(component).toContain("buildPlaceReviewNextStepHref(query)");
+    expect(component).not.toContain("useNavigate");
+    expect(component).not.toContain("navigate(buildPlaceReviewNextStepHref(query)");
+    expect(component).toContain("NAVER 확인 후 카테고리 확정 단계 보기");
   });
 
-  it("keeps the NAVER verification UI and server batch guard at ten places", () => {
+  it("allows selecting 25 places while the server processes only the first ten NAVER checks", () => {
     const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
     const verification = readFileSync("app/features/places/place-review-naver.server.ts", "utf8");
 
-    expect(component).toContain("const selectionLimit = query.step === 2 ? 10 : 25;");
-    expect(component).toContain("한 번에 최대 10곳씩 실행합니다.");
+    expect(component).toContain("const selectionLimit = 25;");
+    expect(component).toContain("25곳까지 선택할 수 있고, 한 번의 NAVER 검증에서는 앞선 10곳만 처리합니다.");
     expect(verification).toContain("MAX_NAVER_REVIEW_BATCH_SIZE = 10");
+    expect(verification).toContain("const batchWorkItemIds = workItemIds.slice(0, MAX_NAVER_REVIEW_BATCH_SIZE);");
   });
 });

@@ -82,7 +82,8 @@ export async function action({ request }: Route.ActionArgs) {
     try {
       assertNaverLocalSearchEnabled(env);
       const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env) });
-      return { ok: true, message: `확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}`, skipped: result.skipped, nextStep: 3 as const };
+      const deferred = result.deferred ? ` · 다음 실행 ${result.deferred}곳` : "";
+      return { ok: true, message: `선택 ${workItemIds.length}곳 중 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}${deferred}`, skipped: result.skipped, processedWorkItemIds: result.processedWorkItemIds, nextStep: 3 as const };
     } catch (error) {
       const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
       return data({ ok: false, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
@@ -133,11 +134,14 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
   const message = actionData && "message" in actionData ? actionData.message : undefined;
   const error = actionData && "error" in actionData ? actionData.error : undefined;
   const nextStep = actionData && "nextStep" in actionData && actionData.nextStep === 3 ? 3 : undefined;
+  const processedWorkItemIds = actionData && "processedWorkItemIds" in actionData && Array.isArray(actionData.processedWorkItemIds)
+    ? actionData.processedWorkItemIds
+    : [];
   return <main id="main" className="place-ops shell place-review-shell">
     <header className="place-ops-head">
       <div><p className="eyebrow">ADMIN / PLACE REVIEW</p><h1>장소 검수</h1><p>원천부터 NAVER 근거, 카테고리, 중복 검토를 순서대로 확인한 뒤 선택 공개합니다.</p></div>
       <nav><Link to="/admin/data-sync">공공데이터 수집</Link><Link to="/admin/ratings">평가 운영</Link></nav>
     </header>
-    <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} nextStep={nextStep} />
+    <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} />
   </main>;
 }
