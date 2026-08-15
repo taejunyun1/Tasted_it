@@ -9,7 +9,7 @@ import {
 import { HomeCurationPanel } from "../../app/components/map/HomeCurationPanel";
 import {
   homeSheetSnapAfterDrag,
-  homeSheetSnapForSelection,
+  homeSheetSnapAfterPlaceSelect,
   HomeCurationSheet,
 } from "../../app/components/map/HomeCurationSheet";
 import type { HomeCurationPage } from "../../app/features/places/home-curation";
@@ -63,6 +63,12 @@ const props: HomeCurationPresentationProps = {
   onRetry: vi.fn(),
 };
 
+const sheetProps = {
+  ...props,
+  snap: "half" as const,
+  onSnapChange: vi.fn(),
+};
+
 const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 
 describe("home curation presentation", () => {
@@ -82,7 +88,7 @@ describe("home curation presentation", () => {
 
   it("데스크톱 패널과 모바일 시트는 추천 내용만 공유하고 지도 전환 버튼을 갖지 않는다", () => {
     const panel = renderToStaticMarkup(createElement(HomeCurationPanel, props));
-    const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, props));
+    const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, sheetProps));
 
     expect(panel).toContain("지금 갈 만한 5곳");
     expect(sheet).toContain("지금 갈 만한 5곳");
@@ -110,7 +116,11 @@ describe("home curation presentation", () => {
       },
     };
     const panel = renderToStaticMarkup(createElement(HomeCurationPanel, fallbackProps));
-    const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, fallbackProps));
+    const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, {
+      ...fallbackProps,
+      snap: "half",
+      onSnapChange: vi.fn(),
+    }));
 
     expect(panel).toContain(GOLDEN_FALLBACK_NOTICE);
     expect(sheet).toContain(GOLDEN_FALLBACK_NOTICE);
@@ -127,9 +137,29 @@ describe("home curation presentation", () => {
     expect(homeSheetSnapAfterDrag("peek", 100)).toBe("peek");
   });
 
-  it("장소가 선택되면 peek 상태를 half로 올린다", () => {
-    expect(homeSheetSnapForSelection("peek", "place-1")).toBe("half");
-    expect(homeSheetSnapForSelection("full", "place-1")).toBe("full");
-    expect(homeSheetSnapForSelection("peek", null)).toBe("peek");
+  it("추천 행을 선택하면 지도 확인용 peek 상태로 접는다", () => {
+    expect(homeSheetSnapAfterPlaceSelect()).toBe("peek");
+  });
+
+  it("시트는 라우트가 전달한 현재 스냅을 렌더한다", () => {
+    const html = renderToStaticMarkup(createElement(HomeCurationSheet, {
+      ...props,
+      snap: "peek",
+      onSnapChange: vi.fn(),
+    }));
+
+    expect(html).toContain('data-snap="peek"');
+  });
+
+  it("peek 시트는 선택 장소의 순위와 이름을 위치 확인 정보로 표시한다", () => {
+    const html = renderToStaticMarkup(createElement(HomeCurationSheet, {
+      ...props,
+      snap: "peek",
+      onSnapChange: vi.fn(),
+    }));
+
+    expect(html).toContain('class="home-curation-sheet__selection"');
+    expect(html).toContain('class="home-curation-sheet__selection-rank">01</span>');
+    expect(html).toContain('class="home-curation-sheet__selection-name">추천 장소 1</strong>');
   });
 });

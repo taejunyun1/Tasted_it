@@ -1,6 +1,17 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-test.skip(Boolean(process.env.BASE_URL), "로컬 QA 시드가 있는 환경에서만 실행합니다.");
+const isControlledLocalBaseUrl = (() => {
+  const baseUrl = process.env.BASE_URL;
+  if (!baseUrl) return true;
+
+  try {
+    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+})();
+
+test.skip(!isControlledLocalBaseUrl, "로컬 QA 시드가 있는 환경에서만 실행합니다.");
 
 const DEFAULT_BBOX = "126.72,35.03,127.02,35.25";
 const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
@@ -111,6 +122,12 @@ async function directRecommendationContract(page: Page, mode: string) {
   return contract.recommendations;
 }
 
+async function grantGeolocationPermission(page: Page) {
+  await page.context().grantPermissions(["geolocation"], {
+    origin: new URL(page.url()).origin,
+  });
+}
+
 async function dragSheetDown(page: Page, handle: Locator) {
   const box = await handle.boundingBox();
   expect(box).not.toBeNull();
@@ -204,6 +221,56 @@ test("모드 변경은 최소 두 곳을 바꾸고 단순 UI 재렌더는 결과
   await selectMode(page, presentation, "discovery", "새로운 발견");
 });
 
+test("모바일 추천 행 선택은 시트를 접고 같은 장소를 지도 중심으로 삼는다", async ({ page }, testInfo) => {
+  test.skip(!isMobileProject(testInfo.project.name), "모바일 전용 레이어링");
+  await page.goto("/?qa=1");
+
+  const sheet = page.locator(".home-curation-sheet");
+  const secondCard = sheet.locator(".home-curation-card").nth(1);
+  const placeId = await secondCard.getAttribute("data-place-id");
+  const placeRank = await secondCard.locator(".home-curation-card__rank").textContent();
+  const placeName = await secondCard.locator("strong").textContent();
+  expect(placeId).toBeTruthy();
+  expect(placeRank).toBeTruthy();
+  expect(placeName).toBeTruthy();
+  await expect(sheet).toHaveAttribute("data-snap", "half");
+
+  await secondCard.focus();
+  await secondCard.press("Enter");
+
+  await expect(sheet).toHaveAttribute("data-snap", "peek");
+  const selection = sheet.locator(".home-curation-sheet__selection");
+  await expect(selection).toBeVisible();
+  await expect(selection.locator(".home-curation-sheet__selection-rank")).toHaveText(placeRank!);
+  await expect(selection.locator(".home-curation-sheet__selection-name")).toHaveText(placeName!);
+  await expect(sheet.getByRole("button", { name: "추천 목록 펼치기", exact: true })).toBeFocused();
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(placeId);
+  await expect(page.locator(".map-canvas")).toHaveAttribute("data-focused-place", placeId!);
+});
+
+test("모바일 전체 지도에서 history와 헤더로 복귀하면 시트는 half로 초기화된다", async ({ page }, testInfo) => {
+  test.skip(!isMobileProject(testInfo.project.name), "모바일 전용 레이어링");
+  await page.goto("/?qa=1");
+
+  const sheet = page.locator(".home-curation-sheet");
+  await dragSheetDown(page, sheet.getByRole("button", { name: "추천 목록 펼치기", exact: true }));
+  await expect(sheet).toHaveAttribute("data-snap", "peek");
+
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute("data-snap", "half");
+
+  await dragSheetDown(page, sheet.getByRole("button", { name: "추천 목록 펼치기", exact: true }));
+  await expect(sheet).toHaveAttribute("data-snap", "peek");
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: /Re:Taste/ }).click();
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute("data-snap", "half");
+});
+
 test("Golden 활성 후보가 없으면 정확한 안내와 근거 후보만 보인다", async ({ page }, testInfo) => {
   await page.goto("/?qa=1");
 
@@ -220,9 +287,9 @@ test("Golden 활성 후보가 없으면 정확한 안내와 근거 후보만 보
 });
 
 test("위치와 새 지도 영역은 명시적으로 다시 추천한다", async ({ context, page }, testInfo) => {
-  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
   await context.setGeolocation(MOCK_GPS);
   await page.goto("/?qa=1");
+  await grantGeolocationPermission(page);
 
   const presentation = curationPresentation(page, testInfo.project.name);
   const locatedResponsePromise = page.waitForResponse((response) => (
@@ -258,9 +325,9 @@ test("위치와 새 지도 영역은 명시적으로 다시 추천한다", async
 });
 
 test("내 위치에서 전체 지도를 이동한 뒤 추천 지도로 돌아오면 지도 중심 출처를 유지한다", async ({ context, page }, testInfo) => {
-  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
   await context.setGeolocation(MOCK_GPS);
   await page.goto("/?qa=1");
+  await grantGeolocationPermission(page);
 
   const presentation = curationPresentation(page, testInfo.project.name);
   const locatedResponsePromise = page.waitForResponse((response) => (
@@ -328,7 +395,6 @@ test("지연된 이전 추천 응답은 전체 지도 loader 이후 세션 이�
 });
 
 test("진행 중 resource A를 최신 B로 교체하면 B 화면과 이력을 지킨다", async ({ context, page }, testInfo) => {
-  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
   await context.setGeolocation(MOCK_GPS);
   let releaseA: (() => void) | undefined;
   const aGate = new Promise<void>((resolve) => {
@@ -348,6 +414,7 @@ test("진행 중 resource A를 최신 B로 교체하면 B 화면과 이력을 �
     await route.continue();
   });
   await page.goto("/?qa=1");
+  await grantGeolocationPermission(page);
 
   const presentation = curationPresentation(page, testInfo.project.name);
   await presentation.getByRole("button", { name: "내 취향", exact: true }).click();
@@ -403,6 +470,9 @@ test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동
   await expect(map).toHaveAttribute("data-focused-place", lastId!);
 
   if (isMobileProject(testInfo.project.name)) {
+    await expect(presentation).toHaveAttribute("data-snap", "peek");
+    await presentation.getByRole("button", { name: "추천 목록 펼치기", exact: true }).click();
+    await expect(presentation).toHaveAttribute("data-snap", "full");
     const handle = presentation.getByRole("button", { name: "추천 목록 접기", exact: true });
     await dragSheetDown(page, handle);
     await expect(presentation).toHaveAttribute("data-snap", "half");
@@ -414,6 +484,6 @@ test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동
   await expect(cards.first()).toHaveAttribute("aria-pressed", "true");
   await expect(map).toHaveAttribute("data-focused-place", firstId!);
   if (isMobileProject(testInfo.project.name)) {
-    await expect(presentation).toHaveAttribute("data-snap", "half");
+    await expect(presentation).toHaveAttribute("data-snap", "peek");
   }
 });
