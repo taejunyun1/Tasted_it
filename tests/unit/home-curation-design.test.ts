@@ -20,6 +20,12 @@ describe("home curation design contract", () => {
     expect(css).toMatch(/@media\(max-width:760px\)[\s\S]*\.home-curation-panel\{[\s\S]*display:none/);
   });
 
+  it("모바일 기본 추천 시트는 70%이고 장소 확인 시트는 112px이다", () => {
+    expect(css).toMatch(/\.home-curation-sheet\[data-snap="half"\]\{[\s\S]*--sheet-height:70%/);
+    expect(css).toMatch(/\.home-curation-sheet\[data-snap="peek"\]\{[\s\S]*--sheet-height:112px/);
+    expect(css).toMatch(/\.home-curation-sheet__body\{[\s\S]*env\(safe-area-inset-bottom\)/);
+  });
+
   it("보기 전환 버튼은 공통 플로팅 스타일을 쓰고 재추천 버튼과 겹치지 않는다", () => {
     expect(css).toContain(".home-curation-view-toggle");
     expect(css).toMatch(/\.home-curation-view-toggle\{[\s\S]*position:absolute[\s\S]*left:50%/);
