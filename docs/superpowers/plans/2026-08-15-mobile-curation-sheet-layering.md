@@ -373,3 +373,42 @@ Expected: 선택 확인·포커스·전환 복원·마커 상태 보존의 테�
 git add app/components/map/HomeCurationSheet.tsx app/routes/home.tsx app/styles/design-system.css tests/unit/home-curation-components.test.ts tests/e2e/home-curation.spec.ts docs/superpowers/specs/2026-08-15-mobile-curation-sheet-layering-design.md docs/superpowers/plans/2026-08-15-mobile-curation-sheet-layering.md
 git commit -m "2026-08-15 모바일 선택 확인 UX 보강"
 ```
+
+### Task 7: loopback GPS QA를 실제 origin에서 끝까지 실행한다
+
+**Files:**
+- Modify: `tests/e2e/home-curation.spec.ts`
+
+- [ ] **Step 1: GPS 권한 origin 계약을 실패 테스트로 고정한다.**
+
+`BASE_URL=http://127.0.0.1:5190`처럼 허용된 loopback 서버에서 전체 `home-curation` 데스크톱·모바일 시나리오를 실행할 때, GPS 권한은 하드코딩된 `5173`이 아니라 실제 페이지 origin에 부여되어야 한다. 새 helper 또는 기존 fixture 변경은 `page.url()` 또는 Playwright `baseURL`에서 origin을 계산한다.
+
+- [ ] **Step 2: 실패를 확인한다.**
+
+```bash
+BASE_URL=http://127.0.0.1:5190 node_modules/.bin/playwright test tests/e2e/home-curation.spec.ts --project=chromium --project=mobile-chromium
+```
+
+Expected: 기존 `5173` 고정 권한에서는 GPS resource 대기 시나리오가 timeout으로 FAIL.
+
+- [ ] **Step 3: 최소 구현과 전체 실행을 완료한다.**
+
+각 `grantPermissions` 호출은 실제 `page` origin을 사용해야 한다. loopback allowlist와 외부 URL skip 정책은 그대로 둔다. 임시 서버·D1 시드는 테스트 범위 내에서만 사용하고 외부 네트워크·운영 데이터에는 접근하지 않는다.
+
+- [ ] **Step 4: GREEN과 변이 검증을 확인한다.**
+
+권한 origin을 임시로 잘못된 loopback 포트로 바꾸면 GPS 시나리오가 실패해야 하며, 정확한 origin으로 복구하면 다음 전체 명령이 완료되어야 한다.
+
+```bash
+BASE_URL=http://127.0.0.1:5190 node_modules/.bin/playwright test tests/e2e/home-curation.spec.ts --project=chromium --project=mobile-chromium
+node_modules/.bin/vitest run tests/unit/home-curation-components.test.ts tests/unit/home-curation-route.test.ts tests/unit/home-curation-design.test.ts
+pnpm run typecheck
+git diff --check
+```
+
+- [ ] **Step 5: 커밋한다.**
+
+```bash
+git add tests/e2e/home-curation.spec.ts
+git commit -m "2026-08-15 모바일 GPS QA origin 보정"
+```
