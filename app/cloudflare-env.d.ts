@@ -19,6 +19,8 @@ declare namespace Cloudflare {
     KAKAO_PLACE_VERIFICATION_ENABLED: string;
     KAKAO_PLACE_VERIFICATION_MODE: string;
     REVIEW_PHOTO_UPLOAD_ENABLED: string;
+    PLACE_CATEGORY_V5_ENABLED: string;
+    COURSE_CONTEXT_V2_ENABLED: string;
     REVIEW_PHOTOS: R2Bucket;
   }
 }

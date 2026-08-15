@@ -43,6 +43,8 @@ pnpm dev --host 127.0.0.1
 | `NAVER_LOGIN_CLIENT_ID` | 네이버 로그인 OIDC Client ID | secret |
 | `NAVER_LOGIN_CLIENT_SECRET` | 네이버 로그인 승인 코드 교환·연동 해제 | secret |
 | `REVIEW_PHOTO_UPLOAD_ENABLED` | 리뷰어 발행 사진 신규 업로드 kill switch | 환경별 변수 (`false` 기본값) |
+| `PLACE_CATEGORY_V5_ENABLED` | v5 장소 분류 shadow 실행 kill switch | 환경별 변수 (`false` 기본값, 공개 카테고리 자동 변경 없음) |
+| `COURSE_CONTEXT_V2_ENABLED` | 시간대·영업정보·메뉴 궁합 코스 추천 v2 | 환경별 변수 (`false` 기본값, 문제 시 v1 즉시 복귀) |
 
 리뷰어 사진은 Cloudflare R2 `REVIEW_PHOTOS` binding을 사용하며 비밀값이 아닙니다. bucket 생성, 원격 D1 migration `0027`까지 적용, flag rollout, 비용·삭제 절차는 [리뷰어 발행 사진 저장소 운영 절차](docs/operations/reviewer-photo-storage.md)를 따릅니다. 개발·E2E는 local Miniflare R2만 사용하며, 운영 bucket과 원격 D1을 테스트에 사용하지 않습니다.
 
@@ -67,6 +69,10 @@ pnpm exec wrangler secret list
 장소 제안의 지도 위치 확인은 기존 NAVER Maps 애플리케이션의 Geocoding 기능을 재사용합니다. 새 키나 장소 ID 저장은 없으며, 주소 검색은 사용자가 `지도에서 위치 찾기`를 누를 때만 실행됩니다. 이번 운영 배포에서 `NAVER_PLACE_GEOCODING_ENABLED=true`로 활성화하며, 배포 전 NAVER Cloud의 Geocoding 상품, Web 서비스 URL, 일일 쿼터를 확인합니다. 상세 절차와 장애 시 중단 방법은 [장소 제안 지도 위치 런북](docs/operations/place-suggestion-map-runbook.md)을 따릅니다.
 
 NAVER 지역검색은 사용자 공개 화면에서 호출하지 않습니다. 새 공공데이터 후보 또는 관리자의 명시 재검증에서만 서버가 상호·주소를 전송하며, 응답의 원문·이미지·리뷰·소개·장소 ID·링크는 D1 또는 애플리케이션 로그에 저장하지 않습니다. `NAVER_LOCAL_SEARCH_ENABLED=false`로 즉시 중단할 수 있고, 중단 또는 제공자 오류 시 기존 공공데이터·상호 규칙 분류를 유지합니다.
+
+장소 분류 v5는 기존 공개 카테고리를 즉시 바꾸지 않습니다. `PLACE_CATEGORY_V5_ENABLED=true`는 최대 100곳씩 **그림자 프로필**만 저장하며, 상세 메뉴 근거가 없는 한식·일식·중식·양식은 일반 카테고리로 남깁니다. NAVER는 상호+주소 또는 100m 이내 일치와 구체 카테고리가 모두 있을 때만 보조 검증으로 사용하고, 넓은 업태와 AI 단독 결과는 공개 변경 근거가 될 수 없습니다. 100곳 이상 표본의 차이를 검수한 별도 activate PR에서만 verified forward-fix를 허용합니다.
+
+코스 추천 v2는 `COURSE_CONTEXT_V2_ENABLED=true`일 때만 사용합니다. 관리자 확인 영업시간이 없는 장소는 `UNKNOWN`으로 감점하며, `CLOSED`는 제외합니다. 외부 영업시간·사용자 위치·AI 원문은 새로 저장하지 않습니다.
 
 공개 장소 재분류는 NAVER 상호·주소/100m 위치·구체 카테고리와 원천 세부업태가 모두 맞는 경우만 적용합니다. 최초에는 100곳 미리보기 후 변경 수와 audit을 확인하고 적용합니다. 상세한 quota, 중단, forward-fix 절차는 [NAVER 지역검색 카테고리 검증 운영 절차](docs/operations/naver-local-category-runbook.md)를 따릅니다.
 
