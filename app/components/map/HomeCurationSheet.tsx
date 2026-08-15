@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   HomeCurationCards,
@@ -17,11 +17,8 @@ export function homeSheetSnapAfterDrag(snap: HomeSheetSnap, deltaY: number): Hom
   return SNAP_ORDER[index]!;
 }
 
-export function homeSheetSnapForSelection(
-  snap: HomeSheetSnap,
-  selectedPlaceId: string | null,
-): HomeSheetSnap {
-  return selectedPlaceId && snap === "peek" ? "half" : snap;
+export function homeSheetSnapAfterPlaceSelect(): HomeSheetSnap {
+  return "peek";
 }
 
 export function HomeCurationSheet(props: HomeCurationPresentationProps) {
@@ -29,9 +26,10 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
   const pointerStartY = useRef<number | null>(null);
   const suppressClick = useRef(false);
 
-  useEffect(() => {
-    setSnap((current) => homeSheetSnapForSelection(current, props.selectedPlaceId));
-  }, [props.selectedPlaceId]);
+  const handlePlaceSelect = (placeId: string) => {
+    setSnap(homeSheetSnapAfterPlaceSelect());
+    props.onSelect(placeId);
+  };
 
   return <aside className="home-curation-sheet" data-snap={snap} aria-label="홈 맛집 추천">
     <button
@@ -72,7 +70,7 @@ export function HomeCurationSheet(props: HomeCurationPresentationProps) {
       {props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
       <HomeCurationModeControls {...props} />
       {props.error && <p className="home-curation-error" role="status">{props.error} <button type="button" onClick={props.onRetry}>다시 시도</button></p>}
-      <HomeCurationCards {...props} />
+      <HomeCurationCards {...props} onSelect={handlePlaceSelect} />
       <footer className="home-curation-footer">
         <span>{props.page.radiusMeters / 1_000}km 안에서 추천</span>
       </footer>

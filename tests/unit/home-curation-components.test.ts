@@ -9,7 +9,7 @@ import {
 import { HomeCurationPanel } from "../../app/components/map/HomeCurationPanel";
 import {
   homeSheetSnapAfterDrag,
-  homeSheetSnapForSelection,
+  homeSheetSnapAfterPlaceSelect,
   HomeCurationSheet,
 } from "../../app/components/map/HomeCurationSheet";
 import type { HomeCurationPage } from "../../app/features/places/home-curation";
@@ -127,9 +127,7 @@ describe("home curation presentation", () => {
     expect(homeSheetSnapAfterDrag("peek", 100)).toBe("peek");
   });
 
-  it("장소가 선택되면 peek 상태를 half로 올린다", () => {
-    expect(homeSheetSnapForSelection("peek", "place-1")).toBe("half");
-    expect(homeSheetSnapForSelection("full", "place-1")).toBe("full");
-    expect(homeSheetSnapForSelection("peek", null)).toBe("peek");
+  it("추천 행을 선택하면 지도 확인용 peek 상태로 접는다", () => {
+    expect(homeSheetSnapAfterPlaceSelect()).toBe("peek");
   });
 });
