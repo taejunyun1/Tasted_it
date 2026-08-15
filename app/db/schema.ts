@@ -454,6 +454,39 @@ export const placeCategoryV5Runs = sqliteTable(
   (table) => [index("place_category_v5_runs_status_started_idx").on(table.status, table.startedAt)],
 );
 
+/** Administrator-confirmed hours only. Missing rows deliberately mean UNKNOWN. */
+export const placeOperatingHours = sqliteTable(
+  "place_operating_hours",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    weekday: integer("weekday").notNull(),
+    opensAt: text("opens_at"),
+    closesAt: text("closes_at"),
+    isClosed: integer("is_closed", { mode: "boolean" }).notNull().default(false),
+    verifiedBy: text("verified_by").references(() => users.id, { onDelete: "set null" }),
+    lastVerifiedAt: text("last_verified_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("place_operating_hours_place_weekday_idx").on(table.placeId, table.weekday),
+    index("place_operating_hours_verified_idx").on(table.lastVerifiedAt),
+  ],
+);
+
+export const placeCourseContexts = sqliteTable(
+  "place_course_contexts",
+  {
+    placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+    traitsJson: text("traits_json").notNull().default("[]"),
+    source: text("source", { enum: ["DERIVED", "MANUAL"] }).notNull(),
+    algorithmVersion: text("algorithm_version").notNull(),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (table) => [index("place_course_contexts_source_updated_idx").on(table.source, table.updatedAt)],
+);
+
 export const reviewerApplications = sqliteTable(
   "reviewer_applications",
   {

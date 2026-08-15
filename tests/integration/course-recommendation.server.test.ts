@@ -32,4 +32,15 @@ describe("course recommendation service", () => {
     expect(result.courses.some((course) => course.first.id === excludedCafeId || course.second.id === excludedCafeId)).toBe(false);
     expect(result.courses.some((course) => course.second.id === hiddenId)).toBe(false);
   });
+
+  it("uses contextual v2 safely when no verified hours exist", async () => {
+    const result = await recommendCourses(createDb(env.DB), {
+      options: { time: "dinner", mealCategories: [], second: "cafe", radiusKm: 3, parkingMode: "auto", ev: "none", weather: "normal", child: false },
+      context: { latitude: 35.15, longitude: 126.85, locationSource: "USER", resolvedTime: "dinner" },
+      now: new Date("2026-08-08T09:00:00.000Z"),
+      useContextV2: true,
+    });
+    expect(result.algorithmVersion).toBe("course-context-v2");
+    expect(result.courses.every((course) => course.badges.length <= 2)).toBe(true);
+  });
 });
