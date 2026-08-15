@@ -8,8 +8,8 @@ import {
 
 const enabledEnv = {
   NAVER_LOCAL_SEARCH_ENABLED: "true",
-  NAVER_LOCAL_SEARCH_CLIENT_ID: "test-client-id",
-  NAVER_LOCAL_SEARCH_CLIENT_SECRET: "test-client-secret",
+  NAVER_API_HUB_KEY_ID: "test-api-key-id",
+  NAVER_API_HUB_KEY: "test-api-key",
 };
 
 const searchInput = {
@@ -60,7 +60,7 @@ describe("NAVER 지역검색 서버 어댑터", () => {
     expect(fetcher).toHaveBeenCalledOnce();
     const [requestUrl, init] = fetcher.mock.calls[0] as [string, RequestInit];
     const url = new URL(requestUrl);
-    expect(url.origin + url.pathname).toBe("https://openapi.naver.com/v1/search/local.json");
+    expect(url.origin + url.pathname).toBe("https://naverapihub.apigw.ntruss.com/search/v1/local");
     expect(Object.fromEntries(url.searchParams)).toEqual({
       query: "인생역전 광주광역시 광산구 임방울대로 825",
       display: "5",
@@ -68,8 +68,8 @@ describe("NAVER 지역검색 서버 어댑터", () => {
       sort: "random",
     });
     const headers = new Headers(init.headers);
-    expect(headers.get("X-Naver-Client-Id")).toBe("test-client-id");
-    expect(headers.get("X-Naver-Client-Secret")).toBe("test-client-secret");
+    expect(headers.get("X-NCP-APIGW-API-KEY-ID")).toBe("test-api-key-id");
+    expect(headers.get("X-NCP-APIGW-API-KEY")).toBe("test-api-key");
   });
 
   it("fails closed when the feature is disabled without calling NAVER", async () => {
