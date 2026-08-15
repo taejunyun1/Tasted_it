@@ -412,3 +412,24 @@ git diff --check
 git add tests/e2e/home-curation.spec.ts
 git commit -m "2026-08-15 모바일 GPS QA origin 보정"
 ```
+
+### Task 8: PR용 현재 화면 증거를 남긴다
+
+**Files:**
+- Create: `docs/evidence/2026-08-15-mobile-curation-sheet-desktop.png`
+- Create: `docs/evidence/2026-08-15-mobile-curation-sheet-mobile.png`
+
+- [ ] **Step 1: 최신 브랜치의 로컬 QA 데이터를 준비한다.**
+
+로컬 D1 migration과 홈 큐레이션 QA seed를 적용하고, loopback 개발 서버를 띄운다. 외부 서비스나 운영 데이터에는 접근하지 않는다.
+
+- [ ] **Step 2: 실제 브라우저에서 캡처한다.**
+
+데스크톱은 `/`의 추천 지도와 좌측 패널을, 모바일은 추천 행을 선택한 뒤 `peek` 시트에 순위·상호명이 보이고 지도 선택 핀이 강조된 상태를 캡처한다. 기존 2026-08-11 증거 파일을 재사용하지 않는다.
+
+- [ ] **Step 3: 커밋한다.**
+
+```bash
+git add docs/evidence/2026-08-15-mobile-curation-sheet-desktop.png docs/evidence/2026-08-15-mobile-curation-sheet-mobile.png
+git commit -m "2026-08-15 모바일 지도 레이어링 화면 증거"
+```
