@@ -62,7 +62,6 @@ describe("H1 typography scale", () => {
       ["app/routes/verify-email.tsx", ["text-[25.2px]"]],
       ["app/routes/admin-reviewers.tsx", ["text-[25.2px]", "md:text-[33.6px]"]],
       ["app/routes/admin-import.tsx", ["text-[21px]"]],
-      ["app/routes/admin-candidates.tsx", ["text-[21px]", "md:text-[33.6px]"]],
       ["app/routes/login.tsx", ["text-[25.2px]"]],
       ["app/routes/reviewer-apply.tsx", ["text-[25.2px]", "md:text-[42px]"]],
       ["app/routes/reviewer-profile.tsx", ["text-[25.2px]", "md:text-[42px]"]],

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 const css = readFileSync("app/styles/design-system.css", "utf8");
 const root = readFileSync("app/root.tsx", "utf8");
-const adminCandidates = readFileSync("app/routes/admin-candidates.tsx", "utf8");
 const adminReviewers = readFileSync("app/routes/admin-reviewers.tsx", "utf8");
 const adminPlaces = readFileSync("app/routes/admin-places.tsx", "utf8");
 const adminImport = readFileSync("app/routes/admin-import.tsx", "utf8");
@@ -36,7 +35,7 @@ describe("Re:Taste design system", () => {
     expect(css).toContain("--page-start-admin:var(--space-12)");
     expect(css).toContain("--admin-section-gap:var(--space-12)");
     expect(css).toContain("min-height:var(--control-height-compact)");
-    [adminCandidates, adminReviewers, adminPlaces, adminImport].forEach((route) => {
+    [adminReviewers, adminPlaces, adminImport].forEach((route) => {
       expect(route).toContain("admin-page");
     });
   });

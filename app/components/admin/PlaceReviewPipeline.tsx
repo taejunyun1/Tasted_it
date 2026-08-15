@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Form, Link, useNavigation } from "react-router";
+import { Form, useNavigation } from "react-router";
 
 import type { ReviewStage } from "../../features/places/place-review-pipeline";
 import type { PlaceReviewQuery } from "../../features/places/place-review-pagination";
@@ -57,7 +57,6 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   return <section className="place-review-flow">
     <div className="place-review-flow-head">
       <div><p className="eyebrow">REVIEW PIPELINE / 01—05</p><h2>{query.step === 2 ? "NAVER 근거 확인" : query.step === 5 ? "선택 승인·공개" : `${String(query.step).padStart(2, "0")} ${nextAction[query.step]}`}</h2><p>앞 단계 근거를 통과한 항목만 다음 단계로 이동합니다. NAVER 확인만으로는 공개되지 않습니다.</p></div>
-      <Link className="secondary" to="/admin/place-operations?flow=operations&tab=liveness">공개 후 운영</Link>
     </div>
     {message && <p className="admin-notice" role="status">{message}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
