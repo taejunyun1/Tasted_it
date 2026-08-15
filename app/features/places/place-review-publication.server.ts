@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, businessLicenses, placeCategories, placeReviewWorkItems, places } from "../../db/schema";
@@ -46,7 +46,7 @@ export async function publishReviewedPlaces(db: AppDb, input: {
     }).where(and(
       eq(placeReviewWorkItems.id, item.id), eq(placeReviewWorkItems.status, "ACTIVE"),
       eq(placeReviewWorkItems.stage, "FINAL_APPROVAL"), eq(placeReviewWorkItems.stageVersion, item.stageVersion),
-      eq(placeReviewWorkItems.claimToken, null),
+      isNull(placeReviewWorkItems.claimToken),
     )).returning({ id: placeReviewWorkItems.id });
     if (!claimed.length) {
       skipped.push({ workItemId: item.id, code: "STALE_WORK_ITEM" });
