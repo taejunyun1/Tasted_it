@@ -38,7 +38,7 @@ function naverStatus(match: NaverLocalCategoryMatch): "MATCHED" | "AMBIGUOUS" | 
       : "NOT_FOUND";
 }
 
-async function todayApiCalls(db: AppDb, now: string) {
+export async function getNaverLocalSearchApiCallsToday(db: AppDb, now: string) {
   const [result] = await db.select({ total: sql<number>`coalesce(sum(${naverLocalCategoryRuns.apiCallCount}), 0)` })
     .from(naverLocalCategoryRuns)
     .where(and(gte(naverLocalCategoryRuns.startedAt, utcDayStart(now)), lt(naverLocalCategoryRuns.startedAt, now)));
@@ -72,7 +72,7 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
   try {
     const rows = await db.select({ id: places.id, name: places.name, address: places.address, latitude: places.latitude, longitude: places.longitude })
       .from(places).where(inArray(places.id, placeIds));
-    const used = await todayApiCalls(db, input.now);
+    const used = await getNaverLocalSearchApiCallsToday(db, input.now);
     for (const row of rows) {
       scanned += 1;
       const regionCode = regionCodeForAddress(row.address);

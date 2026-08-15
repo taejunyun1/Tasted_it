@@ -36,8 +36,9 @@ test("admin can inspect every place operations queue", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "회원 장소 제안" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "정보 정정·이의 제기" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "영업 상태 재검증" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "동일 상호 중복 병합" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "NAVER 근거 일괄 확인" })).toBeVisible();
-  await page.getByRole("button", { name: "현재 목록 25곳 선택" }).click();
+  await expect(page.locator(".naver-usage-strip")).toContainText("이 앱의 오늘 NAVER 요청");
   await expect(page.locator(".naver-selection-toolbar strong")).toHaveText(/^[1-9]\d* \/ 25 선택$/);
   await expect(page.getByRole("button", { name: "선택 장소 NAVER 근거 확인" })).toBeEnabled();
   await expect(page.getByRole("heading", { name: "중복 장소 병합" })).toBeVisible();
