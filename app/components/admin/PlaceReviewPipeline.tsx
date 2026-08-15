@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Form, useNavigate, useNavigation } from "react-router";
+import { Form, Link, useNavigation } from "react-router";
 
 import type { ReviewStage } from "../../features/places/place-review-pipeline";
 import { buildPlaceReviewNextStepHref, type PlaceReviewQuery } from "../../features/places/place-review-pagination";
@@ -26,7 +26,7 @@ const nextAction: Record<PlaceReviewQuery["step"], string> = {
   5: "선택 장소 승인·공개",
 };
 
-export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverDailyUsage, naverDailyLimit, message, error, nextStep }: {
+export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverDailyUsage, naverDailyLimit, message, error, nextStep, processedWorkItemIds }: {
   query: PlaceReviewQuery;
   page: PlaceReviewPage;
   counts: PlaceReviewStageCounts;
@@ -37,23 +37,23 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   message?: string;
   error?: string;
   nextStep?: 3;
+  processedWorkItemIds: string[];
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigation = useNavigation();
-  const navigate = useNavigate();
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const duplicatesByWorkItem = useMemo(() => duplicateCandidates.reduce<Record<string, ReviewDuplicateCandidate[]>>((groups, candidate) => {
     groups[candidate.workItemId] = [...(groups[candidate.workItemId] ?? []), candidate];
     return groups;
   }, {}), [duplicateCandidates]);
   const pageKey = `${query.step}:${query.page}:${query.pageSize}:${query.status ?? ""}:${query.region ?? ""}:${query.query}`;
-  const selectionLimit = query.step === 2 ? 10 : 25;
+  const selectionLimit = 25;
   useEffect(() => setSelectedIds([]), [pageKey]);
   useEffect(() => {
-    if (nextStep === 3 && query.step === 2 && navigation.state === "idle") {
-      navigate(buildPlaceReviewNextStepHref(query), { replace: true });
-    }
-  }, [navigate, navigation.state, nextStep, query]);
+    if (!processedWorkItemIds.length) return;
+    const processed = new Set(processedWorkItemIds);
+    setSelectedIds((current) => current.filter((id) => !processed.has(id)));
+  }, [processedWorkItemIds]);
 
   const toggle = (id: string) => setSelectedIds((current) => current.includes(id)
     ? current.filter((item) => item !== id)
@@ -71,7 +71,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     {message && <p className="admin-notice" role="status">{message}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
-    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>NAVER 검증은 Worker 한도 보호를 위해 한 번에 최대 10곳씩 실행합니다.</p></div>
+    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>25곳까지 선택할 수 있고, 한 번의 NAVER 검증에서는 앞선 10곳만 처리합니다.</p></div>
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />
@@ -108,6 +108,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         <button className="danger" name="intent" value="exclude-review-items" disabled={!selectedIds.length}>선택 항목 제외</button>
         {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={!selectedIds.length}>선택 중복 판정 저장</button>}
         <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 2 ? "verify-review-items-with-naver" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={!selectedIds.length}>{query.step === 2 ? "선택 장소 NAVER 근거 확인" : query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>
+        {query.step === 2 && nextStep === 3 && <Link className="secondary" to={buildPlaceReviewNextStepHref(query)}>NAVER 확인 후 카테고리 확정 단계 보기</Link>}
       </div>
     </Form>
     <PlaceReviewToolbar query={query} page={page} />
