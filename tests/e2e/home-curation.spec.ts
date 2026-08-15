@@ -204,6 +204,23 @@ test("모드 변경은 최소 두 곳을 바꾸고 단순 UI 재렌더는 결과
   await selectMode(page, presentation, "discovery", "새로운 발견");
 });
 
+test("모바일 추천 행 선택은 시트를 접고 같은 장소를 지도 중심으로 삼는다", async ({ page }, testInfo) => {
+  test.skip(!isMobileProject(testInfo.project.name), "모바일 전용 레이어링");
+  await page.goto("/?qa=1");
+
+  const sheet = page.locator(".home-curation-sheet");
+  const secondCard = sheet.locator(".home-curation-card").nth(1);
+  const placeId = await secondCard.getAttribute("data-place-id");
+  expect(placeId).toBeTruthy();
+  await expect(sheet).toHaveAttribute("data-snap", "half");
+
+  await secondCard.click();
+
+  await expect(sheet).toHaveAttribute("data-snap", "peek");
+  await expect(page).toHaveURL(new RegExp(`selected=${placeId}`));
+  await expect(page.locator(".map-canvas")).toHaveAttribute("data-focused-place", placeId!);
+});
+
 test("Golden 활성 후보가 없으면 정확한 안내와 근거 후보만 보인다", async ({ page }, testInfo) => {
   await page.goto("/?qa=1");
 
