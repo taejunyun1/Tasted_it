@@ -241,6 +241,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const liveSearch = `?${params.toString()}`;
   const liveMapState = parseMapState(liveSearch);
   const liveHomeState = parseHomeCurationState(liveSearch);
+  const previousHomeViewRef = useRef(liveHomeState.view);
   const currentRecommendationRouteKey = getHomeRecommendationRouteKey({
     view: liveHomeState.view,
     mode: liveHomeState.mode,
@@ -282,6 +283,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       lastRecordedLoaderCurationRef.current = loaderData.curation;
     }
   }, [loaderData.curation]);
+
+  useEffect(() => {
+    if (previousHomeViewRef.current === "browse" && liveHomeState.view === "curated") {
+      setHomeSheetSnap("half");
+    }
+    previousHomeViewRef.current = liveHomeState.view;
+  }, [liveHomeState.view]);
 
   useEffect(() => {
     setPendingBounds(null);

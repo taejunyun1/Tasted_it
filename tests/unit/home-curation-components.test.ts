@@ -150,4 +150,16 @@ describe("home curation presentation", () => {
 
     expect(html).toContain('data-snap="peek"');
   });
+
+  it("peek 시트는 선택 장소의 순위와 이름을 위치 확인 정보로 표시한다", () => {
+    const html = renderToStaticMarkup(createElement(HomeCurationSheet, {
+      ...props,
+      snap: "peek",
+      onSnapChange: vi.fn(),
+    }));
+
+    expect(html).toContain('class="home-curation-sheet__selection"');
+    expect(html).toContain('class="home-curation-sheet__selection-rank">01</span>');
+    expect(html).toContain('class="home-curation-sheet__selection-name">추천 장소 1</strong>');
+  });
 });

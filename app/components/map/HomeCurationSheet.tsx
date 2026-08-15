@@ -27,16 +27,20 @@ export function homeSheetSnapAfterPlaceSelect(): HomeSheetSnap {
 }
 
 export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCurationSheetProps) {
+  const handleRef = useRef<HTMLButtonElement | null>(null);
   const pointerStartY = useRef<number | null>(null);
   const suppressClick = useRef(false);
+  const selectedPlace = props.page.places.find((place) => place.id === props.selectedPlaceId);
 
   const handlePlaceSelect = (placeId: string) => {
     onSnapChange(homeSheetSnapAfterPlaceSelect());
     props.onSelect(placeId);
+    requestAnimationFrame(() => handleRef.current?.focus());
   };
 
   return <aside className="home-curation-sheet" data-snap={snap} aria-label="홈 맛집 추천">
     <button
+      ref={handleRef}
       type="button"
       className="home-curation-sheet__handle"
       aria-label={snap === "full" ? "추천 목록 접기" : "추천 목록 펼치기"}
@@ -67,8 +71,13 @@ export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCuration
       }}
     ><span aria-hidden="true" /></button>
     <div className="home-curation-sheet__summary">
-      <div><p className="eyebrow">NEARBY / CURATED</p><h1>지금 갈 만한 5곳</h1></div>
-      <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
+      {snap === "peek" && selectedPlace ? <div className="home-curation-sheet__selection" aria-live="polite">
+        <span className="home-curation-sheet__selection-rank">{String(selectedPlace.rank).padStart(2, "0")}</span>
+        <strong className="home-curation-sheet__selection-name">{selectedPlace.name}</strong>
+      </div> : <>
+        <div><p className="eyebrow">NEARBY / CURATED</p><h1>지금 갈 만한 5곳</h1></div>
+        <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
+      </>}
     </div>
     <div className="home-curation-sheet__body">
       {props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}

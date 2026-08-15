@@ -222,14 +222,47 @@ test("모바일 추천 행 선택은 시트를 접고 같은 장소를 지도 �
   const sheet = page.locator(".home-curation-sheet");
   const secondCard = sheet.locator(".home-curation-card").nth(1);
   const placeId = await secondCard.getAttribute("data-place-id");
+  const placeRank = await secondCard.locator(".home-curation-card__rank").textContent();
+  const placeName = await secondCard.locator("strong").textContent();
   expect(placeId).toBeTruthy();
+  expect(placeRank).toBeTruthy();
+  expect(placeName).toBeTruthy();
   await expect(sheet).toHaveAttribute("data-snap", "half");
 
-  await secondCard.click();
+  await secondCard.focus();
+  await secondCard.press("Enter");
 
   await expect(sheet).toHaveAttribute("data-snap", "peek");
+  const selection = sheet.locator(".home-curation-sheet__selection");
+  await expect(selection).toBeVisible();
+  await expect(selection.locator(".home-curation-sheet__selection-rank")).toHaveText(placeRank!);
+  await expect(selection.locator(".home-curation-sheet__selection-name")).toHaveText(placeName!);
+  await expect(sheet.getByRole("button", { name: "추천 목록 펼치기", exact: true })).toBeFocused();
   await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(placeId);
   await expect(page.locator(".map-canvas")).toHaveAttribute("data-focused-place", placeId!);
+});
+
+test("모바일 전체 지도에서 history와 헤더로 복귀하면 시트는 half로 초기화된다", async ({ page }, testInfo) => {
+  test.skip(!isMobileProject(testInfo.project.name), "모바일 전용 레이어링");
+  await page.goto("/?qa=1");
+
+  const sheet = page.locator(".home-curation-sheet");
+  await dragSheetDown(page, sheet.getByRole("button", { name: "추천 목록 펼치기", exact: true }));
+  await expect(sheet).toHaveAttribute("data-snap", "peek");
+
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute("data-snap", "half");
+
+  await dragSheetDown(page, sheet.getByRole("button", { name: "추천 목록 펼치기", exact: true }));
+  await expect(sheet).toHaveAttribute("data-snap", "peek");
+  await page.getByRole("button", { name: "전체 지도", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추천 지도", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: /Re:Taste/ }).click();
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute("data-snap", "half");
 });
 
 test("Golden 활성 후보가 없으면 정확한 안내와 근거 후보만 보인다", async ({ page }, testInfo) => {
@@ -431,6 +464,9 @@ test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동
   await expect(map).toHaveAttribute("data-focused-place", lastId!);
 
   if (isMobileProject(testInfo.project.name)) {
+    await expect(presentation).toHaveAttribute("data-snap", "peek");
+    await presentation.getByRole("button", { name: "추천 목록 펼치기", exact: true }).click();
+    await expect(presentation).toHaveAttribute("data-snap", "full");
     const handle = presentation.getByRole("button", { name: "추천 목록 접기", exact: true });
     await dragSheetDown(page, handle);
     await expect(presentation).toHaveAttribute("data-snap", "half");
@@ -442,6 +478,6 @@ test("카드와 지도 marker 선택은 모바일 시트 스크롤 뒤에도 동
   await expect(cards.first()).toHaveAttribute("aria-pressed", "true");
   await expect(map).toHaveAttribute("data-focused-place", firstId!);
   if (isMobileProject(testInfo.project.name)) {
-    await expect(presentation).toHaveAttribute("data-snap", "half");
+    await expect(presentation).toHaveAttribute("data-snap", "peek");
   }
 });
