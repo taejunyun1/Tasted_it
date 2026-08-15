@@ -1,6 +1,17 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-test.skip(Boolean(process.env.BASE_URL), "로컬 QA 시드가 있는 환경에서만 실행합니다.");
+const isControlledLocalBaseUrl = (() => {
+  const baseUrl = process.env.BASE_URL;
+  if (!baseUrl) return true;
+
+  try {
+    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+})();
+
+test.skip(!isControlledLocalBaseUrl, "로컬 QA 시드가 있는 환경에서만 실행합니다.");
 
 const DEFAULT_BBOX = "126.72,35.03,127.02,35.25";
 const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
@@ -217,7 +228,7 @@ test("모바일 추천 행 선택은 시트를 접고 같은 장소를 지도 �
   await secondCard.click();
 
   await expect(sheet).toHaveAttribute("data-snap", "peek");
-  await expect(page).toHaveURL(new RegExp(`selected=${placeId}`));
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(placeId);
   await expect(page.locator(".map-canvas")).toHaveAttribute("data-focused-place", placeId!);
 });
 
