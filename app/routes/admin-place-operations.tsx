@@ -68,8 +68,13 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "auto-exclude-non-food-review-items") {
     if (expectedStage !== "SOURCE_REVIEW") return data({ ok: false, error: "원천 검수 단계에서만 자동 제외할 수 있습니다." }, { status: 400 });
     if (!automaticWorkItemIds.length) return data({ ok: false, error: "자동 제외할 장소가 없습니다." }, { status: 400 });
-    const result = await autoExcludeNonFoodReviewItems(db, { workItemIds: automaticWorkItemIds, actorUserId: admin.id, now });
-    return { ok: true, message: `비음식점 자동 제외 ${result.changed.length}곳 · 유지 ${result.skipped.length}곳`, skipped: result.skipped };
+    try {
+      const result = await autoExcludeNonFoodReviewItems(db, { workItemIds: automaticWorkItemIds, actorUserId: admin.id, now });
+      return { ok: true, message: `비음식점 자동 제외 ${result.changed.length}곳 · 유지 ${result.skipped.length}곳`, skipped: result.skipped };
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "UNKNOWN";
+      return data({ ok: false, error: `비음식점 자동 제외를 완료하지 못했습니다: ${code}` }, { status: 400 });
+    }
   }
 
   if (intent === "verify-review-items-with-naver") {
