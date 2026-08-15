@@ -17,6 +17,7 @@ import {
   type ReviewBlockCode,
   type ReviewStage,
 } from "./place-review-pipeline";
+import { openReviewDuplicateCount } from "./place-review-duplicates.server";
 
 const MAX_REVIEW_BATCH_SIZE = 25;
 
@@ -126,6 +127,7 @@ async function reviewEvidence(db: AppDb, workItem: typeof placeReviewWorkItems.$
       && businessLicense.latitude != null
       && businessLicense.longitude != null
     : Boolean(place?.address && place.latitude != null && place.longitude != null);
+  const openDuplicateCount = await openReviewDuplicateCount(db, workItem);
 
   return {
     sourceReady,
@@ -134,9 +136,7 @@ async function reviewEvidence(db: AppDb, workItem: typeof placeReviewWorkItems.$
       : naverDecisionForPlace(placeLiveness?.naverStatus, hasManualEvidence),
     selectedCategoryId: workItem.selectedCategoryId,
     categoryActive: Boolean(selectedCategory?.isActive),
-    // Duplicate candidates are introduced in the dedicated fourth-stage service.
-    // Until then, this value only permits a card already in the stage to wait there.
-    openDuplicateCount: 0,
+    openDuplicateCount,
     activeExclusion: Boolean(activeExclusion),
   };
 }

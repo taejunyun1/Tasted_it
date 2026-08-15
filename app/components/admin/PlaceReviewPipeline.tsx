@@ -4,6 +4,7 @@ import { Form, Link, useNavigation } from "react-router";
 import type { ReviewStage } from "../../features/places/place-review-pipeline";
 import type { PlaceReviewQuery } from "../../features/places/place-review-pagination";
 import type { PlaceReviewPage, PlaceReviewStageCounts } from "../../features/places/place-review-query.server";
+import type { ReviewDuplicateCandidate } from "../../features/places/place-review-duplicates.server";
 import { AdminBlockingOverlay } from "./AdminBlockingOverlay";
 import { PlaceReviewCard } from "./PlaceReviewCard";
 import { PlaceReviewStepNav } from "./PlaceReviewStepNav";
@@ -25,10 +26,12 @@ const nextAction: Record<PlaceReviewQuery["step"], string> = {
   5: "선택 장소 승인·공개",
 };
 
-export function PlaceReviewPipeline({ query, page, counts, naverDailyUsage, naverDailyLimit, message, error }: {
+export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverDailyUsage, naverDailyLimit, message, error }: {
   query: PlaceReviewQuery;
   page: PlaceReviewPage;
   counts: PlaceReviewStageCounts;
+  categories: Array<{ id: string; name: string; parentId: string | null }>;
+  duplicateCandidates: ReviewDuplicateCandidate[];
   naverDailyUsage: number;
   naverDailyLimit: number;
   message?: string;
@@ -37,6 +40,10 @@ export function PlaceReviewPipeline({ query, page, counts, naverDailyUsage, nave
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigation = useNavigation();
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const duplicatesByWorkItem = useMemo(() => duplicateCandidates.reduce<Record<string, ReviewDuplicateCandidate[]>>((groups, candidate) => {
+    groups[candidate.workItemId] = [...(groups[candidate.workItemId] ?? []), candidate];
+    return groups;
+  }, {}), [duplicateCandidates]);
   const pageKey = `${query.step}:${query.page}:${query.pageSize}:${query.status ?? ""}:${query.region ?? ""}:${query.query}`;
   useEffect(() => setSelectedIds([]), [pageKey]);
 
@@ -69,14 +76,28 @@ export function PlaceReviewPipeline({ query, page, counts, naverDailyUsage, nave
         <button type="button" className="secondary" onClick={() => setSelectedIds([])}>선택 해제</button>
       </div>
       <div className="place-review-grid">
-        {page.rows.map((row) => <PlaceReviewCard key={row.workItemId} row={row} checked={selectedSet.has(row.workItemId)} onToggle={() => toggle(row.workItemId)} />)}
+        {page.rows.map((row) => <div key={row.workItemId} className="place-review-card-wrap"><PlaceReviewCard row={row} checked={selectedSet.has(row.workItemId)} onToggle={() => toggle(row.workItemId)} />
+          {query.step === 3 && selectedSet.has(row.workItemId) && <label className="place-review-category-select">최종 카테고리<select name={`category:${row.workItemId}`} defaultValue={row.selectedCategoryId ?? ""}><option value="">카테고리 선택</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>}
+          {query.step === 4 && selectedSet.has(row.workItemId) && <div className="place-review-duplicates">
+            {!(duplicatesByWorkItem[row.workItemId]?.length) && <p>프랜차이즈를 제외한 동일 상호·동일 위치 후보가 없습니다. 다음 단계로 이동할 수 있습니다.</p>}
+            {duplicatesByWorkItem[row.workItemId]?.map((candidate) => <fieldset key={candidate.candidatePlaceId}>
+              <input type="hidden" name="duplicateCandidate" value={`${candidate.workItemId}|${candidate.candidatePlaceId}`} />
+              <legend>{candidate.name} <span>{candidate.reason === "SAME_ADDRESS" ? "동일 주소" : `${candidate.distanceMeters}m`}</span></legend>
+              <p>{candidate.address}</p>
+              <label>판정<select name={`duplicateDecision:${candidate.workItemId}|${candidate.candidatePlaceId}`} defaultValue={candidate.decision ?? "DISTINCT"}><option value="DISTINCT">별도 장소</option><option value="LINK_EXISTING">기존 장소에 연결</option><option value="MERGE">병합 검토</option></select></label>
+              <label>근거<input name={`duplicateReason:${candidate.workItemId}|${candidate.candidatePlaceId}`} defaultValue={candidate.decision ? "기존 판정 유지" : ""} minLength={10} maxLength={300} placeholder="판정 근거를 10자 이상 입력" /></label>
+            </fieldset>)}
+          </div>}
+        </div>)}
       </div>
       {!page.rows.length && <p className="place-review-empty">이 조건에 해당하는 검수 항목이 없습니다.</p>}
       <div className="place-review-actions">
         <label>보류·제외 사유<input name="reason" maxLength={300} placeholder="보류 또는 제외 사유 입력" /></label>
+        {query.step === 5 && <label className="place-review-publish-confirm"><span><input type="checkbox" name="confirmPublish" /> 선택한 장소만 공개하며, 이 동작은 되돌릴 수 있음을 확인합니다.</span></label>}
         <button className="secondary" name="intent" value="hold-review-items" disabled={!selectedIds.length}>선택 항목 보류</button>
         <button className="danger" name="intent" value="exclude-review-items" disabled={!selectedIds.length}>선택 항목 제외</button>
-        <button name="intent" value={query.step === 2 ? "verify-review-items-with-naver" : "advance-review-items"} disabled={!selectedIds.length || query.step === 5}>{query.step === 2 ? "선택 장소 NAVER 근거 확인" : nextAction[query.step]}</button>
+        {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={!selectedIds.length}>선택 중복 판정 저장</button>}
+        <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 2 ? "verify-review-items-with-naver" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={!selectedIds.length}>{query.step === 2 ? "선택 장소 NAVER 근거 확인" : query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>
       </div>
     </Form>
     <PlaceReviewToolbar query={query} page={page} />

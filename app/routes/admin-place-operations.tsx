@@ -8,7 +8,7 @@ import type { Route } from "./+types/admin-place-operations";
 import { PlaceSuggestionReviewCard } from "../components/admin/PlaceSuggestionReviewCard";
 import { PlaceReviewPipeline } from "../components/admin/PlaceReviewPipeline";
 import { createDb } from "../db/client.server";
-import { placeCorrectionRequests, placeDuplicateCandidates, placeLivenessStates, placeRevalidationCases, placeRevisions, placeSuggestions, places } from "../db/schema";
+import { categories, placeCorrectionRequests, placeDuplicateCandidates, placeLivenessStates, placeRevalidationCases, placeRevisions, placeSuggestions, places } from "../db/schema";
 import { requireAdmin } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/places/place-correction.server";
@@ -20,6 +20,10 @@ import { parsePlaceReviewQuery } from "../features/places/place-review-paginatio
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { advancePlaceReviewWorkItems, excludePlaceReviewItems, holdPlaceReviewItems } from "../features/places/place-review-work-items.server";
 import { verifyReviewItemsWithNaver } from "../features/places/place-review-naver.server";
+import { confirmReviewItemCategories } from "../features/places/place-review-category.server";
+import { listReviewDuplicateCandidates, resolveReviewDuplicates } from "../features/places/place-review-duplicates.server";
+import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
+import { getTerminalCategoryIds } from "../features/candidates/category-selection";
 import { reviewStages, type ReviewStage } from "../features/places/place-review-pipeline";
 import { buildSafeSameNameMergeGroups, mergeSafeSameNamePlaces } from "../features/places/place-same-name-merge.server";
 import { getNaverLocalSearchApiCallsToday, verifyPlacesLivenessWithNaver } from "../features/places/naver-place-liveness.server";
@@ -61,12 +65,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   const now = new Date().toISOString();
   if (flow === "review") {
     const reviewQuery = parsePlaceReviewQuery(url);
-    const [reviewPage, stageCounts, naverDailyUsage] = await Promise.all([
+    const [reviewPage, stageCounts, naverDailyUsage, categoryRows] = await Promise.all([
       listPlaceReviewWorkItems(db, reviewQuery),
       getPlaceReviewStageCounts(db),
       getNaverLocalSearchApiCallsToday(db, now),
+      db.select({ id: categories.id, name: categories.name, parentId: categories.parentId }).from(categories).where(eq(categories.isActive, true)),
     ]);
-    return { flow, reviewQuery, reviewPage, stageCounts, naverDailyUsage, naverDailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000) };
+    const duplicateCandidates = reviewQuery.step === 4
+      ? await listReviewDuplicateCandidates(db, reviewPage.rows.map((row) => row.workItemId))
+      : [];
+    const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
+    return { flow, reviewQuery, reviewPage, stageCounts, reviewCategories: categoryRows.filter((category) => terminalCategoryIds.has(category.id)), duplicateCandidates, naverDailyUsage, naverDailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000) };
   }
   const livenessFilter = parseLivenessFilter(searchParams.get("liveness"));
   const activeTab = parsePlaceOperationsTab(searchParams.get("tab"));
@@ -154,6 +163,35 @@ export async function action({ request }: Route.ActionArgs) {
       const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
       return data({ ok: false, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
     }
+  }
+  if (intent === "confirm-review-categories") {
+    const workItemIds = form.getAll("workItemId").map(String).filter(Boolean);
+    const selections = workItemIds.map((workItemId) => ({ workItemId, categoryId: String(form.get(`category:${workItemId}`) ?? ""), reason: String(form.get("reason") ?? "") }));
+    const result = await confirmReviewItemCategories(db, { selections, actorUserId: admin.id, now });
+    return { ok: true, message: `카테고리 확정 ${result.confirmed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+  }
+  if (intent === "resolve-review-duplicates") {
+    const resolutions = form.getAll("duplicateCandidate").map(String).flatMap((value) => {
+      const [workItemId, candidatePlaceId] = value.split("|");
+      const decision = String(form.get(`duplicateDecision:${value}`) ?? "");
+      const reason = String(form.get(`duplicateReason:${value}`) ?? "");
+      return workItemId && candidatePlaceId && ["LINK_EXISTING", "MERGE", "DISTINCT"].includes(decision)
+        ? [{ workItemId, candidatePlaceId, decision: decision as "LINK_EXISTING" | "MERGE" | "DISTINCT", reason }]
+        : [];
+    });
+    const result = await resolveReviewDuplicates(db, { resolutions, actorUserId: admin.id, now });
+    return { ok: true, message: `중복 판정 ${result.accepted.length}건 저장 · 건너뜀 ${result.skipped.length}건`, skipped: result.skipped };
+  }
+  if (intent === "publish-review-items") {
+    if (String(form.get("confirmPublish") ?? "") !== "on") return data({ ok: false, error: "선택한 장소를 공개한다는 확인이 필요합니다." }, { status: 400 });
+    const workItems = form.getAll("workItem").map(String).flatMap((value) => {
+      const [workItemId, version] = value.split("|");
+      return workItemId && version ? [{ workItemId, stageVersion: Number(version) }] : [];
+    });
+    const result = await publishReviewedPlaces(db, {
+      workItemIds: workItems.map((item) => item.workItemId), expectedVersions: Object.fromEntries(workItems.map((item) => [item.workItemId, item.stageVersion])), actorUserId: admin.id, now,
+    });
+    return { ok: true, message: `선택 공개 ${result.published.length}곳 완료 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
   }
   if (intent === "advance-review-items" || intent === "hold-review-items" || intent === "exclude-review-items") {
     const expectedStage = String(form.get("expectedStage") ?? "");
@@ -286,7 +324,7 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
         <div><p className="eyebrow">ADMIN / PLACE OPERATIONS</p><h1>장소 운영</h1><p>원천부터 NAVER 근거, 카테고리, 중복 검토를 순서대로 확인한 뒤 선택 공개합니다.</p></div>
         <nav><Link to="/admin/place-operations?flow=operations&tab=liveness">공개 후 운영</Link><Link to="/admin/ratings">평가 운영</Link></nav>
       </header>
-      <PlaceReviewPipeline query={loaderData.reviewQuery} page={loaderData.reviewPage} counts={loaderData.stageCounts} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} />
+      <PlaceReviewPipeline query={loaderData.reviewQuery} page={loaderData.reviewPage} counts={loaderData.stageCounts} categories={loaderData.reviewCategories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} />
     </main>;
   }
   const names = new Map(loaderData.places.map((place) => [place.id, place.name]));
