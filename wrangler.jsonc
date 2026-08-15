@@ -18,7 +18,6 @@
 		"PLACE_CATEGORY_V5_ENABLED": "false",
 		"COURSE_CONTEXT_V2_ENABLED": "false"
 	},
-	"ai": { "binding": "AI" },
 	"d1_databases": [
 		{
 			"binding": "DB",

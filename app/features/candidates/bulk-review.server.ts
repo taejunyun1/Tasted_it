@@ -1,13 +1,11 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { aiClassificationRuns, categories, naverLocalCategoryVerifications, places } from "../../db/schema";
+import { categories, naverLocalCategoryVerifications, places } from "../../db/schema";
 import { approveCandidate, listPendingCandidates } from "./candidate.server";
 import type { CandidateFilters } from "./candidate.server";
 import { classifyCandidate, getAuthoritativeSubtypeCategorySlug, getStrongestNameFoodCategorySlug } from "./category-suggestion";
 import { classifyReviewState } from "./review-classification";
-import { reconcileAiClassification, validateAiClassification, validateAiSubtypeCategoryAlignment } from "./ai-classification-policy";
-import { AI_CLASSIFICATION_PROMPT } from "./ai-classification.server";
 import { getTerminalCategoryIds } from "./category-selection";
 import { decideCategoryAuthority, type NaverEvidenceCode, type NaverLocalCategoryMatch, type NaverVerificationStatus } from "./naver-local-category";
 
@@ -23,8 +21,6 @@ const allowedEvidenceCodes = new Set<NaverEvidenceCode>([
   "SOURCE_SUBTYPE_MATCH",
   "SOURCE_SUBTYPE_CONFLICT",
   "NAME_FOOD_MATCH",
-  "AI_AGREES",
-  "AI_DISAGREES",
 ]);
 
 function storedNaverMatch(
@@ -58,22 +54,12 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
     db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
     db.select({ name: places.name, address: places.address }).from(places),
   ]);
-  const aiRows: Array<typeof aiClassificationRuns.$inferSelect> = [];
   const naverRows: Array<typeof naverLocalCategoryVerifications.$inferSelect> = [];
   const candidateIds = candidateRows.map((candidate) => candidate.id);
   for (let offset = 0; offset < candidateIds.length; offset += D1_IN_QUERY_CHUNK) {
-    aiRows.push(...await db.select().from(aiClassificationRuns)
-      .where(and(
-        inArray(aiClassificationRuns.candidateId, candidateIds.slice(offset, offset + D1_IN_QUERY_CHUNK)),
-        eq(aiClassificationRuns.promptVersion, AI_CLASSIFICATION_PROMPT),
-      ))
-      .orderBy(desc(aiClassificationRuns.createdAt))
-      .limit(1_000));
     naverRows.push(...await db.select().from(naverLocalCategoryVerifications)
       .where(inArray(naverLocalCategoryVerifications.businessLicenseId, candidateIds.slice(offset, offset + D1_IN_QUERY_CHUNK))));
   }
-  aiRows.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  const latestAi = new Map<string, (typeof aiRows)[number]>(); for (const row of aiRows) if (!latestAi.has(row.candidateId)) latestAi.set(row.candidateId, row);
   const latestNaver = new Map(naverRows.map((row) => [row.businessLicenseId, row]));
   const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
   const categoryById = new Map(categoryRows.map((category) => [category.id, category]));
@@ -102,28 +88,14 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       businessName: candidate.businessName,
       address,
     }, classification);
-    const aiRun = latestAi.get(candidate.id); let ai = null; let aiValidationError: string | null = null;
-    const isActualAiSuccess = aiRun?.status === "SUCCESS" && aiRun.model !== "RULE_ONLY";
-    if (isActualAiSuccess) try {
-      ai = validateAiSubtypeCategoryAlignment(
-        validateAiClassification({ categorySlug: aiRun.categorySlug, confidence: aiRun.confidence, reasons: JSON.parse(aiRun.reasonsJson ?? "[]") }, new Set(categoryRows.map((row) => row.slug))),
-        authoritativeSubtypeCategorySlug,
-      );
-    } catch (error) {
-      ai = null;
-      aiValidationError = error instanceof Error ? error.message : "AI_OUTPUT_INVALID";
-    }
     const naver = storedNaverMatch(latestNaver.get(candidate.id), categoryById);
     const authority = decideCategoryAuthority({
       rule: classification,
       subtypeSlug: authoritativeSubtypeCategorySlug,
       nameSlug: getStrongestNameFoodCategorySlug({ sourceType: candidate.sourceType, businessSubtype: candidate.businessSubtype, businessName: candidate.businessName, address }),
-      ai,
       naver,
     });
-    const combined = authority.naver?.status === "VERIFIED" && authority.naver.mappedCategorySlug
-      ? { categorySlug: authority.categorySlug, confidence: authority.confidence, confidenceScore: authority.confidenceScore, eligible: authority.automatic, reasons: authority.reasons }
-      : reconcileAiClassification({ ruleSlug: classification.categorySlug, ruleConfidence: classification.confidence, ruleScore: classification.confidenceScore, ai });
+    const combined = { categorySlug: authority.categorySlug, confidence: authority.confidence, confidenceScore: authority.confidenceScore, eligible: authority.automatic, reasons: authority.reasons };
     const category = categoryBySlug.get(combined.categorySlug);
     const review = classifyReviewState({
       confidence: combined.confidence,
@@ -135,7 +107,7 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       duplicate: Boolean(address && duplicateKeys.has(duplicateKey(candidate.businessName, address))),
     });
     const naverCompleted = Boolean(authority.automatic && naver && category && terminalCategoryIds.has(category.id));
-    const classificationCompleted = Boolean((isActualAiSuccess && ai && category && terminalCategoryIds.has(category.id)) || naverCompleted);
+    const classificationCompleted = Boolean(naverCompleted);
     const displayState = review.state === "BLOCKED" ? "BLOCKED" as const : classificationCompleted ? "AUTO" as const : "MANUAL" as const;
     return {
       ...candidate,
@@ -145,9 +117,8 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
       confidence: combined.confidence,
       confidenceScore: combined.confidenceScore,
       neighborhood: classification.neighborhood,
-      reasons: [...classification.reasons, ...(aiValidationError === "AI_SUBTYPE_CATEGORY_MISMATCH" ? ["원천 업태와 AI 카테고리가 달라 수동 확인 필요"] : []), ...combined.reasons],
-      classificationSource: naverCompleted ? "NAVER_RULE" as const : isActualAiSuccess && ai ? "AI_RULE" as const : aiRun?.status === "FAILED" || aiValidationError ? "AI_FAILED" as const : "RULE_ONLY" as const,
-      aiConfidence: aiRun?.confidence ?? null,
+      reasons: [...classification.reasons, ...combined.reasons],
+      classificationSource: naverCompleted ? "NAVER_RULE" as const : "RULE_ONLY" as const,
       blockers: review.blockers,
       reviewReasons: review.reviewReasons,
       reviewState: displayState,

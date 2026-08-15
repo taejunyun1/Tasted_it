@@ -10,8 +10,8 @@ describe("buildCandidatePageHref", () => {
       .toBe("?q=%EA%B5%AD%EB%B0%A5&region=GWANGJU&state=MANUAL&pageSize=50&page=3");
   });
 
-  it("페이지 이동에서는 자동 분류 플래그를 제거한다", () => {
-    const params = new URLSearchParams("state=MANUAL&autoClassify=1&page=1");
+  it("페이지 이동에서는 현재 필터를 보존한다", () => {
+    const params = new URLSearchParams("state=MANUAL&page=1");
 
     expect(buildCandidatePageHref(params, 2)).toBe("?state=MANUAL&page=2");
   });

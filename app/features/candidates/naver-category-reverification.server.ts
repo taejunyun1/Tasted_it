@@ -35,8 +35,6 @@ const allowedEvidenceCodes = new Set<NaverEvidenceCode>([
   "SOURCE_SUBTYPE_MATCH",
   "SOURCE_SUBTYPE_CONFLICT",
   "NAME_FOOD_MATCH",
-  "AI_AGREES",
-  "AI_DISAGREES",
 ]);
 
 export type NaverReverificationChange = {
@@ -282,7 +280,6 @@ async function prepare(db: AppDb, input: Input) {
       rule: classification,
       subtypeSlug: getAuthoritativeSubtypeCategorySlug({ sourceType: row.sourceType, businessSubtype: row.businessSubtype, businessName: row.businessName, address: row.address }, classification),
       nameSlug: getStrongestNameFoodCategorySlug({ sourceType: row.sourceType, businessSubtype: row.businessSubtype, businessName: row.businessName, address: row.address }),
-      ai: null,
       naver: match,
     });
     const mappedCategory = decision.naver?.mappedCategorySlug ? categoryBySlug.get(decision.naver.mappedCategorySlug) ?? null : null;

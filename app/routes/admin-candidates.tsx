@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { asc, eq } from "drizzle-orm";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Form, Link, useFetcher, useNavigate, useNavigation, useSearchParams } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Form, Link, useFetcher, useNavigation, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/admin-candidates";
 import { createDb } from "../db/client.server";
@@ -11,12 +11,10 @@ import { approveCandidateSelections, listBulkReviewGroups } from "../features/ca
 import { reconcileCandidateSelection, selectCurrentPageCandidates } from "../features/candidates/bulk-selection";
 import { excludeCandidates, listCandidateSubtypes, listExcludedCandidates, restoreExcludedCandidate } from "../features/candidates/candidate.server";
 import type { PublicDataSource, RegionCode } from "../features/candidates/public-data";
-import { classifyPendingCandidatesWithAi, getDailyAiQuota } from "../features/candidates/ai-classification.server";
 import { applyCategoryReclassification, previewCategoryReclassification } from "../features/candidates/category-reclassification.server";
 import { applyNaverCategoryReverification, previewNaverCategoryReverification } from "../features/candidates/naver-category-reverification.server";
 import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter } from "../features/candidates/naver-local-search.server";
 import { listSelectableCategories, setCandidateCategory } from "../features/candidates/category-selection";
-import { getAiClassificationBadge, removeAutoClassificationParam, selectAutomaticClassificationCandidateIds, shouldAutoClassify } from "../features/candidates/auto-classification-trigger";
 import { buildCandidatePageHref } from "../features/candidates/pagination";
 
 const sources: Array<[PublicDataSource, string]> = [
@@ -55,11 +53,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     coordinates: coordinates === "present" || coordinates === "missing" ? coordinates : undefined,
     sort: sort === "updated" || sort === "name" || sort === "region" || sort === "source" ? sort : "source",
   } as const;
-  const [groups, categoryRows, subtypes, aiQuota, excludedRows] = await Promise.all([
+  const [groups, categoryRows, subtypes, excludedRows] = await Promise.all([
     listBulkReviewGroups(db, filters),
     db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder)),
     listCandidateSubtypes(db),
-    getDailyAiQuota(db, now),
     listExcludedCandidates(db, filters),
   ]);
   const allRows = groups.flatMap((group) => group.candidates);
@@ -85,7 +82,6 @@ export async function loader({ request }: Route.LoaderArgs) {
       ? [`${row.chainName} 체인명과 일치`]
       : [exclusionLabel(row.exclusionReason)],
     classificationSource: "RULE_ONLY" as const,
-    aiConfidence: null,
     blockers: [],
     reviewReasons: [exclusionLabel(row.exclusionReason)],
     reviewState: "BLOCKED" as const,
@@ -116,7 +112,6 @@ export async function loader({ request }: Route.LoaderArgs) {
     subtypes,
     filters: Object.fromEntries(url.searchParams),
     pagination: { page, pageSize, total: displayedRows.length, totalPages },
-    aiQuota,
   };
 }
 
@@ -138,7 +133,7 @@ export async function action({ request }: Route.ActionArgs) {
       const result = intent === "naverReclassifyPreview"
         ? await previewNaverCategoryReverification(db, shared)
         : await applyNaverCategoryReverification(db, { ...shared, actorUserId: user.id });
-      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, reclassification: null, naverReclassification: { mode: intent, result } };
+      return { approved: [], skipped: [], rejected: 0, error: null, reclassification: null, naverReclassification: { mode: intent, result } };
     } catch (error) {
       const detail = error instanceof Error ? error.message : "UNKNOWN_ERROR";
       const message = detail === "NAVER_LOCAL_SEARCH_DISABLED"
@@ -146,7 +141,7 @@ export async function action({ request }: Route.ActionArgs) {
         : detail === "NAVER_LOCAL_SEARCH_QUOTA"
           ? "NAVER 지역검색 일일 한도에 도달했습니다. 내일 다시 시도해 주세요."
           : "NAVER 지도 검증을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
-      return { approved: [], skipped: [], rejected: 0, error: `${message} (${detail})`, ai: null, reclassification: null, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: `${message} (${detail})`, reclassification: null, naverReclassification: null };
     }
   }
   if (intent === "reclassifyPreview" || intent === "reclassifyApply") {
@@ -155,24 +150,15 @@ export async function action({ request }: Route.ActionArgs) {
       const result = intent === "reclassifyPreview"
         ? await previewCategoryReclassification(db, { afterPlaceId, limit: 100 })
         : await applyCategoryReclassification(db, { actorUserId: user.id, afterPlaceId, limit: 100, now });
-      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, reclassification: { mode: intent, result }, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: null, reclassification: { mode: intent, result }, naverReclassification: null };
     } catch (error) {
       const detail = error instanceof Error ? error.message : "UNKNOWN_ERROR";
-      return { approved: [], skipped: [], rejected: 0, error: `일괄 재분류를 완료하지 못했습니다. (${detail})`, ai: null, reclassification: null, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: `일괄 재분류를 완료하지 못했습니다. (${detail})`, reclassification: null, naverReclassification: null };
     }
   }
   if (restoreCandidateId) {
     await restoreExcludedCandidate(db, { candidateId: restoreCandidateId, actorUserId: user.id, now });
-    return { approved: [], skipped: [], rejected: 0, error: null, ai: null, restored: 1, reclassification: null, naverReclassification: null };
-  }
-  if (intent === "runAi") {
-    try {
-      const ai = await classifyPendingCandidatesWithAi(db, env.AI, { candidateIds: candidateIds.length ? candidateIds : undefined, limit: 10, now });
-      return { approved: [], skipped: [], rejected: 0, error: ai.quota.blocked && !ai.processed ? "오늘 AI 무료 한도의 90%에 도달해 분류를 중지했습니다." : null, ai, reclassification: null, naverReclassification: null };
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "알 수 없는 오류";
-      return { approved: [], skipped: [], rejected: 0, error: `AI 분류를 완료하지 못했습니다. 잠시 후 다시 시도하세요. (${detail})`, ai: null, reclassification: null, naverReclassification: null };
-    }
+    return { approved: [], skipped: [], rejected: 0, error: null, restored: 1, reclassification: null, naverReclassification: null };
   }
   if (intent === "excludeSelected") {
     try {
@@ -183,14 +169,14 @@ export async function action({ request }: Route.ActionArgs) {
         actorUserId: user.id,
         now,
       });
-      return { approved: [], skipped: [], rejected: 0, error: null, ai: null, excluded: result.excludedIds.length, reclassification: null, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: null, excluded: result.excludedIds.length, reclassification: null, naverReclassification: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
       const errorMessage = message === "EXCLUSION_NOTE_REQUIRED" ? "기타 사유는 메모를 입력해 주세요."
         : message === "EXCLUSION_CATEGORY_INVALID" ? "예외 사유를 선택해 주세요."
           : message === "CANDIDATE_SELECTION_REQUIRED" ? "예외 처리할 장소를 선택해 주세요."
             : "예외 처리 중 오류가 발생했습니다.";
-      return { approved: [], skipped: [], rejected: 0, error: errorMessage, ai: null, excluded: 0, reclassification: null, naverReclassification: null };
+      return { approved: [], skipped: [], rejected: 0, error: errorMessage, excluded: 0, reclassification: null, naverReclassification: null };
     }
   }
   const result = await approveCandidateSelections(db, {
@@ -198,20 +184,17 @@ export async function action({ request }: Route.ActionArgs) {
     actorUserId: user.id,
     now,
   });
-  return { ...result, rejected: 0, error: null, ai: null, reclassification: null, naverReclassification: null };
+  return { ...result, rejected: 0, error: null, reclassification: null, naverReclassification: null };
 }
 
 export default function AdminCandidates({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
-  const autoClassification = useFetcher<typeof action>();
   const reclassification = useFetcher<typeof action>();
   const naverReclassification = useFetcher<typeof action>();
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const excludedMode = params.get("state") === "EXCLUDED";
   const exceptionMode = params.get("state") === "EXCEPTION";
   const reviewMode = !excludedMode && !exceptionMode;
-  const autoClassificationStarted = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [chosenCategories, setChosenCategories] = useState<Record<string, string>>(() =>
     Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
@@ -236,26 +219,6 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
   useEffect(() => {
     setChosenCategories(Object.fromEntries(loaderData.rows.map((row) => [row.id, row.categoryId ?? ""])));
   }, [loaderData.rows]);
-
-  useEffect(() => {
-    if (!reviewMode) return;
-    if (!shouldAutoClassify(params, autoClassification.state, autoClassificationStarted.current)) return;
-    autoClassificationStarted.current = true;
-    const candidateIds = selectAutomaticClassificationCandidateIds(loaderData.rows);
-    if (!candidateIds.length) {
-      void navigate(removeAutoClassificationParam(params), { replace: true });
-      return;
-    }
-    const form = new FormData();
-    form.set("intent", "runAi");
-    for (const candidateId of candidateIds) form.append("candidateIds", candidateId);
-    void autoClassification.submit(form, { method: "post" });
-  }, [autoClassification, loaderData.rows, navigate, params, reviewMode]);
-
-  useEffect(() => {
-    if (!autoClassificationStarted.current || autoClassification.state !== "idle" || !autoClassification.data || params.get("autoClassify") !== "1") return;
-    void navigate(removeAutoClassificationParam(params), { replace: true });
-  }, [autoClassification.data, autoClassification.state, navigate, params]);
 
   useEffect(() => {
     if (reclassificationData?.mode === "reclassifyApply") {
@@ -306,11 +269,6 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
       </section>
 
       <div className="admin-page-frame mx-auto max-w-[1500px] px-5 py-7 md:px-10">
-        {reviewMode && <section className={`mb-5 border px-4 py-3 ${loaderData.aiQuota.blocked ? "border-amber-600 bg-amber-50" : "border-neutral-300 bg-white"}`} aria-label="AI 일일 사용량">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><p><strong>Workers AI 오늘 사용량 {loaderData.aiQuota.used.toLocaleString()} / {loaderData.aiQuota.limit.toLocaleString()} Neurons</strong> <span className="text-neutral-500">({loaderData.aiQuota.percent}% · 앱 집계 기준)</span></p><span className="text-xs text-neutral-500">매일 UTC 00:00 초기화</span></div>
-          <div className="mt-2 h-2 overflow-hidden bg-neutral-200"><div className={`h-full ${loaderData.aiQuota.blocked ? "bg-amber-600" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, loaderData.aiQuota.percent)}%` }} /></div>
-          {loaderData.aiQuota.blocked && <p className="mt-2 text-sm font-medium text-amber-900">무료 한도의 90%에 도달했습니다. 과금 방지를 위해 AI 분류 버튼을 비활성화했습니다.</p>}
-        </section>}
         <nav aria-label="검수 상태" className="mb-5 flex overflow-x-auto border-b border-neutral-900 text-sm font-medium">
           <Tab to={tabHref()} active={!params.get("state")} label="전체" count={loaderData.counts.ALL} />
           {states.map((state) => <Tab key={state} to={tabHref(state)} active={params.get("state") === state} label={stateMeta[state].label} count={loaderData.counts[state]} />)}
@@ -330,11 +288,10 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
           <div className="flex items-end gap-2"><button className="h-10 flex-1 whitespace-nowrap bg-neutral-950 px-3 text-xs font-semibold text-white">필터 적용</button><Link className="grid h-10 place-items-center whitespace-nowrap border border-neutral-300 px-3 text-xs" to="/admin/candidates">초기화</Link></div>
         </Form>
 
-        {reviewMode && autoClassification.state !== "idle" && <div className="mb-5 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm">규칙 분류를 먼저 적용하고, 애매한 후보만 최대 3곳씩 AI로 확인하고 있습니다.</div>}
         {(() => {
-          const feedback = autoClassification.data ?? actionData;
+          const feedback = actionData;
           return feedback && <div className={`mb-5 border px-4 py-3 text-sm ${feedback.error || feedback.skipped.length ? "border-amber-600 bg-amber-50" : "border-emerald-700 bg-emerald-50"}`}>
-            <p>{feedback.error ?? ("restored" in feedback && feedback.restored ? "검수 대기로 복원했습니다." : "excluded" in feedback && feedback.excluded ? `${feedback.excluded}곳을 승인 불가·예외로 이동했습니다.` : feedback.ai ? `${feedback.ai.processed}곳 처리 · 규칙 즉시 완료 ${feedback.ai.ruleCompleted}곳 · 전체 성공 ${feedback.ai.succeeded}곳 · 실패 ${feedback.ai.failed}` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</p>
+            <p>{feedback.error ?? ("restored" in feedback && feedback.restored ? "검수 대기로 복원했습니다." : "excluded" in feedback && feedback.excluded ? `${feedback.excluded}곳을 승인 불가·예외로 이동했습니다.` : `${feedback.approved.length}곳 승인·공개 · ${feedback.skipped.length}곳 확인 필요`)}</p>
             {feedback.skipped.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">{feedback.skipped.map((item) => <li key={item.candidateId}><strong>{loaderData.rows.find((row) => row.id === item.candidateId)?.businessName ?? item.candidateId}</strong> · {item.reason}</li>)}</ul>}
           </div>;
         })()}
@@ -395,7 +352,6 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
               <button className="self-end border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 disabled:opacity-40" name="intent" value="excludeSelected" disabled={!selected.size || isSubmitting}>선택 장소 예외 처리</button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <button className="border border-white px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40" name="intent" value="runAi" disabled={!selected.size || isSubmitting || loaderData.aiQuota.blocked}>선택 장소 다시 분류</button>
               <button className="bg-[#d7f28a] px-4 py-2 text-sm font-semibold text-neutral-950 disabled:opacity-40" name="intent" value="approveSelected" disabled={!selected.size || isSubmitting}>{isSubmitting ? "처리 중…" : "선택 장소 승인·공개"}</button>
             </div>
           </div>}
@@ -415,11 +371,11 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
               const blocked = row.reviewState === "BLOCKED";
               return <article key={row.id} className={`grid gap-3 border-b border-neutral-200 px-4 py-3 last:border-b-0 xl:grid-cols-[42px_110px_minmax(200px,1fr)_minmax(250px,1.3fr)_210px_140px] ${blocked ? "bg-neutral-50" : "bg-white"}`}>
                 <div><input type="checkbox" aria-label={`${row.businessName} 선택`} checked={selected.has(row.id)} disabled={blocked} onChange={() => toggle(row.id)} className="h-5 w-5 accent-emerald-800" /></div>
-                <div><span className={`inline-flex border-l-4 px-2 py-1 text-xs font-semibold ${stateMeta[row.reviewState].className}`}>{stateMeta[row.reviewState].label}</span>{(() => { const badge = getAiClassificationBadge(row.classificationSource); return badge && <span className={`mt-2 inline-flex border px-2 py-1 text-[10px] font-medium ${badge.tone === "error" ? "border-rose-400 text-rose-700" : "border-emerald-500 text-emerald-800"}`}>{badge.label}</span>; })()}</div>
+                <div><span className={`inline-flex border-l-4 px-2 py-1 text-xs font-semibold ${stateMeta[row.reviewState].className}`}>{stateMeta[row.reviewState].label}</span></div>
                 <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">{row.neighborhood ?? "동네 추출 실패"} · {row.latitude?.toFixed(5) ?? "—"}, {row.longitude?.toFixed(5) ?? "—"}</p>{row.blockers.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{row.blockers.map((blocker) => <li key={blocker} className="border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">{blocker}</li>)}</ul>}</div>
                 <div>{!blocked ? <label className="grid gap-1 text-[10px] font-medium text-neutral-600"><span>{row.reviewState === "AUTO" ? "자동 추천" : "추천"} · {loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</span><select aria-label={`${row.businessName} 대표 카테고리`} value={chosenCategories[row.id] ?? ""} onChange={(event) => { const categoryId = event.currentTarget.value; setChosenCategories((current) => setCandidateCategory(current, row.id, categoryId)); }} className={`w-full border px-2 py-1.5 text-xs text-neutral-950 ${row.reviewState === "AUTO" ? "border-emerald-500 bg-emerald-50" : "border-amber-500 bg-amber-50"}`}><option value="">직접 선택</option>{leafParents.map((category) => <option key={category.id} value={category.id}>{category.emoji} {category.name}</option>)}{parents.filter((parent) => children.some((child) => child.parentId === parent.id)).map((parent) => <optgroup key={parent.id} label={`${parent.emoji} ${parent.name}`}>{children.filter((child) => child.parentId === parent.id).map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}</optgroup>)}</select></label> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
-                <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}{row.aiConfidence == null ? "" : ` · AI ${Math.round(row.aiConfidence * 100)}%`}</p><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
+                <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}</p><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
               </article>;
             })}
             {!loaderData.rows.length && <p className="px-5 py-16 text-center text-sm text-neutral-500">현재 조건에 맞는 검수 후보가 없습니다.</p>}
