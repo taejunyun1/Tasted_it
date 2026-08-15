@@ -15,7 +15,7 @@ test("an authenticated member skips login and logout returns to the map", async 
   const session = testInfo.project.name === "mobile-chromium" ? "qa-login-flow-mobile" : "qa-login-flow-desktop";
   await context.addCookies([{ name: "retaste_session", value: session, url: "http://127.0.0.1:5173" }]);
 
-  await page.goto("/login?returnTo=/admin/candidates");
+  await page.goto("/login?returnTo=/admin/place-operations?step=1");
   await expect(page).toHaveURL(/\/$/);
   await page.getByRole("button", { name: "메뉴", exact: true }).click();
   await expect(page.getByLabel("로그인됨 · QA 관리자")).toBeVisible();
@@ -26,6 +26,6 @@ test("an authenticated member skips login and logout returns to the map", async 
 });
 
 test("anonymous visitor is redirected from admin review", async ({ page }) => {
-  await page.goto("/admin/candidates");
-  await expect(page).toHaveURL(/\/login\?returnTo=%2Fadmin%2Fcandidates$/);
+  await page.goto("/admin/place-operations?step=1");
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Fadmin%2Fplace-operations%3Fstep%3D1$/);
 });

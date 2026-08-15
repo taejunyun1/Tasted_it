@@ -5,9 +5,7 @@ import { requireAdmin } from "../features/auth/session.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
-  return redirect("/admin/candidates");
+  throw redirect("/admin/place-operations?step=1");
 }
 
-export default function AdminCandidatesBulk() {
-  return null;
-}
+export default function AdminCandidatesBulk() { return null; }
