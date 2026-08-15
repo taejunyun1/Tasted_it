@@ -7,6 +7,7 @@ describe("place review pagination", () => {
       step: 2,
       page: 1,
       pageSize: 25,
+      status: "pending",
     });
   });
 

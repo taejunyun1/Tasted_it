@@ -24,7 +24,7 @@ export function parsePlaceReviewQuery(url: URL): PlaceReviewQuery {
     pageSize: pageSizes.has(requestedSize as PlaceReviewQuery["pageSize"])
       ? requestedSize as PlaceReviewQuery["pageSize"]
       : 25,
-    status: rawStatus === "pending" || rawStatus === "attention" || rawStatus === "hold" ? rawStatus : null,
+    status: rawStatus === "attention" || rawStatus === "hold" ? rawStatus : "pending",
     region: rawRegion === "GWANGJU" || rawRegion === "JEONNAM" ? rawRegion : null,
     query: (url.searchParams.get("q") ?? "").trim().slice(0, 80),
   };
