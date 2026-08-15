@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { asc, desc, eq, inArray } from "drizzle-orm";
-import { Children } from "react";
+import { Children, useState } from "react";
 import { data, Form, Link } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/admin-place-operations";
@@ -13,8 +13,11 @@ import { isSameOriginMutation } from "../features/http/same-origin";
 import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/places/place-correction.server";
 import { mergePlaces, restorePlaceRevision } from "../features/places/place-merge.server";
 import { recallPublishedPlaces, restoreRecalledPlaces } from "../features/places/place-publication-recall.server";
+import { groupPlacesByNormalizedName } from "../features/places/place-name-groups";
+import { verifyPlacesLivenessWithNaver } from "../features/places/naver-place-liveness.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { approvePlaceSuggestion, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
+import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter, NaverLocalSearchError } from "../features/candidates/naver-local-search.server";
 
 type LivenessFilter = "SUSPECTED" | "HIDDEN" | "ERROR";
 type EvidenceScore = { name: number | null; address: number | null; distance: number | null; phone: number | null; total: number | null };
@@ -51,12 +54,15 @@ export async function loader({ request }: Route.LoaderArgs) {
     db.select().from(placeRevalidationCases).where(inArray(placeRevalidationCases.status, ["OPEN", "REVIEWING"])).orderBy(asc(placeRevalidationCases.createdAt)).limit(200),
     db.select().from(placeRevisions).orderBy(desc(placeRevisions.createdAt)).limit(100),
     db.select().from(placeDuplicateCandidates).where(inArray(placeDuplicateCandidates.status, ["OPEN"])).orderBy(desc(placeDuplicateCandidates.createdAt)).limit(100),
-    db.select({ id: places.id, name: places.name, slug: places.slug, status: places.status }).from(places).orderBy(asc(places.name)).limit(1_000),
+    db.select({ id: places.id, name: places.name, address: places.address, slug: places.slug, status: places.status }).from(places).orderBy(asc(places.name)).limit(1_000),
     db.select({
       placeId: placeLivenessStates.placeId,
       placeName: places.name,
       status: placeLivenessStates.status,
       kakaoStatus: placeLivenessStates.kakaoStatus,
+      naverStatus: placeLivenessStates.naverStatus,
+      naverMatchScore: placeLivenessStates.naverMatchScore,
+      naverEvidenceCodesJson: placeLivenessStates.naverEvidenceCodesJson,
       matchScore: placeLivenessStates.matchScore,
       consecutiveNotFound: placeLivenessStates.consecutiveNotFound,
       protectedUntil: placeLivenessStates.protectedUntil,
@@ -95,6 +101,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     places: placeRows,
     livenessFilter,
     livenessRows: [...caseRows, ...stateRows].filter((row) => matchesLivenessFilter(row, livenessFilter)),
+    sameNameGroups: groupPlacesByNormalizedName(placeRows),
     revalidationCount: revalidations.length,
     naverMapsClientId: env.NAVER_PLACE_GEOCODING_ENABLED === "true" ? env.NAVER_MAPS_CLIENT_ID ?? "" : "",
     placeGeocodingEnabled: env.NAVER_PLACE_GEOCODING_ENABLED === "true",
@@ -120,6 +127,19 @@ export async function action({ request }: Route.ActionArgs) {
     if (!auditRunAt || !reason) return data({ ok: false, error: "복구 대상 실행 시각과 근거를 입력해 주세요." }, { status: 400 });
     const result = await restoreRecalledPlaces(db, { actorUserId: admin.id, auditRunAt, now, reason });
     return { ok: true, message: `${result.restored}곳을 해당 회수 실행분에서만 복구했습니다.` };
+  }
+  if (intent === "verify-places-with-naver") {
+    const placeIds = form.getAll("placeId").map(String);
+    try {
+      assertNaverLocalSearchEnabled(env);
+      const result = await verifyPlacesLivenessWithNaver(db, {
+        placeIds, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 200), adapter: createNaverLocalSearchAdapter(env), actorUserId: admin.id,
+      });
+      return { ok: true, message: `NAVER 근거 확인 ${result.scanned}곳: 일치 ${result.matched} · 수동 확인 ${result.manual} · 실패 ${result.failed}` };
+    } catch (error) {
+      const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
+      return data({ ok: false, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
+    }
   }
   if (intent === "approve-suggestion") {
     const suggestionId = String(form.get("suggestionId") ?? "");
@@ -193,6 +213,7 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
     {actionData && "error" in actionData && actionData.error && <p className="operation-error" role="alert">{actionData.error}</p>}
     <section className="place-ops-stats"><Stat label="장소 제안" value={loaderData.suggestions.length}/><Stat label="정보 정정" value={loaderData.corrections.length}/><Stat label="영업 재검증" value={loaderData.revalidationCount}/><Stat label="중복 후보" value={loaderData.duplicates.length}/></section>
     <section className="ops-section"><div className="ops-section-head"><h2>카테고리 근거 감사</h2><p>현재 공개 장소를 삭제하지 않고 지도·공개 목록에서 회수합니다. NAVER 근거 또는 수동 승인 전에는 다시 공개하지 않습니다.</p></div><Form method="post" className="ops-form"><input type="hidden" name="intent" value="recall-published-for-category-audit"/><input name="reason" aria-label="공개 회수 근거" placeholder="카테고리 근거 재검증" required/><button className="secondary">현재 공개 장소 전체 회수</button></Form></section>
+    <PlaceNaverVerificationPanel places={loaderData.places} groups={loaderData.sameNameGroups}/>
     <OpsSection title="회원 장소 제안" empty="검토할 제안이 없습니다.">
       {loaderData.suggestions.map((item) => <PlaceSuggestionReviewCard key={item.id} item={item} clientId={loaderData.naverMapsClientId} geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)} />)}
     </OpsSection>
@@ -218,7 +239,7 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
 
 function LivenessEvidenceView({ item }: { item: LivenessRow }) {
   const latestInternalActivity = latestTimestamp(item.evidence.reviewer.at, item.evidence.member.at);
-  return <dl className="liveness-evidence"><div><dt>Kakao 상태</dt><dd>{formatKakaoStatus(item.kakaoStatus)}</dd></div><div><dt>일치 점수</dt><dd>{item.evidence.score.total ?? item.matchScore ?? "-"}</dd></div><div><dt>점수 구성</dt><dd>이름 {item.evidence.score.name ?? "-"} · 주소 {item.evidence.score.address ?? "-"} · 거리 {item.evidence.score.distance ?? "-"} · 전화 {item.evidence.score.phone ?? "-"}</dd></div><div><dt>연속 미검색</dt><dd>{item.consecutiveNotFound}회</dd></div><div><dt>최신 내부 활동</dt><dd>{latestInternalActivity ?? "없음"}</dd></div><div><dt>활동 상태</dt><dd>검토 {item.evidence.reviewer.active ? "있음" : "없음"} · 회원 {item.evidence.member.active ? "있음" : "없음"} · 공개 {item.evidence.openSource.active ? "있음" : "없음"}</dd></div><div><dt>공개 출처</dt><dd>{item.evidence.source ?? "-"}</dd></div>{item.protectedUntil && <div><dt>보호 종료</dt><dd>{item.protectedUntil}</dd></div>}</dl>;
+  return <dl className="liveness-evidence"><div><dt>NAVER 상태</dt><dd>{formatNaverStatus(item.naverStatus)}</dd></div><div><dt>일치 점수</dt><dd>{item.naverMatchScore ?? item.evidence.score.total ?? item.matchScore ?? "-"}</dd></div><div><dt>근거 코드</dt><dd>{item.naverEvidenceCodes.length ? item.naverEvidenceCodes.join(" · ") : "미확인"}</dd></div><div><dt>연속 미검색</dt><dd>{item.consecutiveNotFound}회</dd></div><div><dt>최신 내부 활동</dt><dd>{latestInternalActivity ?? "없음"}</dd></div><div><dt>활동 상태</dt><dd>검토 {item.evidence.reviewer.active ? "있음" : "없음"} · 회원 {item.evidence.member.active ? "있음" : "없음"} · 공개 {item.evidence.openSource.active ? "있음" : "없음"}</dd></div><div><dt>공개 출처</dt><dd>{item.evidence.source ?? "-"}</dd></div>{item.protectedUntil && <div><dt>보호 종료</dt><dd>{item.protectedUntil}</dd></div>}</dl>;
 }
 
 type LivenessStateRow = {
@@ -226,6 +247,9 @@ type LivenessStateRow = {
   placeName: string;
   status: "VERIFIED" | "MONITORING" | "SUSPECTED" | "HIDDEN";
   kakaoStatus: "MATCHED" | "AMBIGUOUS" | "NOT_FOUND" | "ERROR" | "SKIPPED";
+  naverStatus: "MATCHED" | "AMBIGUOUS" | "NOT_FOUND" | "ERROR" | "SKIPPED";
+  naverMatchScore: number | null;
+  naverEvidenceCodesJson: string;
   matchScore: number | null;
   consecutiveNotFound: number;
   protectedUntil: string | null;
@@ -240,6 +264,9 @@ type LivenessRow = {
   reasonType: string;
   status: LivenessStateRow["status"] | null;
   kakaoStatus: LivenessStateRow["kakaoStatus"];
+  naverStatus: LivenessStateRow["naverStatus"];
+  naverMatchScore: number | null;
+  naverEvidenceCodes: string[];
   matchScore: number | null;
   consecutiveNotFound: number;
   protectedUntil: string | null;
@@ -255,6 +282,9 @@ function livenessRow(input: { caseId: string | null; placeId: string; placeName:
     reasonType: input.reasonType,
     status: input.state?.status ?? null,
     kakaoStatus: input.state?.kakaoStatus ?? "SKIPPED",
+    naverStatus: input.state?.naverStatus ?? "SKIPPED",
+    naverMatchScore: input.state?.naverMatchScore ?? null,
+    naverEvidenceCodes: parseEvidenceCodes(input.state?.naverEvidenceCodesJson),
     matchScore: input.state?.matchScore ?? evidence.score.total,
     consecutiveNotFound: input.state?.consecutiveNotFound ?? 0,
     protectedUntil: input.state?.protectedUntil ?? null,
@@ -262,17 +292,24 @@ function livenessRow(input: { caseId: string | null; placeId: string; placeName:
   };
 }
 
+function parseEvidenceCodes(value: string | undefined) {
+  try {
+    const parsed = JSON.parse(value ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string").slice(0, 8) : [];
+  } catch { return []; }
+}
+
 function parseLivenessFilter(value: string | null): LivenessFilter | null {
   return value === "SUSPECTED" || value === "HIDDEN" || value === "ERROR" ? value : null;
 }
 
 function isAttentionState(state: LivenessStateRow) {
-  return state.status === "SUSPECTED" || state.status === "HIDDEN" || state.kakaoStatus === "ERROR";
+  return state.status === "SUSPECTED" || state.status === "HIDDEN" || state.naverStatus === "ERROR";
 }
 
 function matchesLivenessFilter(row: LivenessRow, filter: LivenessFilter | null) {
   if (!filter) return true;
-  return filter === "ERROR" ? row.kakaoStatus === "ERROR" : row.status === filter;
+  return filter === "ERROR" ? row.naverStatus === "ERROR" : row.status === filter;
 }
 
 function parseLivenessEvidence(value: string): LivenessEvidence {
@@ -329,8 +366,29 @@ function formatLivenessStatus(value: LivenessRow["status"]) {
   return ({ VERIFIED: "정상", MONITORING: "관찰", SUSPECTED: "운영 의심", HIDDEN: "임시 숨김" } as Record<string, string>)[value ?? ""] ?? "검수 대기";
 }
 
-function formatKakaoStatus(value: LivenessStateRow["kakaoStatus"]) {
+function formatNaverStatus(value: LivenessStateRow["naverStatus"]) {
   return ({ MATCHED: "일치", AMBIGUOUS: "모호", NOT_FOUND: "미검색", ERROR: "공급자 오류", SKIPPED: "미확인" } as Record<string, string>)[value];
+}
+
+function PlaceNaverVerificationPanel({ places, groups }: {
+  places: Array<{ id: string; name: string; address: string; slug: string; status: "DRAFT" | "PUBLISHED" | "HIDDEN" }>;
+  groups: Array<{ normalizedName: string; label: string; placeIds: string[]; count: number }>;
+}) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selected = new Set(selectedIds);
+  const selectableGroups = groups.filter((group) => group.count <= 25);
+  const toggle = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < 25 ? [...current, id] : current);
+  const selectGroup = (ids: string[]) => setSelectedIds((current) => [...new Set([...current, ...ids])].slice(0, 25));
+  const selectPage = () => setSelectedIds(places.slice(0, 25).map((place) => place.id));
+  return <section className="place-ops-section naver-place-selection">
+    <div className="ops-section-head"><h2>NAVER 근거 일괄 확인</h2><p>상호·주소·좌표를 각각 대조합니다. 같은 상호는 필터링과 선택을 위한 묶음일 뿐, 지점 병합이나 자동 공개를 하지 않습니다.</p></div>
+    <Form method="post"><input type="hidden" name="intent" value="verify-places-with-naver"/>
+      <div className="naver-selection-toolbar"><strong>{selectedIds.length} / 25 선택</strong><button type="button" className="secondary" onClick={selectPage}>현재 목록 25곳 선택</button><button type="button" className="secondary" onClick={() => setSelectedIds([])}>선택 해제</button><button disabled={!selectedIds.length}>선택 장소 NAVER 근거 확인</button></div>
+      {selectedIds.map((id) => <input key={id} type="hidden" name="placeId" value={id}/>)}
+      {selectableGroups.length > 0 && <div className="same-name-groups"><h3>동일 상호 필터</h3>{selectableGroups.map((group) => <button key={group.normalizedName} type="button" onClick={() => selectGroup(group.placeIds)}>{group.label} <span>{group.count}곳 선택</span></button>)}</div>}
+      <div className="naver-place-list">{places.slice(0, 25).map((place) => <label key={place.id}><input type="checkbox" checked={selected.has(place.id)} onChange={() => toggle(place.id)}/><span><strong>{place.name}</strong><small>{place.address} · {place.status}</small></span></label>)}</div>
+    </Form>
+  </section>;
 }
 
 function Stat({ label, value }: { label: string; value: number }) { return <article><span>{label}</span><strong>{value}</strong></article>; }

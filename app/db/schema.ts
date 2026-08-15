@@ -979,6 +979,12 @@ export const placeLivenessStates = sqliteTable("place_liveness_states", {
   kakaoStatus: text("kakao_status", {
     enum: ["MATCHED", "AMBIGUOUS", "NOT_FOUND", "ERROR", "SKIPPED"],
   }).notNull().default("SKIPPED"),
+  naverStatus: text("naver_status", {
+    enum: ["MATCHED", "AMBIGUOUS", "NOT_FOUND", "ERROR", "SKIPPED"],
+  }).notNull().default("SKIPPED"),
+  naverMatchScore: real("naver_match_score"),
+  naverEvidenceCodesJson: text("naver_evidence_codes_json").notNull().default("[]"),
+  naverLastCheckedAt: text("naver_last_checked_at"),
   matchedKakaoPlaceId: text("matched_kakao_place_id"),
   matchScore: real("match_score"),
   consecutiveNotFound: integer("consecutive_not_found").notNull().default(0),
