@@ -31,7 +31,7 @@ pnpm dev --host 127.0.0.1
 | `NAVER_PLACE_GEOCODING_ENABLED` | 장소 제안·관리자 위치 확인용 NAVER 주소 지오코딩 kill switch | 환경별 변수 (`false` 안전 기본값, 이번 운영 배포는 `true`) |
 | `NAVER_LOCAL_SEARCH_CLIENT_ID` | NAVER 지역검색 서버 요청 식별자 | secret |
 | `NAVER_LOCAL_SEARCH_CLIENT_SECRET` | NAVER 지역검색 서버 요청 비밀값 | secret |
-| `NAVER_LOCAL_SEARCH_ENABLED` | NAVER 지역검색 카테고리 검증 kill switch | 환경별 변수 (`false` 안전 기본값) |
+| `NAVER_LOCAL_SEARCH_ENABLED` | NAVER 지역검색 카테고리 검증 kill switch | 환경별 변수 (운영 `true`, 문제 시 `false`로 즉시 중단) |
 | `NAVER_LOCAL_SEARCH_DAILY_LIMIT` | 하루 최대 NAVER 지역검색 호출 수 | 환경별 변수 (`200` 초기 상한) |
 | `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 일반 인증키 | secret |
 | `ADMIN_EMAIL` | 가입 시 ADMIN 역할을 부여할 운영자 이메일 | secret |
