@@ -144,7 +144,9 @@ export async function listBulkReviewGroups(db: AppDb, filters: CandidateFilters 
     return {
       ...candidate,
       address,
-      categoryId: category?.id ?? null,
+      categoryId: naverCompleted ? category?.id ?? null : null,
+      suggestedCategoryId: category?.id ?? null,
+      suggestedCategoryName: category?.name ?? null,
       categorySlug: combined.categorySlug,
       confidence: combined.confidence,
       confidenceScore: combined.confidenceScore,

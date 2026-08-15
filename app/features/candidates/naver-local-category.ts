@@ -173,7 +173,7 @@ export function matchNaverLocalCategory(input: MatchInput): NaverLocalCategoryMa
       candidate.sameAddress ? "NAVER_EXACT_ADDRESS" : "NAVER_COORDINATES_WITHIN_100M",
       candidate.mapped ? "NAVER_SPECIFIC_CATEGORY" : "NAVER_BROAD_CATEGORY",
     ];
-    return naverDecision("VERIFIED", candidate.mapped?.slug ?? null, 40, candidate.mapped?.specificityScore ?? 0, evidenceCodes);
+    return naverDecision("VERIFIED", candidate.mapped?.slug ?? null, 60, candidate.mapped?.specificityScore ?? 0, evidenceCodes);
   }
   if (candidates.some((candidate) => candidate.matchedName)) return naverDecision("LIKELY", null);
   return naverDecision("NO_MATCH", null);

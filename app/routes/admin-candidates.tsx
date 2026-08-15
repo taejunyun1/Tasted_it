@@ -71,7 +71,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const reviewableRows = allRows.filter((row) => row.reviewState !== "BLOCKED");
   const filteredRows = reviewableRows.filter((row) =>
     (!states.includes(requestedState as (typeof states)[number]) || row.reviewState === requestedState)
-    && (!categoryId || row.categoryId === categoryId)
+    && (!categoryId || row.suggestedCategoryId === categoryId)
     && (!confidence || row.confidence === confidence))
     .map((row) => ({ ...row, isExcluded: false as const, exclusionReason: null, chainName: null, matchedTerm: null, excludedAt: null }));
   const excludedReviewRows = excludedRows.map((row) => ({
@@ -333,7 +333,7 @@ export default function AdminCandidates({ loaderData, actionData }: Route.Compon
                 <div><span className={`inline-flex border-l-4 px-2 py-1 text-xs font-semibold ${stateMeta[row.reviewState].className}`}>{stateMeta[row.reviewState].label}</span></div>
                 <div><p className="text-[10px] font-medium text-neutral-500">{sources.find(([id]) => id === row.sourceType)?.[1] ?? row.sourceType} · {row.regionCode === "GWANGJU" ? "광주" : "전남"}</p><h2 className="mt-1 text-base font-semibold tracking-[-0.02em]">{row.businessName}</h2><p className="mt-0.5 text-[11px] text-neutral-500">{row.businessSubtype ?? "세부업태 미상"}</p></div>
                 <div><p className="text-sm leading-6">{row.address || "주소 없음"}</p><p className="mt-1 font-mono text-[11px] text-neutral-500">{row.neighborhood ?? "동네 추출 실패"} · {row.latitude?.toFixed(5) ?? "—"}, {row.longitude?.toFixed(5) ?? "—"}</p>{row.blockers.length > 0 && <ul className="mt-2 flex flex-wrap gap-1">{row.blockers.map((blocker) => <li key={blocker} className="border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">{blocker}</li>)}</ul>}</div>
-                <div>{!blocked ? <CategoryPickerTrigger businessName={row.businessName} reviewState={row.reviewState} suggestedCategoryName={loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"} selectedCategory={loaderData.categories.find((category) => category.id === chosenCategories[row.id])} onOpen={() => setCategoryPickerTarget({ candidateId: row.id })} /> : <p className="text-sm font-medium">{loaderData.categories.find((category) => category.id === row.categoryId)?.name ?? "분류 없음"}</p>}</div>
+                <div>{!blocked ? <CategoryPickerTrigger businessName={row.businessName} reviewState={row.reviewState} suggestedCategoryName={row.suggestedCategoryName ?? "분류 없음"} selectedCategory={loaderData.categories.find((category) => category.id === chosenCategories[row.id])} onOpen={() => setCategoryPickerTarget({ candidateId: row.id })} /> : <p className="text-sm font-medium">{row.suggestedCategoryName ?? "분류 없음"}</p>}</div>
                 <div><span className={`inline-flex border px-2 py-1 text-xs font-medium ${row.confidence === "HIGH" ? "border-emerald-500 text-emerald-800" : row.confidence === "CONFLICT" ? "border-rose-500 text-rose-800" : "border-amber-500 text-amber-800"}`}>신뢰도 {confidenceLabels[row.confidence]}</span><p className="mt-2 font-mono text-[10px] text-neutral-500">{row.classificationSource}</p><CandidateEvidenceChain row={row} /><details className="mt-2 text-xs text-neutral-600"><summary className="cursor-pointer font-medium">분류 근거</summary><ul className="mt-1 list-disc space-y-1 pl-4">{[...row.reasons, ...row.reviewReasons].map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}</ul></details></div>
               </article>;
             })}
