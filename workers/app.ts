@@ -2,7 +2,6 @@ import { createRequestHandler } from "react-router";
 import { runScheduledCandidateSync } from "../app/features/candidates/scheduled-sync.server";
 import { runScheduledRatingMaintenance } from "../app/features/ratings/scheduled-rating.server";
 import { runScheduledPlaceMaintenance } from "../app/features/places/scheduled-place.server";
-import { runScheduledAiClassification } from "../app/features/candidates/scheduled-ai.server";
 import { runScheduledParkingSync } from "../app/features/parking/scheduled-parking.server";
 import { runScheduledOnboardingDataLifecycle } from "../app/features/onboarding/data-lifecycle.server";
 
@@ -20,7 +19,6 @@ export default {
       runScheduledCandidateSync(env),
       runScheduledRatingMaintenance(env),
       runScheduledPlaceMaintenance(env),
-      runScheduledAiClassification(env),
       runScheduledParkingSync(env),
       runScheduledOnboardingDataLifecycle(env),
     ]));

@@ -55,12 +55,5 @@ SELECT json_object(
   'active_adult_exclusions', (SELECT count(*) FROM business_license_exclusions
     WHERE status = 'ACTIVE' AND reason = 'ADULT_ENTERTAINMENT'),
   'active_admin_exceptions', (SELECT count(*) FROM business_license_exclusions
-    WHERE status = 'ACTIVE' AND reason = 'ADMIN_EXCEPTION'),
-  'successful_ai_without_category', (SELECT count(*) FROM ai_classification_runs
-    WHERE status = 'SUCCESS' AND category_slug IS NULL),
-  'successful_ai_with_unknown_category', (SELECT count(*)
-    FROM ai_classification_runs r
-    LEFT JOIN categories c ON c.slug = r.category_slug AND c.is_active = 1
-    WHERE r.status = 'SUCCESS' AND r.category_slug IS NOT NULL AND c.id IS NULL),
-  'failed_ai_runs', (SELECT count(*) FROM ai_classification_runs WHERE status = 'FAILED')
+    WHERE status = 'ACTIVE' AND reason = 'ADMIN_EXCEPTION')
 ) AS audit_json;

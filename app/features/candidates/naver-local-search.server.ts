@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import type { RegionCode } from "./public-data";
 
-const NAVER_LOCAL_SEARCH_URL = "https://openapi.naver.com/v1/search/local.json";
+const NAVER_LOCAL_SEARCH_URL = "https://naverapihub.apigw.ntruss.com/search/v1/local";
 const NAVER_LOCAL_SEARCH_TIMEOUT_MS = 4_000;
 const NAVER_LOCAL_SEARCH_RESULT_LIMIT = 5;
 const NAVER_WGS84_SCALE = 10_000_000;
@@ -40,7 +40,7 @@ export type NaverLocalSearchAdapter = {
 };
 
 export type NaverLocalSearchEnv = Pick<Cloudflare.Env,
-  "NAVER_LOCAL_SEARCH_ENABLED" | "NAVER_LOCAL_SEARCH_CLIENT_ID" | "NAVER_LOCAL_SEARCH_CLIENT_SECRET"
+  "NAVER_LOCAL_SEARCH_ENABLED" | "NAVER_API_HUB_KEY_ID" | "NAVER_API_HUB_KEY"
 >;
 
 export class NaverLocalSearchError extends Error {
@@ -91,8 +91,8 @@ export function createNaverLocalSearchAdapter(
         try {
           response = await fetchImpl(url.toString(), {
             headers: {
-              "X-Naver-Client-Id": env.NAVER_LOCAL_SEARCH_CLIENT_ID,
-              "X-Naver-Client-Secret": env.NAVER_LOCAL_SEARCH_CLIENT_SECRET,
+              "X-NCP-APIGW-API-KEY-ID": env.NAVER_API_HUB_KEY_ID,
+              "X-NCP-APIGW-API-KEY": env.NAVER_API_HUB_KEY,
             },
             signal: controller.signal,
           });
@@ -123,7 +123,7 @@ export function createNaverLocalSearchAdapter(
 }
 
 function hasCredentials(env: NaverLocalSearchEnv) {
-  return env.NAVER_LOCAL_SEARCH_CLIENT_ID.trim().length > 0 && env.NAVER_LOCAL_SEARCH_CLIENT_SECRET.trim().length > 0;
+  return env.NAVER_API_HUB_KEY_ID.trim().length > 0 && env.NAVER_API_HUB_KEY.trim().length > 0;
 }
 
 function validInput(input: NaverLocalSearchInput) {
