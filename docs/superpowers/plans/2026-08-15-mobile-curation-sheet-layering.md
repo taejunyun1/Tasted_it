@@ -315,3 +315,61 @@ Expected: PASS.
 git add app/components/map/HomeCurationSheet.tsx app/routes/home.tsx tests/unit/home-curation-components.test.ts
 git commit -m "2026-08-15 모바일 시트 선택 상태 유지"
 ```
+
+### Task 6: 선택 확인·전환 복원 UX를 보강한다
+
+**Files:**
+- Modify: `tests/unit/home-curation-components.test.ts`
+- Modify: `tests/e2e/home-curation.spec.ts`
+- Modify: `app/components/map/HomeCurationSheet.tsx`
+- Modify: `app/routes/home.tsx`
+- Modify: `app/styles/design-system.css`
+- Modify: `docs/superpowers/specs/2026-08-15-mobile-curation-sheet-layering-design.md`
+- Modify: `docs/superpowers/plans/2026-08-15-mobile-curation-sheet-layering.md`
+
+- [ ] **Step 1: 실패하는 단위·E2E 계약을 먼저 추가한다.**
+
+모바일 추천 카드를 선택하면 `peek` 시트 안에 선택된 장소의 순위와 상호명이 보이고, 키보드로 선택한 뒤 포커스가 시트 손잡이로 옮겨야 한다. 기존 모바일 동기화 E2E는 카드 선택 뒤 `peek`을 먼저 확인하고, 다시 펼친 뒤 드래그 동작을 검증한다. 지도 마커를 선택해도 현재 `peek` 상태는 바뀌지 않아야 한다.
+
+또한 추천 지도에서 전체 지도로 갔다가 브라우저 전환 또는 추천 지도 복귀로 `curated` 뷰가 되면, 시트는 항상 `half`로 초기화되어야 한다.
+
+- [ ] **Step 2: 실패를 확인한다.**
+
+Run:
+
+```bash
+node_modules/.bin/vitest run tests/unit/home-curation-components.test.ts
+BASE_URL=http://127.0.0.1:<port> node_modules/.bin/playwright test tests/e2e/home-curation.spec.ts --project=mobile-chromium --grep '모바일'
+```
+
+Expected: 현재 `peek`에는 선택 장소 정보가 없고, 카드 선택 뒤 숨겨지는 버튼의 포커스 이전과 오래된 `half` 기대값이 계약을 만족하지 않아 FAIL.
+
+- [ ] **Step 3: 최소 구현을 작성한다.**
+
+`HomeCurationSheet`는 `peek`일 때 선택된 장소의 `rank`와 `name`을 시트 상단에 짧게 보여 주고, 장소 선택 뒤 `requestAnimationFrame`으로 손잡이 버튼에 포커스를 옮긴다. `112px` 시트 높이 안에서 장소 확인 정보가 항상 보이되, 목록 본문은 계속 숨긴다.
+
+`home.tsx`는 이전 뷰를 추적해 `browse → curated` 전환에서도 `homeSheetSnap`을 `half`로 되돌린다. 지도 마커 선택은 선택 URL만 바꾸고 스냅을 강제로 변경하지 않는다.
+
+`home-curation.spec.ts`의 기존 카드·marker 시나리오는 위 계약에 맞게 갱신한다. loopback `BASE_URL`에서 실제 실행되고 외부 URL에서는 계속 skip되어야 한다.
+
+- [ ] **Step 4: GREEN을 확인한다.**
+
+Run:
+
+```bash
+node_modules/.bin/vitest run tests/unit/home-curation-components.test.ts tests/unit/home-curation-route.test.ts
+BASE_URL=http://127.0.0.1:<port> node_modules/.bin/playwright test tests/e2e/home-curation.spec.ts --project=chromium --project=mobile-chromium --grep '모바일'
+pnpm run typecheck
+git diff --check
+```
+
+Expected: 선택 확인·포커스·전환 복원·마커 상태 보존의 테스트가 통과하고 데스크톱 동작은 바뀌지 않는다.
+
+- [ ] **Step 5: 문서 정합성과 커밋을 확인한다.**
+
+선택 후 `peek`이 단순한 접힘이 아니라 선택 장소를 보여 주는 위치 확인 상태임을 설계 문서에 반영한다. 새 문서의 trailing whitespace를 제거한 뒤 다음 메시지로 커밋한다.
+
+```bash
+git add app/components/map/HomeCurationSheet.tsx app/routes/home.tsx app/styles/design-system.css tests/unit/home-curation-components.test.ts tests/e2e/home-curation.spec.ts docs/superpowers/specs/2026-08-15-mobile-curation-sheet-layering-design.md docs/superpowers/plans/2026-08-15-mobile-curation-sheet-layering.md
+git commit -m "2026-08-15 모바일 선택 확인 UX 보강"
+```
