@@ -242,3 +242,76 @@ pnpm run deploy
 ```
 
 Expected: merge와 production deploy가 모두 성공. 배포 뒤 `/`의 모바일·데스크톱 smoke를 다시 확인한다.
+
+### Task 5: URL 선택 뒤에도 시트 스냅 유지
+
+**Files:**
+- Modify: `tests/unit/home-curation-components.test.ts:8-15, 82-96, 123-134`
+- Modify: `app/components/map/HomeCurationSheet.tsx:9-70`
+- Modify: `app/routes/home.tsx:1-30, 420-500`
+
+**Interfaces:**
+- Produces: `HomeCurationSheetProps = HomeCurationPresentationProps & { snap: HomeSheetSnap; onSnapChange(snap: HomeSheetSnap): void }`
+- Consumes: `HomeSheetSnap` from `HomeCurationSheet` and existing `setSearch({ selected: id })` route callback.
+
+- [ ] **Step 1: 제어형 시트 계약의 실패 단위 테스트를 작성한다.**
+
+```ts
+it("시트는 라우트가 전달한 현재 스냅을 렌더한다", () => {
+  const html = renderToStaticMarkup(createElement(HomeCurationSheet, {
+    ...props,
+    snap: "peek",
+    onSnapChange: vi.fn(),
+  }));
+  expect(html).toContain('data-snap="peek"');
+});
+```
+
+기존 `HomeCurationSheet` 렌더용 fixture에도 `snap: "half"`와 `onSnapChange: vi.fn()`을 넣는다.
+
+- [ ] **Step 2: 실패를 확인한다.**
+
+Run: `node_modules/.bin/vitest run tests/unit/home-curation-components.test.ts`  
+Expected: 현재 `HomeCurationSheet` props에 `snap`이 없고, 전달값을 무시하므로 `data-snap="peek"` 계약이 FAIL.
+
+- [ ] **Step 3: 라우트 제어형 최소 구현을 작성한다.**
+
+```tsx
+// HomeCurationSheet.tsx
+export type HomeCurationSheetProps = HomeCurationPresentationProps & {
+  snap: HomeSheetSnap;
+  onSnapChange: (snap: HomeSheetSnap) => void;
+};
+
+export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCurationSheetProps) {
+  const handlePlaceSelect = (placeId: string) => {
+    onSnapChange(homeSheetSnapAfterPlaceSelect());
+    props.onSelect(placeId);
+  };
+  // 손잡이의 setSnap(...)은 onSnapChange(...)로 바꾼다.
+}
+
+// home.tsx
+const [homeSheetSnap, setHomeSheetSnap] = useState<HomeSheetSnap>("half");
+const returnToCuration = () => {
+  setHomeSheetSnap("half");
+  // 기존 추천 지도 URL 전환을 이어서 실행한다.
+};
+// 기존 presentationProps는 데스크톱 패널에 그대로 쓴다.
+// 모바일에만 아래 props를 전달한다.
+<HomeCurationSheet {...presentationProps} snap={homeSheetSnap} onSnapChange={setHomeSheetSnap} />
+```
+
+`HomeCurationSheet`의 로컬 `useState`와 선택 감시 `useEffect`는 제거한다. `home.tsx`의 상태가 URL 파라미터 변경 뒤에도 살아 있으므로, 시트가 재마운트돼도 방금 선택한 `peek`을 유지한다.
+
+- [ ] **Step 4: GREEN을 확인한다.**
+
+Run: `node_modules/.bin/vitest run tests/unit/home-curation-components.test.ts`  
+Expected: PASS.
+
+- [ ] **Step 5: 커밋한다.**
+
+```bash
+git add app/components/map/HomeCurationSheet.tsx app/routes/home.tsx tests/unit/home-curation-components.test.ts
+git commit -m "2026-08-15 모바일 시트 선택 상태 유지"
+```
