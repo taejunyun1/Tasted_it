@@ -122,6 +122,12 @@ async function directRecommendationContract(page: Page, mode: string) {
   return contract.recommendations;
 }
 
+async function grantGeolocationPermission(page: Page) {
+  await page.context().grantPermissions(["geolocation"], {
+    origin: new URL(page.url()).origin,
+  });
+}
+
 async function dragSheetDown(page: Page, handle: Locator) {
   const box = await handle.boundingBox();
   expect(box).not.toBeNull();
@@ -281,9 +287,9 @@ test("Golden 활성 후보가 없으면 정확한 안내와 근거 후보만 보
 });
 
 test("위치와 새 지도 영역은 명시적으로 다시 추천한다", async ({ context, page }, testInfo) => {
-  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
   await context.setGeolocation(MOCK_GPS);
   await page.goto("/?qa=1");
+  await grantGeolocationPermission(page);
 
   const presentation = curationPresentation(page, testInfo.project.name);
   const locatedResponsePromise = page.waitForResponse((response) => (
@@ -319,9 +325,9 @@ test("위치와 새 지도 영역은 명시적으로 다시 추천한다", async
 });
 
 test("내 위치에서 전체 지도를 이동한 뒤 추천 지도로 돌아오면 지도 중심 출처를 유지한다", async ({ context, page }, testInfo) => {
-  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
   await context.setGeolocation(MOCK_GPS);
   await page.goto("/?qa=1");
+  await grantGeolocationPermission(page);
 
   const presentation = curationPresentation(page, testInfo.project.name);
   const locatedResponsePromise = page.waitForResponse((response) => (
@@ -389,7 +395,6 @@ test("지연된 이전 추천 응답은 전체 지도 loader 이후 세션 이�
 });
 
 test("진행 중 resource A를 최신 B로 교체하면 B 화면과 이력을 지킨다", async ({ context, page }, testInfo) => {
-  await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:5173" });
   await context.setGeolocation(MOCK_GPS);
   let releaseA: (() => void) | undefined;
   const aGate = new Promise<void>((resolve) => {
@@ -409,6 +414,7 @@ test("진행 중 resource A를 최신 B로 교체하면 B 화면과 이력을 �
     await route.continue();
   });
   await page.goto("/?qa=1");
+  await grantGeolocationPermission(page);
 
   const presentation = curationPresentation(page, testInfo.project.name);
   await presentation.getByRole("button", { name: "내 취향", exact: true }).click();
