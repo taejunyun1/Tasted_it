@@ -11,4 +11,14 @@ describe("place review selection controls", () => {
     expect(component).toContain('value="auto-exclude-non-food-review-items"');
     expect(component).not.toContain('onClick={() => setSelectedIds([])}>선택 해제</button>');
   });
+
+  it("keeps NAVER verification responses in the route and moves successful work client-side", () => {
+    const route = readFileSync("app/routes/admin-place-operations.tsx", "utf8");
+    const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
+
+    expect(route).not.toContain("return redirect(");
+    expect(route).toContain("nextStep: 3");
+    expect(component).toContain("useNavigate");
+    expect(component).toContain("buildPlaceReviewNextStepHref(query)");
+  });
 });

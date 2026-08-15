@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Form, useNavigation } from "react-router";
+import { Form, useNavigate, useNavigation } from "react-router";
 
 import type { ReviewStage } from "../../features/places/place-review-pipeline";
-import type { PlaceReviewQuery } from "../../features/places/place-review-pagination";
+import { buildPlaceReviewNextStepHref, type PlaceReviewQuery } from "../../features/places/place-review-pagination";
 import type { PlaceReviewPage, PlaceReviewStageCounts } from "../../features/places/place-review-query.server";
 import type { ReviewDuplicateCandidate } from "../../features/places/place-review-duplicates.server";
 import { AdminBlockingOverlay } from "./AdminBlockingOverlay";
@@ -26,7 +26,7 @@ const nextAction: Record<PlaceReviewQuery["step"], string> = {
   5: "선택 장소 승인·공개",
 };
 
-export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverDailyUsage, naverDailyLimit, message, error }: {
+export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverDailyUsage, naverDailyLimit, message, error, nextStep }: {
   query: PlaceReviewQuery;
   page: PlaceReviewPage;
   counts: PlaceReviewStageCounts;
@@ -36,9 +36,11 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   naverDailyLimit: number;
   message?: string;
   error?: string;
+  nextStep?: 3;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const duplicatesByWorkItem = useMemo(() => duplicateCandidates.reduce<Record<string, ReviewDuplicateCandidate[]>>((groups, candidate) => {
     groups[candidate.workItemId] = [...(groups[candidate.workItemId] ?? []), candidate];
@@ -46,6 +48,11 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   }, {}), [duplicateCandidates]);
   const pageKey = `${query.step}:${query.page}:${query.pageSize}:${query.status ?? ""}:${query.region ?? ""}:${query.query}`;
   useEffect(() => setSelectedIds([]), [pageKey]);
+  useEffect(() => {
+    if (nextStep === 3 && query.step === 2 && navigation.state === "idle") {
+      navigate(buildPlaceReviewNextStepHref(query), { replace: true });
+    }
+  }, [navigate, navigation.state, nextStep, query]);
 
   const toggle = (id: string) => setSelectedIds((current) => current.includes(id)
     ? current.filter((item) => item !== id)

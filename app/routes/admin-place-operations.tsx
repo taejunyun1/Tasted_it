@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { data, Link, redirect } from "react-router";
+import { data, Link } from "react-router";
 
 import type { Route } from "./+types/admin-place-operations";
 import { PlaceReviewPipeline } from "../components/admin/PlaceReviewPipeline";
@@ -13,7 +13,7 @@ import { isSameOriginMutation } from "../features/http/same-origin";
 import { confirmReviewItemCategories } from "../features/places/place-review-category.server";
 import { listReviewDuplicateCandidates, resolveReviewDuplicates } from "../features/places/place-review-duplicates.server";
 import { verifyReviewItemsWithNaver } from "../features/places/place-review-naver.server";
-import { buildPlaceReviewNextStepHref, parsePlaceReviewQuery } from "../features/places/place-review-pagination";
+import { parsePlaceReviewQuery } from "../features/places/place-review-pagination";
 import { reviewStages, type ReviewStage } from "../features/places/place-review-pipeline";
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
@@ -76,9 +76,8 @@ export async function action({ request }: Route.ActionArgs) {
     if (!workItemIds.length) return data({ ok: false, error: "NAVER 근거를 확인할 장소를 선택해 주세요." }, { status: 400 });
     try {
       assertNaverLocalSearchEnabled(env);
-      await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env) });
-      const currentQuery = parsePlaceReviewQuery(new URL(request.url));
-      return redirect(buildPlaceReviewNextStepHref(currentQuery));
+      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env) });
+      return { ok: true, message: `확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}`, skipped: result.skipped, nextStep: 3 as const };
     } catch (error) {
       const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
       return data({ ok: false, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
@@ -128,11 +127,12 @@ export function meta() { return [{ title: "장소 검수 — Re:Taste Admin" }];
 export default function AdminPlaceOperations({ loaderData, actionData }: Route.ComponentProps) {
   const message = actionData && "message" in actionData ? actionData.message : undefined;
   const error = actionData && "error" in actionData ? actionData.error : undefined;
+  const nextStep = actionData && "nextStep" in actionData && actionData.nextStep === 3 ? 3 : undefined;
   return <main id="main" className="place-ops shell place-review-shell">
     <header className="place-ops-head">
       <div><p className="eyebrow">ADMIN / PLACE REVIEW</p><h1>장소 검수</h1><p>원천부터 NAVER 근거, 카테고리, 중복 검토를 순서대로 확인한 뒤 선택 공개합니다.</p></div>
       <nav><Link to="/admin/data-sync">공공데이터 수집</Link><Link to="/admin/ratings">평가 운영</Link></nav>
     </header>
-    <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} />
+    <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} nextStep={nextStep} />
   </main>;
 }
