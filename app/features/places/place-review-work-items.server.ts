@@ -18,6 +18,7 @@ import {
   type ReviewStage,
 } from "./place-review-pipeline";
 import { openReviewDuplicateCount } from "./place-review-duplicates.server";
+import { classifyFoodVenue } from "./food-venue-policy";
 
 const MAX_REVIEW_BATCH_SIZE = 25;
 
@@ -274,4 +275,69 @@ export function excludePlaceReviewItems(db: AppDb, input: {
   now: string;
 }) {
   return changeReviewItemStatus(db, { ...input, status: "EXCLUDED", action: "PLACE_REVIEW_EXCLUDE" });
+}
+
+type AutoNonFoodSkipCode = "NOT_ACTIVE" | "NOT_SOURCE_REVIEW" | "NOT_NON_FOOD" | "STALE_WORK_ITEM";
+
+export async function autoExcludeNonFoodReviewItems(db: AppDb, input: {
+  workItemIds: string[];
+  actorUserId: string;
+  now: string;
+}): Promise<{ changed: string[]; skipped: Array<{ workItemId: string; code: AutoNonFoodSkipCode }> }> {
+  const workItemIds = uniqueWorkItemIds(input.workItemIds);
+  const changed: string[] = [];
+  const skipped: Array<{ workItemId: string; code: AutoNonFoodSkipCode }> = [];
+
+  for (const workItemId of workItemIds) {
+    const workItem = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) });
+    if (!workItem || workItem.status !== "ACTIVE") {
+      skipped.push({ workItemId, code: "NOT_ACTIVE" });
+      continue;
+    }
+    if (workItem.stage !== "SOURCE_REVIEW") {
+      skipped.push({ workItemId, code: "NOT_SOURCE_REVIEW" });
+      continue;
+    }
+
+    const license = workItem.businessLicenseId
+      ? await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, workItem.businessLicenseId) })
+      : undefined;
+    const decision = classifyFoodVenue({ businessName: license?.businessName ?? "", businessSubtype: license?.businessSubtype ?? null });
+    if (decision.decision !== "EXCLUDE") {
+      skipped.push({ workItemId, code: "NOT_NON_FOOD" });
+      continue;
+    }
+
+    const note = `${decision.matchedRule} · ${decision.matchMethod}`;
+    const updated = await db.update(placeReviewWorkItems).set({
+      status: "EXCLUDED",
+      holdCode: "AUTO_NON_FOOD",
+      holdNote: note,
+      lastTransitionBy: input.actorUserId,
+      lastTransitionAt: input.now,
+      updatedAt: input.now,
+    }).where(and(
+      eq(placeReviewWorkItems.id, workItem.id),
+      eq(placeReviewWorkItems.status, "ACTIVE"),
+      eq(placeReviewWorkItems.stage, "SOURCE_REVIEW"),
+      eq(placeReviewWorkItems.stageVersion, workItem.stageVersion),
+    )).returning({ id: placeReviewWorkItems.id });
+    if (!updated.length) {
+      skipped.push({ workItemId, code: "STALE_WORK_ITEM" });
+      continue;
+    }
+    await db.insert(adminAuditLogs).values({
+      id: crypto.randomUUID(),
+      actorUserId: input.actorUserId,
+      action: "PLACE_REVIEW_AUTO_EXCLUDE_NON_FOOD",
+      targetType: "PLACE_REVIEW_WORK_ITEM",
+      targetId: workItem.id,
+      beforeState: JSON.stringify({ status: workItem.status, stage: workItem.stage }),
+      afterState: JSON.stringify({ status: "EXCLUDED", code: "AUTO_NON_FOOD", note }),
+      createdAt: input.now,
+    });
+    changed.push(workItemId);
+  }
+
+  return { changed, skipped };
 }

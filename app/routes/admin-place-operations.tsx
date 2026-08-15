@@ -17,7 +17,7 @@ import { parsePlaceReviewQuery } from "../features/places/place-review-paginatio
 import { reviewStages, type ReviewStage } from "../features/places/place-review-pipeline";
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
-import { excludePlaceReviewItems, holdPlaceReviewItems, advancePlaceReviewWorkItems } from "../features/places/place-review-work-items.server";
+import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems } from "../features/places/place-review-work-items.server";
 import { getNaverLocalSearchApiCallsToday } from "../features/places/naver-place-liveness.server";
 
 function selectedWorkItems(form: FormData) {
@@ -62,6 +62,15 @@ export async function action({ request }: Route.ActionArgs) {
   const now = new Date().toISOString();
   const intent = String(form.get("intent") ?? "");
   const { workItemIds, versions } = selectedWorkItems(form);
+  const automaticWorkItemIds = [...new Set(form.getAll("autoWorkItem").map(String).filter(Boolean))];
+  const expectedStage = String(form.get("expectedStage") ?? "");
+
+  if (intent === "auto-exclude-non-food-review-items") {
+    if (expectedStage !== "SOURCE_REVIEW") return data({ ok: false, error: "원천 검수 단계에서만 자동 제외할 수 있습니다." }, { status: 400 });
+    if (!automaticWorkItemIds.length) return data({ ok: false, error: "자동 제외할 장소가 없습니다." }, { status: 400 });
+    const result = await autoExcludeNonFoodReviewItems(db, { workItemIds: automaticWorkItemIds, actorUserId: admin.id, now });
+    return { ok: true, message: `비음식점 자동 제외 ${result.changed.length}곳 · 유지 ${result.skipped.length}곳`, skipped: result.skipped };
+  }
 
   if (intent === "verify-review-items-with-naver") {
     if (!workItemIds.length) return data({ ok: false, error: "NAVER 근거를 확인할 장소를 선택해 주세요." }, { status: 400 });
@@ -97,7 +106,6 @@ export async function action({ request }: Route.ActionArgs) {
     return { ok: true, message: `선택 공개 ${result.published.length}곳 완료 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
   }
   if (!workItemIds.length) return data({ ok: false, error: "처리할 장소를 선택해 주세요." }, { status: 400 });
-  const expectedStage = String(form.get("expectedStage") ?? "");
   if (!reviewStages.includes(expectedStage as ReviewStage)) return data({ ok: false, error: "검수 단계를 다시 확인해 주세요." }, { status: 400 });
   const reason = String(form.get("reason") ?? "").trim();
   if (intent === "advance-review-items") {

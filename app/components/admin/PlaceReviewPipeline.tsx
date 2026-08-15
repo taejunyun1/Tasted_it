@@ -50,7 +50,9 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   const toggle = (id: string) => setSelectedIds((current) => current.includes(id)
     ? current.filter((item) => item !== id)
     : current.length >= 25 ? current : [...current, id]);
-  const selectPage = () => setSelectedIds(page.rows.slice(0, 25).map((row) => row.workItemId));
+  const togglePageSelection = () => setSelectedIds((current) => current.length
+    ? []
+    : page.rows.slice(0, 25).map((row) => row.workItemId));
   const submitting = navigation.state !== "idle" && navigation.formData?.get("intent") != null;
   const actionMessage = query.step === 2 ? "NAVER 근거를 확인하는 중입니다" : "검수 결과를 저장하는 중입니다";
 
@@ -65,14 +67,15 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />
+      {query.step === 1 && page.rows.map((row) => <input key={`auto:${row.workItemId}`} type="hidden" name="autoWorkItem" value={row.workItemId} />)}
       {selectedIds.map((id) => {
         const row = page.rows.find((item) => item.workItemId === id);
         return <span key={id}><input type="hidden" name="workItem" value={`${id}|${row?.stageVersion ?? 0}`} /><input type="hidden" name="workItemId" value={id} /></span>;
       })}
       <div className="place-review-selection-bar">
         <strong>{selectedIds.length} / 25 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다.</span>
-        <button type="button" className="secondary" onClick={selectPage}>현재 페이지 25곳 선택</button>
-        <button type="button" className="secondary" onClick={() => setSelectedIds([])}>선택 해제</button>
+        <button type="button" className="secondary" onClick={togglePageSelection}>{selectedIds.length ? "선택 해제" : `현재 페이지 ${page.rows.length}곳 선택`}</button>
+        {query.step === 1 && <button className="danger" name="intent" value="auto-exclude-non-food-review-items" disabled={!page.rows.length}>비음식점 자동 제외</button>}
       </div>
       <div className="place-review-grid">
         {page.rows.map((row) => <div key={row.workItemId} className="place-review-card-wrap"><PlaceReviewCard row={row} checked={selectedSet.has(row.workItemId)} onToggle={() => toggle(row.workItemId)} />
