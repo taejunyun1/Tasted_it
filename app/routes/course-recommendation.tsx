@@ -20,11 +20,16 @@ export async function loader({ request }: Route.LoaderArgs) {
     const groups = await listPublicCategoryGroups(db);
     return { ...parsed, categories: groups.filter((group) => group.slug !== "cafe-dessert").flatMap((group) => group.children), courses: [] };
   }
-  const result = await recommendCourses(db, { options: parsed.options, context: parsed.context, now: new Date() });
+  const result = await recommendCourses(db, {
+    options: parsed.options,
+    context: parsed.context,
+    now: new Date(),
+    useContextV2: (env as unknown as { COURSE_CONTEXT_V2_ENABLED?: string }).COURSE_CONTEXT_V2_ENABLED === "true",
+  });
   return { ...parsed, categories: result.categories, courses: result.courses };
 }
 
-const timeLabels = { auto: "자동", lunch: "점심", afternoon: "오후", dinner: "저녁", late: "늦은 시간" } as const;
+const timeLabels = { auto: "자동", morning: "아침", lunch: "점심", afternoon: "오후", dinner: "저녁", night: "밤", lateNight: "심야" } as const;
 const secondOptions = [{ value: "cafe", label: "☕ 카페" }, { value: "dessert", label: "🍰 디저트·베이커리" }];
 const radiusOptions = [1, 3, 5, 8].map((value) => ({ value: String(value), label: `${value}km` }));
 const parkingOptions = [{ value: "auto", label: "상황에 맞게" }, { value: "shared", label: "한 곳 주차" }, { value: "separate", label: "장소별 주차" }];
@@ -67,11 +72,11 @@ function Conditions({ data, onClose }: { data: Route.ComponentProps["loaderData"
   </Form>;
 }
 
-function PlaceStop({ index, place, role, score }: { index: number; place: Route.ComponentProps["loaderData"]["courses"][number]["first"]; role: string; score?: number }) {
+function PlaceStop({ index, place, role, score, availability }: { index: number; place: Route.ComponentProps["loaderData"]["courses"][number]["first"]; role: string; score?: number; availability?: "OPEN" | "UNKNOWN" }) {
   const count = place.positive + place.negative;
   return <article className="course-stop">
     <span className="course-stop-index">{String(index).padStart(2, "0")}</span>
-    <div className="course-stop-main"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3><small>{role} · 영업시간 확인 필요</small></div>
+    <div className="course-stop-main"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3><small>{role} · {availability === "OPEN" ? "지금 영업 중" : "영업시간 확인 필요"}</small></div>
     {score != null && <strong className="course-stop-score">{score}점</strong>}
     <div className="course-stop-tags"><span>{count >= 8 ? `추천 평가 ${count}명` : `평가 ${count}/8`}</span><span>검수 공개 장소</span></div>
   </article>;
@@ -86,14 +91,19 @@ function ParkingResult({ parking }: { parking: Route.ComponentProps["loaderData"
   </div>;
 }
 
+function availabilityFor(course: Route.ComponentProps["loaderData"]["courses"][number], stop: "first" | "second") {
+  const availability = (course as { availability?: { first?: unknown; second?: unknown } }).availability?.[stop];
+  return availability === "OPEN" || availability === "UNKNOWN" ? availability : undefined;
+}
+
 function CourseCard({ course, index }: { course: Route.ComponentProps["loaderData"]["courses"][number]; index: number }) {
   return <section className="course-result-card">
     <header className="course-result-head"><div><span>COURSE {String(index + 1).padStart(2, "0")}</span><h2>두 곳을 이렇게 이어요</h2></div><strong>{course.score}<small>/100</small></strong></header>
     <div className="course-value-badges">{course.badges.map((badge, badgeIndex) => <span key={badge} data-primary={badgeIndex === 0 || undefined}>{badge}</span>)}</div>
     <div className="course-route-ribbon">
-      <PlaceStop index={1} place={course.first} role="한 끼" score={course.score} />
+      <PlaceStop index={1} place={course.first} role="한 끼" score={course.score} availability={availabilityFor(course, "first")} />
       <div className="course-leg"><i /><span>예상 이동 {distance(course.betweenPlacesMeters)}</span><i /></div>
-      <PlaceStop index={2} place={course.second} role="카페·디저트" />
+      <PlaceStop index={2} place={course.second} role="카페·디저트" availability={availabilityFor(course, "second")} />
     </div>
     <section className="course-parking"><header><div><span>PARKING / COMPARE</span><h3>어디에 주차할까요?</h3></div><small>거리 우선 · 공공데이터 기준</small></header><ParkingResult parking={course.parking} />{course.parking.snapshot?.referenceDate && <p className="course-data-date">주차장 데이터 기준일 {course.parking.snapshot.referenceDate}</p>}</section>
   </section>;

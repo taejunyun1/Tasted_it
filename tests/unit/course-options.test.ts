@@ -36,4 +36,10 @@ describe("course options", () => {
     expect(parsed.context.resolvedTime).toBe("afternoon");
     expect(toCourseSearchParams(parsed.options).toString()).toContain("apply=1");
   });
+
+  it("uses six KST time segments and accepts legacy late links", () => {
+    expect(parseCourseOptions("time=auto", new Date("2026-08-08T00:00:00Z")).context.resolvedTime).toBe("morning");
+    expect(parseCourseOptions("time=auto", new Date("2026-08-08T13:00:00Z")).context.resolvedTime).toBe("night");
+    expect(parseCourseOptions("time=late").context.resolvedTime).toBe("lateNight");
+  });
 });

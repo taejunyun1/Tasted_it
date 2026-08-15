@@ -2,7 +2,8 @@ import type { AppDb } from "../../db/client.server";
 import { recommendParkingForCourse } from "../parking/parking-recommendation.server";
 import { listPublicCategoryGroups, listRecommendationCandidates } from "../places/place.server";
 import type { CourseContext, CourseOptions } from "./course-options";
-import { rankCoursePairs } from "./course-score";
+import { rankCoursePairs, rankCoursePairsV2 } from "./course-score";
+import { listPlaceCourseContexts } from "./place-course-context.server";
 
 function boundingBox(context: CourseContext, radiusKm: number): [number, number, number, number] {
   const latitudeDelta = radiusKm / 90;
@@ -13,23 +14,35 @@ function boundingBox(context: CourseContext, radiusKm: number): [number, number,
 function startAt(now: Date, time: CourseContext["resolvedTime"]) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const hour = { lunch: 12, afternoon: 15, dinner: 18, late: 21 }[time];
+  const hour = { morning: 8, lunch: 12, afternoon: 15, dinner: 18, night: 21, lateNight: 0 }[time];
   return `${values.year}-${values.month}-${values.day}T${String(hour).padStart(2, "0")}:00:00+09:00`;
 }
 
-export async function recommendCourses(db: AppDb, input: { options: CourseOptions; context: CourseContext; now: Date }) {
+export async function recommendCourses(db: AppDb, input: { options: CourseOptions; context: CourseContext; now: Date; useContextV2?: boolean }) {
   const [places, groups] = await Promise.all([
-    listRecommendationCandidates(db, { bbox: boundingBox(input.context, input.options.radiusKm), limit: 100 }),
+    listRecommendationCandidates(db, { bbox: boundingBox(input.context, input.options.radiusKm), limit: input.useContextV2 ? 250 : 100 }),
     listPublicCategoryGroups(db),
   ]);
-  const pairs = rankCoursePairs({
-    places,
-    center: { latitude: input.context.latitude, longitude: input.context.longitude },
-    mealCategories: input.options.mealCategories,
-    second: input.options.second,
-    radiusKm: input.options.radiusKm,
-    limit: 3,
-  });
+  const pairs = input.useContextV2
+    ? rankCoursePairsV2({
+      places,
+      contexts: await listPlaceCourseContexts(db, places, input.now),
+      center: { latitude: input.context.latitude, longitude: input.context.longitude },
+      mealCategories: input.options.mealCategories,
+      second: input.options.second,
+      radiusKm: input.options.radiusKm,
+      resolvedTime: input.context.resolvedTime,
+      timeWasAuto: input.options.time === "auto",
+      limit: 3,
+    })
+    : rankCoursePairs({
+      places,
+      center: { latitude: input.context.latitude, longitude: input.context.longitude },
+      mealCategories: input.options.mealCategories,
+      second: input.options.second,
+      radiusKm: input.options.radiusKm,
+      limit: 3,
+    });
   const courses = await Promise.all(pairs.map(async (pair) => ({
     ...pair,
     parking: await recommendParkingForCourse(db, {
@@ -45,7 +58,7 @@ export async function recommendCourses(db: AppDb, input: { options: CourseOption
     }),
   })));
   return {
-    algorithmVersion: "course-parking-v1" as const,
+    algorithmVersion: input.useContextV2 ? "course-context-v2" as const : "course-parking-v1" as const,
     categories: groups.filter((group) => group.slug !== "cafe-dessert").flatMap((group) => group.children),
     courses,
   };

@@ -407,6 +407,86 @@ export const naverLocalCategoryRuns = sqliteTable(
   (table) => [index("naver_local_category_runs_status_started_idx").on(table.status, table.startedAt)],
 );
 
+/**
+ * v5 is a derived, shadowable classification profile. It deliberately stores
+ * only stable category slugs and evidence codes rather than provider payloads.
+ */
+export const placeCategoryV5Profiles = sqliteTable(
+  "place_category_v5_profiles",
+  {
+    placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+    primaryCategorySlug: text("primary_category_slug").notNull(),
+    secondaryCategorySlugsJson: text("secondary_category_slugs_json").notNull().default("[]"),
+    traitsJson: text("traits_json").notNull().default("[]"),
+    foodPlaceScore: integer("food_place_score").notNull(),
+    state: text("state", { enum: ["GREEN", "YELLOW", "ORANGE", "RED"] }).notNull(),
+    decision: text("decision", { enum: ["AUTO", "MANUAL", "EXCLUDE"] }).notNull(),
+    evidenceCodesJson: text("evidence_codes_json").notNull().default("[]"),
+    reasonCodesJson: text("reason_codes_json").notNull().default("[]"),
+    algorithmVersion: text("algorithm_version").notNull(),
+    lastClassifiedAt: text("last_classified_at").notNull(),
+    appliedAt: text("applied_at"),
+    ...timestamps,
+  },
+  (table) => [
+    index("place_category_v5_state_score_idx").on(table.state, table.foodPlaceScore),
+    index("place_category_v5_version_classified_idx").on(table.algorithmVersion, table.lastClassifiedAt),
+  ],
+);
+
+export const placeCategoryV5Runs = sqliteTable(
+  "place_category_v5_runs",
+  {
+    id: text("id").primaryKey(),
+    mode: text("mode", { enum: ["SHADOW", "APPLY_VERIFIED"] }).notNull(),
+    status: text("status", { enum: ["RUNNING", "COMPLETED", "FAILED", "SKIPPED"] }).notNull(),
+    requestedLimit: integer("requested_limit").notNull(),
+    scannedCount: integer("scanned_count").notNull().default(0),
+    storedCount: integer("stored_count").notNull().default(0),
+    verifiedApplyCount: integer("verified_apply_count").notNull().default(0),
+    manualCount: integer("manual_count").notNull().default(0),
+    excludedCount: integer("excluded_count").notNull().default(0),
+    errorCode: text("error_code"),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at"),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (table) => [index("place_category_v5_runs_status_started_idx").on(table.status, table.startedAt)],
+);
+
+/** Administrator-confirmed hours only. Missing rows deliberately mean UNKNOWN. */
+export const placeOperatingHours = sqliteTable(
+  "place_operating_hours",
+  {
+    id: text("id").primaryKey(),
+    placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+    weekday: integer("weekday").notNull(),
+    opensAt: text("opens_at"),
+    closesAt: text("closes_at"),
+    isClosed: integer("is_closed", { mode: "boolean" }).notNull().default(false),
+    verifiedBy: text("verified_by").references(() => users.id, { onDelete: "set null" }),
+    lastVerifiedAt: text("last_verified_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("place_operating_hours_place_weekday_idx").on(table.placeId, table.weekday),
+    index("place_operating_hours_verified_idx").on(table.lastVerifiedAt),
+  ],
+);
+
+export const placeCourseContexts = sqliteTable(
+  "place_course_contexts",
+  {
+    placeId: text("place_id").primaryKey().references(() => places.id, { onDelete: "cascade" }),
+    traitsJson: text("traits_json").notNull().default("[]"),
+    source: text("source", { enum: ["DERIVED", "MANUAL"] }).notNull(),
+    algorithmVersion: text("algorithm_version").notNull(),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (table) => [index("place_course_contexts_source_updated_idx").on(table.source, table.updatedAt)],
+);
+
 export const reviewerApplications = sqliteTable(
   "reviewer_applications",
   {

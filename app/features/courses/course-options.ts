@@ -1,4 +1,7 @@
-export type CourseTime = "auto" | "lunch" | "afternoon" | "dinner" | "late";
+/** `late` is accepted only to preserve previously shared course URLs. */
+export type CourseTime = "auto" | "morning" | "lunch" | "afternoon" | "dinner" | "night" | "lateNight";
+export type LegacyCourseTime = "late";
+export type ResolvedCourseTime = Exclude<CourseTime, "auto">;
 export type CourseSecond = "cafe" | "dessert";
 export type CourseParkingMode = "auto" | "shared" | "separate";
 export type CourseEv = "none" | "preferred" | "required";
@@ -19,18 +22,20 @@ export interface CourseContext {
   latitude: number;
   longitude: number;
   locationSource: "USER" | "DEFAULT";
-  resolvedTime: Exclude<CourseTime, "auto">;
+  resolvedTime: ResolvedCourseTime;
 }
 
 const DEFAULT_LOCATION = { latitude: 35.1601, longitude: 126.8514 };
 const allowed = <T extends string>(value: string | null, values: readonly T[], fallback: T): T => values.includes(value as T) ? value as T : fallback;
 
-function resolvedTime(now: Date): CourseContext["resolvedTime"] {
+function resolvedTime(now: Date): ResolvedCourseTime {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", hourCycle: "h23" }).format(now));
+  if (hour >= 6 && hour < 11) return "morning";
   if (hour >= 11 && hour < 14) return "lunch";
   if (hour >= 14 && hour < 17) return "afternoon";
-  if (hour >= 17 && hour < 22) return "dinner";
-  return "late";
+  if (hour >= 17 && hour < 21) return "dinner";
+  if (hour >= 21) return "night";
+  return "lateNight";
 }
 
 export function parseCourseOptions(search: string, now = new Date()) {
@@ -39,7 +44,10 @@ export function parseCourseOptions(search: string, now = new Date()) {
   const rawLng = Number(params.get("lng"));
   const hasUserLocation = Number.isFinite(rawLat) && Number.isFinite(rawLng)
     && rawLat >= 33 && rawLat <= 39 && rawLng >= 124 && rawLng <= 132;
-  const time = allowed(params.get("time"), ["auto", "lunch", "afternoon", "dinner", "late"] as const, "auto");
+  const rawTime = params.get("time");
+  const time = rawTime === "late"
+    ? "lateNight"
+    : allowed(rawTime, ["auto", "morning", "lunch", "afternoon", "dinner", "night", "lateNight"] as const, "auto");
   const rawRadius = Number(params.get("radiusKm"));
   const mealCategories = [...new Set(params.getAll("mealCategory")
     .filter((value) => value !== "all" && /^[a-z0-9-]{1,80}$/.test(value)))]
