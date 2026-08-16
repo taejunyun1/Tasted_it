@@ -32,6 +32,8 @@ export type PlaceReviewQueueRow = {
   placeStatus: "DRAFT" | "PUBLISHED" | "HIDDEN" | null;
   naverStatus: string | null;
   naverScore: number | null;
+  naverMappedCategoryId: string | null;
+  naverMappedCategoryName: string | null;
   selectedCategoryId: string | null;
   selectedCategoryName: string | null;
   blockCodes: string[];
@@ -107,15 +109,18 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
   }
 
   const selectedCategories = alias(categories, "place_review_selected_categories");
+  const naverMappedCategories = alias(categories, "place_review_naver_mapped_categories");
   const hydrated = await db.select({
     workItem: placeReviewWorkItems,
     businessLicense: businessLicenses,
     place: places,
     candidateNaverStatus: naverLocalCategoryVerifications.status,
     candidateNaverScore: naverLocalCategoryVerifications.matchScore,
+    candidateNaverMappedCategoryId: naverLocalCategoryVerifications.mappedCategoryId,
     placeNaverStatus: placeLivenessStates.naverStatus,
     placeNaverScore: placeLivenessStates.naverMatchScore,
     selectedCategoryName: selectedCategories.name,
+    naverMappedCategoryName: naverMappedCategories.name,
   })
     .from(placeReviewWorkItems)
     .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId))
@@ -123,6 +128,7 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     .leftJoin(naverLocalCategoryVerifications, eq(naverLocalCategoryVerifications.businessLicenseId, businessLicenses.id))
     .leftJoin(placeLivenessStates, eq(placeLivenessStates.placeId, places.id))
     .leftJoin(selectedCategories, eq(selectedCategories.id, placeReviewWorkItems.selectedCategoryId))
+    .leftJoin(naverMappedCategories, eq(naverMappedCategories.id, naverLocalCategoryVerifications.mappedCategoryId))
     .where(inArray(placeReviewWorkItems.id, workItemIds.map((row) => row.id)));
 
   const rowsById = new Map(hydrated.map((row) => {
@@ -151,6 +157,8 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
       placeStatus: place?.status ?? null,
       naverStatus: row.candidateNaverStatus ?? row.placeNaverStatus ?? null,
       naverScore: row.candidateNaverScore ?? row.placeNaverScore ?? null,
+      naverMappedCategoryId: row.candidateNaverMappedCategoryId ?? null,
+      naverMappedCategoryName: row.naverMappedCategoryName ?? null,
       selectedCategoryId: workItem.selectedCategoryId,
       selectedCategoryName: row.selectedCategoryName,
       blockCodes,

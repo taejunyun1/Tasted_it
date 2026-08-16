@@ -61,6 +61,7 @@ export async function action({ request }: Route.ActionArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const intent = String(form.get("intent") ?? "");
+  const batchId = String(form.get("batchId") ?? "");
   const { workItemIds, versions } = selectedWorkItems(form);
   const automaticWorkItemIds = [...new Set(form.getAll("autoWorkItem").map(String).filter(Boolean))];
   const expectedStage = String(form.get("expectedStage") ?? "");
@@ -87,6 +88,28 @@ export async function action({ request }: Route.ActionArgs) {
     } catch (error) {
       const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
       return data({ ok: false, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
+    }
+  }
+  if (intent === "auto-verify-review-item-with-naver") {
+    if (workItemIds.length !== 1) return data({ ok: false, batchId, error: "순차 NAVER 검증은 한 번에 한 장소만 처리합니다." }, { status: 400 });
+    if (expectedStage !== "SOURCE_REVIEW" && expectedStage !== "NAVER_VERIFICATION") return data({ ok: false, batchId, error: "원천 검수 또는 NAVER 검증 단계에서만 실행할 수 있습니다." }, { status: 400 });
+    const workItemId = workItemIds[0]!;
+    try {
+      if (expectedStage === "SOURCE_REVIEW") {
+        const advanced = await advancePlaceReviewWorkItems(db, {
+          workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: versions, actorUserId: admin.id, now,
+        });
+        if (!advanced.advanced.length) return data({ ok: false, batchId, error: `원천 검수를 통과하지 못했습니다: ${advanced.skipped[0]?.code ?? "UNKNOWN"}` }, { status: 400 });
+      }
+      assertNaverLocalSearchEnabled(env);
+      const result = await verifyReviewItemsWithNaver(db, {
+        workItemIds: [workItemId], actorUserId: admin.id, now,
+        dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env),
+      });
+      return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
+    } catch (error) {
+      const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
+      return data({ ok: false, batchId, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
     }
   }
   if (intent === "confirm-review-categories") {

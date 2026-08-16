@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenses, placeReviewWorkItems } from "../../app/db/schema";
+import { businessLicenses, categories, naverLocalCategoryVerifications, placeReviewWorkItems } from "../../app/db/schema";
 import { listPlaceReviewWorkItems } from "../../app/features/places/place-review-query.server";
 
 const now = "2026-08-15T12:00:00.000Z";
@@ -91,6 +91,37 @@ describe("place review work item query", () => {
     })).resolves.toMatchObject({
       rows: [expect.objectContaining({ name: "검수 국밥", region: "JEONNAM" })],
       pagination: { total: 1, totalPages: 1 },
+    });
+  });
+
+  it("exposes the NAVER mapped category for category confirmation", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const category = await db.query.categories.findFirst({ where: (row, { eq }) => eq(row.slug, "gukbap-detail") });
+    expect(category).toBeTruthy();
+    const licenseId = `review-naver-license-${suffix}`;
+    const workItemId = `review-naver-work-${suffix}`;
+    await db.insert(businessLicenses).values({
+      id: licenseId, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: suffix, businessName: "NAVER 근거 국밥", businessSubtype: "국밥",
+      salesStatusCode: "01", salesStatusName: "영업/정상", detailStatusCode: "01", detailStatusName: "영업", normalizedStatus: "OPEN",
+      lotAddress: null, roadAddress: "광주광역시 북구 검수로 1", phone: null, sourceX: null, sourceY: null, latitude: 35.16, longitude: 126.91,
+      regionCode: "GWANGJU", sourceUpdatedAt: now, rawPayload: "{}", reviewStatus: "PENDING", reviewReason: null, reviewedBy: null, reviewedAt: null,
+      firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now,
+    });
+    await db.insert(placeReviewWorkItems).values({
+      id: workItemId, businessLicenseId: licenseId, placeId: null, sourceKind: "PUBLIC_DATA", stage: "CATEGORY_CONFIRMATION", status: "ACTIVE",
+      selectedCategoryId: null, categoryOverrideReason: null, manualEvidenceReason: null, stageVersion: 2, claimToken: null, claimedBy: null, claimedAt: null,
+      lastTransitionBy: null, lastTransitionAt: null, holdCode: null, holdNote: null, completedAt: null, createdAt: now, updatedAt: now,
+    });
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId: licenseId, status: "VERIFIED", mappedCategoryId: category!.id, matchScore: 60, specificityScore: 20, confidenceScore: 80,
+      evidenceCodesJson: "[]", ruleVersion: "naver-category-v1", inputFingerprint: suffix, queriedAt: now, expiresAt: "2099-08-15T12:00:00.000Z", failureCode: null, createdAt: now, updatedAt: now,
+    });
+
+    await expect(listPlaceReviewWorkItems(db, {
+      step: 3, page: 1, pageSize: 25, status: "pending", region: null, query: "NAVER 근거 국밥",
+    })).resolves.toMatchObject({
+      rows: [expect.objectContaining({ workItemId, naverMappedCategoryId: category!.id, naverMappedCategoryName: category!.name })],
     });
   });
 });

@@ -1,15 +1,16 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { placeReviewWorkItems } from "../../db/schema";
+import { naverLocalCategoryVerifications, placeReviewWorkItems } from "../../db/schema";
 import { verifyPendingCandidatesWithNaver } from "../candidates/naver-pending-candidate-verification.server";
 import type { NaverLocalSearchAdapter } from "../candidates/naver-local-search.server";
 import { verifyPlacesLivenessWithNaver } from "./naver-place-liveness.server";
 import { advancePlaceReviewWorkItems } from "./place-review-work-items.server";
 
-// NAVER verification performs one external request plus several D1 writes per item.
-// Keep this deliberately small to stay below the Cloudflare Worker request resource limit.
-export const MAX_NAVER_REVIEW_BATCH_SIZE = 10;
+// Each item can perform one external request plus several D1 writes. The UI runs up
+// to ten of these as separate, sequential requests so a single Worker never exceeds
+// its resource limit.
+export const MAX_NAVER_REVIEW_BATCH_SIZE = 1;
 
 export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   workItemIds: string[];
@@ -31,6 +32,23 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   const placeResult = placeIds.length
     ? await verifyPlacesLivenessWithNaver(db, { placeIds, now: input.now, dailyLimit: input.dailyLimit - (candidateResult?.apiCalls ?? 0), adapter: input.adapter, actorUserId: input.actorUserId })
     : null;
+  const naverMappings = businessIds.length
+    ? await db.select({ businessLicenseId: naverLocalCategoryVerifications.businessLicenseId, categoryId: naverLocalCategoryVerifications.mappedCategoryId, status: naverLocalCategoryVerifications.status })
+      .from(naverLocalCategoryVerifications)
+      .where(inArray(naverLocalCategoryVerifications.businessLicenseId, businessIds))
+    : [];
+  const categoryByBusinessId = new Map(naverMappings.flatMap((item) => item.status === "VERIFIED" && item.categoryId ? [[item.businessLicenseId, item.categoryId] as const] : []));
+  for (const workItem of eligible) {
+    const categoryId = workItem.businessLicenseId ? categoryByBusinessId.get(workItem.businessLicenseId) : null;
+    if (!categoryId || workItem.selectedCategoryId === categoryId) continue;
+    await db.update(placeReviewWorkItems).set({ selectedCategoryId: categoryId, categoryOverrideReason: null, updatedAt: input.now })
+      .where(and(
+        eq(placeReviewWorkItems.id, workItem.id),
+        eq(placeReviewWorkItems.stage, "NAVER_VERIFICATION"),
+        eq(placeReviewWorkItems.stageVersion, workItem.stageVersion),
+        eq(placeReviewWorkItems.status, "ACTIVE"),
+      ));
+  }
   const versions = Object.fromEntries(eligible.map((item) => [item.id, item.stageVersion]));
   const advancedResult = eligible.length ? await advancePlaceReviewWorkItems(db, {
     workItemIds: eligible.map((item) => item.id), expectedStage: "NAVER_VERIFICATION", expectedVersions: versions, actorUserId: input.actorUserId, now: input.now,
