@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Form, Link, useNavigation } from "react-router";
+import { Form, Link, useFetcher, useNavigation } from "react-router";
 
 import type { ReviewStage } from "../../features/places/place-review-pipeline";
 import { buildPlaceReviewNextStepHref, type PlaceReviewQuery } from "../../features/places/place-review-pagination";
@@ -26,6 +26,17 @@ const nextAction: Record<PlaceReviewQuery["step"], string> = {
   5: "선택 장소 승인·공개",
 };
 
+type NaverBatch = {
+  id: string;
+  items: Array<{ workItemId: string; stageVersion: number }>;
+  nextIndex: number;
+  awaiting: boolean;
+  completed: number;
+  failed: number;
+};
+
+type NaverBatchActionData = { ok?: boolean; batchId?: string; error?: string };
+
 export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverDailyUsage, naverDailyLimit, message, error, nextStep, processedWorkItemIds }: {
   query: PlaceReviewQuery;
   page: PlaceReviewPage;
@@ -40,7 +51,10 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   processedWorkItemIds: string[];
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [naverBatch, setNaverBatch] = useState<NaverBatch | null>(null);
+  const [naverBatchMessage, setNaverBatchMessage] = useState<string | null>(null);
   const navigation = useNavigation();
+  const naverBatchFetcher = useFetcher<NaverBatchActionData>();
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const duplicatesByWorkItem = useMemo(() => duplicateCandidates.reduce<Record<string, ReviewDuplicateCandidate[]>>((groups, candidate) => {
     groups[candidate.workItemId] = [...(groups[candidate.workItemId] ?? []), candidate];
@@ -54,6 +68,34 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     const processed = new Set(processedWorkItemIds);
     setSelectedIds((current) => current.filter((id) => !processed.has(id)));
   }, [processedWorkItemIds]);
+  useEffect(() => {
+    if (!naverBatch || naverBatch.awaiting || naverBatchFetcher.state !== "idle") return;
+    const item = naverBatch.items[naverBatch.nextIndex];
+    if (!item) return;
+    const formData = new FormData();
+    formData.set("intent", "auto-verify-review-item-with-naver");
+    formData.set("batchId", naverBatch.id);
+    formData.set("expectedStage", stageByStep[query.step]);
+    formData.append("workItem", `${item.workItemId}|${item.stageVersion}`);
+    setNaverBatch((current) => current?.id === naverBatch.id ? { ...current, awaiting: true } : current);
+    naverBatchFetcher.submit(formData, { method: "post" });
+  }, [naverBatch, naverBatchFetcher, query.step]);
+  useEffect(() => {
+    if (!naverBatch?.awaiting || naverBatchFetcher.state !== "idle") return;
+    const requestedBatchId = String(naverBatchFetcher.formData?.get("batchId") ?? "");
+    if (requestedBatchId !== naverBatch.id || (naverBatchFetcher.data?.batchId && naverBatchFetcher.data.batchId !== naverBatch.id)) return;
+    const succeeded = naverBatchFetcher.data?.ok === true;
+    const completed = naverBatch.completed + (succeeded ? 1 : 0);
+    const failed = naverBatch.failed + (succeeded ? 0 : 1);
+    const nextIndex = naverBatch.nextIndex + 1;
+    if (nextIndex < naverBatch.items.length) {
+      setNaverBatch({ ...naverBatch, nextIndex, awaiting: false, completed, failed });
+      return;
+    }
+    setSelectedIds((current) => current.filter((id) => !naverBatch.items.some((item) => item.workItemId === id)));
+    setNaverBatchMessage(`NAVER 순차 검증 완료 · 통과 ${completed}곳 · 확인 필요 ${failed}곳`);
+    setNaverBatch(null);
+  }, [naverBatch, naverBatchFetcher.data, naverBatchFetcher.state]);
 
   const toggle = (id: string) => setSelectedIds((current) => current.includes(id)
     ? current.filter((item) => item !== id)
@@ -61,6 +103,15 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   const togglePageSelection = () => setSelectedIds((current) => current.length
     ? []
     : page.rows.slice(0, selectionLimit).map((row) => row.workItemId));
+  const startNaverBatch = () => {
+    const items = selectedIds.slice(0, 10).flatMap((workItemId) => {
+      const row = page.rows.find((item) => item.workItemId === workItemId);
+      return row ? [{ workItemId, stageVersion: row.stageVersion }] : [];
+    });
+    if (!items.length) return;
+    setNaverBatchMessage(null);
+    setNaverBatch({ id: `${Date.now()}-${Math.random()}`, items, nextIndex: 0, awaiting: false, completed: 0, failed: 0 });
+  };
   const submitting = navigation.state !== "idle" && navigation.formData?.get("intent") != null;
   const actionMessage = query.step === 2 ? "NAVER 근거를 확인하는 중입니다" : "검수 결과를 저장하는 중입니다";
 
@@ -69,9 +120,10 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
       <div><p className="eyebrow">REVIEW PIPELINE / 01—05</p><h2>{query.step === 2 ? "NAVER 근거 확인" : query.step === 5 ? "선택 승인·공개" : `${String(query.step).padStart(2, "0")} ${nextAction[query.step]}`}</h2><p>앞 단계 근거를 통과한 항목만 다음 단계로 이동합니다. NAVER 확인만으로는 공개되지 않습니다.</p></div>
     </div>
     {message && <p className="admin-notice" role="status">{message}</p>}
+    {naverBatchMessage && <p className="admin-notice" role="status">{naverBatchMessage}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
-    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>25곳까지 선택할 수 있고, 한 번의 NAVER 검증에서는 앞선 10곳만 처리합니다.</p></div>
+    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>25곳까지 선택할 수 있습니다. NAVER 검증은 최대 10곳을 한 곳씩 순차 처리합니다.</p></div>
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />
@@ -87,7 +139,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
       </div>
       <div className="place-review-grid">
         {page.rows.map((row) => <div key={row.workItemId} className="place-review-card-wrap"><PlaceReviewCard row={row} checked={selectedSet.has(row.workItemId)} onToggle={() => toggle(row.workItemId)} />
-          {query.step === 3 && selectedSet.has(row.workItemId) && <label className="place-review-category-select">최종 카테고리<select name={`category:${row.workItemId}`} defaultValue={row.selectedCategoryId ?? ""}><option value="">카테고리 선택</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>}
+          {query.step === 3 && selectedSet.has(row.workItemId) && <label className="place-review-category-select">최종 카테고리<select name={`category:${row.workItemId}`} defaultValue={row.selectedCategoryId ?? row.naverMappedCategoryId ?? ""}><option value="">카테고리 선택</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>}
           {query.step === 4 && selectedSet.has(row.workItemId) && <div className="place-review-duplicates">
             {!(duplicatesByWorkItem[row.workItemId]?.length) && <p>프랜차이즈를 제외한 동일 상호·동일 위치 후보가 없습니다. 다음 단계로 이동할 수 있습니다.</p>}
             {duplicatesByWorkItem[row.workItemId]?.map((candidate) => <fieldset key={candidate.candidatePlaceId}>
@@ -107,11 +159,13 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         <button className="secondary" name="intent" value="hold-review-items" disabled={!selectedIds.length}>선택 항목 보류</button>
         <button className="danger" name="intent" value="exclude-review-items" disabled={!selectedIds.length}>선택 항목 제외</button>
         {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={!selectedIds.length}>선택 중복 판정 저장</button>}
-        <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 2 ? "verify-review-items-with-naver" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={!selectedIds.length}>{query.step === 2 ? "선택 장소 NAVER 근거 확인" : query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>
-        {query.step === 2 && nextStep === 3 && <Link className="secondary" to={buildPlaceReviewNextStepHref(query)}>NAVER 확인 후 카테고리 확정 단계 보기</Link>}
+        {(query.step === 1 || query.step === 2) && <button type="button" onClick={startNaverBatch} disabled={!selectedIds.length || Boolean(naverBatch)}>선택 중 10곳 NAVER 검증</button>}
+        {query.step === 1 && <button className="secondary" name="intent" value="advance-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>수동으로 NAVER 검증 대기로 이동</button>}
+        {query.step !== 1 && query.step !== 2 && <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={!selectedIds.length}>{query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>}
+        {query.step === 2 && !naverBatch && <Link className="secondary" to={buildPlaceReviewNextStepHref(query)}>{nextStep === 3 ? "NAVER 확인 후 카테고리 확정 단계 보기" : "카테고리 확정 단계로 이동"}</Link>}
       </div>
     </Form>
     <PlaceReviewToolbar query={query} page={page} />
-    <AdminBlockingOverlay active={submitting} label={actionMessage} />
+    <AdminBlockingOverlay active={submitting || Boolean(naverBatch)} label={naverBatch ? `NAVER 근거를 순차 확인하는 중입니다 (${naverBatch.nextIndex + 1}/${naverBatch.items.length})` : actionMessage} />
   </section>;
 }

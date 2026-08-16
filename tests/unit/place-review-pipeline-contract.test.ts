@@ -23,13 +23,25 @@ describe("place review selection controls", () => {
     expect(component).toContain("NAVER 확인 후 카테고리 확정 단계 보기");
   });
 
-  it("allows selecting 25 places while the server processes only the first ten NAVER checks", () => {
+  it("runs up to ten NAVER checks as sequential background actions instead of one Worker request", () => {
     const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
-    const verification = readFileSync("app/features/places/place-review-naver.server.ts", "utf8");
+    const route = readFileSync("app/routes/admin-place-operations.tsx", "utf8");
 
     expect(component).toContain("const selectionLimit = 25;");
-    expect(component).toContain("25곳까지 선택할 수 있고, 한 번의 NAVER 검증에서는 앞선 10곳만 처리합니다.");
-    expect(verification).toContain("MAX_NAVER_REVIEW_BATCH_SIZE = 10");
-    expect(verification).toContain("const batchWorkItemIds = workItemIds.slice(0, MAX_NAVER_REVIEW_BATCH_SIZE);");
+    expect(component).toContain("useFetcher");
+    expect(component).toContain("auto-verify-review-item-with-naver");
+    expect(component).toContain("선택 중 10곳 NAVER 검증");
+    expect(component).toContain("수동으로 NAVER 검증 대기로 이동");
+    expect(route).toContain('intent === "auto-verify-review-item-with-naver"');
+    expect(route).toContain("const workItemId = workItemIds[0]!");
+  });
+
+  it("uses the NAVER mapped category as the default category confirmation value", () => {
+    const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
+    const query = readFileSync("app/features/places/place-review-query.server.ts", "utf8");
+
+    expect(component).toContain("row.selectedCategoryId ?? row.naverMappedCategoryId ?? \"\"");
+    expect(query).toContain("naverMappedCategoryId");
+    expect(query).toContain("naverMappedCategoryName");
   });
 });

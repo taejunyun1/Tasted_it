@@ -16,7 +16,7 @@ export function PlaceReviewCard({ row, checked, onToggle }: { row: PlaceReviewQu
       <p>{row.address || "주소 확인 필요"}</p>
       <dl>
         <div><dt>NAVER</dt><dd>{row.naverStatus ?? "미확인"}{row.naverScore != null ? ` · ${row.naverScore}점` : ""}</dd></div>
-        <div><dt>카테고리</dt><dd>{row.selectedCategoryName ?? "미확정"}</dd></div>
+        <div><dt>카테고리</dt><dd>{row.selectedCategoryName ?? (row.naverMappedCategoryName ? `NAVER 추천 · ${row.naverMappedCategoryName}` : "미확정")}</dd></div>
       </dl>
       {row.blockCodes.length > 0 && <ul className="place-review-blocks">{row.blockCodes.map((code) => <li key={code}>{code}</li>)}</ul>}
     </div>
