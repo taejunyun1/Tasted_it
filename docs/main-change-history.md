@@ -2,9 +2,9 @@
 
 - **문서 역할:** `main` 변경 이력의 탐색·요약·영향 인덱스 SSOT
 - **상태:** ACCEPTED — [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) 병합 시 적용
-- **마지막 확인:** 2026-08-16 21:21 KST
-- **확인한 원격 기준:** [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16)
-- **이번 기준선 범위:** [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41) 제외부터 `5b56dd3` 포함까지
+- **마지막 확인:** 2026-08-17 01:34 KST
+- **확인한 원격 기준:** [`562d5f4`](https://github.com/taejunyun1/Tasted_it/commit/562d5f42ec2cd765f0df6617b887aeee9f9664b2)
+- **이번 기준선 범위:** [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41) 제외부터 `562d5f4` 포함까지
 - **원본 저장소:** [`taejunyun1/Tasted_it`](https://github.com/taejunyun1/Tasted_it)
 
 이 문서는 원격 `main`에 무엇이, 왜, 어떤 영향과 함께 들어왔는지 찾는 공식 인덱스다. 현재 파일 상태의 원본은 `origin/main`, 승인·운영 범위의 원본은 병합 Pull Request, 여러 변경을 연결해 읽는 기준은 이 문서다. 상세 권한 경계는 [`main 변경 이력 인덱스 SSOT 지정`](./decisions/2026-08-16-main-change-history-ssot.md)을 따른다.
@@ -15,25 +15,25 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Draft / 병합 HOLD | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 현재 `main`과 이 PR의 CI가 같은 기존 typecheck 오류로 실패해 #158 해결 전 병합할 수 없다. 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) |
+| Ready 후보 / PR CI 대기 | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 기존 typecheck 오류는 #159에서 수정돼 `main` push CI가 통과했고, 최신 기준선에서 로컬 typecheck·전체 단위 테스트·build도 통과했다. 병합 전 새 PR CI를 확인하며, 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) |
 
 ## 기준선 요약
 
 | 항목 | 값 |
 | --- | --- |
-| 기간 | 2026-08-14 20:40 KST ~ 2026-08-16 21:21 KST |
-| 병합 PR / `main` 커밋 | 30 / 30 |
-| 순변경 | 197 files, +14,990 / -1,742 lines |
-| 커밋별 누적 변경 | +15,902 / -2,654 lines |
+| 기간 | 2026-08-14 20:40 KST ~ 2026-08-17 01:31 KST |
+| 병합 PR / `main` 커밋 | 31 / 31 |
+| 순변경 | 197 files, +15,001 / -1,742 lines |
+| 커밋별 누적 변경 | +15,917 / -2,658 lines |
 | 신규 migration | 7 files: `0029`, `0030`, `0031` 2개, `0032`, `0033`, `0034` |
 | 주요 영역 | 음식점 분류, 추천 계층, NAVER 근거 검증, 장소 검수 파이프라인, 운영 감사, 지도·관리자 UX |
 | 운영 완료 증거 | 이 문서에서는 확인하지 않음. 각 PR 및 별도 운영 기록 필요 |
 
 ### 현재 검증 상태
 
-- `origin/main` `5b56dd3`의 [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546)은 `app/components/admin/PlaceReviewPipeline.tsx:85`의 `TS2339: Property 'get' does not exist on type 'never'`로 실패했다.
-- 문서 파일만 바꾼 [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31950881245)와 로컬 `pnpm run typecheck`에서도 같은 오류가 재현됐다. 제품 코드 차이가 없으므로 이 PR에서 수정하지 않고 [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158)로 분리했다.
-- 따라서 현재 기준선의 **CI 상태는 FAIL**, PR #157의 **병합 상태는 HOLD**다. #155의 대상 타입 수정이 병합됐다는 사실과 전체 `main` typecheck 통과는 별개다.
+- 이전 기준선 `5b56dd3`의 [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546)과 갱신 전 [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31951020332)는 `PlaceReviewPipeline.tsx:85`의 같은 `TS2339`로 실패했다.
+- [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159)는 idle fetcher의 `formData` 접근을 제거하고 순차 요청별 응답 ID를 검증하도록 수정했다. 최신 `origin/main` `562d5f4`의 [push CI run 31958857659](https://github.com/taejunyun1/Tasted_it/actions/runs/31958857659)는 typecheck와 전체 단위 테스트를 통과했다.
+- 따라서 현재 기준선의 **CI 상태는 PASS**다. PR #157은 `562d5f4`를 반영했으며, 새 PR CI가 통과하기 전까지 병합 판단은 **HOLD**다.
 
 ### 가장 큰 변동
 
@@ -46,6 +46,12 @@
 ## 상세 변경 이력
 
 모든 시각은 `Asia/Seoul` 기준이다. 커밋의 `+/-`는 해당 squash commit의 GitHub 통계이며 바이너리 파일의 크기 변화는 줄 수에 포함되지 않는다.
+
+### 2026-08-17
+
+| 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
+| --- | --- | --- | --- | --- |
+| 01:31 | NAVER / CI 안정화 | React Router v8 fetcher가 idle일 때 존재하지 않는 `formData`를 읽던 타입 오류를 제거했다. 각 순차 요청에 고유 ID를 부여하고 현재 요청과 일치하는 응답만 반영해 지연 응답의 교차 소비도 차단했다. | 코드·테스트 3파일, +15/-4. route action·DB·migration·환경 변수·의존성·배포 변화 및 실제 NAVER 호출 없음. | [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) · [`562d5f4`](https://github.com/taejunyun1/Tasted_it/commit/562d5f42ec2cd765f0df6617b887aeee9f9664b2) |
 
 ### 2026-08-16
 
@@ -155,9 +161,9 @@ gh pr list --repo taejunyun1/Tasted_it --state merged --base main --limit 100
 
 - **Document role:** SSOT for discovering, summarizing, and tracing changes on `main`
 - **Status:** ACCEPTED when [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) is merged
-- **Last verified:** 2026-08-16 21:21 KST
-- **Verified remote baseline:** [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16)
-- **Baseline range:** after [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41), through `5b56dd3`
+- **Last verified:** 2026-08-17 01:34 KST
+- **Verified remote baseline:** [`562d5f4`](https://github.com/taejunyun1/Tasted_it/commit/562d5f42ec2cd765f0df6617b887aeee9f9664b2)
+- **Baseline range:** after [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41), through `562d5f4`
 - **Source repository:** [`taejunyun1/Tasted_it`](https://github.com/taejunyun1/Tasted_it)
 
 This is the official index for understanding what entered remote `main`, why it changed, and what it affected. `origin/main` is authoritative for current files, merged Pull Requests are authoritative for approval and operational scope, and this document is authoritative for navigating changes across them. See the [SSOT decision](./decisions/2026-08-16-main-change-history-ssot.md) for the full boundary.
@@ -168,25 +174,25 @@ This is the official index for understanding what entered remote `main`, why it 
 
 | Status | Change and impact | Evidence |
 | --- | --- | --- |
-| Draft / merge HOLD | Introduces the history SSOT, authority boundary, and PR template; reconciles the NAVER limit explanation in README and the operations runbook. It changes no product code, migration, or runtime setting. Current `main` and this PR fail on the same pre-existing typecheck error, so merge is blocked until #158 is resolved. Record the squash SHA during the next baseline reconciliation. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) |
+| Ready candidate / PR CI pending | Introduces the history SSOT, authority boundary, and PR template; reconciles the NAVER limit explanation in README and the operations runbook. It changes no product code, migration, or runtime setting. #159 fixed the pre-existing typecheck failure, the `main` push CI passes, and local typecheck, full unit tests, and build pass on the updated baseline. Confirm the new PR CI before merge and record the squash SHA during the next baseline reconciliation. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) |
 
 ## Baseline Summary
 
 | Item | Value |
 | --- | --- |
-| Period | 2026-08-14 20:40 KST to 2026-08-16 21:21 KST |
-| Merged PRs / `main` commits | 30 / 30 |
-| Net change | 197 files, +14,990 / -1,742 lines |
-| Cumulative per-commit change | +15,902 / -2,654 lines |
+| Period | 2026-08-14 20:40 KST to 2026-08-17 01:31 KST |
+| Merged PRs / `main` commits | 31 / 31 |
+| Net change | 197 files, +15,001 / -1,742 lines |
+| Cumulative per-commit change | +15,917 / -2,658 lines |
 | New migrations | 7 files: `0029`, `0030`, two `0031` files, `0032`, `0033`, `0034` |
 | Major areas | restaurant classification, recommendation layers, NAVER evidence, place-review pipeline, operations audit, map/admin UX |
 | Production execution evidence | Not verified here; inspect each PR and separate operations records |
 
 ### Current Verification Status
 
-- The [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546) for `origin/main` `5b56dd3` failed at `app/components/admin/PlaceReviewPipeline.tsx:85` with `TS2339: Property 'get' does not exist on type 'never'`.
-- The documentation-only [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31950881245) and local `pnpm run typecheck` reproduce the same error. Because there is no product-code diff, the fix is tracked separately in [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158).
-- The baseline **CI status is FAIL** and PR #157 **merge status is HOLD**. The targeted type change in #155 being merged does not prove that the full `main` typecheck passes.
+- The previous `5b56dd3` [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546) and the pre-sync [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31951020332) failed on the same `TS2339` at `PlaceReviewPipeline.tsx:85`.
+- [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) removed access to idle fetcher `formData` and validates a response ID for each sequential request. The [push CI run 31958857659](https://github.com/taejunyun1/Tasted_it/actions/runs/31958857659) for current `origin/main` `562d5f4` passes typecheck and the full unit suite.
+- The current baseline **CI status is PASS**. PR #157 now incorporates `562d5f4`, but its merge decision remains **HOLD** until its new PR CI passes.
 
 ### Major Changes
 
@@ -199,6 +205,12 @@ This is the official index for understanding what entered remote `main`, why it 
 ## Detailed History
 
 All timestamps use `Asia/Seoul`. `+/-` values are GitHub squash-commit statistics; binary size changes are not represented as lines.
+
+### 2026-08-17
+
+| Time | Area | Change and rationale | Data/operations impact | Evidence |
+| --- | --- | --- | --- | --- |
+| 01:31 | NAVER / CI stabilization | Removed the type error caused by reading unavailable `formData` while a React Router v8 fetcher is idle. Each sequential request now has a unique ID and only a matching response is applied, preventing delayed cross-request consumption. | Three code/test files, +15/-4. No route-action, DB, migration, environment, dependency, deployment, or real NAVER-call change. | [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) · [`562d5f4`](https://github.com/taejunyun1/Tasted_it/commit/562d5f42ec2cd765f0df6617b887aeee9f9664b2) |
 
 ### 2026-08-16
 
