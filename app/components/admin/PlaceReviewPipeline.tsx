@@ -72,9 +72,10 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     if (!naverBatch || naverBatch.awaiting || naverBatchFetcher.state !== "idle") return;
     const item = naverBatch.items[naverBatch.nextIndex];
     if (!item) return;
+    const requestId = `${naverBatch.id}:${naverBatch.nextIndex}`;
     const formData = new FormData();
     formData.set("intent", "auto-verify-review-item-with-naver");
-    formData.set("batchId", naverBatch.id);
+    formData.set("batchId", requestId);
     formData.set("expectedStage", stageByStep[query.step]);
     formData.append("workItem", `${item.workItemId}|${item.stageVersion}`);
     setNaverBatch((current) => current?.id === naverBatch.id ? { ...current, awaiting: true } : current);
@@ -82,8 +83,8 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   }, [naverBatch, naverBatchFetcher, query.step]);
   useEffect(() => {
     if (!naverBatch?.awaiting || naverBatchFetcher.state !== "idle") return;
-    const requestedBatchId = String(naverBatchFetcher.formData?.get("batchId") ?? "");
-    if (requestedBatchId !== naverBatch.id || (naverBatchFetcher.data?.batchId && naverBatchFetcher.data.batchId !== naverBatch.id)) return;
+    const expectedRequestId = `${naverBatch.id}:${naverBatch.nextIndex}`;
+    if (naverBatchFetcher.data?.batchId !== expectedRequestId) return;
     const succeeded = naverBatchFetcher.data?.ok === true;
     const completed = naverBatch.completed + (succeeded ? 1 : 0);
     const failed = naverBatch.failed + (succeeded ? 0 : 1);
