@@ -2,7 +2,7 @@
 
 - **문서 역할:** `main` 변경 이력의 탐색·요약·영향 인덱스 SSOT
 - **상태:** ACCEPTED — [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) 병합 시 적용
-- **마지막 확인:** 2026-08-17 01:34 KST
+- **마지막 확인:** 2026-08-17 01:37 KST
 - **확인한 원격 기준:** [`562d5f4`](https://github.com/taejunyun1/Tasted_it/commit/562d5f42ec2cd765f0df6617b887aeee9f9664b2)
 - **이번 기준선 범위:** [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41) 제외부터 `562d5f4` 포함까지
 - **원본 저장소:** [`taejunyun1/Tasted_it`](https://github.com/taejunyun1/Tasted_it)
@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Ready 후보 / PR CI 대기 | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 기존 typecheck 오류는 #159에서 수정돼 `main` push CI가 통과했고, 최신 기준선에서 로컬 typecheck·전체 단위 테스트·build도 통과했다. 병합 전 새 PR CI를 확인하며, 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) |
+| Ready / CI PASS | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 기존 typecheck 오류는 #159에서 수정됐고, 최신 기준선에서 로컬 typecheck·전체 단위 테스트·build와 PR CI가 모두 통과했다. 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) · [PR CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31959115738) |
 
 ## 기준선 요약
 
@@ -33,7 +33,7 @@
 
 - 이전 기준선 `5b56dd3`의 [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546)과 갱신 전 [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31951020332)는 `PlaceReviewPipeline.tsx:85`의 같은 `TS2339`로 실패했다.
 - [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159)는 idle fetcher의 `formData` 접근을 제거하고 순차 요청별 응답 ID를 검증하도록 수정했다. 최신 `origin/main` `562d5f4`의 [push CI run 31958857659](https://github.com/taejunyun1/Tasted_it/actions/runs/31958857659)는 typecheck와 전체 단위 테스트를 통과했다.
-- 따라서 현재 기준선의 **CI 상태는 PASS**다. PR #157은 `562d5f4`를 반영했으며, 새 PR CI가 통과하기 전까지 병합 판단은 **HOLD**다.
+- 따라서 현재 기준선과 최신 [PR #157 CI run 31959115738](https://github.com/taejunyun1/Tasted_it/actions/runs/31959115738)의 **CI 상태는 PASS**다. PR #157은 `562d5f4`를 반영했으며, 현재 병합 판단은 **Ready**다.
 
 ### 가장 큰 변동
 
@@ -161,7 +161,7 @@ gh pr list --repo taejunyun1/Tasted_it --state merged --base main --limit 100
 
 - **Document role:** SSOT for discovering, summarizing, and tracing changes on `main`
 - **Status:** ACCEPTED when [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) is merged
-- **Last verified:** 2026-08-17 01:34 KST
+- **Last verified:** 2026-08-17 01:37 KST
 - **Verified remote baseline:** [`562d5f4`](https://github.com/taejunyun1/Tasted_it/commit/562d5f42ec2cd765f0df6617b887aeee9f9664b2)
 - **Baseline range:** after [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41), through `562d5f4`
 - **Source repository:** [`taejunyun1/Tasted_it`](https://github.com/taejunyun1/Tasted_it)
@@ -174,7 +174,7 @@ This is the official index for understanding what entered remote `main`, why it 
 
 | Status | Change and impact | Evidence |
 | --- | --- | --- |
-| Ready candidate / PR CI pending | Introduces the history SSOT, authority boundary, and PR template; reconciles the NAVER limit explanation in README and the operations runbook. It changes no product code, migration, or runtime setting. #159 fixed the pre-existing typecheck failure, the `main` push CI passes, and local typecheck, full unit tests, and build pass on the updated baseline. Confirm the new PR CI before merge and record the squash SHA during the next baseline reconciliation. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) |
+| Ready / CI PASS | Introduces the history SSOT, authority boundary, and PR template; reconciles the NAVER limit explanation in README and the operations runbook. It changes no product code, migration, or runtime setting. #159 fixed the pre-existing typecheck failure, and local typecheck, full unit tests, build, and PR CI all pass on the updated baseline. Record the squash SHA during the next baseline reconciliation. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) · [PR CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31959115738) |
 
 ## Baseline Summary
 
@@ -192,7 +192,7 @@ This is the official index for understanding what entered remote `main`, why it 
 
 - The previous `5b56dd3` [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546) and the pre-sync [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31951020332) failed on the same `TS2339` at `PlaceReviewPipeline.tsx:85`.
 - [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) removed access to idle fetcher `formData` and validates a response ID for each sequential request. The [push CI run 31958857659](https://github.com/taejunyun1/Tasted_it/actions/runs/31958857659) for current `origin/main` `562d5f4` passes typecheck and the full unit suite.
-- The current baseline **CI status is PASS**. PR #157 now incorporates `562d5f4`, but its merge decision remains **HOLD** until its new PR CI passes.
+- The current baseline and the latest [PR #157 CI run 31959115738](https://github.com/taejunyun1/Tasted_it/actions/runs/31959115738) both have **PASS** status. PR #157 incorporates `562d5f4` and is now **Ready** for merge review.
 
 ### Major Changes
 
