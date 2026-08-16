@@ -8,6 +8,8 @@
 
 변경과 운영 계획의 승인 기록은 [`docs/decisions/2026-08-12-pr-merge-approval-ssot.md`](docs/decisions/2026-08-12-pr-merge-approval-ssot.md)를 따릅니다. 권한 있는 담당자가 Pull Request를 병합하면 본문에 명시된 범위는 승인 완료이며, 병합 뒤 같은 범위의 별도 채팅 승인을 다시 요청하지 않습니다.
 
+원격 `main`의 기준 커밋, 날짜별 상세 변경, migration·환경 변수·외부 연동 변동은 [`docs/main-change-history.md`](docs/main-change-history.md)를 변경 이력 인덱스 SSOT로 사용합니다. 문서의 기준 SHA와 현재 `origin/main`이 다르면 먼저 누락된 병합 PR을 대조하며, 이력 문서 자체는 배포나 원격 migration의 실행 완료 증거가 아닙니다.
+
 ## 로컬 실행
 
 Node.js와 pnpm을 준비한 뒤 다음 명령을 실행합니다.
@@ -32,7 +34,7 @@ pnpm dev --host 127.0.0.1
 | `NAVER_API_HUB_KEY_ID` | NAVER API HUB 지역검색 API Key ID | secret |
 | `NAVER_API_HUB_KEY` | NAVER API HUB 지역검색 API Key | secret |
 | `NAVER_LOCAL_SEARCH_ENABLED` | NAVER 지역검색 카테고리 검증 kill switch | 환경별 변수 (운영 `true`, 문제 시 `false`로 즉시 중단) |
-| `NAVER_LOCAL_SEARCH_DAILY_LIMIT` | 하루 최대 NAVER 지역검색 호출 수 | 환경별 변수 (`200` 초기 상한) |
+| `NAVER_LOCAL_SEARCH_DAILY_LIMIT` | 하루 최대 NAVER 지역검색 호출 수 | 환경별 변수 (현재 `20000`, 장애·쿼터 상황에 따라 하향) |
 | `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 일반 인증키 | secret |
 | `ADMIN_EMAIL` | 가입 시 ADMIN 역할을 부여할 운영자 이메일 | secret |
 | `RESEND_API_KEY` | 가입 인증·비밀번호 재설정 메일 발송 | secret |
