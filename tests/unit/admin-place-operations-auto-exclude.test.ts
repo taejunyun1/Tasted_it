@@ -8,7 +8,7 @@ describe("place review automatic non-food exclusion action", () => {
     expect(route).toContain('intent === "auto-exclude-non-food-review-items"');
     expect(route).toContain("autoExcludeNonFoodReviewItems");
     expect(route).toContain('expectedStage !== "SOURCE_REVIEW"');
-    expect(route).toContain('form.getAll("autoWorkItem")');
+    expect(route).toMatch(/form\s*\.getAll\("autoWorkItem"\)/);
   });
 
   it("returns automatic-exclusion failures as an actionable response instead of escaping the route", () => {
