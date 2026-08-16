@@ -1,7 +1,7 @@
 # Re:Taste `main` 변경 이력 SSOT
 
 - **문서 역할:** `main` 변경 이력의 탐색·요약·영향 인덱스 SSOT
-- **상태:** ACCEPTED — [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156)의 문서화 PR 병합 시 적용
+- **상태:** ACCEPTED — [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) 병합 시 적용
 - **마지막 확인:** 2026-08-16 21:21 KST
 - **확인한 원격 기준:** [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16)
 - **이번 기준선 범위:** [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41) 제외부터 `5b56dd3` 포함까지
@@ -10,6 +10,12 @@
 이 문서는 원격 `main`에 무엇이, 왜, 어떤 영향과 함께 들어왔는지 찾는 공식 인덱스다. 현재 파일 상태의 원본은 `origin/main`, 승인·운영 범위의 원본은 병합 Pull Request, 여러 변경을 연결해 읽는 기준은 이 문서다. 상세 권한 경계는 [`main 변경 이력 인덱스 SSOT 지정`](./decisions/2026-08-16-main-change-history-ssot.md)을 따른다.
 
 > **정확성 규칙:** 위 기준 커밋과 현재 `origin/main`이 다르면 이 문서를 최신으로 간주하지 않는다. 먼저 누락된 커밋과 병합 PR을 대조하고 이력을 갱신한다. 이 문서만으로 배포, 원격 D1 migration, 운영 데이터 변경 또는 외부 API 호출의 실제 완료를 주장하지 않는다.
+
+## 기준선 이후 등록된 변경
+
+| 상태 | 변경과 영향 | 근거 |
+| --- | --- | --- |
+| Draft — 병합 시 반영 | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) |
 
 ## 기준선 요약
 
@@ -142,7 +148,7 @@ gh pr list --repo taejunyun1/Tasted_it --state merged --base main --limit 100
 # Re:Taste `main` Change History SSOT
 
 - **Document role:** SSOT for discovering, summarizing, and tracing changes on `main`
-- **Status:** ACCEPTED when the documentation PR for [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) is merged
+- **Status:** ACCEPTED when [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) is merged
 - **Last verified:** 2026-08-16 21:21 KST
 - **Verified remote baseline:** [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16)
 - **Baseline range:** after [`b44b8f5`](https://github.com/taejunyun1/Tasted_it/commit/b44b8f5b621771717dc4b4fa71d5feb46934df41), through `5b56dd3`
@@ -151,6 +157,12 @@ gh pr list --repo taejunyun1/Tasted_it --state merged --base main --limit 100
 This is the official index for understanding what entered remote `main`, why it changed, and what it affected. `origin/main` is authoritative for current files, merged Pull Requests are authoritative for approval and operational scope, and this document is authoritative for navigating changes across them. See the [SSOT decision](./decisions/2026-08-16-main-change-history-ssot.md) for the full boundary.
 
 > **Accuracy rule:** If the recorded baseline differs from current `origin/main`, do not treat this document as current. Reconcile missing commits and merged PRs first. This document alone never proves that a deployment, remote D1 migration, production-data operation, or external API call was executed.
+
+## Changes Registered After the Baseline
+
+| Status | Change and impact | Evidence |
+| --- | --- | --- |
+| Draft — effective on merge | Introduces the history SSOT, authority boundary, and PR template; reconciles the NAVER limit explanation in README and the operations runbook. It changes no product code, migration, or runtime setting. Record the squash SHA during the next baseline reconciliation. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) |
 
 ## Baseline Summary
 

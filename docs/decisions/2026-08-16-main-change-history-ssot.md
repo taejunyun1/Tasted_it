@@ -2,7 +2,7 @@
 
 - **상태:** ACCEPTED — 이 문서를 포함한 Pull Request 병합 시 적용
 - **작성일:** 2026-08-16
-- **추적:** [GitHub Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156)
+- **추적:** [GitHub Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [Pull Request #157](https://github.com/taejunyun1/Tasted_it/pull/157)
 - **결정 범위:** `main`에 반영된 변경의 발견·요약·추적 기준
 
 ## 배경
@@ -74,7 +74,7 @@ Git에서 무시되고 특정 경로·사용자 상태를 포함하므로 협업
 
 - **Status:** ACCEPTED — effective when the Pull Request containing this decision is merged
 - **Date:** 2026-08-16
-- **Tracking:** [GitHub Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156)
+- **Tracking:** [GitHub Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [Pull Request #157](https://github.com/taejunyun1/Tasted_it/pull/157)
 - **Decision scope:** discovery, summarization, and traceability of changes merged into `main`
 
 ## Context
