@@ -36,6 +36,16 @@ describe("place review selection controls", () => {
     expect(route).toContain("const workItemId = workItemIds[0]!");
   });
 
+  it("correlates each sequential NAVER response without reading idle fetcher form data", () => {
+    const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
+
+    expect(component).toContain('const requestId = `${naverBatch.id}:${naverBatch.nextIndex}`;');
+    expect(component).toContain('formData.set("batchId", requestId);');
+    expect(component).toContain('const expectedRequestId = `${naverBatch.id}:${naverBatch.nextIndex}`;');
+    expect(component).toContain("naverBatchFetcher.data?.batchId !== expectedRequestId");
+    expect(component).not.toContain("naverBatchFetcher.formData");
+  });
+
   it("uses the NAVER mapped category as the default category confirmation value", () => {
     const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
     const query = readFileSync("app/features/places/place-review-query.server.ts", "utf8");
