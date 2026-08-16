@@ -63,7 +63,14 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = String(form.get("intent") ?? "");
   const batchId = String(form.get("batchId") ?? "");
   const { workItemIds, versions } = selectedWorkItems(form);
-  const automaticWorkItemIds = [...new Set(form.getAll("autoWorkItem").map(String).filter(Boolean))];
+	  const automaticWorkItemIds = [
+		...new Set(
+			form
+				.getAll("autoWorkItem")
+				.map((value) => String(value))
+				.filter((value): value is string => value.length > 0),
+		),
+	];
   const expectedStage = String(form.get("expectedStage") ?? "");
 
   if (intent === "auto-exclude-non-food-review-items") {
