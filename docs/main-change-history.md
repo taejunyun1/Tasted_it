@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Draft — 병합 시 반영 | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) |
+| Draft / 병합 HOLD | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 현재 `main`과 이 PR의 CI가 같은 기존 typecheck 오류로 실패해 #158 해결 전 병합할 수 없다. 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) |
 
 ## 기준선 요약
 
@@ -28,6 +28,12 @@
 | 신규 migration | 7 files: `0029`, `0030`, `0031` 2개, `0032`, `0033`, `0034` |
 | 주요 영역 | 음식점 분류, 추천 계층, NAVER 근거 검증, 장소 검수 파이프라인, 운영 감사, 지도·관리자 UX |
 | 운영 완료 증거 | 이 문서에서는 확인하지 않음. 각 PR 및 별도 운영 기록 필요 |
+
+### 현재 검증 상태
+
+- `origin/main` `5b56dd3`의 [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546)은 `app/components/admin/PlaceReviewPipeline.tsx:85`의 `TS2339: Property 'get' does not exist on type 'never'`로 실패했다.
+- 문서 파일만 바꾼 [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31950881245)와 로컬 `pnpm run typecheck`에서도 같은 오류가 재현됐다. 제품 코드 차이가 없으므로 이 PR에서 수정하지 않고 [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158)로 분리했다.
+- 따라서 현재 기준선의 **CI 상태는 FAIL**, PR #157의 **병합 상태는 HOLD**다. #155의 대상 타입 수정이 병합됐다는 사실과 전체 `main` typecheck 통과는 별개다.
 
 ### 가장 큰 변동
 
@@ -45,7 +51,7 @@
 
 | 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
 | --- | --- | --- | --- | --- |
-| 21:21 | 안정화 / CI | `admin-place-operations`의 `autoWorkItem`이 `unknown[]`로 추론되던 타입 오류를 정리해 NAVER 순차 검증 로직의 typecheck를 복구했다. | 코드 1파일, +8/-1. 데이터·API·설정 변화 없음. | [PR #155](https://github.com/taejunyun1/Tasted_it/pull/155) · [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16) |
+| 21:21 | 안정화 / CI | `admin-place-operations`의 `autoWorkItem`이 `unknown[]`로 추론되던 대상 오류를 정리했다. 다만 현재 `main` CI는 별도 `PlaceReviewPipeline.tsx:85` 오류로 여전히 실패하므로 전체 typecheck 복구로 해석하지 않는다. | 코드 1파일, +8/-1. 데이터·API·설정 변화 없음. 잔여 CI 실패는 [#158](https://github.com/taejunyun1/Tasted_it/issues/158)에서 추적한다. | [PR #155](https://github.com/taejunyun1/Tasted_it/pull/155) · [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16) |
 | 21:04 | NAVER / 검수 | 최대 10건을 단건 순차 처리해 Worker 1102 위험을 낮추고, 수동·자동 흐름을 분리했다. 확인된 NAVER 매핑 카테고리는 검수 작업에 반영한다. | 코드·테스트 7파일, +164/-18. 기존 NAVER 호출 경계를 사용하며 신규 migration 없음. | [PR #154](https://github.com/taejunyun1/Tasted_it/pull/154) · [`c171382`](https://github.com/taejunyun1/Tasted_it/commit/c171382) |
 | 07:42 | NAVER / 검수 UX | 화면에서는 최대 25곳을 선택하되 서버는 앞 10곳만 처리하고 나머지 선택을 유지한다. 자동 3단계 이동을 제거하고 관리자가 결과 확인 후 직접 이동하게 했다. | 외부 호출은 요청당 최대 10건. 신규 비밀값·migration·일괄 데이터 변경 없음. | [PR #152](https://github.com/taejunyun1/Tasted_it/pull/152) · [`1b34d2e`](https://github.com/taejunyun1/Tasted_it/commit/1b34d2e) |
 | 07:28 | NAVER / 성능 | 화면과 서버의 NAVER 검증 한도를 모두 10건으로 고정하고 계약 테스트를 추가해 Worker CPU 리소스 초과를 완화했다. | 일일 20,000회 상한은 유지하고 요청당 처리량만 축소. 재발 시 비동기 큐 검토가 남았다. | [PR #151](https://github.com/taejunyun1/Tasted_it/pull/151) · [`9d3bf10`](https://github.com/taejunyun1/Tasted_it/commit/9d3bf10) |
@@ -162,7 +168,7 @@ This is the official index for understanding what entered remote `main`, why it 
 
 | Status | Change and impact | Evidence |
 | --- | --- | --- |
-| Draft — effective on merge | Introduces the history SSOT, authority boundary, and PR template; reconciles the NAVER limit explanation in README and the operations runbook. It changes no product code, migration, or runtime setting. Record the squash SHA during the next baseline reconciliation. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) |
+| Draft / merge HOLD | Introduces the history SSOT, authority boundary, and PR template; reconciles the NAVER limit explanation in README and the operations runbook. It changes no product code, migration, or runtime setting. Current `main` and this PR fail on the same pre-existing typecheck error, so merge is blocked until #158 is resolved. Record the squash SHA during the next baseline reconciliation. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) |
 
 ## Baseline Summary
 
@@ -175,6 +181,12 @@ This is the official index for understanding what entered remote `main`, why it 
 | New migrations | 7 files: `0029`, `0030`, two `0031` files, `0032`, `0033`, `0034` |
 | Major areas | restaurant classification, recommendation layers, NAVER evidence, place-review pipeline, operations audit, map/admin UX |
 | Production execution evidence | Not verified here; inspect each PR and separate operations records |
+
+### Current Verification Status
+
+- The [push CI run 31946826546](https://github.com/taejunyun1/Tasted_it/actions/runs/31946826546) for `origin/main` `5b56dd3` failed at `app/components/admin/PlaceReviewPipeline.tsx:85` with `TS2339: Property 'get' does not exist on type 'never'`.
+- The documentation-only [PR #157 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31950881245) and local `pnpm run typecheck` reproduce the same error. Because there is no product-code diff, the fix is tracked separately in [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158).
+- The baseline **CI status is FAIL** and PR #157 **merge status is HOLD**. The targeted type change in #155 being merged does not prove that the full `main` typecheck passes.
 
 ### Major Changes
 
@@ -192,7 +204,7 @@ All timestamps use `Asia/Seoul`. `+/-` values are GitHub squash-commit statistic
 
 | Time | Area | Change and rationale | Data/operations impact | Evidence |
 | --- | --- | --- | --- | --- |
-| 21:21 | Stabilization / CI | Fixed `autoWorkItem` being inferred as `unknown[]` in `admin-place-operations`, restoring typecheck for sequential NAVER verification. | One code file, +8/-1. No data, API, or configuration change. | [PR #155](https://github.com/taejunyun1/Tasted_it/pull/155) · [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16) |
+| 21:21 | Stabilization / CI | Fixed the targeted `autoWorkItem` `unknown[]` inference in `admin-place-operations`. Current `main` CI still fails on a separate `PlaceReviewPipeline.tsx:85` error, so this is not treated as full typecheck recovery. | One code file, +8/-1. No data, API, or configuration change. The remaining CI failure is tracked in [#158](https://github.com/taejunyun1/Tasted_it/issues/158). | [PR #155](https://github.com/taejunyun1/Tasted_it/pull/155) · [`5b56dd3`](https://github.com/taejunyun1/Tasted_it/commit/5b56dd321c85619b347518fd23ec13e1ed45ad16) |
 | 21:04 | NAVER / Review | Split up to ten checks into sequential single-item operations, separated manual and automatic flows, and applied verified NAVER category mappings to review work. | Seven code/test files, +164/-18. Reuses existing NAVER boundaries; no migration. | [PR #154](https://github.com/taejunyun1/Tasted_it/pull/154) · [`c171382`](https://github.com/taejunyun1/Tasted_it/commit/c171382) |
 | 07:42 | NAVER / Review UX | Allows selecting 25 places while processing only the first ten, preserves the remaining selection, and requires a manual transition after reviewing results. | At most ten external calls per request. No new secret, migration, or bulk data change. | [PR #152](https://github.com/taejunyun1/Tasted_it/pull/152) · [`1b34d2e`](https://github.com/taejunyun1/Tasted_it/commit/1b34d2e) |
 | 07:28 | NAVER / Performance | Fixed both UI and server limits at ten and added a contract test to reduce Worker 1102 CPU exhaustion. | Keeps the 20,000 daily cap; only per-request throughput changed. Async queue remains the fallback if 1102 recurs. | [PR #151](https://github.com/taejunyun1/Tasted_it/pull/151) · [`9d3bf10`](https://github.com/taejunyun1/Tasted_it/commit/9d3bf10) |
