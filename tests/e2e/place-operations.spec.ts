@@ -41,6 +41,28 @@ test("admin sees submitted suggestions on review step 1 only", async ({ page }) 
   await expect(page.getByRole("heading", { name: "회원 장소 제안" })).toHaveCount(0);
 });
 
+test("admin switches restored operations tabs without auto-merge", async ({ page }, testInfo) => {
+  await page.context().addCookies([{ name: "retaste_session", value: "qa-admin-session", domain: "127.0.0.1", path: "/" }]);
+  await page.goto("/admin/place-operations");
+  await expect(page.getByRole("tab", { name: "장소 검수" })).toHaveAttribute("aria-selected", "true");
+
+  await page.getByRole("tab", { name: "영업 재검증" }).click();
+  await expect(page).toHaveURL(/tab=liveness/);
+  await expect(page.getByRole("heading", { name: "영업 상태 재검증" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "정보 정정" }).click();
+  await expect(page).toHaveURL(/tab=corrections/);
+  await expect(page.getByRole("heading", { name: "정보 정정·이의 제기" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "중복·이력" }).click();
+  await expect(page).toHaveURL(/tab=duplicates/);
+  await expect(page.getByRole("heading", { name: "동일 상호 중복 병합" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "중복 장소 병합" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "병합 실행" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /묶음 병합/ })).toHaveCount(0);
+  await page.screenshot({ path: `docs/evidence/2026-08-17-place-ops-tabs-${testInfo.project.name}.png`, fullPage: true });
+});
+
 test("admin confirms a suggested pin on the map before approving exactly one draft", async ({ page }, testInfo) => {
   const name = `관리자 지도 승인 QA ${Date.now()}`;
   await installFakeNaverMaps(page);

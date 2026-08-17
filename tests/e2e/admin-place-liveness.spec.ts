@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("admin can filter place liveness operations without exposing raw evidence", async ({ page }) => {
   await page.context().addCookies([{ name: "retaste_session", value: "qa-admin-session", domain: "127.0.0.1", path: "/" }]);
-  await page.goto("/admin/place-operations");
+  await page.goto("/admin/place-operations?tab=liveness");
 
   await expect(page.getByRole("heading", { name: "영업 상태 재검증" })).toBeVisible();
   await expect(page.getByLabel("영업 상태 필터")).toBeVisible();
