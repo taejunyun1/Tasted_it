@@ -16,7 +16,9 @@
 
 **포함:** `/admin/*` 라우트, 검수 파이프라인, 권한, 감사 기록, 관리자 E2E, 배포·무료 티어 정합성.
 
-**이 문서에서 아직 실행하지 않은 항목:** 원격 D1 쓰기, 비밀값 열람, 배포 실행, 로그인된 운영 세션 재현, NAVER 실호출, TJ 잔여 이슈 닫기. 이 머신 wrangler는 Jay 개인 Cloudflare 계정(비운영 계정)이라 운영 계정 배포·migration 목록을 읽지 못했다. 위 항목은 제외가 아니라 후속 플랜에 포함한다. 계획은 [`docs/superpowers/plans/2026-08-17-admin-audit-followup.md`](../superpowers/plans/2026-08-17-admin-audit-followup.md)다.
+**오딧 당시(오전) 미실시:** 원격 D1 쓰기, 비밀값 열람, 배포 실행, 로그인된 운영 세션 재현, NAVER 실호출, TJ 잔여 이슈 닫기. 당시 이 머신 wrangler는 가정 계정 `a58fbe3a0082c49f571d69d08c1227ab`와 개인 계정 `f43d6ae07d0d75a6d9ca80befae153eb` 쪽으로 해석되어 운영 목록을 읽지 못했다.
+
+**2026-08-17 정정:** 운영자 OAuth와 owner 로그인은 같은 결론이다. 보이는 운영 계정은 `7543330c65069ee2df1b7b353fb0201c`(owner 계정)뿐이며, Worker `retaste-beta`와 D1 `retaste-production`(`5181489d-83a7-4f78-9384-db096cadaa2d`)을 소유한다. 가정 계정 `a58fbe3a…`와 개인 계정 `f43d6ae0…`는 쓰기 대상이 아니다. 계정 확인은 더 이상 차단 조건이 아니다. 원격 `d1 migrations list`는 대기 없음. `origin/main` `5c4285f` Worker 배포는 Jay 채팅 승인 후 실행됐다. 로그인 관리자 QA(#161)·NAVER 실호출(#163)은 여전히 미실시. 계획은 [`docs/superpowers/plans/2026-08-17-admin-audit-followup.md`](../superpowers/plans/2026-08-17-admin-audit-followup.md)다.
 
 증거 등급: **[확인]** 파일을 열거나 익명 HTTP를 측정함 · **[추론]** 확인된 사실에서 규칙으로 도출 · **[가설]** 운영 로그인·대시보드 없이 단정하지 않음.
 
@@ -41,7 +43,7 @@ TJ가 말한 세 줄과 코드가 맞물리는 지점:
 | 코드 권한(비로그인·비관리자) | **GO** | `requireAdmin` 전 라우트 존재, 익명 302 |
 | 관리자 일상 운영(제안 승인, 영업 재검증, 병합, 검수) | **NO-GO** | 제안/재검증/병합 라우트 0건, 검수는 스키마·CPU에 취약 |
 | 공개 홈 조회 | **관측만** | 200 + curation 마크. 관리자 오류와 별개 |
-| 배포·원격 migration 완료 주장 | **증거 없음** | 운영 CF 계정에 이 머신으로 접근 실패 |
+| 배포·원격 migration 완료 주장 | **정정됨** | 계정 `7543330c…`에서 원격 migration 대기 없음. `origin/main` `5c4285f`를 Worker `retaste-beta`에 배포함(버전 `194a3423-7964-4c58-98d5-0f2d0d822d0d`). 라이브 홈 200 |
 
 ---
 
@@ -55,7 +57,7 @@ TJ가 말한 세 줄과 코드가 맞물리는 지점:
 |---|---|---|---|---|
 | ADM-IA-01 | 장소 제안 승인·반려 UI가 라우트에서 사라짐. `approvePlaceSuggestion`은 테스트만 호출 | High | `app/routes/` grep 0건 vs `place-suggestion.server.ts:68-141`. `0034` backfill은 이미 `CREATE_FROM_SUGGESTION`인 DRAFT만 큐에 넣음 | 확인 |
 | ADM-IA-02 | 영업 재검증·중복 병합·정정 적용 화면이 검수 파이프라인 통합 과정에서 제거됨 | High | `app/routes/`에 `mergePlaces`/`applyPlaceLiveness`/`approvePlaceSuggestion` 호출 0건. E2E는 옛 탭을 그대로 기대 | 확인 |
-| ADM-OPS-01 | 기본 어드민 입구가 `0034` 테이블에 의존. 원격 migration 미적용 시 500 | High | `admin-place-operations.tsx:41-43`, `drizzle/0034_place_review_pipeline.sql`. 원격 적용 여부는 이 머신에서 확인 실패 | 확인(의존) · 가설(원격 상태) |
+| ADM-OPS-01 | 기본 어드민 입구가 `0034` 테이블에 의존. 원격 migration 미적용 시 500 | High | `admin-place-operations.tsx:41-43`, `drizzle/0034_place_review_pipeline.sql`. 2026-08-17 원격 `migrations list`: 대기 없음 → 미적용 가설 기각. 코드 의존은 유지 | 확인(의존) · 원격 대기 없음 |
 | ADM-OPS-02 | Workers Free 10ms CPU. 관리자 무거운 loader가 1102로 보일 수 있음 | High | 공식 한도 10ms. `place-review-query.server.ts:88-132` 3단 조인, `dashboard.server.ts:7-19` 창 3×질의 7, `record-audit.server.ts:51-93` 병렬 9 | 확인(한도·쿼리) · 추론(운영 1102) |
 
 ### P1 — 운영 직후 반드시
@@ -77,7 +79,7 @@ TJ가 말한 세 줄과 코드가 맞물리는 지점:
 | ADM-UX-01 | `/admin/places` 빈 상태·`#main`·페이지네이션 없음. primary 카테고리 없는 장소는 목록에서 사라짐 | Low | `admin-places.tsx:17`, `place.server.ts:37-53` innerJoin | 확인 |
 | ADM-UX-02 | `/admin/data-sync` 입력 zod 없음, 실패 피드백 없음, 성공 시 검수로 redirect | Medium | `admin-data-sync.tsx:10-19` | 확인 |
 | ADM-AUD-01 | `/admin/audit`의 `sourceCommit`이 `"runtime-unversioned"` 고정 | Low | `admin-audit.tsx:10-12` | 확인 |
-| ADM-OPS-03 | 이 머신 wrangler는 운영 계정이 아님. 배포 주체와 계정 SSOT가 문서화되어 있지 않음 | Medium | `wrangler whoami` → 비운영 개인 계정, deployments/D1 API 10000·7403 | 확인 |
+| ADM-OPS-03 | 배포 주체와 계정 SSOT 부재로 보이던 항목 | Medium | 오딧 당시 가정 계정 `a58fbe3a…`는 API 10000/7403. 정정: OAuth와 owner 로그인 모두 계정 `7543330c65069ee2df1b7b353fb0201c`만 보이며 이 계정이 라이브 Worker/D1 소유. 개인 계정 `f43d6ae0…`는 쓰기 대상 아님 | 해소 |
 | ADM-OPS-04 | cron 5작업을 `Promise.all`로 동시 실행. Free 10ms면 야간 배치도 실패하기 쉬움 | Medium | `workers/app.ts:17-24` | 확인(구조) · 추론(실패) |
 
 ---
@@ -109,7 +111,7 @@ TJ가 말한 세 줄과 코드가 맞물리는 지점:
 - `/admin/audit`가 로그인으로 302 → 통합 감사 라우트도 배포된 코드에 있음.
 - `/admin/place-operations`도 라우트는 존재(세션 검사까지 도달). **테이블 존재 여부는 로그인 뒤에만 판정 가능.**
 
-이 워크스테이션 wrangler는 운영 계정(`wrangler.jsonc`의 account와 불일치)이라 배포 버전과 `0034` 적용을 읽지 못했다. “배포했다 / 안 했다”를 여기서 확정하지 않는다.
+오딧 당시에는 가정 계정 `a58fbe3a…`와 개인 계정 `f43d6ae0…` 쪽으로 보여 배포 버전과 `0034`를 읽지 못했다. 2026-08-17 정정: 운영 계정은 `7543330c65069ee2df1b7b353fb0201c`이며 `wrangler.jsonc` D1 `5181489d-83a7-4f78-9384-db096cadaa2d`와 일치한다. 원격 migration은 대기 없음. 같은 날 `origin/main` `5c4285f`를 `retaste-beta`에 배포했고 라이브 홈은 200이다.
 
 Workers Free 공식 한도(2026): 요청 10만/일, CPU 10ms, subrequest 50. 초과 시 Error 1102. Paid는 기본 30초. 관리자 오류가 공개 홈과 달리 난다면 이 한도가 1순위 가설이다. 확정하려면 Cloudflare Metrics의 `exceededCpu`와 로그인된 검수 화면 재현이 필요하다.
 
@@ -132,7 +134,7 @@ Workers Free 공식 한도(2026): 요청 10만/일, CPU 10ms, subrequest 50. 초
 
 ## 7. 권고 순서
 
-1. **운영 계정으로** Worker 버전과 원격 D1 `0034`(및 `0029`–`0033`) 적용을 확인한다. 미적용이면 코드 수정 전에 migration을 승인된 PR 범위로 적용한다. 이 Issue만으로 배포·원격 D1을 승인하지 않는다.
+1. **운영 계정 `7543330c…`는 확인됨.** 원격 D1 migration은 대기 없음. 추가 apply는 하지 않는다. 이후 배포는 이 계정만 대상으로 한다. 가정 계정 `a58fbe3a…`와 개인 계정 `f43d6ae0…`에는 쓰지 않는다.
 2. **Workers Paid 여부**를 확인한다. Free면 관리자 1102를 코드만으로 고치기 어렵다. 검수 loader를 단계별 질의로 쪼개도 10ms는 빠듯하다.
 3. **제안 승인 UI를 검수 1단계 또는 전용 탭으로 복구**한다. 서버 함수는 있다. 라우트만 없다.
 4. 영업 재검증·병합을 검수 파이프라인에 명시적으로 넣거나, 없다고 제품 결정을 남긴다. 지금처럼 서버만 남기면 운영이 멈춘다.
