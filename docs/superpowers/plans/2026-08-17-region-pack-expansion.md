@@ -4,9 +4,12 @@
 
 **Goal:** 이후 모든 작업이 광주전남을 포크하지 않으면서도, 두 번째 도시를 지금 실어내지 않게 한다.
 
-**추적:** [#178](https://github.com/taejunyun1/Tasted_it/issues/178) 지역 상수 단일 모듈 정리(론칭은 광주전남)  
-**거버넌스:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) — 상태 `PROPOSED`. 이 문서는 스택 예외 승인이 아니다.  
-**코드 기준선:** `origin/main` `9c8c7ee`  
+**추적:** [#178](https://github.com/taejunyun1/Tasted_it/issues/178) 지역 상수 단일 모듈 정리(론칭은 광주전남)
+
+**거버넌스:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) — 상태 `PROPOSED`. 이 문서는 스택 예외 승인이 아니다.
+
+**코드 기준선:** `origin/main` `9c8c7ee`
+
 **담당:** Jay · **합의:** Jay (전남-광주 완료 전 확장 제약)
 
 이 PR은 문서만 추가한다. 지역 팩 구현, 두 번째 도시 공개, 새 Worker/D1/계정/포크/KV/Queues/DO/프레임워크는 범위 밖이다.
@@ -150,9 +153,12 @@ Rollback: 이 PR은 문서만 되돌리면 된다. 후속 코드 PR은 각자 re
 
 **Goal:** Make later city work add a pack instead of forking, without shipping a second city in this change.
 
-**Tracking:** [#178](https://github.com/taejunyun1/Tasted_it/issues/178) region-constant consolidation (launch stays 광주전남)  
-**Governance:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) is still `PROPOSED`. This document is not stack-approval.  
-**Baseline:** `origin/main` `9c8c7ee`  
+**Tracking:** [#178](https://github.com/taejunyun1/Tasted_it/issues/178) region-constant consolidation (launch stays 광주전남)
+
+**Governance:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) is still `PROPOSED`. This document is not stack-approval.
+
+**Baseline:** `origin/main` `9c8c7ee`
+
 **Owner:** Jay · **Agreement:** Jay (constraint until 전남-광주 is complete)
 
 This PR is documentation only. It does not implement packs, ship a second city, or add a Worker, D1, account, fork, KV, Queue, Durable Object, or framework.
