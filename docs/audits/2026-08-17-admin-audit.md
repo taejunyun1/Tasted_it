@@ -16,7 +16,7 @@
 
 **포함:** `/admin/*` 라우트, 검수 파이프라인, 권한, 감사 기록, 관리자 E2E, 배포·무료 티어 정합성.
 
-**이 문서에서 아직 실행하지 않은 항목:** 원격 D1 쓰기, 비밀값 열람, 배포 실행, 로그인된 운영 세션 재현, NAVER 실호출, TJ 잔여 이슈 닫기. 이 머신 wrangler는 Jay 개인 Cloudflare 계정(`deximple@gmail.com`)이라 운영 계정 배포·migration 목록을 읽지 못했다. 위 항목은 제외가 아니라 후속 플랜에 포함한다. 계획은 [`docs/superpowers/plans/2026-08-17-admin-audit-followup.md`](../superpowers/plans/2026-08-17-admin-audit-followup.md)다.
+**이 문서에서 아직 실행하지 않은 항목:** 원격 D1 쓰기, 비밀값 열람, 배포 실행, 로그인된 운영 세션 재현, NAVER 실호출, TJ 잔여 이슈 닫기. 이 머신 wrangler는 Jay 개인 Cloudflare 계정(비운영 계정)이라 운영 계정 배포·migration 목록을 읽지 못했다. 위 항목은 제외가 아니라 후속 플랜에 포함한다. 계획은 [`docs/superpowers/plans/2026-08-17-admin-audit-followup.md`](../superpowers/plans/2026-08-17-admin-audit-followup.md)다.
 
 증거 등급: **[확인]** 파일을 열거나 익명 HTTP를 측정함 · **[추론]** 확인된 사실에서 규칙으로 도출 · **[가설]** 운영 로그인·대시보드 없이 단정하지 않음.
 
@@ -77,7 +77,7 @@ TJ가 말한 세 줄과 코드가 맞물리는 지점:
 | ADM-UX-01 | `/admin/places` 빈 상태·`#main`·페이지네이션 없음. primary 카테고리 없는 장소는 목록에서 사라짐 | Low | `admin-places.tsx:17`, `place.server.ts:37-53` innerJoin | 확인 |
 | ADM-UX-02 | `/admin/data-sync` 입력 zod 없음, 실패 피드백 없음, 성공 시 검수로 redirect | Medium | `admin-data-sync.tsx:10-19` | 확인 |
 | ADM-AUD-01 | `/admin/audit`의 `sourceCommit`이 `"runtime-unversioned"` 고정 | Low | `admin-audit.tsx:10-12` | 확인 |
-| ADM-OPS-03 | 이 머신 wrangler는 운영 계정이 아님. 배포 주체와 계정 SSOT가 문서화되어 있지 않음 | Medium | `wrangler whoami` → `deximple@gmail.com`, deployments/D1 API 10000·7403 | 확인 |
+| ADM-OPS-03 | 이 머신 wrangler는 운영 계정이 아님. 배포 주체와 계정 SSOT가 문서화되어 있지 않음 | Medium | `wrangler whoami` → 비운영 개인 계정, deployments/D1 API 10000·7403 | 확인 |
 | ADM-OPS-04 | cron 5작업을 `Promise.all`로 동시 실행. Free 10ms면 야간 배치도 실패하기 쉬움 | Medium | `workers/app.ts:17-24` | 확인(구조) · 추론(실패) |
 
 ---

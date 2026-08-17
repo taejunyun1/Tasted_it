@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed / TJ 컨펌 대기 | 관리자 HOLD 오딧과 후속 실행 플랜을 문서화한다. 오딧이 비운 라이브 재현·원격 D1·NAVER 실호출·코드/커밋/배포·잔여 이슈 정리를 #161–#168에 포함한다. 제품 코드·migration·운영 데이터는 바꾸지 않는다. 이 PR 병합은 문서 채택이며 배포·원격 쓰기를 승인하지 않는다. | [Issue #160](https://github.com/taejunyun1/Tasted_it/issues/160) · [PR #169](https://github.com/taejunyun1/Tasted_it/pull/169) |
+| Proposed / TJ `GO` | 관리자 HOLD 오딧과 후속 실행 플랜을 문서화한다. 오딧이 비운 라이브 재현·원격 D1·NAVER 실호출·코드/커밋/배포·잔여 이슈 정리를 #161–#168·#170·#171에 포함한다. 제품 코드·migration·운영 데이터는 바꾸지 않는다. 이 PR 병합은 문서 채택이며 배포·원격 쓰기를 승인하지 않는다. | [Issue #160](https://github.com/taejunyun1/Tasted_it/issues/160) · [PR #169](https://github.com/taejunyun1/Tasted_it/pull/169) |
 | Ready / CI PASS | 변경 이력 SSOT·권한 경계·PR 템플릿을 도입하고 README/운영 런북의 NAVER 상한 설명을 정합화한다. 제품 코드·migration·운영 설정은 바꾸지 않는다. 기존 typecheck 오류는 #159에서 수정됐고, 최신 기준선에서 로컬 typecheck·전체 단위 테스트·build와 PR CI가 모두 통과했다. 병합 squash SHA는 다음 기준점 정합성 확인에서 기록한다. | [Issue #156](https://github.com/taejunyun1/Tasted_it/issues/156) · [PR #157](https://github.com/taejunyun1/Tasted_it/pull/157) · [Issue #158](https://github.com/taejunyun1/Tasted_it/issues/158) · [PR #159](https://github.com/taejunyun1/Tasted_it/pull/159) · [PR CI](https://github.com/taejunyun1/Tasted_it/actions/runs/31959115738) |
 
 ## 기준선 요약
