@@ -15,6 +15,8 @@
 
 2026-08-17: 원격 `d1 migrations list`는 대기 없음. `origin/main` `5c4285f`를 이 계정에 배포함. Version `194a3423-7964-4c58-98d5-0f2d0d822d0d`. rollback은 직전 버전 `d899f619-3df5-49a1-85f6-c5d3b9de87bf`를 다시 배포한다.
 
+2026-08-17: 원격 `d1 migrations list`는 대기 없음. `origin/main` `7a10dd0`를 이 계정에 배포함. Version `099d8361-989b-488d-bd94-91163551bfb6`. rollback은 직전 버전 `a78d44c8-953a-4331-9854-ed15a986b35b`를 다시 배포한다.
+
 ## 사전 게이트
 
 - 단위·D1 통합·E2E·타입·빌드 통과
