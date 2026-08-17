@@ -15,6 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 검수 파이프라인 옆에 영업 재검증·정정·병합 탭을 복구한다. 기존 서버 가드를 유지하고 동일 상호 일괄 자동 병합은 넣지 않는다. 배포·원격 D1·NAVER 실호출은 이 PR에 없다. | [Issue #165](https://github.com/taejunyun1/Tasted_it/issues/165) · [PR #175](https://github.com/taejunyun1/Tasted_it/pull/175) |
 | Proposed | 검수 1단계에 회원 장소 제안 승인 UI를 복구한다. SUBMITTED 제안을 지도 확인·사유 입력 후 초안 승인하면 `PLACE_SUGGESTION` work item이 5단계 큐에 합류한다. 배포·원격 D1·NAVER 실호출은 이 PR에 없다. | [Issue #164](https://github.com/taejunyun1/Tasted_it/issues/164) · [PR #173](https://github.com/taejunyun1/Tasted_it/pull/173) |
 | Proposed | 운영 Cloudflare 계정 SSOT를 정정한다. 두 운영자 로그인은 계정 `7543330c65069ee2df1b7b353fb0201c`에서 Worker `retaste-beta`와 D1 `retaste-production`을 본다. 가정 계정·개인 계정은 쓰기 대상이 아니다. Jay 채팅 승인 후 `origin/main` `5c4285f` 배포 결과를 기록한다. | [Issue #162](https://github.com/taejunyun1/Tasted_it/issues/162) · [Issue #166](https://github.com/taejunyun1/Tasted_it/issues/166) · [PR #174](https://github.com/taejunyun1/Tasted_it/pull/174) |
 | Proposed | 검수 1–5단계 요청/응답 계약과 오류 카탈로그를 추가해 알려진 검수 실패가 전역 500 대신 화면 400이 되게 한다. 로그인 `returnTo`는 `/admin`·`/admin/*`를 허용하고, 운영 대시보드는 `PLACE_REVIEW_*` 공개/보류/제외를 집계한다. 배포·원격 D1·NAVER 실호출은 이 PR에 없다. | [Issue #170](https://github.com/taejunyun1/Tasted_it/issues/170) · [Issue #167](https://github.com/taejunyun1/Tasted_it/issues/167) · [Issue #171](https://github.com/taejunyun1/Tasted_it/issues/171) · [PR #172](https://github.com/taejunyun1/Tasted_it/pull/172) |
@@ -55,6 +56,7 @@
 
 | 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
 | --- | --- | --- | --- | --- |
+| 15:22 | 관리자 / 운영 탭 | 검수 옆에 영업 재검증·정정·수동 병합 탭을 복구한다. 동일 상호 후보는 보여 주되 일괄 자동 병합은 하지 않는다. | 코드·테스트·E2E 증거. migration·환경 변수·원격 D1·NAVER 실호출 없음. 배포는 병합 후 `origin/main`. | [Issue #165](https://github.com/taejunyun1/Tasted_it/issues/165) · [PR #175](https://github.com/taejunyun1/Tasted_it/pull/175) |
 | 14:22 | 운영 / Cloudflare | 두 운영자 로그인이 같은 owner 계정에서 Worker/D1를 본다는 결론으로 오딧·플랜·런북을 정정한다. 원격 migration은 대기 없음. Jay 채팅 승인 후 `origin/main` `5c4285f`를 계정 `7543330c…`에 배포한 결과를 기록한다. | 문서 4파일. 제품 코드·migration apply·D1 create·NAVER 실호출 없음. Worker 버전 `194a3423-7964-4c58-98d5-0f2d0d822d0d`. rollback은 직전 버전 `d899f619-3df5-49a1-85f6-c5d3b9de87bf`. | [Issue #162](https://github.com/taejunyun1/Tasted_it/issues/162) · [Issue #166](https://github.com/taejunyun1/Tasted_it/issues/166) · [PR #174](https://github.com/taejunyun1/Tasted_it/pull/174) |
 | 13:52 | 관리자 / 제안 승인 | 검수 1단계에 회원 장소 제안 목록과 지도 확인 승인 UI를 복구한다. 승인된 DRAFT만 기존 5단계 큐에 합류한다. | 코드·테스트·E2E 증거. migration·환경 변수·배포·원격 D1·NAVER 실호출 없음. | [Issue #164](https://github.com/taejunyun1/Tasted_it/issues/164) · [PR #173](https://github.com/taejunyun1/Tasted_it/pull/173) |
 | 13:40 | 관리자 / 검수 계약 | 검수 단계별 송수신·예외 규칙, 관리자 `returnTo`, 운영 대시보드 파이프라인 지표를 코드로 고정한다. 알려진 검수 오류는 화면 400으로 남긴다. | 코드·테스트 12파일. migration·환경 변수·배포·원격 D1·NAVER 실호출 없음. | [Issue #170](https://github.com/taejunyun1/Tasted_it/issues/170) · [Issue #167](https://github.com/taejunyun1/Tasted_it/issues/167) · [Issue #171](https://github.com/taejunyun1/Tasted_it/issues/171) · [PR #172](https://github.com/taejunyun1/Tasted_it/pull/172) |
