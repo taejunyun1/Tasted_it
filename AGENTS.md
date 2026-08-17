@@ -13,10 +13,52 @@ Apply this workflow to every development change in this repository.
 9. After a PR is merged into `main` (or when leftover local work is confirmed squash-merged into `main`), rename the local feature branch to `Archive/<original-branch-name>` rather than deleting it. Remove leftover worktrees so the primary checkout stays on `main`. Do not use `Archive/*` branches as the base for new work; new branches always start from the latest `origin/main`. Remote: delete. Local: preserve under `Archive/`.
 10. Deploy production from the merged `main`. Preview deployments may run from feature branches before merge.
 11. After merging, update the local `main` from `origin/main` before starting the next branch.
+12. When issues, commits, PRs, merges, or notable progress happen, update the GitHub wiki in the same effort. See **GitHub wiki progress updates** below.
 
 PR이 `main`에 병합된 뒤(또는 로컬에 남은 작업이 `main`에 squash-merge된 것이 확인되면) 원격 feature 브랜치는 삭제하고, 로컬 브랜치는 삭제하지 않고 `Archive/<원래-브랜치명>`으로 이름 변경한다. 남은 worktree는 제거하여 기본 checkout이 `main`에 머물게 한다. `Archive/*` 브랜치는 신규 작업의 기준으로 쓰지 않으며, 모든 신규 브랜치는 최신 `origin/main`에서 시작한다. 원격: 삭제. 로컬: `Archive/` 아래에 보존.
 
+이슈·커밋·PR·병합·주요 진행이 생기면 같은 작업에서 GitHub 위키도 갱신한다. 아래 **GitHub 위키 진행 갱신**을 따른다.
+
 The repository owner follows the same feature-branch and pull-request workflow. A direct push to `origin/main` is reserved for an explicitly approved emergency hotfix.
+
+
+## GitHub wiki progress updates
+
+Wiki: https://github.com/taejunyun1/Tasted_it/wiki
+
+When any of the following happen, update the existing relevant wiki page in the same effort:
+
+- new or closed issues
+- commits that land, or at least when opening or updating the PR
+- PR opened, CI result, or review notes that change status
+- merge to `main`
+- notable progress (deploy, remote D1, blocked or unblocked)
+
+Use these pages. Do not create a pile of new pages.
+
+- [Home](https://github.com/taejunyun1/Tasted_it/wiki) — one-line status, snapshot SHA, P0 blockers
+- [변경-이력](https://github.com/taejunyun1/Tasted_it/wiki/변경-이력) — date, issue/PR numbers, one-line what changed, merge SHA if merged
+- [이슈-와-PR](https://github.com/taejunyun1/Tasted_it/wiki/이슈-와-PR) — opened/closed issues, open/merged PRs
+- [잔여-작업](https://github.com/taejunyun1/Tasted_it/wiki/잔여-작업) — remaining work, blocked or unblocked
+
+If none of those pages exists, add or update a single progress page (`Home`, `Progress`, or `Change-log`) instead of creating many new pages.
+
+Keep wiki entries short: date, issue/PR numbers, one-line what changed, and the merge SHA if merged. Do not put secrets, production names or addresses, token values, or personal data in the wiki. The wiki is a progress snapshot; approval and operational decisions stay in the merged Pull Request.
+
+**GitHub 위키 진행 갱신**
+
+위키: https://github.com/taejunyun1/Tasted_it/wiki
+
+이슈가 열리거나 닫힐 때, 커밋이 랜딩하거나 적어도 PR을 열거나 갱신할 때, PR·CI·리뷰 상태가 바뀔 때, `main`에 병합될 때, 배포·원격 D1·막힘/해제 등 주요 진행이 있을 때 기존 위키 페이지를 같은 작업에서 갱신한다.
+
+- [Home](https://github.com/taejunyun1/Tasted_it/wiki) — 한 줄 상태, 스냅샷 SHA, P0 막힘
+- [변경-이력](https://github.com/taejunyun1/Tasted_it/wiki/변경-이력) — 날짜, 이슈/PR 번호, 한 줄 변경, 병합 SHA
+- [이슈-와-PR](https://github.com/taejunyun1/Tasted_it/wiki/이슈-와-PR) — 열린/닫힌 이슈, 열린/병합 PR
+- [잔여-작업](https://github.com/taejunyun1/Tasted_it/wiki/잔여-작업) — 남은 일, 막힘/해제
+
+해당 페이지가 없으면 새 페이지를 여러 개 만들지 말고 `Home` 또는 `Progress` / `Change-log` 한 페이지만 추가·갱신한다.
+
+위키 항목은 짧게 유지한다: 날짜, 이슈/PR 번호, 한 줄 변경, 병합된 경우 SHA. 비밀값, 운영 이름/주소, 토큰 값, 개인정보를 위키에 쓰지 않는다. 위키는 진행 스냅샷이며, 승인·운영 결정의 원본은 병합된 Pull Request다.
 
 
 ## Mandatory collaboration protocol
