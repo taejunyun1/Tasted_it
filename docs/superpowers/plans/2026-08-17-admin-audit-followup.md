@@ -1,6 +1,6 @@
 # 2026-08-17 관리자 오딧 후속 실행 계획
 
-> **상태:** `GO` — TJ 채팅 승인 완료(2026-08-17). 문서 채택과 로컬 코드 후속(#164 #167 #170 #171)을 시작한다. 승인 리뷰만으로는 착수하지 않으며, 원격 D1 apply, NAVER 실호출, 배포는 각 전용 PR이 병합되기 전까지 실행하지 않는다.
+> **상태:** `GO` — TJ 채팅 승인 완료(2026-08-17). 계정 확인도 완료됐다. 운영자 OAuth와 owner 로그인은 같은 결론이며, 보이는 운영 계정은 `7543330c65069ee2df1b7b353fb0201c`뿐이다. 원격 migration은 대기 없음. Jay 채팅 승인(`ㅇㅇ`)으로 `origin/main` `5c4285f` Worker를 그 계정에 배포했다. NAVER 실호출(#163)과 로그인 관리자 QA(#161)는 이 작업에 포함하지 않는다.
 
 **Goal:** 관리자 HOLD를 풀기 위해, 오딧이 비워 둔 증거부터 소실 UI 복구, 운영 정합, 잔여 이슈 정리까지 이슈 단위로 진행한다.
 
@@ -23,9 +23,9 @@
 ## Global Constraints
 
 - 모든 신규 브랜치는 최신 `origin/main`에서 `jay_<scope>`로 만든다. Codex/TJ 브랜치와 worktree를 재사용하지 않는다.
-- 원격 D1은 읽기 전용 SELECT만. apply·시드·대량 UPDATE는 전용 PR이 병합된 뒤에만 지정 담당자가 실행한다.
+- 원격 D1은 읽기 전용 SELECT만. apply·시드·대량 UPDATE는 전용 PR이 병합된 뒤에만 지정 담당자가 실행한다. 2026-08-17 원격 `migrations list`는 대기 없음. apply·create는 하지 않았다.
 - NAVER 실호출은 [#163](https://github.com/taejunyun1/Tasted_it/issues/163) 실행 PR에 적힌 한도(기본 1–3곳) 안에서만 한다.
-- 이 워크스테이션 wrangler(비운영 개인 계정)로 운영 계정에 쓰지 않는다.
+- 운영 쓰기는 `CLOUDFLARE_ACCOUNT_ID=7543330c65069ee2df1b7b353fb0201c`만 사용한다. 가정 계정 `a58fbe3a0082c49f571d69d08c1227ab`와 개인 계정 `f43d6ae07d0d75a6d9ca80befae153eb`에는 쓰지 않는다. 두 운영자 로그인은 이 Worker/D1에서 동일 대상이다. 계정 확인은 더 이상 차단 조건이 아니다.
 - 상호명·주소·이메일·비밀값을 이슈/PR/증거에 붙이지 않는다.
 - 열린 Codex 이슈 #113·#115·#118·#124·#128·#144는 [#168](https://github.com/taejunyun1/Tasted_it/issues/168)에서만 정리한다. 이 플랜 PR에서 닫지 않는다.
 
@@ -34,12 +34,12 @@
 | 단계 | 이슈 | 오딧 ID | TJ 컨펌 없이 시작? |
 |---|---|---|---|
 | 0 | [#161](https://github.com/taejunyun1/Tasted_it/issues/161) 라이브 로그인 재현 | 섹션 8 | 아니오. 운영 ADMIN 세션 필요 |
-| 0 | [#162](https://github.com/taejunyun1/Tasted_it/issues/162) 원격 D1 인벤토리 | ADM-OPS-01, 섹션 8 | 아니오. 운영 CF 계정 필요 |
+| 0 | [#162](https://github.com/taejunyun1/Tasted_it/issues/162) 원격 D1 인벤토리 | ADM-OPS-01, 섹션 8 | 계정 확인 완료. migration 목록은 대기 없음. 행 수 SELECT는 아직 |
 | 0 | [#163](https://github.com/taejunyun1/Tasted_it/issues/163) NAVER 실호출 표본 | 섹션 8 | 아니오. 한도 승인 필요 |
 | 1 | [#164](https://github.com/taejunyun1/Tasted_it/issues/164) 제안 승인 UI 복구 | ADM-IA-01 | GO 후 착수 |
 | 1 | [#165](https://github.com/taejunyun1/Tasted_it/issues/165) 재검증·병합 탭 복구(A) | ADM-IA-02 | GO. 기본안 A, 자동 병합 없음 |
 | 1 | [#170](https://github.com/taejunyun1/Tasted_it/issues/170) 단계별 송수신·예외 규칙 | 신규 | GO 후 즉시 |
-| 2 | [#166](https://github.com/taejunyun1/Tasted_it/issues/166) Worker 플랜·배포·0034 | ADM-OPS-01–03, 섹션 8 | 전용 PR 후 |
+| 2 | [#166](https://github.com/taejunyun1/Tasted_it/issues/166) Worker 플랜·배포·0034 | ADM-OPS-01–03, 섹션 8 | 계정 확인 완료. `origin/main` `5c4285f` 배포 실행됨. Paid/Free는 미확인 |
 | 3 | [#167](https://github.com/taejunyun1/Tasted_it/issues/167) E2E·returnTo·오류 화면 | ADM-TEST-01, AUTH-01, ERR-01/02 | GO 후 코드 PR |
 | 3 | [#171](https://github.com/taejunyun1/Tasted_it/issues/171) 검수 파이프라인 운영 지표 | ADM-OBS-01 | GO 후 코드 PR |
 | 4 | [#168](https://github.com/taejunyun1/Tasted_it/issues/168) Codex 잔여 이슈 6개 | 섹션 8 | 아니오. 닫기 전 TJ 컨펌 |
@@ -56,9 +56,9 @@
 
 ### Task 0.2 원격 D1 읽기 — #162
 
-- [ ] 운영 계정으로 `wrangler d1 migrations list retaste-production --remote`만 실행한다.
-- [ ] `0029`–`0034` 적용 여부와 work item / SUBMITTED 제안 / PENDING 면허 건수만 남긴다.
-- [ ] apply는 이 태스크에서 하지 않는다.
+- [x] 운영 계정 `7543330c65069ee2df1b7b353fb0201c`로 `wrangler d1 migrations list retaste-production --remote`만 실행한다. 결과: `No migrations to apply!`
+- [ ] `0029`–`0034` 적용 여부와 work item / SUBMITTED 제안 / PENDING 면허 건수만 남긴다. 목록은 대기 없음. 행 수 SELECT는 이 단계에서 하지 않았다.
+- [x] apply는 이 태스크에서 하지 않는다.
 
 ### Task 0.3 NAVER 표본 — #163
 
@@ -66,7 +66,7 @@
 - [ ] 그 PR이 병합된 뒤에만 호출한다.
 - [ ] 호출 수와 1102 여부만 기록한다.
 
-**단계 0 통과 조건:** 0034 적용 여부, 검수 화면 실제 오류, Paid/Free가 이슈 댓글에 적힌다.
+**단계 0 통과 조건:** 0034 적용 여부(원격 목록 대기 없음으로 기록), 검수 화면 실제 오류(#161 미실시), Paid/Free(미확인)가 이슈 댓글에 적힌다.
 
 ## 단계 1 — 소실된 관리자 작업 복구
 
@@ -97,9 +97,23 @@
 
 ### Task 2.1 Worker·migration·배포 — #166
 
-- [ ] 운영 계정으로 Worker SHA, Free/Paid, 원격 migration을 확인한다.
-- [ ] 미적용 `0034` 등이 있으면 전용 실행 PR에 대상·검증·rollback을 적고 병합 뒤에만 apply/deploy 한다.
-- [ ] Free면 Paid 전환 또는 검수 loader 분할을 같은 이슈에서 결정한다. 코드만으로 10ms를 약속하지 않는다.
+- [x] 운영 계정 `7543330c65069ee2df1b7b353fb0201c`로 Worker와 원격 migration을 확인한다. 목록 대기 없음. 라이브 버전은 아래 실행 기록.
+- [x] 미적용 migration 없음. apply·create는 하지 않았다. Jay 채팅 승인 후 `origin/main` `5c4285f`를 `retaste-beta`에 배포했다.
+- [ ] Free면 Paid 전환 또는 검수 loader 분할을 같은 이슈에서 결정한다. 코드만으로 10ms를 약속하지 않는다. Paid/Free는 이 단계에서 확인하지 않았다.
+
+#### 2026-08-17 운영 실행 기록
+
+| 항목 | 값 |
+|---|---|
+| 대상 계정 | `7543330c65069ee2df1b7b353fb0201c` |
+| Worker | `retaste-beta` |
+| D1 | `retaste-production` (`5181489d-83a7-4f78-9384-db096cadaa2d`) |
+| 배포 소스 | `origin/main` `5c4285f7884d2d77765ce17c165187037c42aca3` (기능 브랜치 아님) |
+| 명령 | `CLOUDFLARE_ACCOUNT_ID=7543330c65069ee2df1b7b353fb0201c pnpm run deploy` |
+| 결과 | 성공. Version ID `194a3423-7964-4c58-98d5-0f2d0d822d0d` |
+| URL | `https://retaste-beta.retaste-beta.workers.dev` 홈 HTTP 200 |
+| 직전 버전(rollback) | `d899f619-3df5-49a1-85f6-c5d3b9de87bf` |
+| 하지 않은 것 | remote apply, DB create, NAVER 실호출, 로그인 관리자 QA, PR #173 병합, #165 구현 |
 
 ## 단계 3 — 품질 게이트
 
@@ -143,8 +157,8 @@
 |---|---|---|
 | 오딧·플랜 문서 채택 | 예. 상태가 `GO`로 기록된 뒤 병합 | 이 PR |
 | 라이브 로그인 QA | 아니오 | #161 + 운영 ADMIN 접근 |
-| 원격 D1 SELECT | 아니오 | #162 + 운영 CF 계정 |
-| 원격 D1 apply / deploy | 아니오 | #166 전용 PR 병합 후 지정 담당자 |
+| 원격 D1 SELECT | 계정 확인 후 목록만 | #162. 2026-08-17 목록 대기 없음. 행 수는 미실시 |
+| 원격 D1 apply / deploy | apply는 아니오. `origin/main` 배포는 Jay 채팅 승인으로 실행 | #166. 이 PR은 결과 기록. 추가 apply 없음 |
 | NAVER 실호출 | 아니오 | #163 전용 PR 병합 후 한도 내 |
 | 코드 수정 | 아니오 | #164 #165 #167 #170 #171 각 PR |
 | 잔여 이슈 닫기 | 아니오 | #168 + TJ 컨펌 |
@@ -153,15 +167,15 @@ Rollback: 이 PR은 문서만 되돌리면 된다. 후속 PR은 각자 revert. m
 
 ## 중단 조건
 
-- 운영 계정 접근이 없으면 단계 0의 #162·#163과 단계 2를 멈춘다. #164 설계는 코드 기준으로만 초안 가능.
-- 라이브에서 0034 미적용이 확인되면 #164 UI보다 #166 apply를 먼저 한다.
+- 계정 확인은 완료됐다. #162·#166의 계정 차단은 해제한다. #163은 한도 승인 전 멈춘다.
+- 원격 migration은 대기 없음. 0034 미적용을 이유로 #166 apply를 먼저 하지 않는다.
 - 1102가 재현되고 Free가 확인되면 Paid 결정 없이 검수 화면 최적화를 약속하지 않는다.
 
 ---
 
 # 2026-08-17 Admin Audit Follow-up Plan
 
-> **Status:** `GO` — TJ chat approval recorded (2026-08-17). Adopt this document and start local code follow-ups (#164 #167 #170 #171). An approving review alone is not authorization. Do not run remote D1 apply, live NAVER calls, or deploys until each dedicated PR is merged.
+> **Status:** `GO` — TJ chat approval recorded (2026-08-17). Account confirmation is also done. Operator OAuth and the owner login reach the same conclusion: the only visible production account is `7543330c65069ee2df1b7b353fb0201c`. Remote migrations have none pending. After Jay chat approval (`ㅇㅇ`), `origin/main` `5c4285f` was deployed to that account. Live NAVER (#163) and logged-in admin QA (#161) are not part of this step.
 
 **Goal:** Clear the admin HOLD by covering the audit gaps, restoring missing operator UI, aligning production, and triaging leftover Codex issues.
 
@@ -184,9 +198,9 @@ Rollback: 이 PR은 문서만 되돌리면 된다. 후속 PR은 각자 revert. m
 ## Global Constraints
 
 - Create every new branch from the latest `origin/main` as `jay_<scope>`. Do not reuse Codex/TJ branches or worktrees.
-- Remote D1 is read-only SELECT. Apply, seed, and bulk UPDATE run only after a dedicated PR merges, and only by the named operator.
+- Remote D1 is read-only SELECT. Apply, seed, and bulk UPDATE run only after a dedicated PR merges, and only by the named operator. The 2026-08-17 remote `migrations list` had none pending. No apply or create was run.
 - Live NAVER calls stay inside the limit written in the [#163](https://github.com/taejunyun1/Tasted_it/issues/163) execution PR (default 1–3 places).
-- Do not use this workstation's wrangler (a non-production personal account) to write to the production account.
+- Production writes use only `CLOUDFLARE_ACCOUNT_ID=7543330c65069ee2df1b7b353fb0201c`. Do not write to assumed account `a58fbe3a0082c49f571d69d08c1227ab` or personal account `f43d6ae07d0d75a6d9ca80befae153eb`. Both operator logins target the same Worker/D1. Account confirmation is no longer a blocker.
 - Do not attach trade names, addresses, emails, or secrets to issues, PRs, or evidence.
 - Open Codex issues #113, #115, #118, #124, #128, and #144 are cleaned up only in [#168](https://github.com/taejunyun1/Tasted_it/issues/168). Do not close them from this plan PR.
 
@@ -195,12 +209,12 @@ Rollback: 이 PR은 문서만 되돌리면 된다. 후속 PR은 각자 revert. m
 | Phase | Issue | Audit ID | Start without further TJ confirm? |
 |---|---|---|---|
 | 0 | [#161](https://github.com/taejunyun1/Tasted_it/issues/161) live login reproduction | Section 8 | No. Needs a production ADMIN session |
-| 0 | [#162](https://github.com/taejunyun1/Tasted_it/issues/162) remote D1 inventory | ADM-OPS-01, Section 8 | No. Needs the production CF account |
+| 0 | [#162](https://github.com/taejunyun1/Tasted_it/issues/162) remote D1 inventory | ADM-OPS-01, Section 8 | Account confirmed. Migration list has none pending. Row-count SELECT not done |
 | 0 | [#163](https://github.com/taejunyun1/Tasted_it/issues/163) live NAVER sample | Section 8 | No. Needs a written call limit |
 | 1 | [#164](https://github.com/taejunyun1/Tasted_it/issues/164) restore suggestion approval UI | ADM-IA-01 | After `GO` |
 | 1 | [#165](https://github.com/taejunyun1/Tasted_it/issues/165) restore reverify/merge tabs (A) | ADM-IA-02 | `GO`. Default A, no auto-merge |
 | 1 | [#170](https://github.com/taejunyun1/Tasted_it/issues/170) per-stage I/O and exception rules | New | Immediately after `GO` |
-| 2 | [#166](https://github.com/taejunyun1/Tasted_it/issues/166) Worker plan, deploy, 0034 | ADM-OPS-01–03, Section 8 | After a dedicated PR |
+| 2 | [#166](https://github.com/taejunyun1/Tasted_it/issues/166) Worker plan, deploy, 0034 | ADM-OPS-01–03, Section 8 | Account confirmed. `origin/main` `5c4285f` deployed. Paid/Free not confirmed |
 | 3 | [#167](https://github.com/taejunyun1/Tasted_it/issues/167) E2E, returnTo, error screens | ADM-TEST-01, AUTH-01, ERR-01/02 | After `GO`, in a code PR |
 | 3 | [#171](https://github.com/taejunyun1/Tasted_it/issues/171) pipeline ops metrics | ADM-OBS-01 | After `GO`, in a code PR |
 | 4 | [#168](https://github.com/taejunyun1/Tasted_it/issues/168) six leftover Codex issues | Section 8 | No. Confirm with TJ before closing |
@@ -217,9 +231,9 @@ Confirm or reject P0 hypotheses before code changes.
 
 ### Task 0.2 Remote D1 read — #162
 
-- [ ] From the production account, run only `wrangler d1 migrations list retaste-production --remote`.
-- [ ] Record whether `0029`–`0034` are applied, plus work-item / SUBMITTED suggestion / PENDING license counts only.
-- [ ] Do not apply migrations in this task.
+- [x] From production account `7543330c65069ee2df1b7b353fb0201c`, run only `wrangler d1 migrations list retaste-production --remote`. Result: `No migrations to apply!`
+- [ ] Record whether `0029`–`0034` are applied, plus work-item / SUBMITTED suggestion / PENDING license counts only. The list has none pending. Row-count SELECT was not run in this step.
+- [x] Do not apply migrations in this task.
 
 ### Task 0.3 NAVER sample — #163
 
@@ -227,7 +241,7 @@ Confirm or reject P0 hypotheses before code changes.
 - [ ] Call only after that PR merges.
 - [ ] Record call count and whether 1102 occurred.
 
-**Phase 0 exit:** 0034 apply status, the actual review-screen error, and Paid/Free are written on the issue comments.
+**Phase 0 exit:** 0034 apply status (remote list: none pending), the actual review-screen error (#161 not run), and Paid/Free (not confirmed) are written on the issue comments.
 
 ## Phase 1 — Restore missing admin work
 
@@ -258,9 +272,23 @@ Confirm or reject P0 hypotheses before code changes.
 
 ### Task 2.1 Worker, migration, deploy — #166
 
-- [ ] From the production account, confirm Worker SHA, Free/Paid, and remote migrations.
-- [ ] If `0034` or others are missing, write target, verification, and rollback in a dedicated execution PR and apply/deploy only after merge.
-- [ ] If Free, decide Paid conversion or review-loader splits in the same issue. Do not promise 10ms from code changes alone.
+- [x] From production account `7543330c65069ee2df1b7b353fb0201c`, confirm the Worker and remote migrations. None pending. Live version is in the execution record below.
+- [x] No missing migrations. No apply or create. After Jay chat approval, `origin/main` `5c4285f` was deployed to `retaste-beta`.
+- [ ] If Free, decide Paid conversion or review-loader splits in the same issue. Do not promise 10ms from code changes alone. Paid/Free was not confirmed in this step.
+
+#### 2026-08-17 production execution record
+
+| Item | Value |
+|---|---|
+| Target account | `7543330c65069ee2df1b7b353fb0201c` |
+| Worker | `retaste-beta` |
+| D1 | `retaste-production` (`5181489d-83a7-4f78-9384-db096cadaa2d`) |
+| Deploy source | `origin/main` `5c4285f7884d2d77765ce17c165187037c42aca3` (not a feature branch) |
+| Command | `CLOUDFLARE_ACCOUNT_ID=7543330c65069ee2df1b7b353fb0201c pnpm run deploy` |
+| Result | Success. Version ID `194a3423-7964-4c58-98d5-0f2d0d822d0d` |
+| URL | `https://retaste-beta.retaste-beta.workers.dev` home HTTP 200 |
+| Previous version (rollback) | `d899f619-3df5-49a1-85f6-c5d3b9de87bf` |
+| Not done | remote apply, DB create, live NAVER, logged-in admin QA, merge of PR #173, #165 implementation |
 
 ## Phase 3 — Quality gates
 
@@ -304,8 +332,8 @@ Confirm or reject P0 hypotheses before code changes.
 |---|---|---|
 | Adopt the audit and plan docs | Yes, after the recorded status is `GO` | This PR |
 | Live login QA | No | #161 + production ADMIN access |
-| Remote D1 SELECT | No | #162 + production CF account |
-| Remote D1 apply / deploy | No | Named operator after the dedicated #166 PR merges |
+| Remote D1 SELECT | List only after account confirm | #162. 2026-08-17 list had none pending. Row counts not run |
+| Remote D1 apply / deploy | Apply: no. `origin/main` deploy ran after Jay chat approval | #166. This PR records the result. No further apply |
 | Live NAVER calls | No | After the dedicated #163 PR merges, within the written limit |
 | Code changes | No | Separate PRs for #164 #165 #167 #170 #171 |
 | Close leftover issues | No | #168 + TJ confirmation |
@@ -314,6 +342,6 @@ Rollback: revert this documentation PR. Follow-up PRs revert on their own. Migra
 
 ## Stopping conditions
 
-- If production-account access is missing, stop phase 0 #162/#163 and phase 2. #164 design can still be drafted from code.
-- If live evidence shows `0034` is not applied, do #166 apply before #164 UI.
+- Account confirmation is done. The account blocker for #162 and #166 is cleared. Keep #163 stopped until a written call limit exists.
+- Remote migrations have none pending. Do not treat missing `0034` as a reason to apply first.
 - If 1102 reproduces and Free is confirmed, do not promise review-screen optimization without a Paid decision.
