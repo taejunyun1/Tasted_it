@@ -3,6 +3,9 @@ import { eq } from "drizzle-orm";
 import { data, Link } from "react-router";
 
 import type { Route } from "./+types/admin-place-operations";
+import { PlaceCorrectionPanel } from "../components/admin/PlaceCorrectionPanel";
+import { PlaceLivenessPanel } from "../components/admin/PlaceLivenessPanel";
+import { PlaceMergePanel } from "../components/admin/PlaceMergePanel";
 import { PlaceReviewPipeline } from "../components/admin/PlaceReviewPipeline";
 import { PlaceSuggestionReviewCard } from "../components/admin/PlaceSuggestionReviewCard";
 import { createDb } from "../db/client.server";
@@ -11,6 +14,19 @@ import { requireAdmin } from "../features/auth/session.server";
 import { getTerminalCategoryIds } from "../features/candidates/category-selection";
 import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter, NaverLocalSearchError } from "../features/candidates/naver-local-search.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
+import { listCorrectionOperations, listDuplicateOperations, listLivenessOperations } from "../features/places/place-operations-admin.server";
+import {
+  checkClearExclusionsRequest,
+  checkCorrectionApplyRequest,
+  checkCorrectionTransitionRequest,
+  checkLivenessResolveRequest,
+  checkMergeRequest,
+  checkRestoreRequest,
+  operationsErrorMessage,
+} from "../features/places/place-operations-io";
+import { parsePlaceOperationsTab, placeOperationsTabHref, type PlaceOperationsTab } from "../features/places/place-operations-tabs";
+import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/places/place-correction.server";
+import { mergePlaces, restorePlaceRevision } from "../features/places/place-merge.server";
 import { confirmReviewItemCategories } from "../features/places/place-review-category.server";
 import { listReviewDuplicateCandidates, resolveReviewDuplicates } from "../features/places/place-review-duplicates.server";
 import { verifyReviewItemsWithNaver } from "../features/places/place-review-naver.server";
@@ -20,6 +36,7 @@ import { parsePlaceReviewQuery } from "../features/places/place-review-paginatio
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems } from "../features/places/place-review-work-items.server";
+import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
 import { getNaverLocalSearchApiCallsToday } from "../features/places/naver-place-liveness.server";
@@ -32,6 +49,14 @@ function reviewActionError(code: string, extra?: { batchId?: string }) {
 function reviewCaughtError(error: unknown, extra?: { batchId?: string }) {
   const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
   return reviewActionError(code, extra);
+}
+
+function operationsActionError(code: string) {
+  return data({ ok: false, error: operationsErrorMessage(code), code }, { status: 400 });
+}
+
+function operationsCaughtError(error: unknown) {
+  return operationsActionError(error instanceof Error ? error.message : "UNKNOWN");
 }
 
 function selectedWorkItems(form: FormData) {
@@ -50,6 +75,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
   const db = createDb(env.DB);
   const url = new URL(request.url);
+  const tab = parsePlaceOperationsTab(url);
+  if (tab === "liveness") {
+    const liveness = await listLivenessOperations(db, url.searchParams.get("liveness"));
+    return { tab, ...liveness };
+  }
+  if (tab === "duplicates") {
+    return { tab, ...(await listDuplicateOperations(db)) };
+  }
+  if (tab === "corrections") {
+    return { tab, corrections: await listCorrectionOperations(db) };
+  }
   const query = parsePlaceReviewQuery(url);
   const now = new Date().toISOString();
   const placeGeocodingEnabled = env.NAVER_PLACE_GEOCODING_ENABLED === "true";
@@ -65,6 +101,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     ? await listReviewDuplicateCandidates(db, page.rows.map((row) => row.workItemId))
     : [];
   return {
+    tab,
     query, page, counts, categories: categoryRows.filter((category) => terminalCategoryIds.has(category.id)), duplicateCandidates,
     suggestions,
     naverDailyUsage, naverDailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000),
@@ -120,6 +157,78 @@ export async function action({ request }: Route.ActionArgs) {
     } catch (error) {
       const code = error instanceof Error ? error.message : "UNKNOWN";
       return data({ ok: false, error: suggestionApprovalErrorMessage(code), code }, { status: 400 });
+    }
+  }
+  if (intent === "apply-correction") {
+    const checked = checkCorrectionApplyRequest({ requestId: form.get("requestId"), reason: form.get("reason") });
+    if (!checked.ok) return operationsActionError(checked.code);
+    try {
+      await applyPlaceCorrection(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, message: "정정 내용을 적용하고 수정 이력을 남겼습니다." };
+    } catch (error) {
+      return operationsCaughtError(error);
+    }
+  }
+  if (intent === "transition-correction") {
+    const checked = checkCorrectionTransitionRequest({
+      requestId: form.get("requestId"),
+      status: form.get("status"),
+      reason: form.get("reason"),
+    });
+    if (!checked.ok) return operationsActionError(checked.code);
+    try {
+      await transitionPlaceCorrection(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, message: checked.value.status === "REJECTED" ? "정정 요청을 반려했습니다." : "정정 요청을 검토 중으로 바꿨습니다." };
+    } catch (error) {
+      return operationsCaughtError(error);
+    }
+  }
+  if (intent === "merge") {
+    const checked = checkMergeRequest({
+      targetPlaceId: form.get("targetPlaceId"),
+      sourcePlaceId: form.get("sourcePlaceId"),
+      reason: form.get("reason"),
+    });
+    if (!checked.ok) return operationsActionError(checked.code);
+    try {
+      await mergePlaces(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, message: "중복 장소를 병합하고 기존 URL 리다이렉트를 생성했습니다." };
+    } catch (error) {
+      return operationsCaughtError(error);
+    }
+  }
+  if (intent === "restore") {
+    const checked = checkRestoreRequest({ revisionId: form.get("revisionId"), reason: form.get("reason") });
+    if (!checked.ok) return operationsActionError(checked.code);
+    try {
+      await restorePlaceRevision(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, message: "선택한 이전 값으로 복원했습니다." };
+    } catch (error) {
+      return operationsCaughtError(error);
+    }
+  }
+  if (intent === "resolve-liveness") {
+    const checked = checkLivenessResolveRequest({
+      caseId: form.get("caseId"),
+      resolution: form.get("resolution"),
+      reason: form.get("reason"),
+    });
+    if (!checked.ok) return operationsActionError(checked.code);
+    try {
+      await resolvePlaceLivenessCase(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, message: "영업 상태 검수를 반영했습니다." };
+    } catch (error) {
+      return operationsCaughtError(error);
+    }
+  }
+  if (intent === "clear-recommendation-exclusions") {
+    const checked = checkClearExclusionsRequest({ reason: form.get("reason") });
+    if (!checked.ok) return operationsActionError(checked.code);
+    try {
+      const result = await clearRecommendationExclusions(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, message: `자동 추천 제외 ${result.updated}건을 해제했습니다.` };
+    } catch (error) {
+      return operationsCaughtError(error);
     }
   }
   const batchId = String(form.get("batchId") ?? "");
@@ -219,6 +328,13 @@ export async function action({ request }: Route.ActionArgs) {
 
 export function meta() { return [{ title: "장소 검수 — Re:Taste Admin" }]; }
 
+const operationTabs: Array<{ id: PlaceOperationsTab; label: string }> = [
+  { id: "review", label: "장소 검수" },
+  { id: "liveness", label: "영업 재검증" },
+  { id: "corrections", label: "정보 정정" },
+  { id: "duplicates", label: "중복·이력" },
+];
+
 export default function AdminPlaceOperations({ loaderData, actionData }: Route.ComponentProps) {
   const message = actionData && "message" in actionData ? actionData.message : undefined;
   const error = actionData && "error" in actionData ? actionData.error : undefined;
@@ -228,22 +344,38 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
     : [];
   return <main id="main" className="place-ops shell place-review-shell">
     <header className="place-ops-head">
-      <div><p className="eyebrow">ADMIN / PLACE REVIEW</p><h1>장소 검수</h1><p>원천부터 NAVER 근거, 카테고리, 중복 검토를 순서대로 확인한 뒤 선택 공개합니다.</p></div>
+      <div><p className="eyebrow">ADMIN / PLACE REVIEW</p><h1>장소 검수</h1><p>원천부터 NAVER 근거, 카테고리, 중복 검토를 순서대로 확인한 뒤 선택 공개합니다. 영업 재검증·정정·병합은 옆 탭에서 처리합니다.</p></div>
       <nav><Link to="/admin/data-sync">공공데이터 수집</Link><Link to="/admin/ratings">평가 운영</Link></nav>
     </header>
-    {loaderData.query.step === 1 && <section className="place-ops-section" aria-labelledby="suggestion-review-heading">
-      <h2 id="suggestion-review-heading">회원 장소 제안</h2>
-      <p>SUBMITTED 제안을 지도에서 확인한 뒤 초안으로 승인하면 아래 1단계 검수 큐에 들어갑니다.</p>
-      {loaderData.suggestions.map((item) => (
-        <PlaceSuggestionReviewCard
-          key={item.id}
-          item={item}
-          clientId={loaderData.naverMapsClientId}
-          geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)}
-        />
+    {message && <p className="admin-notice" role="status">{message}</p>}
+    {error && loaderData.tab !== "review" && <p className="operation-error" role="alert">{error}</p>}
+    <nav className="place-ops-tabs" aria-label="장소 운영 작업" role="tablist">
+      {operationTabs.map((tab) => (
+        <Link key={tab.id} role="tab" aria-selected={loaderData.tab === tab.id} aria-controls={`place-ops-panel-${tab.id}`} to={placeOperationsTabHref(tab.id)}>
+          <span>{tab.label}</span>
+        </Link>
       ))}
-      {!loaderData.suggestions.length && <p>검토할 제안이 없습니다.</p>}
-    </section>}
-    <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} />
+    </nav>
+    <div id={`place-ops-panel-${loaderData.tab}`} className="place-ops-tab-panel" role="tabpanel">
+      {loaderData.tab === "review" && <>
+        {loaderData.query.step === 1 && <section className="place-ops-section" aria-labelledby="suggestion-review-heading">
+          <h2 id="suggestion-review-heading">회원 장소 제안</h2>
+          <p>SUBMITTED 제안을 지도에서 확인한 뒤 초안으로 승인하면 아래 1단계 검수 큐에 들어갑니다.</p>
+          {loaderData.suggestions.map((item) => (
+            <PlaceSuggestionReviewCard
+              key={item.id}
+              item={item}
+              clientId={loaderData.naverMapsClientId}
+              geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)}
+            />
+          ))}
+          {!loaderData.suggestions.length && <p>검토할 제안이 없습니다.</p>}
+        </section>}
+        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} />
+      </>}
+      {loaderData.tab === "liveness" && <PlaceLivenessPanel livenessFilter={loaderData.livenessFilter} livenessRows={loaderData.livenessRows} />}
+      {loaderData.tab === "corrections" && <PlaceCorrectionPanel corrections={loaderData.corrections} />}
+      {loaderData.tab === "duplicates" && <PlaceMergePanel places={loaderData.places} safeSameNameMergeGroups={loaderData.safeSameNameMergeGroups} revisions={loaderData.revisions} />}
+    </div>
   </main>;
 }
