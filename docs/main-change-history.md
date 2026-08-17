@@ -15,6 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 광주전남 게이트를 닫는 고도화 슬라이스 순서를 `GO`로 고정하고, 저장소 Private 전환을 "요청하되 Private만으로는 부족하다"로 판정한다. 판정 근거는 비밀값 유출이 아니라 사업 문서·약점 목록 노출이며, 무료 secret scanning과 Free 요금제 branch protection 손실을 비용으로 기록한다. 제품 코드·migration·배포·저장소 공개 범위 변경은 이 PR에 없다. | [Issue #182](https://github.com/taejunyun1/Tasted_it/issues/182) · [PR #183](https://github.com/taejunyun1/Tasted_it/pull/183) · [`docs/superpowers/plans/2026-08-17-advancement-and-private-repo.md`](./superpowers/plans/2026-08-17-advancement-and-private-repo.md) |
 | Proposed | Jay 채팅 승인 후 `origin/main` `7a10dd0`(`#180` 지역 상수 모듈)를 운영 계정에 배포한 결과를 기록한다. 원격 migration 대기 없음. | [PR #181](https://github.com/taejunyun1/Tasted_it/pull/181) · [`7a10dd0`](https://github.com/taejunyun1/Tasted_it/commit/7a10dd054f17ba9b3272f36bb52cf4f26edcaa41) |
 | Proposed | 지역 상수·주소 판정·bbox·구집 키를 모듈 1개로 모은다. 공개 론칭은 광주전남. 두 번째 도시·새 테이블/binding/배포 없음. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #180](https://github.com/taejunyun1/Tasted_it/pull/180) |
 | Proposed | 전남-광주가 끝나기 전에는 공개·운영 시장을 광주전남만 둔다. 이후 확장은 같은 Worker·D1의 지역 팩으로만 한다. 도시별 Worker/D1/포크/계정과 `regions` 테이블은 기각. 제품 코드·migration·배포는 이 PR에 없다. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #179](https://github.com/taejunyun1/Tasted_it/pull/179) · [`docs/superpowers/plans/2026-08-17-region-pack-expansion.md`](./superpowers/plans/2026-08-17-region-pack-expansion.md) |
