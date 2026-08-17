@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import { safeReturnTo } from "../../app/features/auth/login";
 
 describe("safeReturnTo", () => {
-  it("returns to a requested place after login but not an admin route", () => {
+  it("returns to a requested place or admin path after login", () => {
     expect(safeReturnTo("/places/sample-place-1?from=map")).toBe("/places/sample-place-1?from=map");
-    expect(safeReturnTo("/admin/candidates")).toBe("/");
+    expect(safeReturnTo("/admin")).toBe("/admin");
+    expect(safeReturnTo("/admin/candidates")).toBe("/admin/candidates");
+    expect(safeReturnTo("/admin/place-operations?step=1")).toBe("/admin/place-operations?step=1");
     expect(safeReturnTo(null)).toBe("/");
   });
 

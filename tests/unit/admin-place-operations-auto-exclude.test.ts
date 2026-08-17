@@ -7,13 +7,16 @@ describe("place review automatic non-food exclusion action", () => {
 
     expect(route).toContain('intent === "auto-exclude-non-food-review-items"');
     expect(route).toContain("autoExcludeNonFoodReviewItems");
-    expect(route).toContain('expectedStage !== "SOURCE_REVIEW"');
+    expect(route).toContain("checkReviewRequest");
     expect(route).toMatch(/form\s*\.getAll\("autoWorkItem"\)/);
   });
 
   it("returns automatic-exclusion failures as an actionable response instead of escaping the route", () => {
     const route = readFileSync("app/routes/admin-place-operations.tsx", "utf8");
 
-    expect(route).toContain('error: `비음식점 자동 제외를 완료하지 못했습니다: ${code}`');
+    expect(route).toContain("reviewErrorMessage");
+    expect(route).toContain("reviewCaughtError");
+    expect(route).toContain("autoExcludeNonFoodReviewItems");
+    expect(route).toContain("status: 400");
   });
 });
