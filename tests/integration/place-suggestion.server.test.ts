@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
 import { categories, placeCategories, placeDuplicateCandidates, placeReviewWorkItems, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../app/db/schema";
-import { approvePlaceSuggestion, submitPlaceSuggestion } from "../../app/features/places/place-suggestion.server";
+import { approvePlaceSuggestion, listReviewablePlaceSuggestions, submitPlaceSuggestion } from "../../app/features/places/place-suggestion.server";
 
 describe("place suggestions", () => {
   it("requires verified email and explicit duplicate override", async () => {
@@ -179,5 +179,26 @@ describe("place suggestions", () => {
     expect((await db.select().from(placeCategories)).filter((item) => item.placeId === `${prefix}-suggestion`)).toHaveLength(0);
     expect((await db.select().from(placeRevisions)).filter((item) => item.placeId === `${prefix}-suggestion`)).toHaveLength(0);
     expect((await db.select().from(placeSuggestions)).find((item) => item.id === `${prefix}-suggestion`)).toMatchObject({ status: "SUBMITTED", approvedPlaceId: null });
+  });
+
+  it("lists only reviewable suggestions without submitter identity", async () => {
+    const db = createDb(env.DB); const prefix = `list-${crypto.randomUUID()}`; const now = "2026-08-17T04:00:00.000Z";
+    const category = await db.query.categories.findFirst(); if (!category) throw new Error("category fixture missing");
+    await db.insert(users).values([
+      { id: `${prefix}-user`, email: `${prefix}-user@example.com`, displayName: "제안자", role: "USER", emailVerifiedAt: now, createdAt: now, updatedAt: now },
+      { id: `${prefix}-admin`, email: `${prefix}-admin@example.com`, displayName: "관리자", role: "ADMIN", emailVerifiedAt: now, createdAt: now, updatedAt: now },
+    ]);
+    await submitPlaceSuggestion(db, { id: `${prefix}-open`, userId: `${prefix}-user`, name: "목록 식당", address: "광주 동구 목록로 1", neighborhood: "동명동", originLatitude: 35.16, originLongitude: 126.93, latitude: 35.16, longitude: 126.93, phone: "062-000-0000", categoryId: category.id, description: "목록", duplicateOverrideReason: "목록 회귀 테스트용 별도 제안", now });
+    await submitPlaceSuggestion(db, { id: `${prefix}-done`, userId: `${prefix}-user`, name: "승인될 식당", address: "광주 동구 목록로 2", neighborhood: "동명동", originLatitude: 35.161, originLongitude: 126.931, latitude: 35.161, longitude: 126.931, phone: null, categoryId: category.id, description: null, duplicateOverrideReason: "목록 회귀 테스트용 별도 제안 2", now });
+    await approvePlaceSuggestion(db, { suggestionId: `${prefix}-done`, actorUserId: `${prefix}-admin`, reason: "정보 확인", now });
+
+    const listed = await listReviewablePlaceSuggestions(db);
+    const open = listed.find((item) => item.id === `${prefix}-open`);
+    const done = listed.find((item) => item.id === `${prefix}-done`);
+
+    expect(open).toMatchObject({ status: "SUBMITTED", name: "목록 식당" });
+    expect(done).toBeUndefined();
+    expect(open && "userId" in open).toBe(false);
+    expect(open && "phone" in open).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import { data, Link } from "react-router";
 
 import type { Route } from "./+types/admin-place-operations";
 import { PlaceReviewPipeline } from "../components/admin/PlaceReviewPipeline";
+import { PlaceSuggestionReviewCard } from "../components/admin/PlaceSuggestionReviewCard";
 import { createDb } from "../db/client.server";
 import { categories } from "../db/schema";
 import { requireAdmin } from "../features/auth/session.server";
@@ -19,6 +20,8 @@ import { parsePlaceReviewQuery } from "../features/places/place-review-paginatio
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems } from "../features/places/place-review-work-items.server";
+import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
+import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
 import { getNaverLocalSearchApiCallsToday } from "../features/places/naver-place-liveness.server";
 
 function reviewActionError(code: string, extra?: { batchId?: string }) {
@@ -49,11 +52,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const query = parsePlaceReviewQuery(url);
   const now = new Date().toISOString();
-  const [page, counts, naverDailyUsage, categoryRows] = await Promise.all([
+  const placeGeocodingEnabled = env.NAVER_PLACE_GEOCODING_ENABLED === "true";
+  const [page, counts, naverDailyUsage, categoryRows, suggestions] = await Promise.all([
     listPlaceReviewWorkItems(db, query),
     getPlaceReviewStageCounts(db),
     getNaverLocalSearchApiCallsToday(db, now),
     db.select({ id: categories.id, name: categories.name, parentId: categories.parentId }).from(categories).where(eq(categories.isActive, true)),
+    listReviewablePlaceSuggestions(db),
   ]);
   const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
   const duplicateCandidates = query.step === 4
@@ -61,7 +66,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     : [];
   return {
     query, page, counts, categories: categoryRows.filter((category) => terminalCategoryIds.has(category.id)), duplicateCandidates,
+    suggestions,
     naverDailyUsage, naverDailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000),
+    naverMapsClientId: placeGeocodingEnabled ? env.NAVER_MAPS_CLIENT_ID ?? "" : "",
+    placeGeocodingEnabled,
   };
 }
 
@@ -72,6 +80,48 @@ export async function action({ request }: Route.ActionArgs) {
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const intent = String(form.get("intent") ?? "");
+  if (intent === "approve-suggestion") {
+    const suggestionId = String(form.get("suggestionId") ?? "");
+    const prefix = `approval-${suggestionId}-`;
+    const checked = checkSuggestionApprovalRequest({
+      suggestionId,
+      address: form.get(`${prefix}address`),
+      neighborhood: form.get(`${prefix}neighborhood`),
+      originLatitude: form.get(`${prefix}originLatitude`),
+      originLongitude: form.get(`${prefix}originLongitude`),
+      latitude: form.get(`${prefix}latitude`),
+      longitude: form.get(`${prefix}longitude`),
+      locationConfirmed: form.get(`${prefix}locationConfirmed`),
+      reason: form.get("reason"),
+    });
+    if (!checked.ok) {
+      return data({ ok: false, error: suggestionApprovalErrorMessage(checked.code), code: checked.code, suggestionId }, { status: 400 });
+    }
+    try {
+      const result = await approvePlaceSuggestion(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, suggestionId: checked.value.suggestionId, placeId: result.placeId, slug: result.slug, message: "제안을 비공개 초안으로 승인했습니다." };
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "UNKNOWN";
+      return data({ ok: false, error: suggestionApprovalErrorMessage(code), code, suggestionId }, { status: 400 });
+    }
+  }
+  if (intent === "transition-suggestion") {
+    const checked = checkSuggestionTransitionRequest({
+      suggestionId: form.get("suggestionId"),
+      status: form.get("status"),
+      reason: form.get("reason"),
+    });
+    if (!checked.ok) {
+      return data({ ok: false, error: suggestionApprovalErrorMessage(checked.code), code: checked.code }, { status: 400 });
+    }
+    try {
+      await transitionPlaceSuggestion(db, { ...checked.value, actorUserId: admin.id, now });
+      return { ok: true, message: checked.value.status === "REJECTED" ? "제안을 반려했습니다." : "추가 정보를 요청했습니다." };
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "UNKNOWN";
+      return data({ ok: false, error: suggestionApprovalErrorMessage(code), code }, { status: 400 });
+    }
+  }
   const batchId = String(form.get("batchId") ?? "");
   const { workItemIds, versions } = selectedWorkItems(form);
 	  const automaticWorkItemIds = [
@@ -181,6 +231,19 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
       <div><p className="eyebrow">ADMIN / PLACE REVIEW</p><h1>장소 검수</h1><p>원천부터 NAVER 근거, 카테고리, 중복 검토를 순서대로 확인한 뒤 선택 공개합니다.</p></div>
       <nav><Link to="/admin/data-sync">공공데이터 수집</Link><Link to="/admin/ratings">평가 운영</Link></nav>
     </header>
+    {loaderData.query.step === 1 && <section className="place-ops-section" aria-labelledby="suggestion-review-heading">
+      <h2 id="suggestion-review-heading">회원 장소 제안</h2>
+      <p>SUBMITTED 제안을 지도에서 확인한 뒤 초안으로 승인하면 아래 1단계 검수 큐에 들어갑니다.</p>
+      {loaderData.suggestions.map((item) => (
+        <PlaceSuggestionReviewCard
+          key={item.id}
+          item={item}
+          clientId={loaderData.naverMapsClientId}
+          geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)}
+        />
+      ))}
+      {!loaderData.suggestions.length && <p>검토할 제안이 없습니다.</p>}
+    </section>}
     <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} />
   </main>;
 }
