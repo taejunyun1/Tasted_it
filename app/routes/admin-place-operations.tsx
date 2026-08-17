@@ -13,12 +13,23 @@ import { isSameOriginMutation } from "../features/http/same-origin";
 import { confirmReviewItemCategories } from "../features/places/place-review-category.server";
 import { listReviewDuplicateCandidates, resolveReviewDuplicates } from "../features/places/place-review-duplicates.server";
 import { verifyReviewItemsWithNaver } from "../features/places/place-review-naver.server";
+import { reviewErrorMessage } from "../features/places/place-review-errors";
+import { checkReviewRequest } from "../features/places/place-review-io";
 import { parsePlaceReviewQuery } from "../features/places/place-review-pagination";
-import { reviewStages, type ReviewStage } from "../features/places/place-review-pipeline";
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems } from "../features/places/place-review-work-items.server";
 import { getNaverLocalSearchApiCallsToday } from "../features/places/naver-place-liveness.server";
+
+function reviewActionError(code: string, extra?: { batchId?: string }) {
+  const mapped = reviewErrorMessage(code);
+  return data({ ok: false, error: mapped.message, code: mapped.code, ...extra }, { status: 400 });
+}
+
+function reviewCaughtError(error: unknown, extra?: { batchId?: string }) {
+  const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
+  return reviewActionError(code, extra);
+}
 
 function selectedWorkItems(form: FormData) {
   const versions: Record<string, number> = {};
@@ -72,41 +83,41 @@ export async function action({ request }: Route.ActionArgs) {
 		),
 	];
   const expectedStage = String(form.get("expectedStage") ?? "");
+  const reason = String(form.get("reason") ?? "").trim();
+  const confirmPublish = String(form.get("confirmPublish") ?? "");
+  const categoryByWorkItem = Object.fromEntries(workItemIds.map((workItemId) => [workItemId, String(form.get(`category:${workItemId}`) ?? "")]));
+  const checked = checkReviewRequest({
+    intent, expectedStage, workItemIds, automaticWorkItemIds, reason, confirmPublish, categoryByWorkItem,
+  });
+  if (!checked.ok) return reviewActionError(checked.code, batchId ? { batchId } : undefined);
 
   if (intent === "auto-exclude-non-food-review-items") {
-    if (expectedStage !== "SOURCE_REVIEW") return data({ ok: false, error: "원천 검수 단계에서만 자동 제외할 수 있습니다." }, { status: 400 });
-    if (!automaticWorkItemIds.length) return data({ ok: false, error: "자동 제외할 장소가 없습니다." }, { status: 400 });
     try {
       const result = await autoExcludeNonFoodReviewItems(db, { workItemIds: automaticWorkItemIds, actorUserId: admin.id, now });
       return { ok: true, message: `비음식점 자동 제외 ${result.changed.length}곳 · 유지 ${result.skipped.length}곳`, skipped: result.skipped };
     } catch (error) {
-      const code = error instanceof Error ? error.message : "UNKNOWN";
-      return data({ ok: false, error: `비음식점 자동 제외를 완료하지 못했습니다: ${code}` }, { status: 400 });
+      return reviewCaughtError(error);
     }
   }
 
   if (intent === "verify-review-items-with-naver") {
-    if (!workItemIds.length) return data({ ok: false, error: "NAVER 근거를 확인할 장소를 선택해 주세요." }, { status: 400 });
     try {
       assertNaverLocalSearchEnabled(env);
       const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env) });
       const deferred = result.deferred ? ` · 다음 실행 ${result.deferred}곳` : "";
       return { ok: true, message: `선택 ${workItemIds.length}곳 중 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}${deferred}`, skipped: result.skipped, processedWorkItemIds: result.processedWorkItemIds, nextStep: 3 as const };
     } catch (error) {
-      const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
-      return data({ ok: false, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
+      return reviewCaughtError(error);
     }
   }
   if (intent === "auto-verify-review-item-with-naver") {
-    if (workItemIds.length !== 1) return data({ ok: false, batchId, error: "순차 NAVER 검증은 한 번에 한 장소만 처리합니다." }, { status: 400 });
-    if (expectedStage !== "SOURCE_REVIEW" && expectedStage !== "NAVER_VERIFICATION") return data({ ok: false, batchId, error: "원천 검수 또는 NAVER 검증 단계에서만 실행할 수 있습니다." }, { status: 400 });
     const workItemId = workItemIds[0]!;
     try {
       if (expectedStage === "SOURCE_REVIEW") {
         const advanced = await advancePlaceReviewWorkItems(db, {
           workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: versions, actorUserId: admin.id, now,
         });
-        if (!advanced.advanced.length) return data({ ok: false, batchId, error: `원천 검수를 통과하지 못했습니다: ${advanced.skipped[0]?.code ?? "UNKNOWN"}` }, { status: 400 });
+        if (!advanced.advanced.length) return reviewActionError(advanced.skipped[0]?.code ?? "UNKNOWN", { batchId });
       }
       assertNaverLocalSearchEnabled(env);
       const result = await verifyReviewItemsWithNaver(db, {
@@ -115,47 +126,45 @@ export async function action({ request }: Route.ActionArgs) {
       });
       return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
     } catch (error) {
-      const code = error instanceof NaverLocalSearchError ? error.code : error instanceof Error ? error.message : "UNKNOWN";
-      return data({ ok: false, batchId, error: code === "NAVER_LOCAL_SEARCH_QUOTA" ? "NAVER 일일 확인 한도에 도달했습니다." : `NAVER 근거 확인을 완료하지 못했습니다: ${code}` }, { status: 400 });
+      return reviewCaughtError(error, { batchId });
     }
   }
-  if (intent === "confirm-review-categories") {
-    const selections = workItemIds.map((workItemId) => ({ workItemId, categoryId: String(form.get(`category:${workItemId}`) ?? ""), reason: String(form.get("reason") ?? "") }));
-    const result = await confirmReviewItemCategories(db, { selections, actorUserId: admin.id, now });
-    return { ok: true, message: `카테고리 확정 ${result.confirmed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+  try {
+    if (intent === "confirm-review-categories") {
+      const selections = workItemIds.map((workItemId) => ({ workItemId, categoryId: String(form.get(`category:${workItemId}`) ?? ""), reason: String(form.get("reason") ?? "") }));
+      const result = await confirmReviewItemCategories(db, { selections, actorUserId: admin.id, now });
+      return { ok: true, message: `카테고리 확정 ${result.confirmed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    if (intent === "resolve-review-duplicates") {
+      const resolutions = form.getAll("duplicateCandidate").map(String).flatMap((value) => {
+        const [workItemId, candidatePlaceId] = value.split("|");
+        const decision = String(form.get(`duplicateDecision:${value}`) ?? "");
+        const duplicateReason = String(form.get(`duplicateReason:${value}`) ?? "");
+        return workItemId && candidatePlaceId && ["LINK_EXISTING", "MERGE", "DISTINCT"].includes(decision)
+          ? [{ workItemId, candidatePlaceId, decision: decision as "LINK_EXISTING" | "MERGE" | "DISTINCT", reason: duplicateReason }]
+          : [];
+      });
+      const result = await resolveReviewDuplicates(db, { resolutions, actorUserId: admin.id, now });
+      return { ok: true, message: `중복 판정 ${result.accepted.length}건 저장 · 건너뜀 ${result.skipped.length}건`, skipped: result.skipped };
+    }
+    if (intent === "publish-review-items") {
+      const result = await publishReviewedPlaces(db, { workItemIds, expectedVersions: versions, actorUserId: admin.id, now });
+      return { ok: true, message: `선택 공개 ${result.published.length}곳 완료 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    if (intent === "advance-review-items") {
+      const result = await advancePlaceReviewWorkItems(db, { workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now });
+      return { ok: true, message: `다음 단계 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    if (intent === "hold-review-items" || intent === "exclude-review-items") {
+      const result = intent === "hold-review-items"
+        ? await holdPlaceReviewItems(db, { workItemIds, actorUserId: admin.id, code: "ADMIN_REVIEW_HOLD", note: reason, now })
+        : await excludePlaceReviewItems(db, { workItemIds, actorUserId: admin.id, code: "ADMIN_REVIEW_EXCLUDE", note: reason, now });
+      return { ok: true, message: `${intent === "hold-review-items" ? "보류" : "제외"} ${result.changed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    return reviewActionError("INVALID_INTENT");
+  } catch (error) {
+    return reviewCaughtError(error);
   }
-  if (intent === "resolve-review-duplicates") {
-    const resolutions = form.getAll("duplicateCandidate").map(String).flatMap((value) => {
-      const [workItemId, candidatePlaceId] = value.split("|");
-      const decision = String(form.get(`duplicateDecision:${value}`) ?? "");
-      const reason = String(form.get(`duplicateReason:${value}`) ?? "");
-      return workItemId && candidatePlaceId && ["LINK_EXISTING", "MERGE", "DISTINCT"].includes(decision)
-        ? [{ workItemId, candidatePlaceId, decision: decision as "LINK_EXISTING" | "MERGE" | "DISTINCT", reason }]
-        : [];
-    });
-    const result = await resolveReviewDuplicates(db, { resolutions, actorUserId: admin.id, now });
-    return { ok: true, message: `중복 판정 ${result.accepted.length}건 저장 · 건너뜀 ${result.skipped.length}건`, skipped: result.skipped };
-  }
-  if (intent === "publish-review-items") {
-    if (String(form.get("confirmPublish") ?? "") !== "on") return data({ ok: false, error: "선택한 장소를 공개한다는 확인이 필요합니다." }, { status: 400 });
-    const result = await publishReviewedPlaces(db, { workItemIds, expectedVersions: versions, actorUserId: admin.id, now });
-    return { ok: true, message: `선택 공개 ${result.published.length}곳 완료 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
-  }
-  if (!workItemIds.length) return data({ ok: false, error: "처리할 장소를 선택해 주세요." }, { status: 400 });
-  if (!reviewStages.includes(expectedStage as ReviewStage)) return data({ ok: false, error: "검수 단계를 다시 확인해 주세요." }, { status: 400 });
-  const reason = String(form.get("reason") ?? "").trim();
-  if (intent === "advance-review-items") {
-    const result = await advancePlaceReviewWorkItems(db, { workItemIds, expectedStage: expectedStage as ReviewStage, expectedVersions: versions, actorUserId: admin.id, now });
-    return { ok: true, message: `다음 단계 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
-  }
-  if (intent === "hold-review-items" || intent === "exclude-review-items") {
-    if (!reason) return data({ ok: false, error: "보류 또는 제외 사유를 입력해 주세요." }, { status: 400 });
-    const result = intent === "hold-review-items"
-      ? await holdPlaceReviewItems(db, { workItemIds, actorUserId: admin.id, code: "ADMIN_REVIEW_HOLD", note: reason, now })
-      : await excludePlaceReviewItems(db, { workItemIds, actorUserId: admin.id, code: "ADMIN_REVIEW_EXCLUDE", note: reason, now });
-    return { ok: true, message: `${intent === "hold-review-items" ? "보류" : "제외"} ${result.changed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
-  }
-  throw new Response("Invalid intent", { status: 400 });
 }
 
 export function meta() { return [{ title: "장소 검수 — Re:Taste Admin" }]; }

@@ -14,6 +14,11 @@ describe("operations dashboard", () => {
     expect(row?.occurrenceCount).toBe(2);
     const dashboard = await getOperationalDashboard(db, { now });
     expect(dashboard.windows.map((window) => window.label)).toEqual(["24시간", "7일", "30일"]);
+    expect(dashboard.windows.every((window) =>
+      typeof window.reviewPublished === "number"
+      && typeof window.reviewHeld === "number"
+      && typeof window.reviewExcluded === "number"
+    )).toBe(true);
     expect(dashboard.alerts.some((item) => item.sourceId === "test-run")).toBe(true);
   });
 });

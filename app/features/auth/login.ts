@@ -14,8 +14,13 @@ export function safeReturnTo(value: string | null | undefined): string {
     const base = new URL("https://retaste.invalid");
     const destination = new URL(value, base);
     const decodedDestination = new URL(decoded, base);
-    const isAllowedPath = (pathname: string) => pathname === "/places" || pathname.startsWith("/places/");
+    if (decoded.includes("..") || value.includes("..")) return fallback;
+    const isAllowedPath = (pathname: string) =>
+      pathname === "/places" || pathname.startsWith("/places/")
+      || pathname === "/admin" || pathname.startsWith("/admin/");
+    const isDeniedPath = (pathname: string) => pathname === "/auth" || pathname.startsWith("/auth/");
     if (destination.origin !== base.origin || decodedDestination.origin !== base.origin) return fallback;
+    if (isDeniedPath(destination.pathname) || isDeniedPath(decodedDestination.pathname)) return fallback;
     if (!isAllowedPath(destination.pathname) || !isAllowedPath(decodedDestination.pathname)) return fallback;
     return value;
   } catch {

@@ -14,7 +14,9 @@ describe("safeReturnTo", () => {
     ["/%5Cevil.example/path", "/"],
     ["/places/%252e%252e/admin", "/"],
     ["javascript:alert(1)", "/"],
-    ["/admin/candidates", "/"],
+    ["/admin", "/admin"],
+    ["/admin/candidates", "/admin/candidates"],
+    ["/administration", "/"],
     ["/auth/google", "/"],
     ["/auth/google/callback?code=secret", "/"],
   ])("maps %s to a safe internal destination", (value, expected) => {
