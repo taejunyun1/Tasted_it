@@ -6,6 +6,7 @@ import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput
 import { isSupportedRegionAddress, normalizeSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
 import { slugifyPlaceName } from "./place-slug";
 import { newReviewWorkItemValues } from "./place-review-work-items.server";
+import { reviewableSuggestionStatuses } from "./place-suggestion-io";
 
 export interface SuggestionInput extends PlaceIdentityInput {
   id: string; userId: string; neighborhood: string; categoryId: string;
@@ -57,6 +58,22 @@ export async function submitPlaceSuggestion(db: AppDb, input: SuggestionInput) {
     reasonsJson: JSON.stringify(duplicate.reasons), status: "OPEN" as const, createdAt: input.now, updatedAt: input.now,
   })));
   return { id: input.id, duplicates };
+}
+
+export async function listReviewablePlaceSuggestions(db: AppDb) {
+  return db.select({
+    id: placeSuggestions.id,
+    status: placeSuggestions.status,
+    name: placeSuggestions.name,
+    address: placeSuggestions.address,
+    neighborhood: placeSuggestions.neighborhood,
+    latitude: placeSuggestions.latitude,
+    longitude: placeSuggestions.longitude,
+    description: placeSuggestions.description,
+  }).from(placeSuggestions)
+    .where(inArray(placeSuggestions.status, [...reviewableSuggestionStatuses]))
+    .orderBy(asc(placeSuggestions.createdAt))
+    .limit(200);
 }
 
 async function uniqueSlug(db: AppDb, name: string) {
