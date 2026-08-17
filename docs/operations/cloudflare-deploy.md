@@ -1,5 +1,20 @@
 # Cloudflare 배포 런북
 
+## 운영 대상 계정 (SSOT)
+
+라이브 Worker/D1는 아래 계정만 사용한다. 운영자 OAuth와 owner 로그인은 같은 대상이다.
+
+| 항목 | 값 |
+|---|---|
+| 계정 | `7543330c65069ee2df1b7b353fb0201c` |
+| Worker | `retaste-beta` |
+| D1 | `retaste-production` (`5181489d-83a7-4f78-9384-db096cadaa2d`) |
+| 라이브 URL | `https://retaste-beta.retaste-beta.workers.dev` |
+
+쓰지 않는 대상: 가정 계정 `a58fbe3a0082c49f571d69d08c1227ab`, 개인 계정 `f43d6ae07d0d75a6d9ca80befae153eb`. 배포 전 `CLOUDFLARE_ACCOUNT_ID`를 위 운영 계정으로 두고 `wrangler whoami`에서 그 계정만 보이는지 확인한다. 개인 계정이 유일한/기본 계정이면 중단한다. 기존 D1를 다시 만들지 않는다.
+
+2026-08-17: 원격 `d1 migrations list`는 대기 없음. `origin/main` `5c4285f`를 이 계정에 배포함. Version `194a3423-7964-4c58-98d5-0f2d0d822d0d`. rollback은 직전 버전 `d899f619-3df5-49a1-85f6-c5d3b9de87bf`를 다시 배포한다.
+
 ## 사전 게이트
 
 - 단위·D1 통합·E2E·타입·빌드 통과
