@@ -30,7 +30,7 @@ const place: PlaceSummary = {
 describe("curated place map", () => {
   it("선택 장소 좌표를 광주시 미니맵 비율로 변환한다", () => {
     expect(getGwangjuOverviewPoint({ latitude: 35.15, longitude: 126.92 }))
-      .toEqual({ x: 61.1, y: 50 });
+      .toEqual({ x: 66.7, y: 45.5 });
     expect(getGwangjuOverviewPoint({ latitude: 34, longitude: 125 }))
       .toEqual({ x: 6, y: 94 });
   });
@@ -78,8 +78,8 @@ describe("curated place map", () => {
     expect(html).toContain('d="M-5 6 L0 -6 L5 6 Z"');
     expect(html).not.toContain('d="M-1 -7 L1 -2 L4 1"');
     expect(html).toContain('class="map-location-overview__dot"');
-    expect(html).toContain('cx="61.1"');
-    expect(html).toContain('cy="50"');
+    expect(html).toContain('cx="66.7"');
+    expect(html).toContain('cy="45.5"');
   });
 
   it("지도 에러 메시지가 있으면 미니맵을 아래 위치로 전환한다", () => {

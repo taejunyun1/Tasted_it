@@ -4,7 +4,7 @@ import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeReviewWorkItems, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../db/schema";
 import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput } from "./place-duplicate-policy";
 import { isSupportedRegionAddress, normalizeSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
-import { slugifyPlaceName } from "./place-slug";
+import { slugifyPlaceNameForAddress } from "./place-slug";
 import { newReviewWorkItemValues } from "./place-review-work-items.server";
 import { reviewableSuggestionStatuses } from "./place-suggestion-io";
 
@@ -76,8 +76,8 @@ export async function listReviewablePlaceSuggestions(db: AppDb) {
     .limit(200);
 }
 
-async function uniqueSlug(db: AppDb, name: string) {
-  const base = slugifyPlaceName(name); let slug = base;
+async function uniqueSlug(db: AppDb, name: string, address: string) {
+  const base = slugifyPlaceNameForAddress(name, address); let slug = base;
   for (let suffix = 2; await db.query.places.findFirst({ where: eq(places.slug, slug) }); suffix += 1) slug = `${base}-${suffix}`;
   return slug;
 }
@@ -129,7 +129,7 @@ export async function approvePlaceSuggestion(db: AppDb, input: {
   // One suggestion has one immutable draft ID. Retried or concurrent approvals
   // therefore collide safely inside the same D1 batch instead of creating twins.
   const placeId = suggestion.id;
-  const slug = await uniqueSlug(db, suggestion.name);
+  const slug = await uniqueSlug(db, suggestion.name, address);
   const place = { id: placeId, slug, name: suggestion.name, status: "DRAFT" as const, address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, phone: suggestion.phone, searchText: `${suggestion.name} ${address} ${neighborhood}`.toLocaleLowerCase("ko-KR"), lastVerifiedAt: input.now, createdAt: input.now, updatedAt: input.now };
   try {
     await db.batch([

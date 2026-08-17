@@ -10,6 +10,7 @@ import {
   places,
   placeReviewWorkItems,
 } from "../../db/schema";
+import { addressLikePatterns, regionFromAddress, type RegionCode } from "../regions/region-pack";
 import type { PlaceReviewQuery, ReviewStepNumber } from "./place-review-pagination";
 
 const stageByStep = {
@@ -28,7 +29,7 @@ export type PlaceReviewQueueRow = {
   sourceKind: "PUBLIC_DATA" | "PLACE_SUGGESTION" | "CATEGORY_RECALL" | "LIVENESS_RECHECK";
   name: string;
   address: string;
-  region: "GWANGJU" | "JEONNAM" | null;
+  region: RegionCode | null;
   placeStatus: "DRAFT" | "PUBLISHED" | "HIDDEN" | null;
   naverStatus: string | null;
   naverScore: number | null;
@@ -50,13 +51,6 @@ function reviewStageForStep(step: ReviewStepNumber) {
   return stageByStep[step];
 }
 
-function placeRegion(address: string | null): "GWANGJU" | "JEONNAM" | null {
-  if (!address) return null;
-  if (address.startsWith("광주광역시") || address.startsWith("광주 ") || address.startsWith("전남광주통합특별시 동구") || address.startsWith("전남광주통합특별시 서구") || address.startsWith("전남광주통합특별시 남구") || address.startsWith("전남광주통합특별시 북구") || address.startsWith("전남광주통합특별시 광산구")) return "GWANGJU";
-  if (address.startsWith("전라남도") || address.startsWith("전남") || address.startsWith("전남광주통합특별시")) return "JEONNAM";
-  return null;
-}
-
 function reviewConditions(query: PlaceReviewQuery): SQL[] {
   const conditions: SQL[] = [eq(placeReviewWorkItems.stage, reviewStageForStep(query.step))];
   if (query.status === "pending") conditions.push(eq(placeReviewWorkItems.status, "ACTIVE"));
@@ -64,10 +58,9 @@ function reviewConditions(query: PlaceReviewQuery): SQL[] {
   if (query.status === "attention") conditions.push(and(eq(placeReviewWorkItems.status, "ACTIVE"), sql`${placeReviewWorkItems.holdCode} is not null`)!);
 
   if (query.region) {
-    const addressPattern = query.region === "GWANGJU" ? "광주%" : "전%";
     conditions.push(or(
       eq(businessLicenses.regionCode, query.region),
-      like(places.address, addressPattern),
+      ...addressLikePatterns(query.region).map((pattern) => like(places.address, pattern)),
     )!);
   }
 
@@ -153,7 +146,7 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
       sourceKind: workItem.sourceKind,
       name: businessLicense?.businessName ?? place?.name ?? "",
       address,
-      region: businessLicense?.regionCode ?? placeRegion(place?.address ?? null),
+      region: businessLicense?.regionCode ?? regionFromAddress(place?.address ?? null),
       placeStatus: place?.status ?? null,
       naverStatus: row.candidateNaverStatus ?? row.placeNaverStatus ?? null,
       naverScore: row.candidateNaverScore ?? row.placeNaverScore ?? null,

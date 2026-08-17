@@ -1,6 +1,6 @@
 import type { CandidateClassification, ClassificationConfidence } from "./category-suggestion";
 import type { NaverLocalSearchResult } from "./naver-local-search.server";
-import type { RegionCode } from "./public-data";
+import { addressMatchesRegion, type RegionCode } from "../regions/region-pack";
 
 export const NAVER_CATEGORY_RULE_VERSION = "naver-category-v1" as const;
 
@@ -124,10 +124,7 @@ function distanceMeters(latitude: number, longitude: number, otherLatitude: numb
 }
 
 function inRequestedRegion(address: string, regionCode: RegionCode) {
-  const normalized = address.normalize("NFKC");
-  return regionCode === "GWANGJU"
-    ? /광주(?:광역시)?/.test(normalized)
-    : /전라남도|전남/.test(normalized);
+  return addressMatchesRegion(address, regionCode);
 }
 
 function mapCategory(category: string, terminalSlugs: Set<string>): CategoryMapping | null {

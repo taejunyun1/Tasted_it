@@ -15,6 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 지역 상수·주소 판정·bbox·구집 키를 모듈 1개로 모은다. 공개 론칭은 광주전남. 두 번째 도시·새 테이블/binding/배포 없음. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #180](https://github.com/taejunyun1/Tasted_it/pull/180) |
 | Proposed | 전남-광주가 끝나기 전에는 공개·운영 시장을 광주전남만 둔다. 이후 확장은 같은 Worker·D1의 지역 팩으로만 한다. 도시별 Worker/D1/포크/계정과 `regions` 테이블은 기각. 제품 코드·migration·배포는 이 PR에 없다. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #179](https://github.com/taejunyun1/Tasted_it/pull/179) · [`docs/superpowers/plans/2026-08-17-region-pack-expansion.md`](./superpowers/plans/2026-08-17-region-pack-expansion.md) |
 | Proposed | 라이브 관리자 QA와 NAVER 표본 1–3곳 실호출을 승인한다. 인증은 기존 ADMIN에 대한 단기 D1 세션이며, 호출은 배포 Worker의 기존 `/admin/place-operations` 액션과 CF secrets만 사용한다. `.dev.vars` 재생성·secret 값 열람·일괄 25곳 없음. | [Issue #161](https://github.com/taejunyun1/Tasted_it/issues/161) · [Issue #163](https://github.com/taejunyun1/Tasted_it/issues/163) · [PR #176](https://github.com/taejunyun1/Tasted_it/pull/176) |
 | Proposed | 검수 파이프라인 옆에 영업 재검증·정정·병합 탭을 복구한다. 기존 서버 가드를 유지하고 동일 상호 일괄 자동 병합은 넣지 않는다. 배포·원격 D1·NAVER 실호출은 이 PR에 없다. | [Issue #165](https://github.com/taejunyun1/Tasted_it/issues/165) · [PR #175](https://github.com/taejunyun1/Tasted_it/pull/175) |
@@ -58,6 +59,7 @@
 
 | 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
 | --- | --- | --- | --- | --- |
+| 17:40 | 지역 / 상수 | 주소·bbox·구집 키를 지역 팩 모듈 1개로 모은다. 이후 도시가 매처를 포크하지 않게 한다. 공개 론칭은 광주전남. | 코드·테스트. migration·환경 변수·배포·원격 D1·NAVER 호출 없음. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #180](https://github.com/taejunyun1/Tasted_it/pull/180) |
 | 17:20 | 설계 / 제약 | 전남-광주 완료 전에는 두 번째 도시를 실어내지 않고, 이후 확장은 지역 팩 한 모듈로만 한다. 상수 정리는 #178. 제주가 게이트 후 첫 도시다. | 문서 2파일. 제품 코드·migration·환경 변수·배포·원격 D1·NAVER 호출 없음. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #179](https://github.com/taejunyun1/Tasted_it/pull/179) |
 | 16:20 | 운영 / 라이브 QA | 관리자 라이브 클릭 재현과 NAVER 검수 표본 실호출을 승인한다. 로컬 E2E `qa-admin-session`은 쓰지 않고, 기존 ADMIN 행에 2시간 세션을 만든 뒤 배포 Worker 액션을 호출한다. | 병합 후: `origin/main` 배포, 세션 1행 insert/delete, NAVER 1–3회. 일일 상한 20000, kill switch `NAVER_LOCAL_SEARCH_ENABLED`. 상호·주소·이메일·secret 값 기록 없음. | [Issue #161](https://github.com/taejunyun1/Tasted_it/issues/161) · [Issue #163](https://github.com/taejunyun1/Tasted_it/issues/163) · [PR #176](https://github.com/taejunyun1/Tasted_it/pull/176) |
 | 15:22 | 관리자 / 운영 탭 | 검수 옆에 영업 재검증·정정·수동 병합 탭을 복구한다. 동일 상호 후보는 보여 주되 일괄 자동 병합은 하지 않는다. | 코드·테스트·E2E 증거. migration·환경 변수·원격 D1·NAVER 실호출 없음. 배포는 병합 후 `origin/main`. | [Issue #165](https://github.com/taejunyun1/Tasted_it/issues/165) · [PR #175](https://github.com/taejunyun1/Tasted_it/pull/175) |

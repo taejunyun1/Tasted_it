@@ -1,3 +1,5 @@
+import { LAUNCH_DEFAULT_CENTER } from "../regions/region-pack";
+
 /** `late` is accepted only to preserve previously shared course URLs. */
 export type CourseTime = "auto" | "morning" | "lunch" | "afternoon" | "dinner" | "night" | "lateNight";
 export type LegacyCourseTime = "late";
@@ -25,7 +27,7 @@ export interface CourseContext {
   resolvedTime: ResolvedCourseTime;
 }
 
-const DEFAULT_LOCATION = { latitude: 35.1601, longitude: 126.8514 };
+const DEFAULT_LOCATION = LAUNCH_DEFAULT_CENTER;
 const allowed = <T extends string>(value: string | null, values: readonly T[], fallback: T): T => values.includes(value as T) ? value as T : fallback;
 
 function resolvedTime(now: Date): ResolvedCourseTime {

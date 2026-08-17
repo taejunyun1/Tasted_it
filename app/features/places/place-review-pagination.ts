@@ -1,3 +1,5 @@
+import { isRegionCode, type RegionCode } from "../regions/region-pack";
+
 export type ReviewStepNumber = 1 | 2 | 3 | 4 | 5;
 
 export type PlaceReviewQuery = {
@@ -5,7 +7,7 @@ export type PlaceReviewQuery = {
   page: number;
   pageSize: 25 | 50 | 100;
   status: "pending" | "attention" | "hold" | null;
-  region: "GWANGJU" | "JEONNAM" | null;
+  region: RegionCode | null;
   query: string;
 };
 
@@ -25,7 +27,7 @@ export function parsePlaceReviewQuery(url: URL): PlaceReviewQuery {
       ? requestedSize as PlaceReviewQuery["pageSize"]
       : 25,
     status: rawStatus === "attention" || rawStatus === "hold" ? rawStatus : "pending",
-    region: rawRegion === "GWANGJU" || rawRegion === "JEONNAM" ? rawRegion : null,
+    region: isRegionCode(rawRegion) ? rawRegion : null,
     query: (url.searchParams.get("q") ?? "").trim().slice(0, 80),
   };
 }

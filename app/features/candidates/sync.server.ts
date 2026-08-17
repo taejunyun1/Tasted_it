@@ -4,6 +4,7 @@ import type { AppDb } from "../../db/client.server";
 import { publicDataSyncRuns } from "../../db/schema";
 import { upsertBusinessLicense } from "./candidate.server";
 import { recordOperationalAlert } from "../operations/alerts.server";
+import { LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX } from "../regions/region-pack";
 import {
   buildPublicDataUrl,
   normalizePublicDataItem,
@@ -57,7 +58,7 @@ export async function syncPublicDataBatch(db: AppDb, input: {
       const url = buildPublicDataUrl({
         baseUrl: publicDataSources[input.sourceType], serviceKey: input.serviceKey,
         pageNo: page, numOfRows: 100, addressField: input.addressField,
-        addressPrefix: "전남광주통합특별시",
+        addressPrefix: LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX,
       });
       const response = await fetcher(url, { headers: { Accept: "application/json" } });
       if (!response.ok) throw new Error(`PUBLIC_DATA_HTTP_${response.status}`);

@@ -1,5 +1,10 @@
 import proj4 from "proj4";
 
+import { regionFromAddress, type RegionCode } from "../regions/region-pack";
+
+export type { RegionCode };
+export { regionFromAddress };
+
 export const publicDataSources = {
   GENERAL_RESTAURANT: "https://apis.data.go.kr/1741000/general_restaurants/info",
   REST_CAFE: "https://apis.data.go.kr/1741000/rest_cafes/info",
@@ -9,7 +14,6 @@ export const publicDataSources = {
 
 export type PublicDataSource = keyof typeof publicDataSources;
 export type NormalizedBusinessStatus = "OPEN" | "TEMPORARILY_CLOSED" | "CLOSED" | "UNKNOWN";
-export type RegionCode = "GWANGJU" | "JEONNAM";
 
 export interface NormalizedLicense {
   sourceType: PublicDataSource;
@@ -89,17 +93,6 @@ function clean(value: unknown): string | null {
 function numberOrNull(value: unknown): number | null {
   const number = Number(value);
   return value !== "" && value != null && Number.isFinite(number) ? number : null;
-}
-
-export function regionFromAddress(address: string | null | undefined): RegionCode | null {
-  const value = address?.trim() ?? "";
-  if (value.startsWith("광주광역시")) return "GWANGJU";
-  if (value.startsWith("전라남도")) return "JEONNAM";
-  if (value.startsWith("전남광주통합특별시")) {
-    const district = value.split(/\s+/)[1] ?? "";
-    return ["동구", "서구", "남구", "북구", "광산구"].includes(district) ? "GWANGJU" : "JEONNAM";
-  }
-  return null;
 }
 
 export function normalizePublicDataItem(

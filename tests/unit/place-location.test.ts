@@ -15,6 +15,8 @@ describe("place suggestion location contract", () => {
     expect(isSupportedRegionAddress("전남광주 북구 용봉동 1403-1")).toBe(true);
     expect(isSupportedRegionAddress("서울특별시 종로구 세종대로 1")).toBe(false);
     expect(isSupportedRegionAddress("부산광역시 중구 중앙대로 1")).toBe(false);
+    expect(isSupportedRegionAddress("전주시 완산구 전주객사3길 22")).toBe(false);
+    expect(isSupportedRegionAddress("전라북도 전주시 완산구 중앙동 1")).toBe(false);
   });
 
   it("normalizes the legacy Jeonnam-Gwangju prefix before map lookup or persistence", () => {
@@ -35,6 +37,14 @@ describe("place suggestion location contract", () => {
     expect(validatePlaceCoordinate({ latitude: 37.5665, longitude: 126.978 })).toEqual({
       ok: false,
       code: "LOCATION_OUT_OF_SCOPE",
+    });
+    expect(validatePlaceCoordinate({ latitude: 35.8242, longitude: 127.148 })).toEqual({
+      ok: false,
+      code: "LOCATION_OUT_OF_SCOPE",
+    });
+    expect(validatePlaceCoordinate({ latitude: 34.7604, longitude: 127.6622 })).toEqual({
+      ok: true,
+      coordinate: { latitude: 34.7604, longitude: 127.6622 },
     });
   });
 

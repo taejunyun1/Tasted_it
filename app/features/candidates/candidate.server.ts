@@ -13,7 +13,7 @@ import {
   placeSourceLinks,
 } from "../../db/schema";
 import type { NormalizedLicense, PublicDataSource, RegionCode } from "./public-data";
-import { slugifyPlaceName } from "../places/place-slug";
+import { slugifyPlaceNameForAddress } from "../places/place-slug";
 import { extractNeighborhood } from "./category-suggestion";
 import { getTerminalCategoryIds } from "./category-selection";
 import { classifyAutomaticExclusion } from "./exclusion-policy";
@@ -358,7 +358,7 @@ export async function approveCandidate(db: AppDb, input: {
   const categoryRows = await db.select().from(categories).where(eq(categories.isActive, true));
   if (!getTerminalCategoryIds(categoryRows).has(input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
   const category = categoryRows.find((row) => row.id === input.categoryId)!;
-  const baseSlug = slugifyPlaceName(input.name);
+  const baseSlug = slugifyPlaceNameForAddress(input.name, input.address);
   let slug = baseSlug;
   for (let suffix = 2; await db.query.places.findFirst({ where: eq(places.slug, slug) }); suffix += 1) slug = `${baseSlug}-${suffix}`;
   const placeId = crypto.randomUUID();

@@ -4,7 +4,7 @@ import type { AppDb } from "../../db/client.server";
 import { naverLocalCategoryRuns, placeLivenessStates, places } from "../../db/schema";
 import { matchNaverLocalCategory, type NaverLocalCategoryMatch } from "../candidates/naver-local-category";
 import { NaverLocalSearchError, type NaverLocalSearchAdapter } from "../candidates/naver-local-search.server";
-import type { RegionCode } from "../candidates/public-data";
+import { regionFromAddress, type RegionCode } from "../regions/region-pack";
 
 const MAX_BATCH_SIZE = 25;
 
@@ -23,9 +23,7 @@ function utcDayStart(value: string) {
 }
 
 function regionCodeForAddress(address: string): RegionCode | null {
-  if (/광주(?:광역시)?/u.test(address)) return "GWANGJU";
-  if (/전라남도|전남/u.test(address)) return "JEONNAM";
-  return null;
+  return regionFromAddress(address);
 }
 
 function failureCode(error: unknown) {
