@@ -1,10 +1,12 @@
+import { LAUNCH_DEFAULT_CENTER } from "../regions/region-pack";
+
 export type OnboardingLocation = {
   center: { latitude: number; longitude: number };
   bbox: [number, number, number, number];
   mode: "DEVICE" | "DEFAULT";
 };
 
-const DEFAULT_CENTER = { latitude: 35.1601, longitude: 126.8514 };
+const DEFAULT_CENTER = LAUNCH_DEFAULT_CENTER;
 const STORAGE_KEY = "retaste_onboarding_location";
 export const ONBOARDING_LOCATION_DECIMAL_PLACES = 3;
 

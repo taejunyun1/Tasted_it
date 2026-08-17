@@ -43,6 +43,7 @@ describe("region cluster policy", () => {
     expect(extractDistrict("광주광역시 북구 용봉로 1")).toBe("북구");
     expect(extractDistrict("전라남도 담양군 담양읍 중앙로 1")).toBe("담양군");
     expect(extractDistrict("전남 여수시 여서1로 25 (여서동)")).toBe("여수시");
+    expect(extractDistrict("부산광역시 동구 중앙대로 1")).toBeNull();
   });
 
   it("prefers stored neighborhoods and falls back to legal address tokens", () => {
@@ -67,8 +68,8 @@ describe("region cluster policy", () => {
     const clusters = buildRegionClusters(places, 12);
 
     expect(clusters).toHaveLength(2);
-    expect(clusters.find((cluster) => cluster.id === "DISTRICT:북구")).toMatchObject({
-      id: "DISTRICT:북구",
+    expect(clusters.find((cluster) => cluster.id === "DISTRICT:GWANGJU:북구")).toMatchObject({
+      id: "DISTRICT:GWANGJU:북구",
       level: "DISTRICT",
       label: "북구",
       count: 2,
@@ -78,8 +79,8 @@ describe("region cluster policy", () => {
       placeIds: ["a", "b"],
       fallback: false,
     });
-    expect(clusters.find((cluster) => cluster.id === "DISTRICT:담양군")).toMatchObject({
-      id: "DISTRICT:담양군",
+    expect(clusters.find((cluster) => cluster.id === "DISTRICT:JEONNAM:담양군")).toMatchObject({
+      id: "DISTRICT:JEONNAM:담양군",
       count: 1,
     });
   });
@@ -94,8 +95,8 @@ describe("region cluster policy", () => {
     );
 
     expect(clusters.map((cluster) => cluster.id)).toEqual([
-      "NEIGHBORHOOD:북구:중앙동",
-      "NEIGHBORHOOD:목포시:중앙동",
+      "NEIGHBORHOOD:GWANGJU:북구:중앙동",
+      "NEIGHBORHOOD:JEONNAM:목포시:중앙동",
     ]);
   });
 

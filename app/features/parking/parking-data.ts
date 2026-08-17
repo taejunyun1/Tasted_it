@@ -1,3 +1,5 @@
+import { isCoordinateInPackBounds, regionFromAddress } from "../regions/region-pack";
+
 export const PARKING_DATA_URL = "https://api.data.go.kr/openapi/tn_pubr_prkplce_info_api";
 
 function decodeServiceKey(value: string) {
@@ -21,10 +23,7 @@ const clock = (value: unknown) => {
 };
 
 function region(address: string | null) {
-  if (address?.startsWith("광주광역시")) return "GWANGJU" as const;
-  if (address?.startsWith("전라남도")) return "JEONNAM" as const;
-  if (address?.startsWith("전남광주통합특별시")) return ["동구", "서구", "남구", "북구", "광산구"].includes(address.split(/\s+/)[1] ?? "") ? "GWANGJU" as const : "JEONNAM" as const;
-  return null;
+  return regionFromAddress(address);
 }
 
 function monthsOld(referenceDate: string, now: Date) {
@@ -33,8 +32,7 @@ function monthsOld(referenceDate: string, now: Date) {
 }
 
 function coordinatesMatchRegion(regionCode: "GWANGJU" | "JEONNAM", latitude: number, longitude: number) {
-  if (regionCode === "GWANGJU") return latitude >= 34.9 && latitude <= 35.35 && longitude >= 126.5 && longitude <= 127.1;
-  return latitude >= 33.0 && latitude <= 35.6 && longitude >= 125.0 && longitude <= 127.8;
+  return isCoordinateInPackBounds(regionCode, latitude, longitude);
 }
 
 export function normalizeParkingItem(item: Record<string, unknown>, now = new Date()) {

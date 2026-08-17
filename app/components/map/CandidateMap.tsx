@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadNaverMaps } from "../../features/maps/naver-map-sdk";
+import { LAUNCH_DEFAULT_CENTER } from "../../features/regions/region-pack";
 
 export function CandidateMap({ candidates, clientId, selected, onSelect }: { candidates: Array<{ id: string; businessName: string; latitude: number | null; longitude: number | null }>; clientId: string; selected?: string | null; onSelect?: (id: string) => void }) {
   const host = useRef<HTMLDivElement>(null);
@@ -11,7 +12,7 @@ export function CandidateMap({ candidates, clientId, selected, onSelect }: { can
     const markers: naver.maps.Marker[] = [];
     void loadNaverMaps(clientId).then(({ maps }) => {
       if (disposed || !host.current) return;
-      map = new maps.Map(host.current, { center: new maps.LatLng(35.1595, 126.8526), zoom: 10, zoomControl: true });
+      map = new maps.Map(host.current, { center: new maps.LatLng(LAUNCH_DEFAULT_CENTER.latitude, LAUNCH_DEFAULT_CENTER.longitude), zoom: 10, zoomControl: true });
       for (const candidate of candidates) {
         if (candidate.latitude == null || candidate.longitude == null) continue;
         const pin = document.createElement("button");

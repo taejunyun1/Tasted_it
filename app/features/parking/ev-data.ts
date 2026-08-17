@@ -1,3 +1,4 @@
+import { isSupportedRegionAddress } from "../regions/region-pack";
 import { estimateWalkingMeters } from "./parking-distance";
 
 export const EV_DATA_URL = "https://apis.data.go.kr/B552584/EvCharger/getChargerInfo";
@@ -19,7 +20,7 @@ export function buildEvDataUrl(input: { serviceKey: string; regionCode: EvRegion
 
 const clean = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
 const numberOrNull = (value: unknown) => value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value);
-const isLocal = (address: string | null) => Boolean(address?.startsWith("광주광역시") || address?.startsWith("전라남도") || address?.startsWith("전남광주통합특별시"));
+const isLocal = (address: string | null) => Boolean(address && isSupportedRegionAddress(address));
 const dateFromUpdate = (value: unknown) => {
   const digits = String(value ?? "").replace(/\D/g, "");
   return digits.length >= 8 ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}` : null;

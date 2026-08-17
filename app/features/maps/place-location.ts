@@ -1,4 +1,11 @@
 import { distanceInMeters } from "../places/place-discovery";
+import {
+  isCoordinateInActiveMarket,
+  isSupportedRegionAddress,
+  normalizeSupportedRegionAddress,
+} from "../regions/region-pack";
+
+export { isSupportedRegionAddress, normalizeSupportedRegionAddress };
 
 export type PlaceCoordinate = Readonly<{
   latitude: number;
@@ -27,12 +34,6 @@ export type PlaceLocationValidation =
     code: "LOCATION_REQUIRED" | "LOCATION_OUT_OF_SCOPE" | "LOCATION_TOO_FAR_FROM_ADDRESS";
   }>;
 
-const SUPPORTED_BOUNDS = {
-  minLatitude: 33,
-  maxLatitude: 36.2,
-  minLongitude: 125,
-  maxLongitude: 128.2,
-} as const;
 const MAX_PIN_ADJUSTMENT_METERS = 2_000;
 
 function compactText(value: string | null | undefined) {
@@ -41,27 +42,7 @@ function compactText(value: string | null | undefined) {
 }
 
 function isCoordinateInSupportedBounds({ latitude, longitude }: PlaceCoordinate) {
-  return Number.isFinite(latitude)
-    && Number.isFinite(longitude)
-    && latitude >= SUPPORTED_BOUNDS.minLatitude
-    && latitude <= SUPPORTED_BOUNDS.maxLatitude
-    && longitude >= SUPPORTED_BOUNDS.minLongitude
-    && longitude <= SUPPORTED_BOUNDS.maxLongitude;
-}
-
-export function isSupportedRegionAddress(address: string) {
-  const normalized = compactText(normalizeSupportedRegionAddress(address));
-  return normalized !== null && /^(?:광주(?:광역시)?|전라남도|전남(?:\s|$)|전남광주통합특별시)/u.test(normalized);
-}
-
-/**
- * Some legacy public-data rows use `전남광주` for a Gwangju address.
- * Convert only that leading administrative prefix so map lookup and server
- * validation share the same canonical value. All other address text remains
- * unchanged.
- */
-export function normalizeSupportedRegionAddress(address: string) {
-  return address.trim().replace(/^전남광주(?:통합특별시)?(?=\s|$)/u, "광주광역시");
+  return isCoordinateInActiveMarket(latitude, longitude);
 }
 
 export function extractPlaceNeighborhood(address: string | null | undefined) {

@@ -8,6 +8,7 @@ import {
 } from "../../features/maps/place-marker-policy";
 import type { RegionCluster } from "../../features/maps/region-cluster-policy";
 import type { PlaceSummary } from "../../features/places/place.types";
+import { LAUNCH_DEFAULT_BBOX, LAUNCH_DEFAULT_CENTER } from "../../features/regions/region-pack";
 
 function detachMarkers(markers: naver.maps.Marker[]) {
   markers.forEach((marker) => {
@@ -20,10 +21,10 @@ function detachMarkers(markers: naver.maps.Marker[]) {
 }
 
 const GWANGJU_OVERVIEW_BOUNDS = {
-  west: 126.7,
-  south: 35.02,
-  east: 127.06,
-  north: 35.28,
+  west: LAUNCH_DEFAULT_BBOX[0],
+  south: LAUNCH_DEFAULT_BBOX[1],
+  east: LAUNCH_DEFAULT_BBOX[2],
+  north: LAUNCH_DEFAULT_BBOX[3],
 } as const;
 const MUDEUNGSAN_OVERVIEW_ICON_POINT = { x: 95, y: 63 } as const;
 const YEONGSAN_RIVER_OVERVIEW_LINE = "44,3 35,24 22,41 16,62 12,88";
@@ -161,7 +162,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       if (disposed || !host.current) return;
       mapsApi = maps;
       const created = new maps.Map(host.current, {
-        center: new maps.LatLng(35.1595, 126.8526),
+        center: new maps.LatLng(LAUNCH_DEFAULT_CENTER.latitude, LAUNCH_DEFAULT_CENTER.longitude),
         zoom: 12,
         zoomControl: true,
         zoomControlOptions: { position: maps.Position.TOP_RIGHT },
@@ -337,7 +338,12 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       const nextZoom = zoom + 1;
       onZoom(nextZoom);
       const delta = Math.max(0.004, 0.02 / Math.max(1, nextZoom - 10));
-      deliverQaBounds([126.8526 - delta, 35.1595 - delta, 126.8526 + delta, 35.1595 + delta]);
+      deliverQaBounds([
+        LAUNCH_DEFAULT_CENTER.longitude - delta,
+        LAUNCH_DEFAULT_CENTER.latitude - delta,
+        LAUNCH_DEFAULT_CENTER.longitude + delta,
+        LAUNCH_DEFAULT_CENTER.latitude + delta,
+      ]);
     }}>+</a>
     {clusters.length ? clusters.map((cluster) => <button
       key={cluster.id}

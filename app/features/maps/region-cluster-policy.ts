@@ -1,4 +1,5 @@
 import type { PlaceSummary } from "../places/place.types";
+import { extractDistrictRef } from "../regions/region-pack";
 
 export type RegionClusterLevel = "DISTRICT" | "NEIGHBORHOOD" | "PLACE";
 
@@ -18,7 +19,6 @@ export interface RegionGroup extends RegionCluster {
   places: PlaceSummary[];
 }
 
-const GWANGJU_DISTRICTS = new Set(["광산구", "동구", "서구", "남구", "북구"]);
 const DISTRICT_FALLBACK_LATITUDE_STEP = 0.072;
 const DISTRICT_FALLBACK_LONGITUDE_STEP = 0.088;
 const NEIGHBORHOOD_FALLBACK_LATITUDE_STEP = 0.0135;
@@ -42,17 +42,7 @@ export function getRegionClusterLevel(zoom: number): RegionClusterLevel {
 }
 
 export function extractDistrict(address: string): string | null {
-  const tokens = addressTokens(address);
-  const gwangjuDistrict = tokens.find((token) => GWANGJU_DISTRICTS.has(token));
-  if (gwangjuDistrict) return gwangjuDistrict;
-
-  const cityOrCounty = tokens.find(
-    (token) =>
-      /^[가-힣]+(?:시|군)$/.test(token) &&
-      !token.endsWith("광역시") &&
-      !token.endsWith("특별시"),
-  );
-  return cityOrCounty ?? null;
+  return extractDistrictRef(address)?.name ?? null;
 }
 
 export function extractNeighborhood(
@@ -118,7 +108,8 @@ export function buildRegionGroups(places: PlaceSummary[], zoom: number): RegionG
 
   const buckets = new Map<string, { label: string; fallback: boolean; places: PlaceSummary[] }>();
   for (const place of places) {
-    const district = extractDistrict(place.address);
+    const districtRef = extractDistrictRef(place.address);
+    const district = districtRef?.name ?? null;
     const neighborhood = level === "NEIGHBORHOOD" ? extractNeighborhood(place) : null;
     const regionLabel = level === "DISTRICT" ? district : neighborhood;
     const parent = level === "NEIGHBORHOOD" ? district ?? "UNKNOWN" : "";
@@ -126,8 +117,8 @@ export function buildRegionGroups(places: PlaceSummary[], zoom: number): RegionG
     const key = fallback
       ? `FALLBACK:${fallbackCell(place, level)}`
       : level === "DISTRICT"
-        ? regionLabel
-        : `${parent}:${regionLabel}`;
+        ? `${districtRef!.regionCode}:${regionLabel}`
+        : `${districtRef?.regionCode ?? "UNKNOWN"}:${parent}:${regionLabel}`;
     const existing = buckets.get(key);
     if (existing) {
       existing.places.push(place);

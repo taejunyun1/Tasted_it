@@ -1,9 +1,10 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { evChargingStations, parkingDataSnapshots, parkingEvLinks, parkingFacilities, parkingSyncRuns } from "../../db/schema";
+import { evZcodesForActivePacks } from "../regions/region-pack";
 import { buildEvDataUrl, classifyParkingEvLink, normalizeEvStations, parseEvResponse, type EvRegionCode } from "./ev-data";
 
-const REGIONS: EvRegionCode[] = ["29", "46"];
+const REGIONS: EvRegionCode[] = evZcodesForActivePacks();
 
 function chunks<T>(items: T[], size: number) {
   const result: T[][] = [];

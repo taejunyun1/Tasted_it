@@ -1,4 +1,6 @@
-export const DEFAULT_BBOX = [126.72, 35.03, 127.02, 35.25] as const;
+import { LAUNCH_DEFAULT_BBOX } from "../regions/region-pack";
+
+export const DEFAULT_BBOX = LAUNCH_DEFAULT_BBOX;
 
 export interface MapState {
   bbox: [number, number, number, number];
