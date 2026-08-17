@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | Jay 채팅 승인 후 `origin/main` `7a10dd0`(`#180` 지역 상수 모듈)를 운영 계정에 배포한 결과를 기록한다. 원격 migration 대기 없음. | 이 PR · [`7a10dd0`](https://github.com/taejunyun1/Tasted_it/commit/7a10dd054f17ba9b3272f36bb52cf4f26edcaa41) |
+| Proposed | Jay 채팅 승인 후 `origin/main` `7a10dd0`(`#180` 지역 상수 모듈)를 운영 계정에 배포한 결과를 기록한다. 원격 migration 대기 없음. | [PR #181](https://github.com/taejunyun1/Tasted_it/pull/181) · [`7a10dd0`](https://github.com/taejunyun1/Tasted_it/commit/7a10dd054f17ba9b3272f36bb52cf4f26edcaa41) |
 | Proposed | 지역 상수·주소 판정·bbox·구집 키를 모듈 1개로 모은다. 공개 론칭은 광주전남. 두 번째 도시·새 테이블/binding/배포 없음. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #180](https://github.com/taejunyun1/Tasted_it/pull/180) |
 | Proposed | 전남-광주가 끝나기 전에는 공개·운영 시장을 광주전남만 둔다. 이후 확장은 같은 Worker·D1의 지역 팩으로만 한다. 도시별 Worker/D1/포크/계정과 `regions` 테이블은 기각. 제품 코드·migration·배포는 이 PR에 없다. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #179](https://github.com/taejunyun1/Tasted_it/pull/179) · [`docs/superpowers/plans/2026-08-17-region-pack-expansion.md`](./superpowers/plans/2026-08-17-region-pack-expansion.md) |
 | Proposed | 라이브 관리자 QA와 NAVER 표본 1–3곳 실호출을 승인한다. 인증은 기존 ADMIN에 대한 단기 D1 세션이며, 호출은 배포 Worker의 기존 `/admin/place-operations` 액션과 CF secrets만 사용한다. `.dev.vars` 재생성·secret 값 열람·일괄 25곳 없음. | [Issue #161](https://github.com/taejunyun1/Tasted_it/issues/161) · [Issue #163](https://github.com/taejunyun1/Tasted_it/issues/163) · [PR #176](https://github.com/taejunyun1/Tasted_it/pull/176) |
@@ -60,7 +60,7 @@
 
 | 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
 | --- | --- | --- | --- | --- |
-| 17:53 | 운영 / 배포 | Jay 채팅 승인으로 이미 병합된 `origin/main` `7a10dd0`를 운영 계정에 배포한다. 지역 상수 모듈(`#180`)이 라이브에 포함된다. | 문서 2파일. 제품 코드·migration apply·D1 create·NAVER 실호출 없음. Worker 버전 `099d8361-989b-488d-bd94-91163551bfb6`. rollback은 직전 버전 `a78d44c8-953a-4331-9854-ed15a986b35b`. | 이 PR · [`7a10dd0`](https://github.com/taejunyun1/Tasted_it/commit/7a10dd054f17ba9b3272f36bb52cf4f26edcaa41) |
+| 17:53 | 운영 / 배포 | Jay 채팅 승인으로 이미 병합된 `origin/main` `7a10dd0`를 운영 계정에 배포한다. 지역 상수 모듈(`#180`)이 라이브에 포함된다. | 문서 2파일. 제품 코드·migration apply·D1 create·NAVER 실호출 없음. Worker 버전 `099d8361-989b-488d-bd94-91163551bfb6`. rollback은 직전 버전 `a78d44c8-953a-4331-9854-ed15a986b35b`. | [PR #181](https://github.com/taejunyun1/Tasted_it/pull/181) · [`7a10dd0`](https://github.com/taejunyun1/Tasted_it/commit/7a10dd054f17ba9b3272f36bb52cf4f26edcaa41) |
 | 17:40 | 지역 / 상수 | 주소·bbox·구집 키를 지역 팩 모듈 1개로 모은다. 이후 도시가 매처를 포크하지 않게 한다. 공개 론칭은 광주전남. | 코드·테스트. migration·환경 변수·배포·원격 D1·NAVER 호출 없음. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #180](https://github.com/taejunyun1/Tasted_it/pull/180) |
 | 17:20 | 설계 / 제약 | 전남-광주 완료 전에는 두 번째 도시를 실어내지 않고, 이후 확장은 지역 팩 한 모듈로만 한다. 상수 정리는 #178. 제주가 게이트 후 첫 도시다. | 문서 2파일. 제품 코드·migration·환경 변수·배포·원격 D1·NAVER 호출 없음. | [Issue #178](https://github.com/taejunyun1/Tasted_it/issues/178) · [PR #179](https://github.com/taejunyun1/Tasted_it/pull/179) |
 | 16:20 | 운영 / 라이브 QA | 관리자 라이브 클릭 재현과 NAVER 검수 표본 실호출을 승인한다. 로컬 E2E `qa-admin-session`은 쓰지 않고, 기존 ADMIN 행에 2시간 세션을 만든 뒤 배포 Worker 액션을 호출한다. | 병합 후: `origin/main` 배포, 세션 1행 insert/delete, NAVER 1–3회. 일일 상한 20000, kill switch `NAVER_LOCAL_SEARCH_ENABLED`. 상호·주소·이메일·secret 값 기록 없음. | [Issue #161](https://github.com/taejunyun1/Tasted_it/issues/161) · [Issue #163](https://github.com/taejunyun1/Tasted_it/issues/163) · [PR #176](https://github.com/taejunyun1/Tasted_it/pull/176) |
