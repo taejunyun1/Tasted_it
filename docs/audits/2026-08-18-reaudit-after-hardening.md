@@ -1,6 +1,6 @@
 # 2026-08-18 재오딧 — 하드닝 이후 코드 vs 라이브
 
-작성일 2026-08-18 12:30 KST · Issue [#197](https://github.com/taejunyun1/Tasted_it/issues/197) · 담당 Jay (`jay_reaudit_20260818`)
+작성일 2026-08-18 12:30 KST · Issue [#197](https://github.com/taejunyun1/Tasted_it/issues/197) · PR [#198](https://github.com/taejunyun1/Tasted_it/pull/198) · 담당 Jay (`jay_reaudit_20260818`)
 선행: [08-18 8각도 풀 오딧](./2026-08-18-eight-angle-full-audit.md) (`#187`/`#188`) · 후속 `#190` `#192` `#194` `#196`
 
 이 문서는 제품 코드를 바꾸지 않는다. 비밀값, 이메일, 세션 ID, 상호·주소는 기록하지 않는다.
