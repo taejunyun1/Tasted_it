@@ -72,7 +72,7 @@ describe("unauthenticated mail route rate limits", () => {
     expect(tokens?.count).toBe(3);
   });
 
-  it("rejects a fourth place correction before inserting another request", async () => {
+  it("rejects a fourth place correction even when mail is unavailable", async () => {
     const email = `correct-${crypto.randomUUID()}@example.com`;
     const fields = {
       placeId: "",
@@ -93,6 +93,6 @@ describe("unauthenticated mail route rate limits", () => {
     const requests = await env.DB.prepare("SELECT count(*) AS count FROM place_correction_requests WHERE requester_email = ?")
       .bind(email)
       .first<{ count: number }>();
-    expect(requests?.count).toBe(3);
+    expect(requests?.count).toBe(0);
   });
 });

@@ -292,6 +292,13 @@ body{background:var(--atlas-paper)}
 .member-empty p{max-width:280px;margin:0;color:#707a72;font-size:13px;line-height:1.7}
 .member-empty a{border:1px solid var(--member-green);border-radius:999px;padding:10px 14px;color:var(--member-green);font-size:11px;font-weight:900}
 .member-account-card{margin-top:48px;border:1px solid #afbbb1;border-radius:26px;background:var(--member-mist);padding:28px}
+.member-withdraw{margin-top:36px;border:1px solid #d99aa6;border-radius:26px;background:#fff1f3;padding:22px 28px}
+.member-withdraw summary{cursor:pointer;font-size:16px;font-weight:900;color:#9f1f38}
+.member-withdraw h2{margin:16px 0 10px;font-size:21px;font-weight:900}
+.member-withdraw p{margin:0 0 16px;color:#9f1f38;font-size:13px;line-height:1.7}
+.member-withdraw label{display:grid;gap:8px;color:#7a182c;font-size:12px;font-weight:800}
+.member-withdraw input{border:1px solid #d99aa6;border-radius:12px;background:#fff;padding:10px 12px}
+.member-withdraw button{margin-top:16px;border:1px solid #9f1f38;border-radius:999px;background:#9f1f38;color:#fff;padding:10px 16px;font-size:12px;font-weight:900;cursor:pointer}
 .member-account-card>header{padding-bottom:20px;border-bottom:1px solid #b8c4ba}
 .member-connection-row{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-top:22px}
 .member-connection-row>div{display:grid;gap:8px}

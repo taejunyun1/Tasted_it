@@ -1,7 +1,8 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
-import { accountTokens, sessions, users } from "../../db/schema";
+import { accountTokens, authIdentities, oauthRequests, reviewerApplications, reviewerProfiles, savedPlaces, sessions, users } from "../../db/schema";
 import { DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT, hashPassword, verifyPassword } from "./password.server";
+import { isWithdrawnEmail, WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "./withdraw";
 
 const TOKEN_TTL_MS = 30 * 60 * 1000;
 const encoder = new TextEncoder();
@@ -30,7 +31,7 @@ async function issueToken(db: AppDb, userId: string, purpose: "VERIFY_EMAIL" | "
 
 export async function registerAccount(db: AppDb, input: { email: string; displayName: string; password: string; adminEmail?: string; now: Date }) {
   const email = input.email.trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("EMAIL_INVALID");
+  if (!/^\S+@\S+\.\S+$/.test(email) || isWithdrawnEmail(email)) throw new Error("EMAIL_INVALID");
   if (input.displayName.trim().length < 2) throw new Error("DISPLAY_NAME_INVALID");
   if (input.password.length < 10) throw new Error("PASSWORD_TOO_SHORT");
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
@@ -66,14 +67,14 @@ export async function authenticateAccount(db: AppDb, input: { email: string; pas
     user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     user?.passwordSalt ?? DUMMY_PASSWORD_SALT,
   );
-  if (!user?.passwordHash || !user.passwordSalt || !valid) throw new Error("LOGIN_INVALID");
+  if (!user?.passwordHash || !user.passwordSalt || !valid || isWithdrawnEmail(user.email)) throw new Error("LOGIN_INVALID");
   if (!user.emailVerifiedAt) throw new Error("EMAIL_NOT_VERIFIED");
   return { id: user.id, email: user.email, displayName: user.displayName, role: user.role };
 }
 
 export async function requestPasswordReset(db: AppDb, input: { email: string; now: Date }) {
   const user = await db.query.users.findFirst({ where: eq(users.email, input.email.trim().toLowerCase()) });
-  if (!user?.emailVerifiedAt) return null;
+  if (!user?.emailVerifiedAt || isWithdrawnEmail(user.email)) return null;
   return { userId: user.id, email: user.email, ...(await issueToken(db, user.id, "RESET_PASSWORD", input.now)) };
 }
 
@@ -84,4 +85,41 @@ export async function resetPassword(db: AppDb, input: { token: string; password:
   await db.update(users).set({ passwordHash: password.hash, passwordSalt: password.salt, updatedAt: input.now.toISOString() }).where(eq(users.id, userId));
   await db.delete(sessions).where(eq(sessions.userId, userId));
   return { userId };
+}
+
+export async function withdrawAccount(db: AppDb, input: { userId: string; now: Date }) {
+  const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
+  if (!user) throw new Error("ACCOUNT_NOT_FOUND");
+  if (user.role === "ADMIN") throw new Error("WITHDRAW_ADMIN_FORBIDDEN");
+  if (isWithdrawnEmail(user.email)) throw new Error("ACCOUNT_ALREADY_WITHDRAWN");
+
+  const timestamp = input.now.toISOString();
+  await db.delete(sessions).where(eq(sessions.userId, user.id));
+  await db.delete(authIdentities).where(eq(authIdentities.userId, user.id));
+  await db.delete(accountTokens).where(eq(accountTokens.userId, user.id));
+  await db.delete(oauthRequests).where(eq(oauthRequests.userId, user.id));
+  await db.delete(savedPlaces).where(eq(savedPlaces.userId, user.id));
+  await db.update(reviewerApplications).set({
+    statement: "-",
+    occupation: "-",
+    tasteDirection: "-",
+    updatedAt: timestamp,
+  }).where(eq(reviewerApplications.userId, user.id));
+  await db.update(reviewerProfiles).set({
+    slug: `withdrawn-${user.id}`,
+    status: "SUSPENDED",
+    occupation: "-",
+    tasteDirection: "-",
+    statusReason: "WITHDRAWN",
+    updatedAt: timestamp,
+  }).where(eq(reviewerProfiles.userId, user.id));
+  await db.update(users).set({
+    email: withdrawnEmailFor(user.id),
+    displayName: WITHDRAWN_DISPLAY_NAME,
+    passwordHash: null,
+    passwordSalt: null,
+    emailVerifiedAt: null,
+    updatedAt: timestamp,
+  }).where(eq(users.id, user.id));
+  return { userId: user.id };
 }

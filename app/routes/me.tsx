@@ -8,8 +8,11 @@ import { ActivityCollection } from "../components/me/ActivityCollection";
 import { TasteSignals } from "../components/me/TasteSignals";
 import { createDb } from "../db/client.server";
 import { authIdentities, users } from "../db/schema";
+import { withdrawAccount } from "../features/auth/account.server";
 import { naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
-import { requireUser } from "../features/auth/session.server";
+import { destroyUserSession, requireUser } from "../features/auth/session.server";
+import { WITHDRAW_CONFIRM_PHRASE } from "../features/auth/withdraw";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { listMemberTaste } from "../features/members/member.server";
 import { getMemberTasteProfile } from "../features/members/profile-taste.server";
 import { getMemberTasteGraph } from "../features/ratings/flavor-print.server";
@@ -57,6 +60,23 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const user = await requireUser(request);
   const form = await request.formData();
+  if (String(form.get("intent") ?? "") === "withdraw") {
+    if (!isSameOriginMutation(request)) {
+      throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
+    }
+    if (String(form.get("confirm") ?? "") !== WITHDRAW_CONFIRM_PHRASE) {
+      return { withdrawError: "확인 문구를 정확히 입력해 주세요." };
+    }
+    try {
+      await withdrawAccount(createDb(env.DB), { userId: user.id, now: new Date() });
+    } catch (error) {
+      if (error instanceof Error && error.message === "WITHDRAW_ADMIN_FORBIDDEN") {
+        return { withdrawError: "관리자 계정은 이 화면에서 탈퇴할 수 없습니다." };
+      }
+      throw error;
+    }
+    throw redirect("/", { headers: { "Set-Cookie": await destroyUserSession(request) } });
+  }
   await setSavedAndRefreshTaste(createDb(env.DB), {
     userId: user.id,
     placeId: String(form.get("placeId") ?? ""),
@@ -66,7 +86,7 @@ export async function action({ request }: Route.ActionArgs) {
   return redirect("/me");
 }
 
-export default function Me({ loaderData }: Route.ComponentProps) {
+export default function Me({ loaderData, actionData }: Route.ComponentProps) {
   return <main id="main" className="member-hub">
     <div className="shell">
       <header className="member-profile">
@@ -116,6 +136,7 @@ export default function Me({ loaderData }: Route.ComponentProps) {
                 <h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3>
               </div>
               <Form method="post">
+                <input type="hidden" name="intent" value="unsave" />
                 <input type="hidden" name="placeId" value={place.id} />
                 <button>저장 해제</button>
               </Form>
@@ -140,6 +161,23 @@ export default function Me({ loaderData }: Route.ComponentProps) {
       </section>
 
       <AccountConnections naverConnected={loaderData.naverConnected} googleConnected={loaderData.googleConnected} />
+
+      <section className="member-withdraw" aria-labelledby="member-withdraw-title">
+        <details>
+          <summary>회원 탈퇴</summary>
+          <h2 id="member-withdraw-title">회원 탈퇴</h2>
+          <p>탈퇴하면 로그인, 소셜 연동, 저장한 장소는 삭제되고 복구할 수 없습니다. 이미 반영된 추천·비추천은 점수 유지를 위해 익명으로 남습니다.</p>
+          {actionData?.withdrawError && <p role="alert" className="member-notice member-notice--error">{actionData.withdrawError}</p>}
+          <Form method="post">
+            <input type="hidden" name="intent" value="withdraw" />
+            <label>
+              확인을 위해 {WITHDRAW_CONFIRM_PHRASE}를 입력하세요
+              <input name="confirm" type="text" autoComplete="off" placeholder={WITHDRAW_CONFIRM_PHRASE} />
+            </label>
+            <button type="submit">탈퇴하기</button>
+          </Form>
+        </details>
+      </section>
     </div>
   </main>;
 }

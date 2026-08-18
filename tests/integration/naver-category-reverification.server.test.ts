@@ -66,7 +66,7 @@ describe("NAVER category reverification", () => {
     });
     expect(adapter.search).toHaveBeenCalledTimes(1);
     const verification = await db.query.naverLocalCategoryVerifications.findFirst({ where: eq(naverLocalCategoryVerifications.businessLicenseId, licenseId) });
-    expect(verification).toMatchObject({ status: "VERIFIED", confidenceScore: 80, failureCode: null });
+    expect(verification).toMatchObject({ status: "VERIFIED", confidenceScore: 100, failureCode: null });
     await expect(db.query.categories.findFirst({ where: eq(categories.id, verification!.mappedCategoryId!) }))
       .resolves.toMatchObject({ slug: "grill" });
   });

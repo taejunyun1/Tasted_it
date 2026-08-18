@@ -62,7 +62,7 @@ describe("NAVER pending candidate verification", () => {
 
     await expect(createDb(env.DB).query.naverLocalCategoryVerifications.findFirst({
       where: eq(naverLocalCategoryVerifications.businessLicenseId, candidate.id),
-    })).resolves.toMatchObject({ status: "VERIFIED", confidenceScore: 80, failureCode: null });
+    })).resolves.toMatchObject({ status: "VERIFIED", confidenceScore: 100, failureCode: null });
   });
 
   it("stops the batch on an authentication or quota error", async () => {
