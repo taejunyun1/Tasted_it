@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { Form, Link, redirect, useFetcher, useSearchParams } from "react-router";
+import { Form, Link, useFetcher, useSearchParams } from "react-router";
 import type { Route } from "./+types/place-list";
 import type { loader as recommendationLoader } from "./place-recommendations-resource";
 import { PlaceCard, safePlaceDetailRequestPath } from "../components/places/PlaceCard";
@@ -10,7 +10,6 @@ import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
 import { parseMapState } from "../features/maps/map-state";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
-import { canonicalPlacesReturnTo } from "../features/onboarding/return-to";
 import { getPlaceRecommendationPage } from "../features/places/place-recommendation.server";
 import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
@@ -28,9 +27,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   const guest = !user && env.ONBOARDING_ENABLED === "true"
     ? await getGuestOnboardingFromRequest(db, request, now)
     : null;
-  if (!user && env.ONBOARDING_ENABLED === "true" && !guest?.completedAt && !guest?.skippedAt) {
-    throw redirect(`/onboarding/taste?returnTo=${encodeURIComponent(canonicalPlacesReturnTo(url))}`);
-  }
   const selectedBadges = url.searchParams.getAll("badge");
   const [places, groups, recommendations] = await Promise.all([
     listPlaces(db, { categorySlug, query: state.query, bbox: state.bbox }),

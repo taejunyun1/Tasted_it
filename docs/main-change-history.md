@@ -15,7 +15,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-18 오딧 2차. `/me` 탈퇴 익명화와 CI integration 잡. 배포·원격 D1·Playwright CI·ADMIN 탈퇴 없음. | [Issue #191](https://github.com/taejunyun1/Tasted_it/issues/191) · [PR #192](https://github.com/taejunyun1/Tasted_it/pull/192) |
+| Proposed | 2026-08-18 오딧 블락커 해제. `/places` 온보딩 강제 제거, 14세 가입 확인, 300곳 게이트를 카탈로그 운영으로 분리. 배포·일괄 공개 없음. | [Issue #193](https://github.com/taejunyun1/Tasted_it/issues/193) |
+| Merged | 2026-08-18 오딧 2차. `/me` 탈퇴 익명화와 CI integration 잡. 배포·원격 D1·Playwright CI·ADMIN 탈퇴 없음. | [Issue #191](https://github.com/taejunyun1/Tasted_it/issues/191) · [PR #192](https://github.com/taejunyun1/Tasted_it/pull/192) · [`d40dd61`](https://github.com/taejunyun1/Tasted_it/commit/d40dd61) |
 | Merged | 2026-08-18 오딧 1차 하드닝. 로그인 한도, E2E D1 id 분리, 토큰 해시 링크, 방침 정합, 보안 헤더. 배포·원격 D1·장소 일괄 공개 없음. | [Issue #189](https://github.com/taejunyun1/Tasted_it/issues/189) · [PR #190](https://github.com/taejunyun1/Tasted_it/pull/190) · [`6fa3eff`](https://github.com/taejunyun1/Tasted_it/commit/6fa3eff) |
 | Merged | 2026-08-18 8각도 풀 오딧. `81a73e8`·라이브 집계로 08-07 55건을 재검증한다. 공개 베타 NO-GO 유지. 제품 코드·배포·원격 D1 쓰기 없음. | [Issue #187](https://github.com/taejunyun1/Tasted_it/issues/187) · [PR #188](https://github.com/taejunyun1/Tasted_it/pull/188) · [`fbf5ff3`](https://github.com/taejunyun1/Tasted_it/commit/fbf5ff3) · [`docs/audits/2026-08-18-eight-angle-full-audit.md`](./audits/2026-08-18-eight-angle-full-audit.md) |
 | Proposed | 검수 2단계에서 이미 VERIFIED인 항목을 NAVER 재호출 없이 카테고리 확정으로 옮기고, 1단계는 좌표 있는 항목을 먼저 보이게 한다. 배포·원격 D1·NAVER 실호출은 이 PR에 없다. | [Issue #185](https://github.com/taejunyun1/Tasted_it/issues/185) · [PR #186](https://github.com/taejunyun1/Tasted_it/pull/186) |
