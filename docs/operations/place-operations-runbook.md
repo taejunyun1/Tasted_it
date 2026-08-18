@@ -19,6 +19,33 @@
 4. 업주·직원·방문자는 로그인 없이 `/corrections/new`에서 정정·이전·휴업·폐업·권리 요청을 제출할 수 있다.
 5. 정정 요청은 이메일 확인 링크를 완료한 뒤에만 관리자 큐로 이동한다.
 
+## 검수 처리량 집계
+
+처리량은 새 테이블이 아니라 기존 `place_review_work_items`와 `admin_audit_logs`에서 읽는다. `/admin/operations`의 **검수 처리량** 칸과 아래 SQL은 같은 집계다. 결과에는 상호·주소·이메일을 넣지 않는다.
+
+```sql
+SELECT stage, COUNT(*) AS n
+FROM place_review_work_items
+WHERE status = 'ACTIVE'
+GROUP BY stage
+ORDER BY stage;
+
+SELECT COUNT(*) AS on_hold
+FROM place_review_work_items
+WHERE status = 'ON_HOLD';
+
+SELECT COUNT(*) AS published_7d
+FROM admin_audit_logs
+WHERE action = 'PLACE_REVIEW_PUBLISH'
+  AND created_at >= datetime('now', '-7 days');
+
+SELECT status, COUNT(*) AS n
+FROM places
+GROUP BY status;
+```
+
+7일 공개/일은 `published_7d / 7`을 소수 둘째 자리로 반올림한다. 일괄 공개나 615곳 지오코딩의 근거로 쓰지 않는다.
+
 ## 관리자 처리 순서
 
 관리자 화면은 `/admin/place-operations`다.
