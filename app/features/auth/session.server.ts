@@ -5,6 +5,7 @@ import { redirect } from "react-router";
 import { createDb } from "../../db/client.server";
 import { sessions, users } from "../../db/schema";
 import { assertRole, type UserRole } from "./guards.server";
+import { isWithdrawnEmail } from "./withdraw";
 
 const SESSION_COOKIE = "retaste_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -64,7 +65,8 @@ export async function getOptionalUser(
     .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, now)))
     .limit(1);
 
-  return result ?? null;
+  if (!result || isWithdrawnEmail(result.email)) return null;
+  return result;
 }
 
 export async function requireUser(request: Request): Promise<SessionUser> {
