@@ -119,7 +119,7 @@ HOLD는 “도메인이 나쁘다”가 아니다. 투표 이벤트 소싱, 지�
 | PROD-18-01 | 공개 장소 2곳. 론칭 게이트 300과 불일치 | High | 신규 | **OPEN** | D1 `places` PUBLISHED=2, FINAL_APPROVAL COMPLETED=2 |
 | SEC-01 | 로그인 rate limit 없음 + PBKDF2 99,999 | High | OPEN | **PARTIAL** | 메일은 `0028`+`consumeMailRateLimit`. `login.tsx` action은 한도 없음. `password.server.ts:1` |
 | SEC-03 | 인증 토큰이 URL 쿼리 + 전 요청 샘플링 1 | High | OPEN | **OPEN** | `signup.tsx:34`, `forgot-password.tsx:27`, `place-correction.tsx:26`, `wrangler.jsonc` observability |
-| SEC-04 | 위치 bbox 서버 전송·로깅 vs “저장 안 함” 단언 | High | OPEN | **OPEN** | `privacy.tsx:12` vs `home.tsx` bbox, `head_sampling_rate: 1` |
+| SEC-04 | 위치 bbox 서버 전송·로깅 vs “저장 안 함” 단언 | High | OPEN | **PARTIAL** | 인벤토리는 URL/로그를 인정. `privacy.tsx:12`는 여전히 “서버에 저장하지 않음” |
 | SEC-05 | 회원 탈퇴 라우트 0 | High | OPEN | **OPEN** | `app/` 탈퇴 함수 0. 방침·약관은 탈퇴를 약속 |
 | SEC-06 | 인벤토리·방침이 Resend/OAuth/NAVER/리뷰어 직업을 빠뜨림 | High | OPEN | **PARTIAL** | 게스트 온보딩은 인벤토리에 추가됨. 처리위탁은 Cloudflare만 |
 | QLT-18-01 | E2E wrangler가 운영 `database_id`를 복제 | High | (슬라이스1) | **OPEN** | `wrangler.e2e.jsonc:16` = `wrangler.jsonc` 운영 id. `--local`이 빠지면 원격 쓰기 [추론] |
@@ -129,7 +129,7 @@ HOLD는 “도메인이 나쁘다”가 아니다. 투표 이벤트 소싱, 지�
 
 | ID | 결함 | 08-07 | 지금 | 근거 |
 |---|---|---|---|---|
-| ARC-01 | 목록은 `currentVotes` 원시 합, 상세는 v2 스냅샷. 무효화 미반영 | OPEN | **OPEN** | `place.server.ts:270-271` vs `place-detail.tsx:90-116` |
+| ARC-01 | 목록은 `currentVotes` 원시 합, 상세는 v2 스냅샷. 무효화 미반영 | OPEN | **OPEN** | 목록 미조인. 홈은 `isStale=false`만, 상세 `getLatest`는 stale 허용 |
 | SEC-07 | 비밀번호 재설정이 세션을 안 지움 | OPEN | **OPEN** | `account.server.ts:74-79` |
 | SEC-08 | 토큰 소비 TOCTOU | OPEN | **OPEN** | `consumeToken`이 `changes` 미확인 |
 | SEC-09 | 보안 헤더·CSP 0 | OPEN | **OPEN** | `workers/app.ts:14-16` 그대로 전달. 라이브 헤더 실측 |
@@ -142,6 +142,7 @@ HOLD는 “도메인이 나쁘다”가 아니다. 투표 이벤트 소싱, 지�
 | ADM-IA-03 | `/admin` 404, 관리자 셸 없음 | OPEN | **OPEN** | 라이브 404, `root.tsx:34` 검수 한 링크 |
 | ADM-SEC-01 | same-origin은 검수 POST만 | OPEN | **OPEN** | `isSameOriginMutation` 사용처 1곳 |
 | PROD-18-02 | `/places`가 온보딩으로 강제 리다이렉트 | 신규 | **OPEN** | 라이브 302. `place-list.tsx:32` |
+| SEC-18-26 | Google이 미인증 이메일 행에 연결·검증 처리 | 신규 | **OPEN** | `google-account.server.ts:113-136`. Naver는 기존 이메일을 거절 |
 
 ### 3.3 P2
 
@@ -155,8 +156,8 @@ HOLD는 “도메인이 나쁘다”가 아니다. 투표 이벤트 소싱, 지�
 | ARC-07 | **PARTIAL** | 검수 action은 일괄 try/catch (`admin-place-operations.tsx:291-326`). 다른 admin은 그대로 |
 | ARC-11 | **OPEN** | `verify-email.tsx:6`·`verify-correction.tsx:2` GET에서 토큰 소비 |
 | QLT-01 | **PARTIAL** | 로컬 E2E는 `--local --persist-to` + QA 시드. 운영 id 복제는 QLT-18-01 |
-| QLT-03 | **PARTIAL** | 정정은 try/catch+한도. 실패 시 내부 코드 노출 가능 (`place-correction.tsx:29`) |
-| QLT-05 | **PARTIAL** | 통합 테스트는 `test-worker.ts` + `remoteBindings: false` |
+| QLT-03 | **OPEN** | insert 후 `EMAIL_NOT_CONFIGURED` throw. `error.message` 노출 (`place-correction.tsx:23-29`) |
+| QLT-05 | **FIXED** | 통합은 `test-worker.ts` + `remoteBindings: false`. 운영 `wrangler.jsonc`를 읽지 않음 |
 | QLT-10 | **PARTIAL** | `package.json`에 `packageManager` 고정 |
 | UX-04 | **OPEN** | dialog `aria-modal`만, 포커스 트랩 없음 |
 | UX-05 | **PARTIAL** | OAuth 오류만 `role=alert`. 로그인 비밀번호 오류는 없음 |
@@ -166,7 +167,7 @@ HOLD는 “도메인이 나쁘다”가 아니다. 투표 이벤트 소싱, 지�
 | UX-10 | **PARTIAL** | `admin-places`·`admin-data-sync`·`admin-import`에 `#main` 없음. `admin-candidates`는 redirect만 |
 | DOC-02 | **FIXED** | `/admin/audit` 존재 |
 | ADM-IA-01/02 | **FIXED** | `#173`/`#175` |
-| ADM-OPS-02 | **SUPERSEDED** | Paid 실측(홈 CPU 98–113ms, 검수 GET 200) |
+| ADM-OPS-02 | **PARTIAL** | Free 10ms는 Paid로 해소. 대시보드는 창당 10 COUNT × 3 = 30질의로 늘었음 |
 | ADM-OPS-03 | **FIXED** | 운영 계정 SSOT |
 | ADM-AUTH-01 | **FIXED** | `safeReturnTo`가 `/admin*` 허용 |
 | ADM-ERR-01 | **FIXED** | 검수 mutation 화면 400 |
@@ -195,9 +196,11 @@ HOLD는 “도메인이 나쁘다”가 아니다. 투표 이벤트 소싱, 지�
 | UX-13 | **OPEN** | 8px 1 · 9px 11 · 10px 31 · 11px 61 규칙 |
 | UX-14 | **OPEN** | `prefers-reduced-motion` 여러 곳. `.place-detail-sheet` `animation`은 예외 |
 | UX-15 | **OPEN** | `app/welcome/welcome.tsx` 라우트 참조 0. `.hero`/`.category-grid` CSS 잔존 |
-| UX-18-01 | **OPEN** | 큐레이션 시 `HomeCurationPanel`+`HomeCurationSheet`가 둘 다 `h1`을 렌더. 라이브 HTML 동일 h1 2개 |
-| ARC-04 | **OPEN** | `getLatestRatingSnapshot`이 `isStale`을 필터하지 않음 (`recompute.server.ts:148-152`) |
-| ARC-05 | **PARTIAL** | 후보 목록 `limit(300)` 유지. 일괄 승인 `BULK_LIMIT=25` |
+| UX-18-01 | **PARTIAL** | HTML에 h1 2개. `design-system.css`가 데스크톱에서 시트·모바일에서 패널을 `display:none` |
+| ARC-04 | **OPEN** | `getLatest`가 stale 허용. 해시 재사용은 `computedAt`을 안 올려 홈(비stale)과 상세가 갈라질 수 있음 |
+| ARC-05 | **SUPERSEDED** | 일괄 승인 UI는 1단계 redirect. `limit(300)`·`bulkApprove`는 테스트 잔여 |
+| ARC-18-07 | **OPEN** | 필터 `ready`는 좌표만. `SOURCE_NOT_READY`는 주소·OPEN까지. 배지 숫자는 ACTIVE 전량 |
+| ARC-18-08 | **OPEN** | 중복 후보가 `places` 전량 스캔. 4단계 결정과 공개(DISTINCT만)가 어긋남 |
 | ARC-08 | **OPEN** | 같은 값 재투표도 `CHANGE` (`vote.server.ts:43-52`). 임계 5회 (`integrity.server.ts:44-45`) |
 | ARC-09 | **OPEN** | `listPublicCategoryGroups`는 bbox 없음. `home.tsx:193-194`는 목록만 bbox |
 | ARC-10 | **FIXED** | 실패 시 `sdkPromise` 해제 (`naver-map-sdk.ts:51-54`) |
@@ -209,7 +212,7 @@ HOLD는 “도메인이 나쁘다”가 아니다. 투표 이벤트 소싱, 지�
 | SEC-15 | **OPEN** | `submitFlavorRating`이 장소 primary 카테고리와 템플릿 `categoryId`를 대조하지 않음 |
 | XSS | **확인 0** | `app/` `dangerouslySetInnerHTML`/`innerHTML`/`document.write` 0 |
 
-**집계:** 08-07 55건 전수 재오픈. 공개 P0 8 · P1 13 · 그 외 OPEN/PARTIAL/FIXED는 §15. 이번 실행 신규 `UX-18-01`, `QLT-18-01`, `QLT-18-03`, `PROD-18-01/02`, `MIG-18-01`, `SEC-18-03/04`. FIXED(완전): ARC-02, ARC-10, UX-09, DOC-02, ADM-IA-01/02, ADM-OPS-03, ADM-AUTH-01, ADM-ERR-01. SUPERSEDED: ADM-OPS-02.
+**집계:** 08-07 55건 전수 재오픈. 공개 P0 8 · P1 14(SEC-18-26 포함). FIXED: ARC-02, ARC-10, UX-09, DOC-02, QLT-05, ADM-IA-01/02, ADM-OPS-03, ADM-AUTH-01, ADM-ERR-01. SUPERSEDED: ARC-05. ADM-OPS-02는 Paid로 1102만 해소, 질의 수는 늘음.
 
 ---
 
@@ -345,7 +348,7 @@ UI·방침·title은 `Re:Taste`. 헤더 “광주·전남 맛 지도”. v2 스�
 
 루트 skip-link → `#main`. 공개 홈·로그인·방침은 `#main` 있음. `admin-places`·`admin-data-sync`·`admin-import`는 `<main>`만 있고 id 없음. skip-link가 실패한다. `admin-candidates`는 UI가 없어 해당 없음.
 
-홈 큐레이션은 패널(`HomeCurationPanel`)과 시트(`HomeCurationSheet`)가 **동시에** `h1`을 그린다 (`home.tsx:473-509`). 라이브 HTML에 「지금 갈 만한 5곳」이 **2개**. 시각적으로 하나는 미디어쿼리로 가려질 수 있으나 문서 랜드마크는 중복이다. UX-09(h1 부재)는 해소됐고 UX-18-01(h1 중복)이 생겼다.
+홈 큐레이션은 패널(`HomeCurationPanel`)과 시트(`HomeCurationSheet`)가 **동시에** `h1`을 그린다 (`home.tsx:473-509`). 라이브 HTML에 「지금 갈 만한 5곳」이 **2개**. `design-system.css:465-466`은 데스크톱에서 시트를, `:590-591`은 ≤760px에서 패널을 `display:none`한다. 보이는 h1은 폭당 1개. `display:none`은 보통 접근성 트리에서도 빠진다. UX-09는 해소. UX-18-01은 DOM 중복으로 PARTIAL.
 
 ### 7.2 반응형 [미재검증]
 
@@ -385,6 +388,8 @@ UI·방침·title은 `Re:Taste`. 헤더 “광주·전남 맛 지도”. v2 스�
 
 목록/지도 후보: `currentVotes` +1/−1 합. 상세: `getLatestRatingSnapshot` 없으면 v1 fallback. 목록은 `invalidated_vote_events`를 조인하지 않는다. 조작 무효화가 목록 %에 안 먹을 수 있다.
 
+홈 큐레이션은 `isStale=false` 스냅샷만 붙인다 (`recommendation-candidates.server.ts:47-48`). 상세 `getLatestRatingSnapshot`은 stale을 거르지 않는다. 해시 재사용(`recompute.server.ts:106-108`)은 `computedAt`을 올리지 않아, 홈은 비stale A·상세는 더 새로운 stale B를 고를 수 있다.
+
 스냅샷 9개 vs current_votes 114 — 대부분 장소는 목록 v1·상세 v1 fallback.
 
 ### 8.2 primary 카테고리 [확인]
@@ -421,7 +426,7 @@ Codex P1(직접 advance 시 fingerprint 재검사 없음)은 코드 의도와 �
 
 ### 8.6 크론 [확인]
 
-`17 18 * * *`에 후보 동기화·평가·장소·주차·온보딩 수명 5개를 `Promise.all`. Paid라도 한 작업 실패가 형제로 번진다. 외부 알림 없음.
+`17 18 * * *`에 후보 동기화·평가·장소·주차·온보딩 수명 5개를 `Promise.all`. Paid라도 한 작업 실패가 형제로 번진다. 외부 알림 없음. cron 후보 동기화의 NAVER 일일 한도 fallback은 env 없으면 **200** (`scheduled-sync.server.ts:34`). wrangler 선언값은 20000.
 
 ### 8.7 성능 [확인]·[추론]
 
@@ -453,6 +458,8 @@ Paid 이후 검수 GET 200. 로더 비용은 남음: 검수 3단 조인, 운영 
 이메일+비밀번호(PBKDF2 99999, 타이밍 안전 비교) + Google/Naver OAuth. 로그인은 실패 시에도 KDF를 사용자 있을 때만 돈다 — 없는 이메일은 빠른 실패(열거+CPU 비대칭). [확인]
 
 로그인에 메일/IP 한도 없음. 스터핑과 CPU 증폭은 08-07과 같은 문. 메일은 시간당 이메일 3 / IP 10.
+
+**SEC-18-26:** Google 주체가 아직 연결되지 않으면 같은 이메일의 기존 `users` 행을 찾고, 미인증이면 `emailVerifiedAt`을 채운 뒤 Google identity를 붙인다 (`google-account.server.ts:113-136`). Google 측 이메일이 verified여야 한다. Naver는 기존 이메일을 `NAVER_EXISTING_ACCOUNT_LOGIN_REQUIRED`로 거절한다. 미인증 이메일 선점 후 Google 로그인으로 계정에 붙을 수 있다. 공개 베타 P0는 바꾸지 않는다. [확인]
 
 ### 9.3 토큰 [확인]
 
@@ -500,7 +507,7 @@ React 기본 이스케이프. Drizzle 파라미터. `app/`에서 `dangerouslySet
 
 ### 10.4 공개 저장소 [확인]·[추론]
 
-`#182`: Private 요청은 “비밀값”이 아니라 사업 문서·오딧 지도 노출. Private는 Free에서 branch protection을 잃을 수 있음. 지금 `main` 보호는 이미 0. Private만으로 이 오딧의 P0는 닫히지 않는다.
+`#182`: Private 요청은 “비밀값”이 아니라 사업 문서·오딧 지도 노출. Private는 Free에서 branch protection을 잃을 수 있음. 지금 `main` 보호는 이미 0. Private만으로 이 오딧의 P0는 닫히지 않는다. 이슈 체크박스가 E2E id 분리를 끝난 것처럼 보이면 **측정과 모순**이다(`wrangler.e2e.jsonc` 동일 id, 이슈 여전히 open).
 
 ---
 
@@ -511,7 +518,7 @@ React 기본 이스케이프. Drizzle 파라미터. `app/`에서 `dangerouslySet
 | 층 | 파일 | 이번 실행 |
 |---|---:|---|
 | unit | 128 | 805 PASS |
-| integration | 71 | 미실행 |
+| integration | 68 | 미실행 |
 | e2e | 19 | 미실행 |
 
 커버리지 임계 없음. E2E는 로컬 QA 시드에 의존. CI는 unit+typecheck만.
@@ -598,7 +605,7 @@ D1 `operational_alerts` OPEN 1. 외부 메일/페이지 없음. cron 실패는 �
 
 ## 14. 이 오딧이 실행하지 않은 것
 
-통합/E2E/typecheck 재실행, CDP 반응형, 로그인 관리자 GET 재현, NAVER 추가 호출, 런북 배포 기록 PR, 위 권고의 구현. 대비·XSS grep·08-07 55건 파일 재오픈은 수행했다. ARC-12(schema↔migration FK 드리프트)만 라인 이동으로 **미재검증**으로 남긴다.
+통합/E2E/typecheck 재실행, CDP 반응형, 로그인 관리자 GET 재현, NAVER 추가 호출, 런북 배포 기록 PR, 위 권고의 구현. 대비·XSS grep·08-07 55건 파일 재오픈은 수행했다. ARC-12는 같은 날 재오픈으로 **OPEN**.
 
 ---
 
@@ -613,12 +620,12 @@ D1 `operational_alerts` OPEN 1. 외부 메일/페이지 없음. cron 실패는 �
 | SEC-01 | P0 | PARTIAL | 메일 한도 있음. 로그인 없음. PBKDF2 99,999 |
 | SEC-02 | P0 | PARTIAL | 가입·재설정·정정 한도. 한도 안 임의 메일 가능 |
 | SEC-03 | P0 | OPEN | `?token=` 3경로 + 샘플링 1 |
-| SEC-04 | P0 | OPEN | 방침 “미저장” vs bbox URL/loader + 로그 1 |
+| SEC-04 | P0 | PARTIAL | 인벤토리는 URL/로그 인정. `privacy.tsx:12`는 여전히 미저장 |
 | SEC-05 | P0 | OPEN | 탈퇴 라우트 0. FK restrict는 하드 삭제만 막음 |
 | SEC-06 | P0 | PARTIAL | 인벤토리에 게스트 온보딩 추가. 위탁 표는 Cloudflare만. 차단 6줄 유지 |
 | QLT-01 | P0 | PARTIAL | 로컬 `--persist-to`+시드. `wrangler.e2e.jsonc` 운영 id |
 | QLT-02 | P0 | PARTIAL | CI typecheck+unit. integration/E2E/audit 없음 |
-| ARC-01 | P1 | OPEN | 목록 `currentVotes` 합. 상세 스냅샷. 무효화 미조인 |
+| ARC-01 | P1 | OPEN | 목록 `currentVotes` 합. 홈만 `isStale=false`. 상세는 stale 허용. 무효화 미조인 |
 | ARC-02 | P1 | FIXED | load/save fetcher 분리 |
 | ARC-03 | P1 | OPEN | re-import primary unset 없음. 공개 경로만 unset |
 | SEC-07 | P1 | OPEN | `resetPassword`가 세션 삭제 없음 |
@@ -629,16 +636,16 @@ D1 `operational_alerts` OPEN 1. 외부 메일/페이지 없음. cron 실패는 �
 | UX-01 | P1 | PARTIAL | `/places*`·`/admin*`만. `/me` `/courses`는 `/` |
 | UX-02 | P1 | OPEN | `signup.tsx:43` 메시지 있으면 Form 제거 |
 | UX-03 | P1 | OPEN | OG 0, sitemap 404, 상세 title 고정, robots는 CF 기본 |
-| QLT-03 | P1 | PARTIAL | 정정 try/catch+한도. 실패 시 `error.message` 노출 |
+| QLT-03 | P1 | OPEN | insert 후 메일 실패 throw. `error.message` 노출 |
 | QLT-04 | P1 | OPEN | 알림 D1만. 외부 채널 없음 |
 | DOC-01 | P1 | OPEN | v2 스펙 `Tasted : IT` vs UI `Re:Taste` |
-| ARC-04 | P2 | OPEN | latest snapshot이 stale 허용 |
-| ARC-05 | P2 | PARTIAL | 목록 300 / 일괄 25 |
+| ARC-04 | P2 | OPEN | latest snapshot이 stale 허용. 해시 재사용이 `computedAt` 미갱신 |
+| ARC-05 | P2 | SUPERSEDED | 일괄 UI 제거. `limit(300)`은 테스트 잔여 |
 | ARC-06 | P2 | OPEN | 병합 후 재계산·flavor/golden 미이관 |
 | ARC-07 | P2 | PARTIAL | 검수 action try/catch. 타 admin 그대로 |
 | ARC-08 | P2 | OPEN | 동일 값 CHANGE |
 | ARC-09 | P2 | OPEN | 카테고리 카운트 전역 vs bbox 결과 |
-| QLT-05 | P2 | PARTIAL | 통합 `test-worker.ts` + `remoteBindings: false` |
+| QLT-05 | P2 | FIXED | 통합이 운영 wrangler를 안 읽음 |
 | QLT-06 | P2 | OPEN | 런북 운영 D1 시드 지시 |
 | QLT-07 | P2 | PARTIAL | AI 런북 삭제. week1 `npm`/`retaste-local` |
 | QLT-08 | P2 | OPEN | `SESSION_SECRET` 요구 vs 미사용. 배포 SHA 칸 지연 |
@@ -659,7 +666,7 @@ D1 `operational_alerts` OPEN 1. 외부 메일/페이지 없음. cron 실패는 �
 | SEC-15 | P3 | OPEN | flavor 템플릿-장소 카테고리 미대조 |
 | ARC-10 | P3 | FIXED | SDK 실패 재시도 가능 |
 | ARC-11 | P3 | OPEN | 인증·정정 GET 소비 |
-| ARC-12 | P3 | 미재검증 | schema↔migration FK. 이번 실행에서 라인 대조 안 함 |
+| ARC-12 | P3 | OPEN | `0002`는 `parent_id` REFERENCES. `schema.ts:148` `parentId`는 `.references()` 없음. `0007` AI 테이블은 schema 모델 없음(이후 0031으로 제거) |
 | QLT-09 | P3 | OPEN | coverage 임계 없음 |
 | QLT-10 | P3 | PARTIAL | `packageManager` 고정. 런북 `pnpm deploy` 표기는 별도 |
 | UX-13 | P3 | OPEN | 8–11px 클러스터 |
@@ -673,7 +680,7 @@ D1 `operational_alerts` OPEN 1. 외부 메일/페이지 없음. cron 실패는 �
 | ADM-IA-01 | FIXED | 제안 승인 카드. E2E가 초안 승인 경로를 단언 |
 | ADM-IA-02 | FIXED | 재검증·정정·병합 탭 + E2E 전환 |
 | ADM-OPS-01 | SUPERSEDED | 원격 `0034` 적용. 코드 의존은 유지 |
-| ADM-OPS-02 | SUPERSEDED | Paid. 검수 GET 200 |
+| ADM-OPS-02 | PARTIAL | Paid로 1102 해소. 대시보드 10×3 COUNT는 08-17보다 무거움 |
 | ADM-AUTH-01 | FIXED | `returnTo` `/admin*` |
 | ADM-ERR-01 | FIXED | 검수 mutation 화면 400 |
 | ADM-ERR-02 | OPEN | 403 화면 문구 미분리 |
@@ -701,6 +708,29 @@ D1 `operational_alerts` OPEN 1. 외부 메일/페이지 없음. cron 실패는 �
 | `/admin` | 404 | |
 | `/me` | 302 | `/login?returnTo=%2Fme` |
 
+### 15.4 2026-08-18 신규·보강 ID
+
+| ID | 지금 | 한 줄 |
+|---|---|---|
+| SEC-18-26 | OPEN | Google이 미인증 이메일 행에 연결·검증 처리. Naver는 거절 |
+| ARC-18-07 | OPEN | 필터 `ready`는 좌표만. 이동은 주소·OPEN. 배지는 ACTIVE 전량 |
+| ARC-18-08 | OPEN | 중복 후보가 `places` 전량. 공개는 DISTINCT만 |
+| UX-18-01 | PARTIAL | DOM h1 2개. 폭당 `display:none`으로 보이는 건 1개 |
+
+---
+
+## 16. 탐색 보강 (같은 날, 코드 재오픈)
+
+PR #188 초안 이후 네 경로를 다시 열었다. 공개 베타 **NO-GO**와 P0 목록은 그대로다. 바뀐 것은 상태 라벨과 누락 항목이다.
+
+- ARC-05 **SUPERSEDED**, QLT-05 **FIXED**, ARC-12 **OPEN**(미재검증 해제), SEC-04·UX-18-01 **PARTIAL**, QLT-03 **OPEN**, ADM-OPS-02 **PARTIAL**(질의 수 증가)
+- 통합 테스트 파일 **68** (71이 아님)
+- 신규 High: **SEC-18-26** Google 미인증 이메일 연결. 초대 베타 P1. 공개 P0 아님
+- 신규: **ARC-18-07** ready≠이동 조건, **ARC-18-08** 중복 전량 스캔
+- 홈 h1은 HTML 2개이나 CSS가 폭당 1개만 보이게 함
+
+이 절은 구현 승인이 아니다.
+
 ---
 
 # Eight-angle full audit (English)
@@ -712,7 +742,7 @@ D1 `operational_alerts` OPEN 1. 외부 메일/페이지 없음. cron 실패는 �
 
 **Why NO-GO (confirmed):** 2 PUBLISHED places vs a ~300-place gate; 708 items still in source review; login has no rate limit while PBKDF2 is 99,999 iterations; tokens still travel in query strings with 100% log sampling; no account-deletion route; privacy policy still claims location is not sent to the server; E2E config copies the production D1 id; CI does not run integration/E2E; `main` has no branch protection; no security headers; no sitemap/OG.
 
-**Re-opened from 2026-08-07 (was unchecked this morning):** contrast still fails AA on new pairs (3.98 / 3.90); design tokens unused and hex count rose to 313; three style sheets; `/maps/:slug` still drops geolocation; vote CHANGE-on-same-value and stale-snapshot selection remain; bulk approve is 25 but the candidate window is still 300; flavor templates are not bound to the place category; docs still say `Tasted : IT` / Better Auth / magic link. **Fixed since 08-07:** ARC-02, ARC-10, UX-09, DOC-02. **New:** two `h1`s on the curated home (UX-18-01).
+**Re-opened from 2026-08-07:** contrast still fails AA (3.98 / 3.90); unused tokens; hex 313; three style sheets; `/maps/:slug` drops geolocation; vote CHANGE-on-same-value remains; flavor templates unbound to place category; docs still say `Tasted : IT` / Better Auth / magic link. **Status corrections after a second file pass:** ARC-05 SUPERSEDED (bulk UI is a redirect); QLT-05 FIXED (integration does not load production wrangler); ARC-12 OPEN (SQL `parent_id` FK vs Drizzle); QLT-03 OPEN (insert then throw); ADM-OPS-02 PARTIAL (Paid hides 1102, dashboard is now 10×3 counts); UX-18-01 PARTIAL (two DOM `h1`s, one visible per breakpoint). **Fixed:** ARC-02, ARC-10, UX-09, DOC-02, QLT-05. **New P1:** Google can bind to an unverified email row (SEC-18-26). Does not change public-beta P0.
 
 **Improved since 2026-08-07:** CI exists; mail rate limits; admin suggestion/liveness/merge tabs; admin `returnTo`; review actions return 400 instead of 500; audit page; home `h1`; location-outside-region on `main`; split fetchers on the place sheet; Naver SDK retry after failure; Workers AI removed; Paid + live review GET; region pack module.
 
