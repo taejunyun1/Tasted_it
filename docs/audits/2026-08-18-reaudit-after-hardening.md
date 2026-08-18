@@ -5,6 +5,8 @@
 
 이 문서는 제품 코드를 바꾸지 않는다. 비밀값, 이메일, 세션 ID, 상호·주소는 기록하지 않는다.
 
+> **이후 사건 (2026-08-18 14:29 KST):** `#182` Private 실행됨. 아래 코드/라이브 숫자는 12:29–12:33 측정 그대로다. 공개 베타 NO-GO 근거에서 **저장소 공개는 빠지고**, `main` 보호(Free+Private에서 불가)·카탈로그 2곳·운영자 연락처·미배포는 남는다. 기록 `#199`.
+
 ---
 
 ## 1. 두 기준선 (같다고 가정하지 않는다)
@@ -37,7 +39,7 @@
 
 1. **코드 P0 8건 중 6건은 파일에서 풀렸다.** 로그인 한도, 토큰 `#` 링크, 탈퇴 익명화, 방침·인벤토리, E2E D1 placeholder, SEO/헤더( CSP 제외). [확인]
 2. **라이브 HTTP는 원 오딧과 같다.** `/places` 302 온보딩, 보안 헤더 0, sitemap 404, 홈 OG 0. 카탈로그도 PUBLISHED **2**. [확인]
-3. **공개 베타를 막는 남은 축은 카탈로그 2곳, 운영자 연락처, `#182` 보호, 미배포다.** 처리량 숫자는 `#196`으로 고정됐고 GO가 아니다. [확인]
+3. **공개 베타를 막는 남은 축은 카탈로그 2곳, 운영자 연락처, `main` 보호(Free+Private에서 불가), 미배포다.** `#182` Private은 14:29에 확인됐다. 처리량 숫자는 `#196`으로 고정됐고 GO가 아니다. [확인]
 
 테스트 PASS는 공개 승인이 아니다.
 
@@ -157,7 +159,7 @@
 | 코드 고지·품질 | 방침·인벤토리, 14세, E2E placeholder, CI integration, robots/sitemap/OG 라우트, 처리량 칸 | 운영자 연락처, Playwright CI, 외부 알림 |
 | 라이브 Worker | 없음 (`5f031bd2` = `#186`) | `/places` 302, 헤더 0, sitemap 404, 카탈로그 2 |
 | 카탈로그 | 처리량 측정 | PUBLISHED 2, ACTIVE 755, 최종 대기 0 |
-| 소유자 | 없음 | `#182` Private / branch protection, 법적 명칭·연락처 |
+| 소유자 | `#182` Private 실행 | `main` 보호(Free+Private 불가), 위키 Features, 법적 명칭·연락처 |
 
 **초대 베타:** 오딧 당시 HOLD 근거는 **코드에서 사라졌다.** 라이브에 올리기 전에는 사용자에게 보이지 않는다.
 **공개 베타:** 코드가 헤더·온보딩·SEO를 넣어도 장소 2곳과 연락처가 남으면 **NO-GO**다.
@@ -177,4 +179,4 @@
 
 **What did not move on live:** `/places` still 302 to onboarding; no app security headers; sitemap 404; home OG 0; PUBLISHED 2; `rate_limit_windows` 0; `main` protection 404.
 
-**Still NO-GO for public beta:** catalog size, operator legal contact, `#182`, undeployed `#190`–`#196`. Measurement is not GO.
+**Still NO-GO for public beta:** catalog size, operator legal contact, `main` protection (unavailable on Free+Private), undeployed `#190`–`#196`. `#182` Private is done. Measurement is not GO.
