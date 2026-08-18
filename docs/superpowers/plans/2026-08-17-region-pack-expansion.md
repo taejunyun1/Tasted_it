@@ -37,7 +37,7 @@
 |---|---|---|
 | 관리자 파이프라인이 실제로 돌아간다 | 오딧 ADM-IA-01/02를 아직 비어 있다고 보지 않는다. 제안 승인 UI는 [#173](https://github.com/taejunyun1/Tasted_it/pull/173)(#164), 영업 재검증·정정·병합 탭은 [#175](https://github.com/taejunyun1/Tasted_it/pull/175)(#165). 라이브 클릭·NAVER 표본 승인은 [#176](https://github.com/taejunyun1/Tasted_it/pull/176)(#161·#163, 둘 다 닫힘). `admin-place-operations`에 검수·제안·재검증·정정·병합 탭이 있다. | 운영자가 이 화면으로 광주전남 큐를 꾸준히 처리한다는 **측정된** 증거 |
 | Worker 플랜 / 관리자 CPU | [#166](https://github.com/taejunyun1/Tasted_it/issues/166)에 `usage_model=standard`(Workers Paid)로 기록됨. 이 문서에서 재논쟁하지 않는다. | 도시 2를 이유로 플랜을 바꾸거나 두 번째 Worker를 만들지 않는다 |
-| 사람 검수 처리량 | 2026-08-18 라이브 읽기 표본: 14일 공개 2 · 7일 공개/일 0.29 · ACTIVE 큐 755(1단계 708, 2단계 35, 3단계 12, 5단계 0). 화면·런북 집계는 [#195](https://github.com/taejunyun1/Tasted_it/issues/195) | 큐를 5단계로 줄이는 운영. 일괄 공개 없음 |
+| 사람 검수 처리량 | 2026-08-18 라이브 읽기 표본: 14일 공개 2 · 7일 공개/일 0.29 · ACTIVE 큐 755(1단계 708, 2단계 35, 3단계 12, 5단계 0). 화면·런북 집계는 [#196](https://github.com/taejunyun1/Tasted_it/pull/196)([#195](https://github.com/taejunyun1/Tasted_it/issues/195)) | 큐를 5단계로 줄이는 운영. 일괄 공개 없음 |
 | NAVER 표본 | [#163](https://github.com/taejunyun1/Tasted_it/issues/163) 닫힘. 광주전남 표본은 끝 | 도시 2 전에 **지역별** NAVER 예산(한도·kill switch·기아 방지). 전역 카운터만으로는 부족하다 |
 | 광주전남 큐레이션 품질 | 홈 큐레이션은 bbox/중심 기반이며 지역 컬럼이 없다 | 운영자가 광주전남 공개 목록을 “이 정도면 된다”고 한 기록 |
 | E2E가 운영 D1을 공유하지 않는다 | `wrangler.e2e.jsonc`의 `database_id`가 운영 `wrangler.jsonc`와 같다. 알려진 위험 | 도시 2 전에 격리하거나, 공유 id를 제거하는 전용 수정. **이 문서 PR에서는 고치지 않는다** |
