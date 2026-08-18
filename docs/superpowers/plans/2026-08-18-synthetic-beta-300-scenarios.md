@@ -4,7 +4,7 @@
 
 **Goal:** 테스터 200 + 뷰어 100이 **구현된 제품 경로로** 가입·탐색·이용·기여·관찰까지 가려면 어떤 여정을 어떤 기대 결과로 돌릴지 고정한다.
 
-**추적:** [#208](https://github.com/taejunyun1/Tasted_it/issues/208)
+**추적:** [#208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209)
 
 **선행:** [#206](https://github.com/taejunyun1/Tasted_it/issues/206) · [PR #207](https://github.com/taejunyun1/Tasted_it/pull/207) 격리 슬라이스 하네스. 그 런은 시드 세션·공개 2곳·제안 `SUBMITTED` 정지였다. 이 문서는 그 빈칸을 시나리오로 채운다.
 
@@ -300,3 +300,5 @@ Google/네이버 로그인 실 IdP는 합성 대상이 아니다. 이메일 가�
 **Out of scope:** live writes, real NAVER/Resend, OAuth IdP, second city.
 
 Implementation requires a later PR that marks this document `GO` and maps each `S-*` id to an isolated test.
+
+**Tracking:** [#208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209)
