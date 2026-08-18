@@ -107,6 +107,7 @@ pnpm exec vitest run --config vitest.workers.config.ts tests/integration/synthet
 # HTTP fetch: 별도 persist로 개발 서버를 띄운 뒤
 # RETASTE_E2E=true CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH=wrangler.e2e.jsonc pnpm dev --host 127.0.0.1
 # SYNTHETIC_BETA_BASE_URL=http://127.0.0.1:5173 node scripts/run-synthetic-beta-200.mjs
+# Playwright 소수(테스터 5, 뷰어 3): SYNTHETIC_BETA=1 pnpm exec playwright test --config playwright.synthetic-beta.config.ts
 rm -rf .wrangler/synthetic-beta-state
 ```
 
