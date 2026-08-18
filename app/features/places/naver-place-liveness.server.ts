@@ -1,10 +1,11 @@
-import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { naverLocalCategoryRuns, placeLivenessStates, places } from "../../db/schema";
 import { matchNaverLocalCategory, type NaverLocalCategoryMatch } from "../candidates/naver-local-category";
 import { NaverLocalSearchError, type NaverLocalSearchAdapter } from "../candidates/naver-local-search.server";
-import { regionFromAddress, type RegionCode } from "../regions/region-pack";
+import { ACTIVE_REGION_CODES, regionFromAddress, type RegionCode } from "../regions/region-pack";
+import { assertNaverRegionQuota, getNaverLocalSearchApiCallsToday, isNaverRegionSearchEnabled, uniqueRunRegion } from "./naver-region-quota.server";
 
 const MAX_BATCH_SIZE = 25;
 
@@ -16,11 +17,6 @@ export type NaverPlaceLivenessResult = {
   failed: number;
   apiCalls: number;
 };
-
-function utcDayStart(value: string) {
-  const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())).toISOString();
-}
 
 function regionCodeForAddress(address: string): RegionCode | null {
   return regionFromAddress(address);
@@ -36,12 +32,7 @@ function naverStatus(match: NaverLocalCategoryMatch): "MATCHED" | "AMBIGUOUS" | 
       : "NOT_FOUND";
 }
 
-export async function getNaverLocalSearchApiCallsToday(db: AppDb, now: string) {
-  const [result] = await db.select({ total: sql<number>`coalesce(sum(${naverLocalCategoryRuns.apiCallCount}), 0)` })
-    .from(naverLocalCategoryRuns)
-    .where(and(gte(naverLocalCategoryRuns.startedAt, utcDayStart(now)), lt(naverLocalCategoryRuns.startedAt, now)));
-  return Number(result?.total ?? 0);
-}
+export { getNaverLocalSearchApiCallsToday } from "./naver-region-quota.server";
 
 /**
  * Performs a per-place NAVER name+address/coordinate check. Same-name groups
@@ -50,15 +41,18 @@ export async function getNaverLocalSearchApiCallsToday(db: AppDb, now: string) {
 export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
   placeIds: string[];
   now: string;
-  dailyLimit: number;
+  dailyLimit?: number;
   adapter: NaverLocalSearchAdapter;
   actorUserId?: string;
 }): Promise<NaverPlaceLivenessResult> {
   const placeIds = [...new Set(input.placeIds.filter(Boolean))];
   if (placeIds.length < 1 || placeIds.length > MAX_BATCH_SIZE) throw new Error("NAVER_PLACE_LIVENESS_LIMIT_INVALID");
+  const rows = await db.select({ id: places.id, name: places.name, address: places.address, latitude: places.latitude, longitude: places.longitude })
+    .from(places).where(inArray(places.id, placeIds));
   const runId = crypto.randomUUID();
   await db.insert(naverLocalCategoryRuns).values({
     id: runId, mode: "APPLY", scope: "PUBLISHED", status: "RUNNING", requestedLimit: placeIds.length,
+    regionCode: uniqueRunRegion(rows.map((row) => regionCodeForAddress(row.address))),
     startedAt: input.now, createdBy: input.actorUserId ?? null,
   });
 
@@ -67,10 +61,10 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
   let manual = 0;
   let failed = 0;
   let apiCalls = 0;
+  const extraCalls: Record<RegionCode, number> = { GWANGJU: 0, JEONNAM: 0 };
   try {
-    const rows = await db.select({ id: places.id, name: places.name, address: places.address, latitude: places.latitude, longitude: places.longitude })
-      .from(places).where(inArray(places.id, placeIds));
-    const used = await getNaverLocalSearchApiCallsToday(db, input.now);
+    const usedByRegion = Object.fromEntries(await Promise.all(ACTIVE_REGION_CODES.map(async (code) =>
+      [code, await getNaverLocalSearchApiCallsToday(db, input.now, code)] as const))) as Record<RegionCode, number>;
     for (const row of rows) {
       scanned += 1;
       const regionCode = regionCodeForAddress(row.address);
@@ -79,18 +73,26 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
       let evidenceCodes: string[] = [];
       if (!regionCode) {
         status = "NOT_FOUND";
-      } else if (used + apiCalls >= input.dailyLimit) {
-        throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_QUOTA");
+      } else if (!isNaverRegionSearchEnabled(regionCode)) {
+        status = "ERROR";
       } else {
+        assertNaverRegionQuota({
+          regionCode,
+          used: usedByRegion[regionCode],
+          extraCalls: extraCalls[regionCode],
+          dailyLimit: input.dailyLimit,
+        });
         try {
           const results = await input.adapter.search({ businessName: row.name, address: row.address, regionCode });
           apiCalls += 1;
+          extraCalls[regionCode] += 1;
           const match = matchNaverLocalCategory({ ...row, businessName: row.name, regionCode, results, terminalSlugs: new Set() });
           status = naverStatus(match);
           score = match.matchScore;
           evidenceCodes = match.evidenceCodes;
         } catch (error) {
           apiCalls += 1;
+          extraCalls[regionCode] += 1;
           if (failureCode(error) === "NAVER_LOCAL_SEARCH_QUOTA" || failureCode(error) === "NAVER_LOCAL_SEARCH_DISABLED") throw error;
           failed += 1;
         }

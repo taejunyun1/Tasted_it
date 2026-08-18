@@ -16,7 +16,7 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   workItemIds: string[];
   actorUserId: string;
   now: string;
-  dailyLimit: number;
+  dailyLimit?: number;
   adapter: NaverLocalSearchAdapter;
 }) {
   const workItemIds = [...new Set(input.workItemIds.filter(Boolean))];
@@ -30,7 +30,7 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
     ? await verifyPendingCandidatesWithNaver(db, { candidateIds: businessIds, limit: businessIds.length, now: input.now, dailyLimit: input.dailyLimit, adapter: input.adapter, actorUserId: input.actorUserId })
     : null;
   const placeResult = placeIds.length
-    ? await verifyPlacesLivenessWithNaver(db, { placeIds, now: input.now, dailyLimit: input.dailyLimit - (candidateResult?.apiCalls ?? 0), adapter: input.adapter, actorUserId: input.actorUserId })
+    ? await verifyPlacesLivenessWithNaver(db, { placeIds, now: input.now, dailyLimit: input.dailyLimit, adapter: input.adapter, actorUserId: input.actorUserId })
     : null;
   const naverMappings = businessIds.length
     ? await db.select({ businessLicenseId: naverLocalCategoryVerifications.businessLicenseId, categoryId: naverLocalCategoryVerifications.mappedCategoryId, status: naverLocalCategoryVerifications.status })

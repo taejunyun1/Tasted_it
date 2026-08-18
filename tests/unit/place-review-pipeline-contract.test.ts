@@ -32,6 +32,8 @@ describe("place review selection controls", () => {
     expect(component).toContain("const selectionLimit = 25;");
     expect(component).toContain("useFetcher");
     expect(component).toContain("auto-verify-review-item-with-naver");
+    expect(component).toContain("naverRegionUsage");
+    expect(component).toContain("한 지역이 소진돼도 다른 지역은 계속됩니다");
     expect(component).toContain("선택 중 10곳 NAVER 검증");
     expect(component).toContain("수동으로 NAVER 검증 대기로 이동");
     expect(route).toContain('intent === "auto-verify-review-item-with-naver"');

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -22,6 +22,8 @@ import {
   type NaverVerificationStatus,
 } from "./naver-local-category";
 import { NaverLocalSearchError, type NaverLocalSearchAdapter } from "./naver-local-search.server";
+import { getNaverLocalSearchApiCallsToday, isNaverRegionSearchEnabled, naverRegionBudget, uniqueRunRegion } from "../places/naver-region-quota.server";
+import { ACTIVE_REGION_CODES, type RegionCode } from "../regions/region-pack";
 
 const MAX_PAGE_SIZE = 100;
 const CACHE_DAYS = 90;
@@ -65,7 +67,7 @@ type Input = {
   limit: number;
   now: string;
   adapter: NaverLocalSearchAdapter;
-  dailyLimit: number;
+  dailyLimit?: number;
 };
 
 type ApplyInput = Input & { actorUserId: string };
@@ -92,11 +94,6 @@ type Prepared = NaverReverificationChange & {
 function validLimit(limit: number) {
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) throw new Error("NAVER_REVERIFICATION_LIMIT_INVALID");
   return limit;
-}
-
-function utcDayStart(value: string) {
-  const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())).toISOString();
 }
 
 function nextCacheExpiry(now: string) {
@@ -162,13 +159,6 @@ async function listWork(db: AppDb, input: Pick<Input, "afterPlaceId" | "limit">)
     db.select().from(categories).where(eq(categories.isActive, true)),
   ]);
   return { rows: rows.slice(0, input.limit) as WorkRow[], hasNext: rows.length > input.limit, categoryRows };
-}
-
-async function todayApiCalls(db: AppDb, now: string) {
-  const result = await db.select({ total: sql<number>`coalesce(sum(${naverLocalCategoryRuns.apiCallCount}), 0)` })
-    .from(naverLocalCategoryRuns)
-    .where(and(gte(naverLocalCategoryRuns.startedAt, utcDayStart(now)), lt(naverLocalCategoryRuns.startedAt, now)));
-  return Number(result[0]?.total ?? 0);
 }
 
 function failureCode(error: unknown) {
@@ -238,7 +228,9 @@ async function prepare(db: AppDb, input: Input) {
   const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
   const categoryById = new Map(categoryRows.map((category) => [category.id, category.slug]));
   const terminalSlugs = new Set(categoryRows.filter((category) => getTerminalCategoryIds(categoryRows).has(category.id)).map((category) => category.slug));
-  const used = await todayApiCalls(db, input.now);
+  const usedByRegion = Object.fromEntries(await Promise.all(ACTIVE_REGION_CODES.map(async (code) =>
+    [code, await getNaverLocalSearchApiCallsToday(db, input.now, code)] as const))) as Record<RegionCode, number>;
+  const extraCalls: Record<RegionCode, number> = { GWANGJU: 0, JEONNAM: 0 };
   let apiCalls = 0;
   const prepared: Prepared[] = [];
 
@@ -249,13 +241,17 @@ async function prepare(db: AppDb, input: Input) {
     let code: string | null = null;
     if (cached && cached.status === "VERIFIED" && cached.inputFingerprint === fingerprint && cached.expiresAt && cached.expiresAt > input.now) {
       match = toCachedMatch(cached, categoryById);
-    } else if (used + apiCalls >= input.dailyLimit) {
-      prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: null, toCategoryId: null, decision: "SKIPPED", reason: "NAVER 일일 확인 한도에 도달", confidenceScore: 0, evidenceCodes: [] });
+    } else if (!isNaverRegionSearchEnabled(row.regionCode)) {
+      prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: null, toCategoryId: null, decision: "SKIPPED", reason: "이 지역 NAVER 확인이 꺼져 있습니다", confidenceScore: 0, evidenceCodes: [] });
+      continue;
+    } else if (usedByRegion[row.regionCode] + extraCalls[row.regionCode] >= naverRegionBudget(row.regionCode, input.dailyLimit)) {
+      prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: null, toCategoryId: null, decision: "SKIPPED", reason: "이 지역 NAVER 일일 확인 한도에 도달", confidenceScore: 0, evidenceCodes: [] });
       continue;
     } else {
       try {
         const results = await input.adapter.search({ businessName: row.businessName, address: row.address, regionCode: row.regionCode });
         apiCalls += 1;
+        extraCalls[row.regionCode] += 1;
         match = matchNaverLocalCategory({
           businessName: row.businessName,
           address: row.address,
@@ -271,6 +267,7 @@ async function prepare(db: AppDb, input: Input) {
         // every individual place. Let the route surface the safe-stop notice.
         if (code === "NAVER_LOCAL_SEARCH_DISABLED") throw error;
         apiCalls += 1;
+        extraCalls[row.regionCode] += 1;
         match = { status: "FAILED", mappedCategorySlug: null, matchScore: 0, specificityScore: 0, confidenceScore: 0, evidenceCodes: [] };
       }
     }
@@ -299,7 +296,7 @@ async function prepare(db: AppDb, input: Input) {
       prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: decision.categorySlug, toCategoryId: mappedCategory.id, decision: "CHANGE", reason: "NAVER 상호·위치 및 원천 업태가 일치", confidenceScore: decision.confidenceScore, evidenceCodes: decision.naver?.evidenceCodes ?? [] });
     }
   }
-  return { prepared, hasNext, apiCalls };
+  return { prepared, hasNext, apiCalls, regionCode: uniqueRunRegion(rows.map((row) => row.regionCode)) };
 }
 
 async function run(db: AppDb, input: Input | ApplyInput, mode: "PREVIEW" | "APPLY") {
@@ -315,7 +312,7 @@ async function run(db: AppDb, input: Input | ApplyInput, mode: "PREVIEW" | "APPL
     createdBy: "actorUserId" in input ? input.actorUserId : null,
   });
   try {
-    const { prepared, hasNext, apiCalls } = await prepare(db, input);
+    const { prepared, hasNext, apiCalls, regionCode } = await prepare(db, input);
     if (mode === "APPLY") {
       for (const item of prepared) {
         if (item.decision !== "CHANGE" || !item.toCategoryId || !("actorUserId" in input)) continue;
@@ -335,7 +332,7 @@ async function run(db: AppDb, input: Input | ApplyInput, mode: "PREVIEW" | "APPL
     const page = pageFromPrepared(runId, prepared, input, hasNext, apiCalls);
     await db.update(naverLocalCategoryRuns).set({
       status: "COMPLETED", scannedCount: page.scanned, verifiedCount: page.verified, changeCount: page.changed,
-      conflictCount: page.conflicts, failedCount: page.failed, apiCallCount: page.apiCalls, finishedAt: input.now,
+      conflictCount: page.conflicts, failedCount: page.failed, apiCallCount: page.apiCalls, regionCode, finishedAt: input.now,
     }).where(eq(naverLocalCategoryRuns.id, runId));
     return page;
   } catch (error) {
