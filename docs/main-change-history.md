@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-18 NAVER 일일 예산을 지역 팩 필드로 나누고 카운터를 지역으로 분리한다. env 한도 상향·원격 migration·배포·실호출 없음. | [Issue #201](https://github.com/taejunyun1/Tasted_it/issues/201) · 이 PR |
+| Proposed | 2026-08-18 NAVER 일일 예산을 지역 팩 필드로 나누고 카운터를 지역으로 분리한다. env 한도 상향·원격 migration·배포·실호출 없음. | [Issue #201](https://github.com/taejunyun1/Tasted_it/issues/201) · [PR #202](https://github.com/taejunyun1/Tasted_it/pull/202) |
 | Merged | 2026-08-18 소유자 Private 전환 실측을 판정문서에 기록. `private: true`, Jay write 접속, rulesets 403, `has_wiki: false`. 가시성 되돌리기·유료 제품·배포 없음. | [Issue #182](https://github.com/taejunyun1/Tasted_it/issues/182) · [Issue #199](https://github.com/taejunyun1/Tasted_it/issues/199) · [PR #200](https://github.com/taejunyun1/Tasted_it/pull/200) · [`f79d57b`](https://github.com/taejunyun1/Tasted_it/commit/f79d57b) |
 | Proposed | 2026-08-18 재오딧. `81a73e8` 대비 `dcafa14` 코드 P0 6건 해제, 라이브는 `#186` 유지. 배포·일괄 공개 없음. | [Issue #197](https://github.com/taejunyun1/Tasted_it/issues/197) · [PR #198](https://github.com/taejunyun1/Tasted_it/pull/198) |
 | Merged | 2026-08-18 검수 처리량. 운영 현황에 7일 공개/일과 ACTIVE 큐를 고정하고 2주 표본을 PR에 남긴다. 배포·일괄 공개·원격 D1 쓰기 없음. | [Issue #195](https://github.com/taejunyun1/Tasted_it/issues/195) · [PR #196](https://github.com/taejunyun1/Tasted_it/pull/196) · [`dcafa14`](https://github.com/taejunyun1/Tasted_it/commit/dcafa14) |
