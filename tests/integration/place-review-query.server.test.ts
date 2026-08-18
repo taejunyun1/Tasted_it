@@ -124,4 +124,49 @@ describe("place review work item query", () => {
       rows: [expect.objectContaining({ workItemId, naverMappedCategoryId: category!.id, naverMappedCategoryName: category!.name })],
     });
   });
+
+  it("lists coordinate-ready items first and can filter to only those", async () => {
+    const db = createDb(env.DB);
+    const token = `readyq${crypto.randomUUID().replaceAll("-", "")}`;
+    const rows = [
+      { suffix: "blockeda", latitude: null as number | null, longitude: null as number | null, updatedAt: "2026-08-15T11:00:00.000Z" },
+      { suffix: "blockedb", latitude: null, longitude: null, updatedAt: "2026-08-15T11:01:00.000Z" },
+      { suffix: "ready", latitude: 35.16, longitude: 126.91, updatedAt: "2026-08-15T12:00:00.000Z" },
+    ];
+    for (const row of rows) {
+      await db.insert(businessLicenses).values({
+        id: `${token}-${row.suffix}`, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: `${token}-${row.suffix}`,
+        businessName: `${token} ${row.suffix}`, businessSubtype: "한식",
+        salesStatusCode: "01", salesStatusName: "영업/정상", detailStatusCode: "01", detailStatusName: "영업", normalizedStatus: "OPEN",
+        lotAddress: null, roadAddress: "광주광역시 북구 검수로 1", phone: null, sourceX: null, sourceY: null,
+        latitude: row.latitude, longitude: row.longitude, regionCode: "GWANGJU", sourceUpdatedAt: now, rawPayload: "{}",
+        reviewStatus: "PENDING", reviewReason: null, reviewedBy: null, reviewedAt: null,
+        firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: row.updatedAt,
+      });
+      await db.insert(placeReviewWorkItems).values({
+        id: `${token}-work-${row.suffix}`, businessLicenseId: `${token}-${row.suffix}`, placeId: null, sourceKind: "PUBLIC_DATA",
+        stage: "SOURCE_REVIEW", status: "ACTIVE", selectedCategoryId: null, categoryOverrideReason: null, manualEvidenceReason: null,
+        stageVersion: 0, claimToken: null, claimedBy: null, claimedAt: null, lastTransitionBy: null, lastTransitionAt: null,
+        holdCode: null, holdNote: null, completedAt: null, createdAt: now, updatedAt: row.updatedAt,
+      });
+    }
+
+    const pending = await listPlaceReviewWorkItems(db, {
+      step: 1, page: 1, pageSize: 25, status: "pending", region: null, query: token,
+    });
+    expect(pending.rows.map((row) => row.workItemId)).toEqual([
+      `${token}-work-ready`,
+      `${token}-work-blockeda`,
+      `${token}-work-blockedb`,
+    ]);
+    expect(pending.rows[0]?.blockCodes).toEqual([]);
+    expect(pending.rows[1]?.blockCodes).toContain("SOURCE_NOT_READY");
+
+    await expect(listPlaceReviewWorkItems(db, {
+      step: 1, page: 1, pageSize: 25, status: "ready", region: null, query: token,
+    })).resolves.toMatchObject({
+      rows: [expect.objectContaining({ workItemId: `${token}-work-ready`, blockCodes: [] })],
+      pagination: { total: 1, totalPages: 1 },
+    });
+  });
 });

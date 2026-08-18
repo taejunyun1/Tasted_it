@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, like, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, like, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 
 import type { AppDb } from "../../db/client.server";
@@ -53,9 +53,15 @@ function reviewStageForStep(step: ReviewStepNumber) {
 
 function reviewConditions(query: PlaceReviewQuery): SQL[] {
   const conditions: SQL[] = [eq(placeReviewWorkItems.stage, reviewStageForStep(query.step))];
-  if (query.status === "pending") conditions.push(eq(placeReviewWorkItems.status, "ACTIVE"));
+  if (query.status === "pending" || query.status === "ready") conditions.push(eq(placeReviewWorkItems.status, "ACTIVE"));
   if (query.status === "hold") conditions.push(eq(placeReviewWorkItems.status, "ON_HOLD"));
   if (query.status === "attention") conditions.push(and(eq(placeReviewWorkItems.status, "ACTIVE"), sql`${placeReviewWorkItems.holdCode} is not null`)!);
+  if (query.status === "ready") {
+    conditions.push(or(
+      and(isNotNull(businessLicenses.latitude), isNotNull(businessLicenses.longitude)),
+      and(isNotNull(places.latitude), isNotNull(places.longitude)),
+    )!);
+  }
 
   if (query.region) {
     conditions.push(or(
@@ -93,7 +99,11 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId))
     .leftJoin(places, eq(places.id, placeReviewWorkItems.placeId))
     .where(and(...conditions))
-    .orderBy(asc(placeReviewWorkItems.updatedAt), asc(placeReviewWorkItems.id))
+    .orderBy(
+      sql`case when (${businessLicenses.latitude} is not null and ${businessLicenses.longitude} is not null) or (${places.latitude} is not null and ${places.longitude} is not null) then 0 else 1 end`,
+      asc(placeReviewWorkItems.updatedAt),
+      asc(placeReviewWorkItems.id),
+    )
     .limit(query.pageSize)
     .offset((page - 1) * query.pageSize);
 

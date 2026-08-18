@@ -6,7 +6,7 @@ export type PlaceReviewQuery = {
   step: ReviewStepNumber;
   page: number;
   pageSize: 25 | 50 | 100;
-  status: "pending" | "attention" | "hold" | null;
+  status: "pending" | "ready" | "attention" | "hold" | null;
   region: RegionCode | null;
   query: string;
 };
@@ -26,7 +26,7 @@ export function parsePlaceReviewQuery(url: URL): PlaceReviewQuery {
     pageSize: pageSizes.has(requestedSize as PlaceReviewQuery["pageSize"])
       ? requestedSize as PlaceReviewQuery["pageSize"]
       : 25,
-    status: rawStatus === "attention" || rawStatus === "hold" ? rawStatus : "pending",
+    status: rawStatus === "attention" || rawStatus === "hold" || rawStatus === "ready" ? rawStatus : "pending",
     region: isRegionCode(rawRegion) ? rawRegion : null,
     query: (url.searchParams.get("q") ?? "").trim().slice(0, 80),
   };
