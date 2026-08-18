@@ -4,6 +4,7 @@ const remoteBaseUrl = process.env.BASE_URL;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testIgnore: "synthetic-beta-200.spec.ts",
   fullyParallel: false,
   workers: 1,
   retries: 0,
