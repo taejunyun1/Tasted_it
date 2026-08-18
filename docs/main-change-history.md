@@ -15,7 +15,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-18 검수 처리량. 운영 현황에 7일 공개/일과 ACTIVE 큐를 고정하고 2주 표본을 PR에 남긴다. 배포·일괄 공개·원격 D1 쓰기 없음. | [Issue #195](https://github.com/taejunyun1/Tasted_it/issues/195) · [PR #196](https://github.com/taejunyun1/Tasted_it/pull/196) |
+| Proposed | 2026-08-18 재오딧. `81a73e8` 대비 `dcafa14` 코드 P0 6건 해제, 라이브는 `#186` 유지. 배포·일괄 공개 없음. | [Issue #197](https://github.com/taejunyun1/Tasted_it/issues/197) · [PR #198](https://github.com/taejunyun1/Tasted_it/pull/198) |
+| Merged | 2026-08-18 검수 처리량. 운영 현황에 7일 공개/일과 ACTIVE 큐를 고정하고 2주 표본을 PR에 남긴다. 배포·일괄 공개·원격 D1 쓰기 없음. | [Issue #195](https://github.com/taejunyun1/Tasted_it/issues/195) · [PR #196](https://github.com/taejunyun1/Tasted_it/pull/196) · [`dcafa14`](https://github.com/taejunyun1/Tasted_it/commit/dcafa14) |
 | Merged | 2026-08-18 오딧 블락커 해제. `/places` 온보딩 강제 제거, 14세 가입 확인, 300곳 게이트를 카탈로그 운영으로 분리. 배포·일괄 공개 없음. | [Issue #193](https://github.com/taejunyun1/Tasted_it/issues/193) · [PR #194](https://github.com/taejunyun1/Tasted_it/pull/194) · [`0cab447`](https://github.com/taejunyun1/Tasted_it/commit/0cab447) |
 | Merged | 2026-08-18 오딧 2차. `/me` 탈퇴 익명화와 CI integration 잡. 배포·원격 D1·Playwright CI·ADMIN 탈퇴 없음. | [Issue #191](https://github.com/taejunyun1/Tasted_it/issues/191) · [PR #192](https://github.com/taejunyun1/Tasted_it/pull/192) · [`d40dd61`](https://github.com/taejunyun1/Tasted_it/commit/d40dd61) |
 | Merged | 2026-08-18 오딧 1차 하드닝. 로그인 한도, E2E D1 id 분리, 토큰 해시 링크, 방침 정합, 보안 헤더. 배포·원격 D1·장소 일괄 공개 없음. | [Issue #189](https://github.com/taejunyun1/Tasted_it/issues/189) · [PR #190](https://github.com/taejunyun1/Tasted_it/pull/190) · [`6fa3eff`](https://github.com/taejunyun1/Tasted_it/commit/6fa3eff) |
