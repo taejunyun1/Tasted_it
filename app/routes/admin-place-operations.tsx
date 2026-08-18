@@ -39,7 +39,7 @@ import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlac
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
-import { getNaverLocalSearchApiCallsToday } from "../features/places/naver-place-liveness.server";
+import { listNaverRegionDailyUsage } from "../features/places/naver-region-quota.server";
 
 function reviewActionError(code: string, extra?: { batchId?: string }) {
   const mapped = reviewErrorMessage(code);
@@ -89,10 +89,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const query = parsePlaceReviewQuery(url);
   const now = new Date().toISOString();
   const placeGeocodingEnabled = env.NAVER_PLACE_GEOCODING_ENABLED === "true";
-  const [page, counts, naverDailyUsage, categoryRows, suggestions] = await Promise.all([
+  const [page, counts, naverRegionUsage, categoryRows, suggestions] = await Promise.all([
     listPlaceReviewWorkItems(db, query),
     getPlaceReviewStageCounts(db),
-    getNaverLocalSearchApiCallsToday(db, now),
+    listNaverRegionDailyUsage(db, now),
     db.select({ id: categories.id, name: categories.name, parentId: categories.parentId }).from(categories).where(eq(categories.isActive, true)),
     listReviewablePlaceSuggestions(db),
   ]);
@@ -104,7 +104,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     tab,
     query, page, counts, categories: categoryRows.filter((category) => terminalCategoryIds.has(category.id)), duplicateCandidates,
     suggestions,
-    naverDailyUsage, naverDailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000),
+    naverRegionUsage,
     naverMapsClientId: placeGeocodingEnabled ? env.NAVER_MAPS_CLIENT_ID ?? "" : "",
     placeGeocodingEnabled,
   };
@@ -262,7 +262,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "verify-review-items-with-naver") {
     try {
       assertNaverLocalSearchEnabled(env);
-      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env) });
+      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env) });
       const deferred = result.deferred ? ` · 다음 실행 ${result.deferred}곳` : "";
       return { ok: true, message: `선택 ${workItemIds.length}곳 중 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}${deferred}`, skipped: result.skipped, processedWorkItemIds: result.processedWorkItemIds, nextStep: 3 as const };
     } catch (error) {
@@ -280,8 +280,7 @@ export async function action({ request }: Route.ActionArgs) {
       }
       assertNaverLocalSearchEnabled(env);
       const result = await verifyReviewItemsWithNaver(db, {
-        workItemIds: [workItemId], actorUserId: admin.id, now,
-        dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 20_000), adapter: createNaverLocalSearchAdapter(env),
+        workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env),
       });
       return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
     } catch (error) {
@@ -371,7 +370,7 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
           ))}
           {!loaderData.suggestions.length && <p>검토할 제안이 없습니다.</p>}
         </section>}
-        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverDailyUsage={loaderData.naverDailyUsage} naverDailyLimit={loaderData.naverDailyLimit} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} />
+        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverRegionUsage={loaderData.naverRegionUsage} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} />
       </>}
       {loaderData.tab === "liveness" && <PlaceLivenessPanel livenessFilter={loaderData.livenessFilter} livenessRows={loaderData.livenessRows} />}
       {loaderData.tab === "corrections" && <PlaceCorrectionPanel corrections={loaderData.corrections} />}

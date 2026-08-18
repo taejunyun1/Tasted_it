@@ -31,7 +31,6 @@ export async function runScheduledCandidateSync(env: Env & { DATA_GO_KR_SERVICE_
       limit: 25,
       now: new Date().toISOString(),
       adapter: createNaverLocalSearchAdapter(naverEnv),
-      dailyLimit: Number(env.NAVER_LOCAL_SEARCH_DAILY_LIMIT ?? 200),
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : "NAVER_LOCAL_SEARCH_UNAVAILABLE";

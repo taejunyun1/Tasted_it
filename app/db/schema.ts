@@ -400,12 +400,16 @@ export const naverLocalCategoryRuns = sqliteTable(
     conflictCount: integer("conflict_count").notNull().default(0),
     failedCount: integer("failed_count").notNull().default(0),
     apiCallCount: integer("api_call_count").notNull().default(0),
+    regionCode: text("region_code", { enum: ["GWANGJU", "JEONNAM"] }),
     startedAt: text("started_at").notNull(),
     finishedAt: text("finished_at"),
     errorCode: text("error_code"),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   },
-  (table) => [index("naver_local_category_runs_status_started_idx").on(table.status, table.startedAt)],
+  (table) => [
+    index("naver_local_category_runs_status_started_idx").on(table.status, table.startedAt),
+    index("naver_local_category_runs_region_started_idx").on(table.regionCode, table.startedAt),
+  ],
 );
 
 /**

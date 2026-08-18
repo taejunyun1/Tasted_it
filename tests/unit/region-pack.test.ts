@@ -5,6 +5,7 @@ import {
   ACTIVE_REGION_CODES,
   LAUNCH_DEFAULT_BBOX,
   LAUNCH_DEFAULT_CENTER,
+  LAUNCH_NAVER_DAILY_BUDGET_TOTAL,
   LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX,
   REGION_PACKS,
   activeMarketBbox,
@@ -79,6 +80,13 @@ describe("region pack", () => {
     expect(isCoordinateInActiveMarket(34.7604, 127.6622)).toBe(true);
     expect(isCoordinateInActiveMarket(35.8242, 127.148)).toBe(false);
     expect(isCoordinateInActiveMarket(33.4996, 126.5312)).toBe(false);
+  });
+
+  it("splits the NAVER daily budget per pack so one region cannot starve the other", () => {
+    expect(REGION_PACKS.GWANGJU.naverDailyBudget + REGION_PACKS.JEONNAM.naverDailyBudget).toBe(LAUNCH_NAVER_DAILY_BUDGET_TOTAL);
+    expect(REGION_PACKS.GWANGJU.naverDailyBudget).toBe(REGION_PACKS.JEONNAM.naverDailyBudget);
+    expect(REGION_PACKS.GWANGJU.naverSearchEnabled).toBe(true);
+    expect(REGION_PACKS.JEONNAM.naverSearchEnabled).toBe(true);
   });
 
   it("applies slugPrefix only when a pack supplies one", () => {

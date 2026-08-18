@@ -43,11 +43,15 @@ export type RegionPack = {
   publicDataAddressPrefix: string;
   slugPrefix: string;
   evZcode: "29" | "46";
+  naverDailyBudget: number;
+  naverSearchEnabled: boolean;
 };
 
 export const LAUNCH_DEFAULT_BBOX = [126.72, 35.03, 127.02, 35.25] as const satisfies Bbox;
 export const LAUNCH_DEFAULT_CENTER = { latitude: 35.1595, longitude: 126.8526 } as const satisfies GeoCenter;
 export const LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX = "전남광주통합특별시";
+export const LAUNCH_NAVER_DAILY_BUDGET_TOTAL = 20_000;
+const LAUNCH_NAVER_DAILY_BUDGET_PER_PACK = 10_000;
 
 const GWANGJU_DISTRICT_NAMES = ["동구", "서구", "남구", "북구", "광산구"] as const;
 const JEONNAM_DISTRICT_NAMES = [
@@ -73,6 +77,8 @@ const GWANGJU_PACK = {
   publicDataAddressPrefix: LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX,
   slugPrefix: "",
   evZcode: "29",
+  naverDailyBudget: LAUNCH_NAVER_DAILY_BUDGET_PER_PACK,
+  naverSearchEnabled: true,
 } as const satisfies RegionPack;
 
 const JEONNAM_PACK = {
@@ -85,6 +91,8 @@ const JEONNAM_PACK = {
   publicDataAddressPrefix: LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX,
   slugPrefix: "",
   evZcode: "46",
+  naverDailyBudget: LAUNCH_NAVER_DAILY_BUDGET_PER_PACK,
+  naverSearchEnabled: true,
 } as const satisfies RegionPack;
 
 export const REGION_PACKS: Record<RegionCode, RegionPack> = {

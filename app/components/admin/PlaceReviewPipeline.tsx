@@ -5,6 +5,7 @@ import type { ReviewStage } from "../../features/places/place-review-pipeline";
 import { buildPlaceReviewNextStepHref, type PlaceReviewQuery } from "../../features/places/place-review-pagination";
 import type { PlaceReviewPage, PlaceReviewStageCounts } from "../../features/places/place-review-query.server";
 import type { ReviewDuplicateCandidate } from "../../features/places/place-review-duplicates.server";
+import type { RegionCode } from "../../features/regions/region-pack";
 import { AdminBlockingOverlay } from "./AdminBlockingOverlay";
 import { PlaceReviewCard } from "./PlaceReviewCard";
 import { PlaceReviewStepNav } from "./PlaceReviewStepNav";
@@ -37,14 +38,13 @@ type NaverBatch = {
 
 type NaverBatchActionData = { ok?: boolean; batchId?: string; error?: string };
 
-export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverDailyUsage, naverDailyLimit, message, error, nextStep, processedWorkItemIds }: {
+export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverRegionUsage, message, error, nextStep, processedWorkItemIds }: {
   query: PlaceReviewQuery;
   page: PlaceReviewPage;
   counts: PlaceReviewStageCounts;
   categories: Array<{ id: string; name: string; parentId: string | null }>;
   duplicateCandidates: ReviewDuplicateCandidate[];
-  naverDailyUsage: number;
-  naverDailyLimit: number;
+  naverRegionUsage: Array<{ regionCode: RegionCode; displayName: string; used: number; budget: number; enabled: boolean }>;
   message?: string;
   error?: string;
   nextStep?: 3;
@@ -124,7 +124,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     {naverBatchMessage && <p className="admin-notice" role="status">{naverBatchMessage}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
-    <div className="place-review-quota"><span>오늘 NAVER 요청</span><strong>{naverDailyUsage.toLocaleString()} / {naverDailyLimit.toLocaleString()}회</strong><p>25곳까지 선택할 수 있습니다. NAVER 검증은 최대 10곳을 한 곳씩 순차 처리합니다.</p></div>
+    <div className="place-review-quota"><span>오늘 NAVER 요청</span>{naverRegionUsage.map((row) => <strong key={row.regionCode}>{row.displayName} {row.enabled ? "켜짐" : "꺼짐"} {row.used.toLocaleString()} / {row.budget.toLocaleString()}회</strong>)}<p>지역 예산은 팩 필드입니다. 한 지역이 소진돼도 다른 지역은 계속됩니다. 25곳까지 선택할 수 있습니다. NAVER 검증은 최대 10곳을 한 곳씩 순차 처리합니다.</p></div>
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />

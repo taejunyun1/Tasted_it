@@ -1,7 +1,9 @@
-import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { businessLicenses, categories, naverLocalCategoryRuns, naverLocalCategoryVerifications } from "../../db/schema";
+import { assertNaverRegionQuota, getNaverLocalSearchApiCallsToday, isNaverRegionSearchEnabled, uniqueRunRegion } from "../places/naver-region-quota.server";
+import { ACTIVE_REGION_CODES, type RegionCode } from "../regions/region-pack";
 import { getTerminalCategoryIds } from "./category-selection";
 import { classifyCandidate, getAuthoritativeSubtypeCategorySlug, getStrongestNameFoodCategorySlug } from "./category-suggestion";
 import { decideCategoryAuthority, matchNaverLocalCategory, NAVER_CATEGORY_RULE_VERSION, type NaverLocalCategoryMatch } from "./naver-local-category";
@@ -26,7 +28,7 @@ export type NaverPendingCandidateVerificationInput = {
   limit?: number;
   now: string;
   adapter: NaverLocalSearchAdapter;
-  dailyLimit: number;
+  dailyLimit?: number;
   actorUserId?: string;
 };
 
@@ -45,11 +47,6 @@ function validLimit(limit: number) {
   return limit;
 }
 
-function utcDayStart(value: string) {
-  const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())).toISOString();
-}
-
 function nextCacheExpiry(now: string) {
   return new Date(Date.parse(now) + CACHE_DAYS * 24 * 60 * 60 * 1_000).toISOString();
 }
@@ -63,13 +60,6 @@ async function fingerprint(row: PendingWorkRow) {
   ].join("|");
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function todayApiCalls(db: AppDb, now: string) {
-  const [result] = await db.select({ total: sql<number>`coalesce(sum(${naverLocalCategoryRuns.apiCallCount}), 0)` })
-    .from(naverLocalCategoryRuns)
-    .where(and(gte(naverLocalCategoryRuns.startedAt, utcDayStart(now)), lt(naverLocalCategoryRuns.startedAt, now)));
-  return Number(result?.total ?? 0);
 }
 
 async function listPendingWork(db: AppDb, input: { candidateIds?: string[]; limit: number }) {
@@ -142,6 +132,7 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
   const candidateIds = [...new Set(input.candidateIds?.filter(Boolean) ?? [])];
   const limit = validLimit(Math.min(input.limit ?? MAX_BATCH_SIZE, MAX_BATCH_SIZE));
   if (candidateIds.length > MAX_BATCH_SIZE) throw new Error("NAVER_PENDING_VERIFICATION_LIMIT_INVALID");
+  const { rows, categoryRows } = await listPendingWork(db, { candidateIds, limit });
   const runId = crypto.randomUUID();
   await db.insert(naverLocalCategoryRuns).values({
     id: runId,
@@ -149,6 +140,7 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
     scope: "PENDING",
     status: "RUNNING",
     requestedLimit: limit,
+    regionCode: uniqueRunRegion(rows.map((row) => row.regionCode)),
     startedAt: input.now,
     createdBy: input.actorUserId ?? null,
   });
@@ -159,12 +151,13 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
   let automatic = 0;
   let manual = 0;
   let failed = 0;
+  const extraCalls: Record<RegionCode, number> = { GWANGJU: 0, JEONNAM: 0 };
   try {
-    const { rows, categoryRows } = await listPendingWork(db, { candidateIds, limit });
     const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
     const terminalSlugs = new Set(categoryRows.filter((category) => terminalCategoryIds.has(category.id)).map((category) => category.slug));
     const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
-    const used = await todayApiCalls(db, input.now);
+    const usedByRegion = Object.fromEntries(await Promise.all(ACTIVE_REGION_CODES.map(async (code) =>
+      [code, await getNaverLocalSearchApiCallsToday(db, input.now, code)] as const))) as Record<RegionCode, number>;
 
     for (const row of rows) {
       scanned += 1;
@@ -182,15 +175,24 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
           confidenceScore: cached.confidenceScore,
           evidenceCodes: JSON.parse(cached.evidenceCodesJson) as NaverLocalCategoryMatch["evidenceCodes"],
         };
-      } else if (used + apiCalls >= input.dailyLimit) {
-        throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_QUOTA");
+      } else if (!isNaverRegionSearchEnabled(row.regionCode)) {
+        match = { status: "SKIPPED", mappedCategorySlug: null, matchScore: 0, specificityScore: 0, confidenceScore: 0, evidenceCodes: [] };
+        failureCode = "NAVER_LOCAL_SEARCH_DISABLED";
       } else {
+        assertNaverRegionQuota({
+          regionCode: row.regionCode,
+          used: usedByRegion[row.regionCode],
+          extraCalls: extraCalls[row.regionCode],
+          dailyLimit: input.dailyLimit,
+        });
         try {
           const results = await input.adapter.search({ businessName: row.businessName, address: row.address, regionCode: row.regionCode });
           apiCalls += 1;
+          extraCalls[row.regionCode] += 1;
           match = matchNaverLocalCategory({ ...row, results, terminalSlugs });
         } catch (error) {
           apiCalls += 1;
+          extraCalls[row.regionCode] += 1;
           if (immediatelyStop(error)) throw error;
           failureCode = safeFailureCode(error);
           match = { status: "FAILED", mappedCategorySlug: null, matchScore: 0, specificityScore: 0, confidenceScore: 0, evidenceCodes: [] };
