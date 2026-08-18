@@ -1,8 +1,8 @@
 # 2026-08-17 고도화 실행 방법과 저장소 Private 전환 판단
 
-> **상태:** 고도화 **방법**은 `GO`. 저장소 Private 전환은 **`요청하라 — 단, Private만으로는 부족하다`**.
+> **상태:** 고도화 **방법**은 `GO`. 저장소 Private 전환은 **2026-08-18 실행됨** (`#182` closed). **Private만으로는 여전히 부족하다.** 후속 기록 `#199`.
 >
-> 이 문서는 방법과 판단만 기록한다. 이 PR에서 저장소 공개 범위를 바꾸지 않았고, 배포하지 않았고, 제품 코드를 바꾸지 않았다.
+> 이 문서는 방법과 판단·전환 실측만 기록한다. 제품 코드·배포·가시성 되돌리기는 없다.
 
 **Goal:** 광주전남 게이트가 남아 있는 상태에서 "다음에 무엇을 어떤 순서로 구현하는가"를 고정하고, 공개 저장소가 실제로 무엇을 노출하는지 증거로 확인해 Private 전환 요청 여부를 결정한다.
 
@@ -10,7 +10,7 @@
 
 **담당:** Jay · **결정 필요:** TJ(저장소 소유자, `taejunyun1`)
 
-**추적:** [#182](https://github.com/taejunyun1/Tasted_it/issues/182) 저장소 Private 전환 요청(소유자 결정 필요)
+**추적:** [#182](https://github.com/taejunyun1/Tasted_it/issues/182) Private 전환(소유자 실행, closed) · [#199](https://github.com/taejunyun1/Tasted_it/issues/199) 전환 후 실측 기록
 
 **거버넌스:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) — 상태 `PROPOSED`. 이 문서는 스택 예외를 열지 않는다.
 
@@ -24,8 +24,8 @@
 |---|---|
 | 고도화를 어떻게 진행하는가 | 기능을 늘리지 않는다. **광주전남 완료 게이트를 닫는 순서**로 진행한다. 아래 5개 슬라이스. |
 | 지금 무엇부터 하는가 | E2E 설정이 운영 D1 `database_id`를 들고 있는 것을 먼저 없앤다. 새 binding 없이 가능하다. |
-| Private 전환을 요청해야 하는가 | **요청한다.** 다만 이유는 "비밀값 유출"이 아니라 **사업 문서와 취약점 지도의 노출**이다. |
-| Private이면 끝나는가 | 아니다. Private은 무료 secret scanning과 (Free 요금제에서) branch protection을 **잃는다**. 보완 3건을 같이 해야 한다. |
+| Private 전환을 요청해야 하는가 | **요청했고, 2026-08-18 소유자가 실행했다.** 이유는 "비밀값 유출"이 아니라 **사업 문서와 취약점 지도의 노출**이다. |
+| Private이면 끝나는가 | 아니다. Private은 무료 secret scanning과 (Free 요금제에서) branch protection을 **잃는다**. 보완 3건 중 슬라이스 1은 `#190`에서 끝. `main` 보호와 위키 Features는 소유자 잔여. |
 
 ---
 
@@ -267,11 +267,34 @@ Private 전환의 진짜 근거는 비밀값이 아니라 **사업 정보와 취
 2. **무료 secret scanning의 공백을 메운다.** 전환하면 GitHub가 더 이상 무료로 잡아 주지 않는다. `.gitignore`는 이미 맞게 되어 있으므로, 커밋 전 로컬 검사 한 겹을 추가하는 정도로 충분하다.
 3. **`main` 보호를 지금 결정한다.** 공개인 동안에는 Free에서도 보호 브랜치를 켤 수 있다. 비공개 + Free가 되면 못 켠다. 셋 중 하나를 고른다 — (a) 전환 **전에** 보호를 켜 본다, (b) 신뢰 기반을 유지한다(현 상태), (c) Team 요금제를 쓴다. **권고: 지금 `AGENTS.md` 1번 규칙이 기술적으로 강제되지 않는다는 사실만이라도 TJ가 알고 결정해야 한다.**
 
-**되돌리기:** 언제든 다시 Public으로 바꿀 수 있다. 별과 워치 수는 복구되지 않는다.
+**되돌리기:** 언제든 다시 Public으로 바꿀 수 있다. 별과 워치 수는 복구되지 않는다. 이 후속은 되돌리지 않는다.
+
+### B-10. 전환 후 실측 (2026-08-18 14:29 KST)
+
+원문: [#182 댓글](https://github.com/taejunyun1/Tasted_it/issues/182#issuecomment-5324032664) · 추적 [#199](https://github.com/taejunyun1/Tasted_it/issues/199)
+
+| 확인 | 결과 |
+|---|---|
+| 가시성 | `private: true`. 비로그인 웹/API 404 |
+| 협업자 | `taejunyun1` admin, `deximple` write. Jay 접속 가능 |
+| `main` protection | 404 (없음) |
+| rulesets | 403. Free + Private에서는 Pro/Team 또는 다시 Public |
+| 위키 Features | API `has_wiki: false`. wiki.git clone은 인증으로 됨. Settings 변경은 Jay write로 404 |
+| CI | 전환 이후 새 실행 없음. 직전 `#198` main은 success |
+| 슬라이스 1 (E2E D1 id) | `#190`에서 끝. 두 번째 D1 없음 |
+| secret scanning | Private에서 무료 항목 없음 |
+
+B-7의 보완 3건:
+
+1. 슬라이스 1 — 끝 (`#190`)
+2. 무료 secret scanning 공백 — `.gitignore` 유지. 유료 Secret Protection은 거버넌스 예외 없이 사지 않음
+3. `main` 보호 — (a) 전환 전 켜기는 **창이 닫힘**. 남은 선택: (b) 신뢰 유지 또는 (c) Team/Pro. **아직 소유자 결정이 없다.**
+
+이미 공개였던 기간의 clone은 회수되지 않는다. 운영 Worker URL은 Private과 무관하다.
 
 ### B-8. 이 문서 자체에 대한 주의
 
-이 문서는 공개 저장소에 병합된다. 그래서 새로운 공격 정보를 더하지 않도록 썼다 — 비밀값, 값이 든 식별자, 미인증 경로의 악용 방법은 적지 않았다. 여기 적힌 약점은 이미 [`docs/audits/`](../../audits/)와 [지역 팩 플랜](./2026-08-17-region-pack-expansion.md)에 공개되어 있는 항목의 재확인이다.
+이 문서는 원래 공개 저장소에 병합됐다. 2026-08-18 이후 저장소는 Private이다. 그래도 새로운 공격 정보를 더하지 않는다 — 비밀값, 값이 든 식별자, 미인증 경로의 악용 방법은 적지 않는다. 여기 적힌 약점은 [`docs/audits/`](../../audits/)와 [지역 팩 플랜](./2026-08-17-region-pack-expansion.md)에 이미 있던 항목의 재확인이다. 공개 기간의 clone은 회수되지 않는다.
 
 ### B-9. TJ에게 보낼 요청문 (초안)
 
@@ -316,7 +339,7 @@ docs/audits/의 수익 준비도 오딧이 지금 공개 상태로 올라가 있
 |---|---|---|
 | 고도화 슬라이스 순서 채택 | 예. 상태 `GO`(방법) | 이 PR |
 | 슬라이스 1~6 구현 | 아니오 | 각 이슈의 전용 PR |
-| Private 전환 | 아니오 | TJ의 저장소 설정 변경 |
+| Private 전환 | 아니오 | TJ의 저장소 설정 변경. **2026-08-18 실행됨** (`#182`) |
 | geo 인덱스 추가 | 아니오. 측정이 먼저 | 측정 결과를 포함한 전용 PR |
 | 지역별 NAVER 예산 컬럼 | 아니오 | 순번 migration을 포함한 전용 PR |
 
@@ -326,9 +349,9 @@ Rollback: 이 PR은 문서만 되돌리면 된다.
 
 # 2026-08-17 Advancement Method and Private-Repo Decision
 
-> **Status:** The advancement **method** is `GO`. Repository visibility: **`request it — but private alone is not enough`**.
+> **Status:** The advancement **method** is `GO`. Repository visibility: **private as of 2026-08-18** (`#182` closed). **Private alone is still not enough.** Follow-up `#199`.
 >
-> This PR changed no product code, ran no deploy, and did not change repository visibility.
+> This follow-up records the post-flip measurement only. No product code, no deploy, no visibility revert.
 
 **Baseline:** `origin/main` `9e47190` · **Owner:** Jay · **Decision needed from:** TJ (`taejunyun1`)
 
@@ -366,4 +389,6 @@ Slice 6 (independent, cheap): prove `slugPrefix` works. Both packs currently set
 
 **Who clicks:** only TJ (`taejunyun1`). `Settings` → `Danger Zone` → `Change repository visibility` → `Make private`. Post-flip checks are mostly no-ops given the measured state: no deploy keys, no Actions secrets, no forks, deploys run locally rather than through a GitHub integration.
 
-**Note on this document:** it merges into a public repository, so it adds no new attack information. Every weakness named here is already public in `docs/audits/` and the region-pack plan.
+**Post-flip measurement (2026-08-18 14:29 KST):** private; anonymous 404; Jay write works; `main` protection 404; rulesets 403 on Free+Private; `has_wiki: false` (wiki.git clone still works; Jay cannot PATCH Features); slice 1 already done in `#190`; free secret scanning gone. Remaining owner choices: re-enable Wikis, and (b) stay honor-system or (c) Team/Pro for `main` protection. Option (a) is closed. Public-era clones cannot be recalled.
+
+**Note on this document:** it originally merged into a public repository. The repo is private after 2026-08-18, but this text still adds no new attack information.
