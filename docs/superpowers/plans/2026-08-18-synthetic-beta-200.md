@@ -6,6 +6,8 @@
 
 **추적:** [#206](https://github.com/taejunyun1/Tasted_it/issues/206)
 
+**후속 시나리오:** [#208](https://github.com/taejunyun1/Tasted_it/issues/208) · [`2026-08-18-synthetic-beta-300-scenarios.md`](./2026-08-18-synthetic-beta-300-scenarios.md) — 같은 300명의 풀 여정 카탈로그. 이 문서의 슬라이스 하네스를 대체하지 않는다.
+
 **거버넌스:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) — 상태 `PROPOSED`. 이 문서는 스택 예외가 아니다. 새 테스트 프레임워크(`k6`)와 새 Cloudflare binding은 넣지 않는다.
 
 **코드 기준선:** `origin/main` `32c52cf`
@@ -136,6 +138,8 @@ rm -rf .wrangler/synthetic-beta-state
 **Goal:** Copy live-like limits and two published places onto an isolated D1, then hard-test with 200 beta testers (writes) and 100 viewers (GET/observe only). There is no member-to-member chat. Only indirect communication is in scope: votes and reviewer ratings that surface as public scores, Flavor Print, and recommendations.
 
 **Tracking:** [#206](https://github.com/taejunyun1/Tasted_it/issues/206)
+
+**Follow-on scenarios:** [#208](https://github.com/taejunyun1/Tasted_it/issues/208) · [`2026-08-18-synthetic-beta-300-scenarios.md`](./2026-08-18-synthetic-beta-300-scenarios.md) — full-journey catalog for the same 300 people. Does not replace this slice harness.
 
 **Governance:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) remains `PROPOSED`. This document is not a stack exception. No new test framework (`k6`) and no new Cloudflare binding.
 
