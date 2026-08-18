@@ -1,5 +1,6 @@
 import { createRequestHandler } from "react-router";
 import { runScheduledCandidateSync } from "../app/features/candidates/scheduled-sync.server";
+import { withSecurityHeaders } from "../app/features/http/security-headers";
 import { runScheduledRatingMaintenance } from "../app/features/ratings/scheduled-rating.server";
 import { runScheduledPlaceMaintenance } from "../app/features/places/scheduled-place.server";
 import { runScheduledParkingSync } from "../app/features/parking/scheduled-parking.server";
@@ -12,7 +13,7 @@ const requestHandler = createRequestHandler(
 
 export default {
   async fetch(request) {
-    return requestHandler(request);
+    return withSecurityHeaders(await requestHandler(request));
   },
   async scheduled(_controller, env, ctx) {
     ctx.waitUntil(Promise.all([

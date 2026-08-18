@@ -8,6 +8,7 @@ import { goldenPickEvents, integrityCases, places, ratingRecomputeJobs, ratingSn
 import { requireAdmin } from "../features/auth/session.server";
 import { getActiveRatingConfig } from "../features/ratings/rating-config.server";
 import { invalidateVoteEvent, transitionIntegrityCase } from "../features/ratings/integrity.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { enqueueRatingRecompute, processRatingJobs } from "../features/ratings/recompute.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -38,6 +39,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const admin = await requireAdmin(request); const form = await request.formData(); const intent = String(form.get("intent") ?? "");
   const db = createDb(env.DB); const now = new Date().toISOString();
   if (intent === "recompute") {

@@ -4,7 +4,11 @@ import { safeReturnTo } from "../../app/features/auth/login";
 
 describe("safeReturnTo", () => {
   it.each([
-    ["/courses?meal=1", "/"],
+    ["/courses?meal=1", "/courses?meal=1"],
+    ["/me", "/me"],
+    ["/maps/food", "/maps/food"],
+    ["/onboarding/taste", "/onboarding/taste"],
+    ["/member", "/"],
     ["/places", "/places"],
     ["/places/sample-place-1?from=map", "/places/sample-place-1?from=map"],
     [undefined, "/"],

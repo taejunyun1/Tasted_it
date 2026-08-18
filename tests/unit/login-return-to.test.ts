@@ -8,6 +8,8 @@ describe("safeReturnTo", () => {
     expect(safeReturnTo("/admin")).toBe("/admin");
     expect(safeReturnTo("/admin/candidates")).toBe("/admin/candidates");
     expect(safeReturnTo("/admin/place-operations?step=1")).toBe("/admin/place-operations?step=1");
+    expect(safeReturnTo("/me/suggestions")).toBe("/me/suggestions");
+    expect(safeReturnTo("/courses")).toBe("/courses");
     expect(safeReturnTo(null)).toBe("/");
   });
 

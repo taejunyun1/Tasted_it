@@ -92,6 +92,7 @@ describe("completeGoogleLogin", () => {
   it.each([
     [new Error("OAUTH_REQUEST_INVALID"), "invalid_request"],
     [new Error("GOOGLE_EMAIL_UNVERIFIED"), "unverified_email"],
+    [new Error("GOOGLE_EXISTING_ACCOUNT_LOGIN_REQUIRED"), "existing_account"],
     [new Error("GOOGLE_ID_TOKEN_INVALID"), "temporarily_unavailable"],
     ["unexpected", "temporarily_unavailable"],
   ])("maps internal failures to a limited public code", (error, expected) => {

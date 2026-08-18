@@ -13,6 +13,10 @@
 | 반올림 브라우저 위치(위도·경도 소수점 셋째 자리, 약 100m)와 bbox | 내 주변 온보딩 추천 | 브라우저 sessionStorage·추천 요청 URL query·브라우저 기록·Cloudflare 접근 로그 표면 | sessionStorage는 브라우저 탭 세션 종료 시 소멸. D1·제품 이벤트에는 저장하지 않음. URL/접근 로그는 Cloudflare 실제 로그 보존 설정의 적용을 받으므로 운영 설정 확정 필요 | Cloudflare, 지도 타일 요청 시 공급자가 IP 등 수신 가능 |
 | 제품 이벤트의 무작위 이벤트 ID, 회원/비회원 참조, 이벤트 이름, 허용 metadata(`step`, `selectedCount`, `sourceRail`, `discoveryMode`, `reason`), 발생 시각 | 온보딩·추천 전환과 단기 출시 지표 | Cloudflare D1 | 발생 후 30일. 출시 직후·24시간 관찰과 월 단위 단기 비교를 위한 최소 운영 기간이며 daily cron 삭제 | Cloudflare |
 | 접속·오류·보안 로그 | 장애 대응·보안 | Cloudflare observability | 실제 계정 설정에서 보존기간 확정 필요 | Cloudflare |
+| 가입·재설정·정정 확인 메일 주소 | 본인 확인 메일 발송 | Resend | 메일 공급자 보존 정책. 토큰 해시는 D1에 30분 | Resend |
+| Google·네이버 로그인 식별자·제공 이메일 | 소셜 로그인 | D1 `auth_identities` | 계정 존속 중. 연동 해제 또는 탈퇴 시 | Google, 네이버 |
+| 비밀번호 해시·솔트 | 이메일 로그인 | D1 | 계정 존속 중. 재설정 시 교체 | Cloudflare |
+| 리뷰어 신청 직업·소개 | 리뷰어 심사 | D1 | 신청 처리 또는 탈퇴 시 | Cloudflare |
 
 현재 맞춤형 광고, 민감정보, 고유식별정보, 14세 미만 아동 대상 수집, 제3자 판매는 하지 않는다. 결제·이메일·분석·크래시 도구를 도입할 때 이 표와 처리방침을 같은 릴리스에서 갱신한다.
 

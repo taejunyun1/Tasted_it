@@ -17,7 +17,14 @@ export function safeReturnTo(value: string | null | undefined): string {
     if (decoded.includes("..") || value.includes("..")) return fallback;
     const isAllowedPath = (pathname: string) =>
       pathname === "/places" || pathname.startsWith("/places/")
-      || pathname === "/admin" || pathname.startsWith("/admin/");
+      || pathname === "/admin" || pathname.startsWith("/admin/")
+      || pathname === "/me" || pathname.startsWith("/me/")
+      || pathname === "/courses" || pathname.startsWith("/courses/")
+      || pathname === "/maps" || pathname.startsWith("/maps/")
+      || pathname === "/onboarding" || pathname.startsWith("/onboarding/")
+      || pathname === "/suggestions" || pathname.startsWith("/suggestions/")
+      || pathname === "/reviewer" || pathname.startsWith("/reviewer/")
+      || pathname === "/corrections" || pathname.startsWith("/corrections/");
     const isDeniedPath = (pathname: string) => pathname === "/auth" || pathname.startsWith("/auth/");
     if (destination.origin !== base.origin || decodedDestination.origin !== base.origin) return fallback;
     if (isDeniedPath(destination.pathname) || isDeniedPath(decodedDestination.pathname)) return fallback;

@@ -11,6 +11,8 @@ export default [
   route("places/:placeSlug", "routes/place-detail.tsx"),
   route("privacy", "routes/privacy.tsx"),
   route("terms", "routes/terms.tsx"),
+  route("robots.txt", "routes/robots.ts"),
+  route("sitemap.xml", "routes/sitemap.ts"),
   route("login", "routes/login.tsx"),
   route("signup", "routes/signup.tsx"),
   route("auth/google", "routes/auth-google.tsx"),

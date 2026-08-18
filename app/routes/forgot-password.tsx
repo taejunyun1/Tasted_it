@@ -4,6 +4,7 @@ import type { Route } from "./+types/forgot-password";
 import { createDb } from "../db/client.server";
 import { requestPasswordReset } from "../features/auth/account.server";
 import { sendAccountEmail } from "../features/auth/email.server";
+import { accountActionUrl } from "../features/auth/token-link";
 import { consumeMailRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 import { AuthInput, AuthPage } from "./login";
 export async function action({ request }: Route.ActionArgs) {
@@ -24,7 +25,7 @@ export async function action({ request }: Route.ActionArgs) {
   const reset = await requestPasswordReset(db, { email, now: new Date() });
   if (reset && env.RESEND_API_KEY && env.RESEND_FROM_EMAIL) {
     const baseUrl = env.APP_BASE_URL || new URL(request.url).origin;
-    await sendAccountEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM_EMAIL, to: reset.email, purpose: "RESET_PASSWORD", url: `${baseUrl}/reset-password?token=${encodeURIComponent(reset.token)}` });
+    await sendAccountEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM_EMAIL, to: reset.email, purpose: "RESET_PASSWORD", url: accountActionUrl(baseUrl, "/reset-password", reset.token) });
   }
   return { message: "가입된 이메일이라면 비밀번호 재설정 안내를 전송했습니다." };
 }

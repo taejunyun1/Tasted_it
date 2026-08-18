@@ -14,7 +14,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
   return (
-    <main className="admin-page admin-page-frame mx-auto max-w-6xl px-6 py-16">
+    <main id="main" className="admin-page admin-page-frame mx-auto max-w-6xl px-6 py-16">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-neutral-300 pb-6">
         <div>
           <p className="text-sm text-neutral-600">{loaderData.user.email}</p>

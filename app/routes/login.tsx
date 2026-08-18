@@ -13,6 +13,7 @@ import { safeReturnTo } from "../features/auth/login";
 import { NaverAuthButton, naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
 import { createUserSession, getOptionalUser } from "../features/auth/session.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
+import { consumeLoginRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 
 const schema = z.object({ email: z.email(), password: z.string().min(1), returnTo: z.string().optional() });
 export function meta() { return [{ title: "로그인 — Re:Taste" }]; }
@@ -33,6 +34,17 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     const now = new Date();
     const db = createDb(env.DB);
+    const limited = await consumeLoginRateLimit(db, {
+      email: parsed.data.email,
+      ip: request.headers.get("CF-Connecting-IP"),
+      now,
+    });
+    if (!limited.ok) {
+      return data({ error: MAIL_RATE_LIMIT_MESSAGE }, {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfterSeconds) },
+      });
+    }
     const user = await authenticateAccount(db, parsed.data);
     const headers = new Headers();
     headers.append("Set-Cookie", await createUserSession({ userId: user.id, now, requestUrl: request.url }));
