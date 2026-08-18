@@ -10,7 +10,7 @@
 
 **담당:** Jay · **결정 필요:** TJ(저장소 소유자, `taejunyun1`)
 
-**추적:** [#182](https://github.com/taejunyun1/Tasted_it/issues/182) Private 전환(소유자 실행, closed) · [#199](https://github.com/taejunyun1/Tasted_it/issues/199) 전환 후 실측 기록
+**추적:** [#182](https://github.com/taejunyun1/Tasted_it/issues/182) Private 전환(소유자 실행, closed) · [#199](https://github.com/taejunyun1/Tasted_it/issues/199) · [PR #200](https://github.com/taejunyun1/Tasted_it/pull/200)
 
 **거버넌스:** [`docs/decisions/2026-08-10-tech-stack-governance.md`](../../decisions/2026-08-10-tech-stack-governance.md) — 상태 `PROPOSED`. 이 문서는 스택 예외를 열지 않는다.
 
