@@ -162,6 +162,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={!selectedIds.length}>선택 중복 판정 저장</button>}
         {(query.step === 1 || query.step === 2) && <button type="button" onClick={startNaverBatch} disabled={!selectedIds.length || Boolean(naverBatch)}>선택 중 10곳 NAVER 검증</button>}
         {query.step === 1 && <button className="secondary" name="intent" value="advance-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>수동으로 NAVER 검증 대기로 이동</button>}
+        {query.step === 2 && <button className="secondary" name="intent" value="advance-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>선택 항목을 카테고리 확정으로 이동</button>}
         {query.step !== 1 && query.step !== 2 && <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={!selectedIds.length}>{query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>}
         {query.step === 2 && !naverBatch && <Link className="secondary" to={buildPlaceReviewNextStepHref(query)}>{nextStep === 3 ? "NAVER 확인 후 카테고리 확정 단계 보기" : "카테고리 확정 단계로 이동"}</Link>}
       </div>

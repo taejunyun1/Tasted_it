@@ -21,6 +21,8 @@ describe("place review selection controls", () => {
     expect(component).not.toContain("useNavigate");
     expect(component).not.toContain("navigate(buildPlaceReviewNextStepHref(query)");
     expect(component).toContain("NAVER 확인 후 카테고리 확정 단계 보기");
+    expect(component).toContain("선택 항목을 카테고리 확정으로 이동");
+    expect(component).toContain('query.step === 2 && <button className="secondary" name="intent" value="advance-review-items"');
   });
 
   it("runs up to ten NAVER checks as sequential background actions instead of one Worker request", () => {

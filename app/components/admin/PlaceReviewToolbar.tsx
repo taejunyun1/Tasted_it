@@ -11,7 +11,7 @@ export function PlaceReviewToolbar({ query, page }: { query: PlaceReviewQuery; p
       <input type="hidden" name="step" value={query.step} />
       <label>검색<input name="q" defaultValue={query.query} placeholder="상호명 또는 주소" /></label>
       <label>지역<select name="region" defaultValue={query.region ?? ""}><option value="">전체</option><option value="GWANGJU">광주</option><option value="JEONNAM">전남</option></select></label>
-      <label>상태<select name="status" defaultValue={query.status ?? "pending"}><option value="pending">대기</option><option value="attention">확인 필요</option><option value="hold">보류</option></select></label>
+      <label>상태<select name="status" defaultValue={query.status ?? "pending"}><option value="pending">대기</option><option value="ready">이동 가능</option><option value="attention">확인 필요</option><option value="hold">보류</option></select></label>
       <label>페이지 크기<select name="pageSize" defaultValue={String(query.pageSize)}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
       <button>필터 적용</button>
       <Link to={`/admin/place-operations?flow=review&step=${query.step}`}>초기화</Link>

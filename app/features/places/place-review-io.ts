@@ -30,6 +30,7 @@ export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> 
   NAVER_VERIFICATION: [
     "verify-review-items-with-naver",
     "auto-verify-review-item-with-naver",
+    "advance-review-items",
     "hold-review-items",
     "exclude-review-items",
   ],

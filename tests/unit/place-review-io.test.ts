@@ -16,6 +16,7 @@ describe("place review request contract", () => {
     expect(reviewIntentsByStage.NAVER_VERIFICATION).toEqual([
       "verify-review-items-with-naver",
       "auto-verify-review-item-with-naver",
+      "advance-review-items",
       "hold-review-items",
       "exclude-review-items",
     ]);
@@ -81,6 +82,11 @@ describe("place review request contract", () => {
       intent: "advance-review-items",
       expectedStage: "SOURCE_REVIEW",
       workItemIds: ids(25),
+    }).ok).toBe(true);
+    expect(checkReviewRequest({
+      intent: "advance-review-items",
+      expectedStage: "NAVER_VERIFICATION",
+      workItemIds: ["item-1"],
     }).ok).toBe(true);
   });
 

@@ -18,6 +18,10 @@ describe("place review pagination", () => {
       region: "GWANGJU",
       query: "국밥",
     });
+    expect(parsePlaceReviewQuery(new URL("https://example.test/?step=1&status=ready"))).toMatchObject({
+      step: 1,
+      status: "ready",
+    });
   });
 
   it("preserves filters when it builds a target page link", () => {
