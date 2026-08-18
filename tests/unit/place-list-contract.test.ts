@@ -58,6 +58,7 @@ describe("place recommendation interaction contract", () => {
     expect(route).toContain("recommendationFetcher.data?.ok");
     expect(resource).toContain("추천을 다시 불러오지 못했어요");
     expect(routes).toContain('route("resources/place-recommendations"');
+    expect(route).not.toContain("/onboarding/taste");
   });
 
   it("exposes pressed state and selection feedback accessibly", () => {
@@ -68,7 +69,7 @@ describe("place recommendation interaction contract", () => {
 });
 
 describe("places onboarding entry contract", () => {
-  it("redirects an unfinished guest when onboarding is enabled", async () => {
+  it("lets an unfinished guest browse places when onboarding is enabled", async () => {
     mocks.getGuestOnboardingFromRequest.mockResolvedValue({
       completedAt: null,
       skippedAt: null,
@@ -77,36 +78,8 @@ describe("places onboarding entry contract", () => {
     });
     const { loader } = await import("../../app/routes/place-list");
 
-    let response: Response | null = null;
-    try {
-      await loader({ request: new Request("https://retaste.example/places") } as never);
-    } catch (error) {
-      if (error instanceof Response) response = error;
-    }
-    expect(response).toMatchObject({ status: 302 });
-    expect(response?.headers.get("Location")).toBe("/onboarding/taste?returnTo=%2Fplaces");
-  });
-
-  it("canonicalizes React Router data requests and keeps only supported public filters", async () => {
-    mocks.getGuestOnboardingFromRequest.mockResolvedValue({
-      completedAt: null,
-      skippedAt: null,
-      foodBadgeIds: [],
-      styleBadgeIds: [],
-    });
-    const { loader } = await import("../../app/routes/place-list");
-    const source = "/places.data?category=ramen-detail&q=%EB%9D%BC%EB%A9%B4&bbox=126.8%2C35%2C127%2C35.3&badge=food-ramen&_routes=routes%2Fplace-list&place=private-sheet-state";
-
-    let response: Response | null = null;
-    try {
-      await loader({ request: new Request(`https://retaste.example${source}`) } as never);
-    } catch (error) {
-      if (error instanceof Response) response = error;
-    }
-
-    const canonical = "/places?category=ramen-detail&q=%EB%9D%BC%EB%A9%B4&bbox=126.8%2C35%2C127%2C35.3&badge=food-ramen";
-    expect(response?.headers.get("Location"))
-      .toBe(`/onboarding/taste?returnTo=${encodeURIComponent(canonical)}`);
+    await expect(loader({ request: new Request("https://retaste.example/places") } as never))
+      .resolves.toMatchObject({ places: [] });
   });
 
   it("keeps the existing places flow when onboarding is disabled", async () => {

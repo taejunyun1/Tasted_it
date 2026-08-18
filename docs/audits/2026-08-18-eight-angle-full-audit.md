@@ -1,6 +1,6 @@
 # 2026-08-18 8각도 풀 오딧
 
-작성일 2026-08-18 · Issue [#187](https://github.com/taejunyun1/Tasted_it/issues/187) · 담당 Jay (`jay_full_audit_20260818`)  
+작성일 2026-08-18 · Issue [#187](https://github.com/taejunyun1/Tasted_it/issues/187) · 담당 Jay (`jay_full_audit_20260818`)
 선행: [2026-08-07 풀 오딧](./2026-08-07-full-product-design-technical-audit.md) 55건 · [2026-08-17 관리자 오딧](./2026-08-17-admin-audit.md)
 
 이 문서는 제품 코드를 바꾸지 않는다. 비밀값, 이메일, 세션 ID, 상호·주소는 기록하지 않는다.
@@ -733,9 +733,33 @@ PR #188 초안 이후 네 경로를 다시 열었다. 공개 베타 **NO-GO**와
 
 ---
 
+## 16. 후속 블락커 상태 (2026-08-18, 코드 `d40dd61`+)
+
+이 절은 08-18 오딧 **이후** `#190`/`#192`와 블락커 해제 PR의 현재 읽기다. 위 표의 당시 OPEN 라벨을 덮어 쓰지 않고, **지금 남은 차단**만 가른다. 라이브는 여전히 `#186`일 수 있다.
+
+| 오딧 블락커 | 지금 | 비고 |
+|---|---|---|
+| SEC-01 로그인 한도 | 코드 해제 | PBKDF2 99,999는 유지. 한도 없는 DoS 조합은 끊김 |
+| SEC-03 토큰 URL·샘플링 1 | 코드 해제 | `#` 링크, GET 소비 제거, 샘플링 0.1 |
+| SEC-04/06 방침 불일치 | 코드 해제 | 위치 URL/로그, 위탁, 탈퇴 경로가 방침과 맞음 |
+| SEC-05 탈퇴 없음 | 코드 해제 | `/me` 익명화. 하드 삭제 아님 |
+| QLT-18-01 E2E 운영 D1 id | 코드 해제 | placeholder. 새 D1 없음 |
+| QLT-02 CI가 unit만 | 부분 해제 | integration 잡 있음. Playwright CI는 품질 항목으로 남김 |
+| SEO/헤더 부재 | 코드 해제 | nosniff 등. CSP 없음 |
+| PROD-18-02 `/places` 강제 온보딩 | 이 PR에서 해제 | 온보딩 URL은 유지 |
+| 14세 정책 미확정 | 이 PR에서 해제 | D-04 가입 차단. 생년 미수집 |
+| PROD-18-01 공개 2곳 vs 300 | **운영 잔여** | D-13: 카탈로그 이슈로 분리. 일괄 공개 없음 |
+| 운영자 연락처 | **출시 잔여** | 소유자. 명칭을 지어내지 않음 |
+| `main` 보호 0 · Private | **소유자 잔여** | `#182` |
+
+**초대 베타:** 오딧 당시 HOLD 근거(로그인 한도·토큰 URL·탈퇴·방침)는 코드에서 해제. 배포와 카탈로그는 별도.
+**공개 베타:** 코드 블락커는 위와 같이 갈랐다. 장소 2곳은 제품 규모 잔여라 **GO가 아니다.**
+
+---
+
 # Eight-angle full audit (English)
 
-**Date:** 2026-08-18 · **Code:** `81a73e8` · **Live Worker version:** `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`  
+**Date:** 2026-08-18 · **Code:** `81a73e8` · **Live Worker version:** `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`
 **Issue:** #187 · No product-code changes. No secrets/PII.
 
 **Verdict: HOLD.** Internal unit quality GO (805 tests). Logged-in admin review is conditional GO (Paid, pipeline IA restored, step-2 advance verified). Invite beta HOLD. Public beta and production **NO-GO**.

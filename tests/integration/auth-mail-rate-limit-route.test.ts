@@ -54,7 +54,7 @@ describe("unauthenticated mail route rate limits", () => {
 
   it("rejects a fourth signup before issuing another verification token", async () => {
     const email = `signup-${crypto.randomUUID()}@example.com`;
-    const fields = { displayName: "테스터", email, password: "secure-password-123" };
+    const fields = { displayName: "테스터", email, password: "secure-password-123", ageConfirmed: "yes" };
     for (let index = 0; index < 3; index += 1) {
       await signupAction({ request: formRequest("https://retaste.test/signup", fields) } as never);
     }

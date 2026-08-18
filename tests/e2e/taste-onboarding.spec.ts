@@ -11,7 +11,7 @@ function fixtureIdentity(testInfo: TestInfo) {
 }
 
 async function openOnboarding(page: Page) {
-  await page.goto("/places");
+  await page.goto("/onboarding/taste?returnTo=%2Fplaces");
   await expect(page).toHaveURL(/\/onboarding\/taste\?returnTo=%2Fplaces$/);
   await expect(page.getByRole("heading", { level: 1, name: "지금 가까운 한 끼부터 볼까요?" })).toBeVisible();
 }
