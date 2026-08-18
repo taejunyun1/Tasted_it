@@ -15,10 +15,10 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-18 `origin/main` `57b7f1c`를 운영 계정에 배포한다. 원격 D1에는 `0035`만 apply. `#186` 이후 `#188`–`#202`가 라이브에 포함된다. 라이브 NAVER·일괄 공개 없음. rollback은 Worker `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`. | [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) · [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) |
+| Merged | 2026-08-18 `origin/main` `57b7f1c`/`e8df8fa`를 운영 계정에 배포. 원격 `0035` apply 후 Worker `49064c1f-bd3f-4eec-a9e5-5985d384a0c1`. 라이브 NAVER·일괄 공개 없음. rollback은 `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`. | [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) · [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) · [PR #205](https://github.com/taejunyun1/Tasted_it/pull/205) · [`e8df8fa`](https://github.com/taejunyun1/Tasted_it/commit/e8df8fa) |
 | Merged | 2026-08-18 NAVER 일일 예산을 지역 팩 필드로 나누고 카운터를 지역으로 분리한다. env 한도 상향·원격 migration·배포·실호출은 `#202`에 없음. | [Issue #201](https://github.com/taejunyun1/Tasted_it/issues/201) · [PR #202](https://github.com/taejunyun1/Tasted_it/pull/202) · [`57b7f1c`](https://github.com/taejunyun1/Tasted_it/commit/57b7f1c) |
 | Merged | 2026-08-18 소유자 Private 전환 실측을 판정문서에 기록. `private: true`, Jay write 접속, rulesets 403, `has_wiki: false`. 가시성 되돌리기·유료 제품·배포 없음. | [Issue #182](https://github.com/taejunyun1/Tasted_it/issues/182) · [Issue #199](https://github.com/taejunyun1/Tasted_it/issues/199) · [PR #200](https://github.com/taejunyun1/Tasted_it/pull/200) · [`f79d57b`](https://github.com/taejunyun1/Tasted_it/commit/f79d57b) |
-| Proposed | 2026-08-18 재오딧. `81a73e8` 대비 `dcafa14` 코드 P0 6건 해제, 라이브는 `#186` 유지. 배포·일괄 공개 없음. | [Issue #197](https://github.com/taejunyun1/Tasted_it/issues/197) · [PR #198](https://github.com/taejunyun1/Tasted_it/pull/198) |
+| Merged | 2026-08-18 재오딧. 당시 `81a73e8` 대비 `dcafa14` 코드 P0 6건 해제, 라이브는 `#186`. 이후 `#204`에서 `57b7f1c` 배포. | [Issue #197](https://github.com/taejunyun1/Tasted_it/issues/197) · [PR #198](https://github.com/taejunyun1/Tasted_it/pull/198) · [`6797a26`](https://github.com/taejunyun1/Tasted_it/commit/6797a26) |
 | Merged | 2026-08-18 검수 처리량. 운영 현황에 7일 공개/일과 ACTIVE 큐를 고정하고 2주 표본을 PR에 남긴다. 배포·일괄 공개·원격 D1 쓰기 없음. | [Issue #195](https://github.com/taejunyun1/Tasted_it/issues/195) · [PR #196](https://github.com/taejunyun1/Tasted_it/pull/196) · [`dcafa14`](https://github.com/taejunyun1/Tasted_it/commit/dcafa14) |
 | Merged | 2026-08-18 오딧 블락커 해제. `/places` 온보딩 강제 제거, 14세 가입 확인, 300곳 게이트를 카탈로그 운영으로 분리. 배포·일괄 공개 없음. | [Issue #193](https://github.com/taejunyun1/Tasted_it/issues/193) · [PR #194](https://github.com/taejunyun1/Tasted_it/pull/194) · [`0cab447`](https://github.com/taejunyun1/Tasted_it/commit/0cab447) |
 | Merged | 2026-08-18 오딧 2차. `/me` 탈퇴 익명화와 CI integration 잡. 배포·원격 D1·Playwright CI·ADMIN 탈퇴 없음. | [Issue #191](https://github.com/taejunyun1/Tasted_it/issues/191) · [PR #192](https://github.com/taejunyun1/Tasted_it/pull/192) · [`d40dd61`](https://github.com/taejunyun1/Tasted_it/commit/d40dd61) |
@@ -71,7 +71,7 @@
 
 | 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
 | --- | --- | --- | --- | --- |
-| 15:20 | 운영 / 배포 | `#202`는 코드만 병합했다. 이 PR 병합이 `origin/main` `57b7f1c`의 원격 `0035` apply와 운영 배포를 승인한다. 지정 배포자는 Jay. | 문서. 병합 후: 계정 `7543330c…`에서 `0035`만 apply 후 `pnpm run deploy`. 라이브 NAVER·일괄 공개·D1 create 없음. rollback은 `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`. 실행 결과 version은 배포 후 런북·이슈에 기록. | [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) · [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) · [`57b7f1c`](https://github.com/taejunyun1/Tasted_it/commit/57b7f1c) |
+| 15:29 | 운영 / 배포 | `#204` 병합 후 Jay가 원격 `0035` apply와 `origin/main` `e8df8fa` 배포를 실행한다. `#188`–`#202`가 라이브. | 원격 `0035` 적용. Worker `49064c1f-bd3f-4eec-a9e5-5985d384a0c1`. 홈·`/places` GET 200. 라이브 NAVER·일괄 공개 없음. rollback은 `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`. | [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) · [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) · [PR #205](https://github.com/taejunyun1/Tasted_it/pull/205) · [`e8df8fa`](https://github.com/taejunyun1/Tasted_it/commit/e8df8fa) |
 
 ### 2026-08-17
 

@@ -17,7 +17,7 @@
 
 2026-08-17: 원격 `d1 migrations list`는 대기 없음. `origin/main` `7a10dd0`를 이 계정에 배포함. Version `099d8361-989b-488d-bd94-91163551bfb6`. rollback은 직전 버전 `a78d44c8-953a-4331-9854-ed15a986b35b`를 다시 배포한다.
 
-2026-08-18: [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) / [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) 병합이 `origin/main` `57b7f1c` 배포를 승인한다. 현재 라이브는 `#186` / `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`. 원격 대기는 `0035_naver_run_region_code.sql`만. 순서: `whoami` → `0035` apply → `pnpm run deploy`. 라이브 NAVER·일괄 공개·D1 create·다른 순번 apply 없음. rollback은 `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`. 실행 후 version은 이 단락을 갱신한다.
+2026-08-18: [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) / [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) 병합 후 `0035_naver_run_region_code.sql` apply, 이어서 `origin/main` `e8df8fa`(`#204`, 코드 기준 `57b7f1c`)를 이 계정에 배포함. Version `49064c1f-bd3f-4eec-a9e5-5985d384a0c1`. rollback은 직전 버전 `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`를 다시 배포한다. 라이브 NAVER·일괄 공개·D1 create 없음.
 
 ## 사전 게이트
 
