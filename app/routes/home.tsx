@@ -157,7 +157,16 @@ export function getRecordableHomeRecommendation(
 }
 
 export function meta() {
-  return [{ title: "Re:Taste — 내 주변 맛 지도" }, { name: "description", content: "현재 위치에서 찾는 광주·전남 맛 지도" }];
+  const title = "Re:Taste — 내 주변 맛 지도";
+  const description = "현재 위치에서 찾는 광주·전남 맛 지도";
+  return [
+    { title },
+    { name: "description", content: description },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ];
 }
 
 export const shouldRevalidate: ShouldRevalidateFunction = ({

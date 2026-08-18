@@ -1,5 +1,7 @@
 export const PASSWORD_HASH_ITERATIONS = 99_999;
 const encoder = new TextEncoder();
+export const DUMMY_PASSWORD_SALT = "AAAAAAAAAAAAAAAAAAAAAA==";
+export const DUMMY_PASSWORD_HASH = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
 function toBase64(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes));

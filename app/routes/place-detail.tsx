@@ -8,7 +8,7 @@ import { calculateRating } from "../features/ratings/rating-v1";
 import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
-import { getHiddenGemStatus, recordPlaceDetailView } from "../features/ratings/rating-badges.server";
+import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
 import { castVote, getCurrentVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
@@ -86,7 +86,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVote(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  await recordPlaceDetailView(db, { placeId: place.id, now });
   const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
     getLatestRatingSnapshot(db, place.id),
     getPlaceFlavorPrint(db, place.id),
@@ -184,7 +183,16 @@ export async function action({ request, params }: Route.ActionArgs) {
   return { ok: true };
 }
 
-export function meta() { return [{ title: "장소 상세 — Re:Taste" }]; }
+export function meta({ params }: Route.MetaArgs) {
+  const name = params.placeSlug ?? "장소 상세";
+  return [
+    { title: `${name} — Re:Taste` },
+    { name: "description", content: "광주·전남 맛 지도" },
+    { property: "og:title", content: `${name} — Re:Taste` },
+    { property: "og:description", content: "광주·전남 맛 지도" },
+    { property: "og:type", content: "article" },
+  ];
+}
 
 export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
   const { place, rating, flavorPrint, reviewPhotos } = loaderData;

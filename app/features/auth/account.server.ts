@@ -1,7 +1,7 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
-import { accountTokens, users } from "../../db/schema";
-import { hashPassword, verifyPassword } from "./password.server";
+import { accountTokens, sessions, users } from "../../db/schema";
+import { DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT, hashPassword, verifyPassword } from "./password.server";
 
 const TOKEN_TTL_MS = 30 * 60 * 1000;
 const encoder = new TextEncoder();
@@ -48,7 +48,8 @@ async function consumeToken(db: AppDb, token: string, purpose: "VERIFY_EMAIL" | 
     where: and(eq(accountTokens.tokenHash, await tokenHash(token)), eq(accountTokens.purpose, purpose), isNull(accountTokens.consumedAt), gt(accountTokens.expiresAt, now.toISOString())),
   });
   if (!row) throw new Error("TOKEN_INVALID");
-  await db.update(accountTokens).set({ consumedAt: now.toISOString() }).where(and(eq(accountTokens.id, row.id), isNull(accountTokens.consumedAt)));
+  const consumed = await db.update(accountTokens).set({ consumedAt: now.toISOString() }).where(and(eq(accountTokens.id, row.id), isNull(accountTokens.consumedAt))).returning({ id: accountTokens.id });
+  if (consumed.length === 0) throw new Error("TOKEN_INVALID");
   return row.userId;
 }
 
@@ -60,7 +61,12 @@ export async function verifyEmailToken(db: AppDb, input: { token: string; now: D
 
 export async function authenticateAccount(db: AppDb, input: { email: string; password: string }) {
   const user = await db.query.users.findFirst({ where: eq(users.email, input.email.trim().toLowerCase()) });
-  if (!user?.passwordHash || !user.passwordSalt || !(await verifyPassword(input.password, user.passwordHash, user.passwordSalt))) throw new Error("LOGIN_INVALID");
+  const valid = await verifyPassword(
+    input.password,
+    user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    user?.passwordSalt ?? DUMMY_PASSWORD_SALT,
+  );
+  if (!user?.passwordHash || !user.passwordSalt || !valid) throw new Error("LOGIN_INVALID");
   if (!user.emailVerifiedAt) throw new Error("EMAIL_NOT_VERIFIED");
   return { id: user.id, email: user.email, displayName: user.displayName, role: user.role };
 }
@@ -76,5 +82,6 @@ export async function resetPassword(db: AppDb, input: { token: string; password:
   const userId = await consumeToken(db, input.token, "RESET_PASSWORD", input.now);
   const password = await hashPassword(input.password);
   await db.update(users).set({ passwordHash: password.hash, passwordSalt: password.salt, updatedAt: input.now.toISOString() }).where(eq(users.id, userId));
+  await db.delete(sessions).where(eq(sessions.userId, userId));
   return { userId };
 }

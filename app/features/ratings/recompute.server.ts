@@ -147,7 +147,7 @@ export async function processRatingJobs(db: AppDb, input: { now: string; limit: 
 
 export async function getLatestRatingSnapshot(db: AppDb, placeId: string) {
   return db.query.ratingSnapshots.findFirst({
-    where: eq(ratingSnapshots.placeId, placeId),
+    where: and(eq(ratingSnapshots.placeId, placeId), eq(ratingSnapshots.isStale, false)),
     orderBy: [desc(ratingSnapshots.computedAt)],
   });
 }

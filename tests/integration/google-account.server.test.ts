@@ -112,7 +112,7 @@ describe("resolveGoogleAccount", () => {
     expect(result.role).toBe("ADMIN");
   });
 
-  it("marks a pending email account verified when Google verifies the same email", async () => {
+  it("refuses to attach Google to an unverified email row", async () => {
     const db = createDb(env.DB);
     const key = crypto.randomUUID();
     const userId = `pending-${key}`;
@@ -129,18 +129,17 @@ describe("resolveGoogleAccount", () => {
       updatedAt: "2026-08-01T00:00:00.000Z",
     });
 
-    const result = await resolveGoogleAccount(db, {
+    await expect(resolveGoogleAccount(db, {
       providerSubject: `pending-sub-${key}`,
       email,
       emailVerified: true,
       displayName: "Google 이름",
       adminEmail: env.ADMIN_EMAIL,
       now,
-    });
+    })).rejects.toThrow("GOOGLE_EXISTING_ACCOUNT_LOGIN_REQUIRED");
 
-    expect(result).toMatchObject({ userId, isNewUser: false });
     const stored = await db.query.users.findFirst({ where: eq(users.id, userId) });
-    expect(stored?.emailVerifiedAt).toBe(now.toISOString());
+    expect(stored?.emailVerifiedAt).toBeNull();
     expect(stored?.passwordHash).toBe("pending-hash");
   });
 

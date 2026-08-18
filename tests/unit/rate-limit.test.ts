@@ -26,5 +26,6 @@ describe("mail rate limit helpers", () => {
     expect(hash).not.toContain("example.com");
     await expect(hashMailRateLimitBucket("email", "SIGNUP", "abuse.user+tag@example.com")).resolves.toBe(hash);
     await expect(hashMailRateLimitBucket("email", "RESET_PASSWORD", email)).resolves.not.toBe(hash);
+    await expect(hashMailRateLimitBucket("email", "LOGIN", email)).resolves.not.toBe(hash);
   });
 });

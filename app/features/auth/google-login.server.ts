@@ -47,6 +47,7 @@ interface CompleteGoogleLoginInput {
 export type OAuthFailureCode =
   | "invalid_request"
   | "unverified_email"
+  | "existing_account"
   | "temporarily_unavailable";
 
 export function oauthFailureCode(error: unknown): OAuthFailureCode {
@@ -55,6 +56,9 @@ export function oauthFailureCode(error: unknown): OAuthFailureCode {
   }
   if (error instanceof Error && error.message === "GOOGLE_EMAIL_UNVERIFIED") {
     return "unverified_email";
+  }
+  if (error instanceof Error && error.message === "GOOGLE_EXISTING_ACCOUNT_LOGIN_REQUIRED") {
+    return "existing_account";
   }
   return "temporarily_unavailable";
 }

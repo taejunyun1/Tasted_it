@@ -4,6 +4,7 @@ import { data, Form, Link } from "react-router";
 import type { Route } from "./+types/admin-import";
 import { createDb } from "../db/client.server";
 import { requireAdmin } from "../features/auth/session.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { parsePlaceCsv } from "../features/places/import.server";
 import { importPlaceRows } from "../features/places/place.server";
 
@@ -26,6 +27,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   await requireAdmin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -88,7 +90,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function AdminImport({ actionData }: Route.ComponentProps) {
   return (
-    <main className="admin-page admin-page-frame mx-auto max-w-4xl px-6 py-16">
+    <main id="main" className="admin-page admin-page-frame mx-auto max-w-4xl px-6 py-16">
       <Link className="text-sm underline" to="/admin/places">
         ← 장소 관리
       </Link>

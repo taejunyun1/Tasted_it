@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { authIdentities, users } from "../../db/schema";
@@ -123,13 +123,8 @@ export async function resolveGoogleAccount(
     }
   }
 
-  if (!user.emailVerifiedAt) {
-    const timestamp = input.now.toISOString();
-    await db
-      .update(users)
-      .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
-      .where(and(eq(users.id, user.id), isNull(users.emailVerifiedAt)));
-    user = { ...user, emailVerifiedAt: timestamp, updatedAt: timestamp };
+  if (!isNewUser && !user.emailVerifiedAt) {
+    throw new Error("GOOGLE_EXISTING_ACCOUNT_LOGIN_REQUIRED");
   }
 
   try {

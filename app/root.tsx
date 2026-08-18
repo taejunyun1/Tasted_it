@@ -45,4 +45,15 @@ export default function App({ loaderData }: Route.ComponentProps) {
     <footer className="site-footer"><strong>Re:Taste</strong><span>추천할 만한 한 끼를 기록합니다.</span><nav aria-label="서비스 안내"><Link to="/corrections/new">정보 정정</Link><Link to="/privacy">개인정보 처리방침</Link><Link to="/terms">이용약관</Link></nav></footer>
   </>;
 }
-export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) { const notFound = isRouteErrorResponse(error) && error.status === 404; return <main id="main" className="error-page"><p className="eyebrow">{notFound ? "404 / NOT FOUND" : "ERROR"}</p><h1>{notFound ? "이 페이지는 지도 밖에 있어요." : "잠시 길을 잃었습니다."}</h1><p>{isRouteErrorResponse(error) ? error.statusText : "예상하지 못한 오류가 발생했습니다."}</p><Link to="/">처음으로 돌아가기</Link></main>; }
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const notFound = isRouteErrorResponse(error) && error.status === 404;
+  const forbidden = isRouteErrorResponse(error) && error.status === 403;
+  return (
+    <main id="main" className="error-page">
+      <p className="eyebrow">{notFound ? "404 / NOT FOUND" : forbidden ? "403 / FORBIDDEN" : "ERROR"}</p>
+      <h1>{notFound ? "이 페이지는 지도 밖에 있어요." : forbidden ? "이 페이지를 볼 권한이 없습니다." : "잠시 길을 잃었습니다."}</h1>
+      <p>{isRouteErrorResponse(error) ? error.statusText : "예상하지 못한 오류가 발생했습니다."}</p>
+      <Link to="/">처음으로 돌아가기</Link>
+    </main>
+  );
+}

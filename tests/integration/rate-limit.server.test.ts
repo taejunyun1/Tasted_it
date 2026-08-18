@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
 import {
+  consumeLoginRateLimit,
   consumeMailRateLimit,
   hashMailRateLimitBucket,
+  LOGIN_RATE_LIMIT,
   MAIL_RATE_LIMIT,
 } from "../../app/features/security/rate-limit.server";
 
@@ -65,5 +67,21 @@ describe("consumeMailRateLimit", () => {
       ip,
       now,
     })).resolves.toEqual({ ok: false, retryAfterSeconds: 3_000 });
+  });
+});
+
+describe("consumeLoginRateLimit", () => {
+  it("rejects the ninth login attempt for the same email", async () => {
+    const db = createDb(env.DB);
+    const email = `login-${crypto.randomUUID()}@example.com`;
+
+    for (let index = 0; index < LOGIN_RATE_LIMIT.emailMax; index += 1) {
+      await expect(consumeLoginRateLimit(db, { email, now })).resolves.toEqual({ ok: true });
+    }
+
+    await expect(consumeLoginRateLimit(db, { email, now })).resolves.toEqual({
+      ok: false,
+      retryAfterSeconds: 300,
+    });
   });
 });

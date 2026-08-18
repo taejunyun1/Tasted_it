@@ -2,6 +2,7 @@ const oauthMessages: Record<string, string> = {
   cancelled: "Google 로그인이 취소되었습니다.",
   invalid_request: "로그인 요청이 만료되었습니다. 다시 시도해 주세요.",
   unverified_email: "이메일이 확인된 Google 계정을 사용해 주세요.",
+  existing_account: "기존 방식으로 로그인한 뒤 내 정보에서 Google을 연결해주세요.",
   temporarily_unavailable:
     "Google 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.",
 };

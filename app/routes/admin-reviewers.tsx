@@ -4,6 +4,7 @@ import { Form, Link } from "react-router";
 import type { Route } from "./+types/admin-reviewers";
 import { createDb } from "../db/client.server";
 import { requireAdmin } from "../features/auth/session.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { applyReviewerDormancy, changeReviewerStatus, listReviewerAdminRows, reviewReviewerApplication } from "../features/reviewers/reviewer.server";
 
 const statusLabels: Record<string, string> = { ALL: "전체", APPLIED: "신청 대기", REVIEWING: "검토 중", ACTIVE: "활동", DORMANT: "휴면", SUSPENDED: "정지", REJECTED: "반려" };
@@ -16,6 +17,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const admin = await requireAdmin(request);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");

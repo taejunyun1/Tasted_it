@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
 import { currentVotes, integrityCases, invalidatedVoteEvents, places, ratingRecomputeJobs, ratingSnapshots, users, voteEvents } from "../../app/db/schema";
-import { enqueueRatingRecompute, processRatingJobs, recomputePlaceRating } from "../../app/features/ratings/recompute.server";
+import { enqueueRatingRecompute, getLatestRatingSnapshot, processRatingJobs, recomputePlaceRating } from "../../app/features/ratings/recompute.server";
 
 const now = "2026-08-06T00:00:00.000Z";
 const placeId = "rating-recompute-place";
@@ -76,5 +76,53 @@ describe("rating recomputation", () => {
 
     expect(result).toEqual({ processed: 1, completed: 1, failed: 0 });
     expect((await db.select().from(ratingRecomputeJobs)).find((job) => job.placeId === placeId)?.status).toBe("COMPLETED");
+  });
+
+  it("returns only a non-stale snapshot as the latest rating", async () => {
+    const db = createDb(env.DB);
+    await db.insert(ratingSnapshots).values({
+      id: `${placeId}-stale`,
+      placeId,
+      configId: "rating-config-v2",
+      inputHash: `${placeId}-stale`,
+      overallScore: 10,
+      userScore: 10,
+      reviewerScore: 10,
+      overallSampleCount: 8,
+      userSampleCount: 8,
+      reviewerSampleCount: 0,
+      reviewerRawWeight: 0,
+      reviewerCombinedWeight: 0,
+      reviewerWeightShare: 0,
+      reasonsJson: "{}",
+      isStale: true,
+      computedAt: "2026-08-06T02:00:00.000Z",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+    await db.insert(ratingSnapshots).values({
+      id: `${placeId}-fresh`,
+      placeId,
+      configId: "rating-config-v2",
+      inputHash: `${placeId}-fresh`,
+      overallScore: 80,
+      userScore: 80,
+      reviewerScore: null,
+      overallSampleCount: 8,
+      userSampleCount: 8,
+      reviewerSampleCount: 0,
+      reviewerRawWeight: 0,
+      reviewerCombinedWeight: 0,
+      reviewerWeightShare: 0,
+      reasonsJson: "{}",
+      isStale: false,
+      computedAt: "2026-08-06T01:00:00.000Z",
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoNothing();
+
+    const latest = await getLatestRatingSnapshot(db, placeId);
+    expect(latest?.id).toBe(`${placeId}-fresh`);
+    expect(latest?.isStale).toBe(false);
   });
 });
