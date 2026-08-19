@@ -2,7 +2,7 @@
 
 > **상태:** `PROPOSED` — 결과 메모와 다음 진입점이다. 하네스 `GO`, 라이브 실행, 일괄 공개, 공개 베타, `k6`, 새 의존성을 승인하지 않는다.
 
-**추적:** [#210](https://github.com/taejunyun1/Tasted_it/issues/210) · [PR #211](https://github.com/taejunyun1/Tasted_it/pull/211) · n200 가설 [#212](https://github.com/taejunyun1/Tasted_it/issues/212) · [`2026-08-19-persona-lab-n200.md`](./2026-08-19-persona-lab-n200.md)
+**추적:** [#210](https://github.com/taejunyun1/Tasted_it/issues/210) · [PR #211](https://github.com/taejunyun1/Tasted_it/pull/211) · n200 가설 [#212](https://github.com/taejunyun1/Tasted_it/issues/212) · [PR #213](https://github.com/taejunyun1/Tasted_it/pull/213) · [`2026-08-19-persona-lab-n200.md`](./2026-08-19-persona-lab-n200.md)
 
 **선행:** [#208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209) 시나리오 카탈로그는 `main` `1ab3c50`. 이 문서는 그 카탈로그를 실행하지 않는다.
 
