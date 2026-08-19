@@ -15,7 +15,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-18 300명 합성 테스트 시나리오 카탈로그. 테스터 200 + 뷰어 100의 풀 여정(가입·온보딩·투표·제안·정정·리뷰어 게이트·관찰). 하네스 재작성·라이브 실행·일괄 공개·`k6` 없음. 문서 `PROPOSED`. | [Issue #208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209) · [`docs/superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md`](./superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md) |
+| Proposed | 2026-08-19 페르소나 랩 결과와 향후 진입점. 랩은 저장소 밖. 기본 모델 Muse Glimmer. `#209` 하네스 `GO`와 랩 preview를 분리. 키·라이브·새 스택 없음. | [Issue #210](https://github.com/taejunyun1/Tasted_it/issues/210) · [`docs/superpowers/plans/2026-08-19-persona-lab-entry.md`](./superpowers/plans/2026-08-19-persona-lab-entry.md) |
+| Merged | 2026-08-18 300명 합성 테스트 시나리오 카탈로그. 테스터 200 + 뷰어 100의 풀 여정. 하네스 재작성·라이브 실행·일괄 공개·`k6` 없음. 문서 `PROPOSED`. | [Issue #208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209) · [`1ab3c50`](https://github.com/taejunyun1/Tasted_it/commit/1ab3c50) · [`docs/superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md`](./superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md) |
 | Proposed | 2026-08-18 격리 합성 베타 200 테스터 + 100 뷰어 하드테스트 플랜. 라이브 Worker·원격 D1·NAVER·Resend·`k6`·새 binding 없음. 문서 `PROPOSED`. | [Issue #206](https://github.com/taejunyun1/Tasted_it/issues/206) · [PR #207](https://github.com/taejunyun1/Tasted_it/pull/207) · [`docs/superpowers/plans/2026-08-18-synthetic-beta-200.md`](./superpowers/plans/2026-08-18-synthetic-beta-200.md) |
 | Merged | 2026-08-18 `origin/main` `57b7f1c`/`e8df8fa`를 운영 계정에 배포. 원격 `0035` apply 후 Worker `49064c1f-bd3f-4eec-a9e5-5985d384a0c1`. 라이브 NAVER·일괄 공개 없음. rollback은 `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`. | [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) · [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) · [PR #205](https://github.com/taejunyun1/Tasted_it/pull/205) · [`e8df8fa`](https://github.com/taejunyun1/Tasted_it/commit/e8df8fa) |
 | Merged | 2026-08-18 NAVER 일일 예산을 지역 팩 필드로 나누고 카운터를 지역으로 분리한다. env 한도 상향·원격 migration·배포·실호출은 `#202`에 없음. | [Issue #201](https://github.com/taejunyun1/Tasted_it/issues/201) · [PR #202](https://github.com/taejunyun1/Tasted_it/pull/202) · [`57b7f1c`](https://github.com/taejunyun1/Tasted_it/commit/57b7f1c) |
@@ -68,6 +69,12 @@
 ## 상세 변경 이력
 
 모든 시각은 `Asia/Seoul` 기준이다. 커밋의 `+/-`는 해당 squash commit의 GitHub 통계이며 바이너리 파일의 크기 변화는 줄 수에 포함되지 않는다.
+
+### 2026-08-19
+
+| 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
+| --- | --- | --- | --- | --- |
+| 13:00 | 설계 / 테스트 | 페르소나 랩 실험 결과만 남기고 다음 진입점(E1 하네스 / E2 랩 preview)을 분리한다. 300 시나리오 로컬 브랜치는 Archive로 닫는다. | 문서 3파일. 제품 코드·키·랩 러너·배포·원격 D1 없음. | [Issue #210](https://github.com/taejunyun1/Tasted_it/issues/210) · [`docs/superpowers/plans/2026-08-19-persona-lab-entry.md`](./superpowers/plans/2026-08-19-persona-lab-entry.md) |
 
 ### 2026-08-18
 
