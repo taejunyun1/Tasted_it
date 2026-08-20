@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-20 NAVER 노매치는 자동으로 03으로 가지 않고 확인필요로 남긴다. 수동 근거 강제 이동·주소 수정·카드 선택·순차 50곳을 연다. Worker 요청당 NAVER 1회 유지. | [Issue #214](https://github.com/taejunyun1/Tasted_it/issues/214) |
+| Proposed | 2026-08-20 NAVER 노매치는 자동으로 03으로 가지 않고 확인필요로 남긴다. 수동 근거 강제 이동·주소 수정·카드 선택·순차 50곳을 연다. Worker 요청당 NAVER 1회 유지. | [Issue #214](https://github.com/taejunyun1/Tasted_it/issues/214) · [PR #215](https://github.com/taejunyun1/Tasted_it/pull/215) |
 | Proposed | 2026-08-19 페르소나 랩 n200 게스트 첫인상 가설. Lightning을 분포로 쓰고 Luna 붕괴는 버린다. 공개 베타 GO·CI·제품 이슈 승격 아님. 키·라이브·새 스택 없음. | [Issue #212](https://github.com/taejunyun1/Tasted_it/issues/212) · [PR #213](https://github.com/taejunyun1/Tasted_it/pull/213) · [`docs/superpowers/plans/2026-08-19-persona-lab-n200.md`](./superpowers/plans/2026-08-19-persona-lab-n200.md) |
 | Proposed | 2026-08-19 페르소나 랩 결과와 향후 진입점. 랩은 저장소 밖. 기본 모델 Muse Glimmer. `#209` 하네스 `GO`와 랩 preview를 분리. 키·라이브·새 스택 없음. | [Issue #210](https://github.com/taejunyun1/Tasted_it/issues/210) · [PR #211](https://github.com/taejunyun1/Tasted_it/pull/211) · [`docs/superpowers/plans/2026-08-19-persona-lab-entry.md`](./superpowers/plans/2026-08-19-persona-lab-entry.md) |
 | Merged | 2026-08-18 300명 합성 테스트 시나리오 카탈로그. 테스터 200 + 뷰어 100의 풀 여정. 하네스 재작성·라이브 실행·일괄 공개·`k6` 없음. 문서 `PROPOSED`. | [Issue #208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209) · [`1ab3c50`](https://github.com/taejunyun1/Tasted_it/commit/1ab3c50) · [`docs/superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md`](./superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md) |
@@ -76,7 +76,7 @@
 
 | 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
 | --- | --- | --- | --- | --- |
-| 14:22 | 관리자 / 검수 | NAVER 노매치가 다음 단계로 안 넘어가던 원인을 확인필요로 표시하고, 20자 수동 근거로만 강제 이동한다. 주소 수정은 광주전남만. 순차 검증 50곳, 요청당 NAVER 1회. | 검수 UI·서버·테스트. 배포·원격 D1·라이브 NAVER 없음. | [Issue #214](https://github.com/taejunyun1/Tasted_it/issues/214) |
+| 14:22 | 관리자 / 검수 | NAVER 노매치가 다음 단계로 안 넘어가던 원인을 확인필요로 표시하고, 20자 수동 근거로만 강제 이동한다. 주소 수정은 광주전남만. 순차 검증 50곳, 요청당 NAVER 1회. | 검수 UI·서버·테스트. 배포·원격 D1·라이브 NAVER 없음. | [Issue #214](https://github.com/taejunyun1/Tasted_it/issues/214) · [PR #215](https://github.com/taejunyun1/Tasted_it/pull/215) |
 
 ### 2026-08-19
 
