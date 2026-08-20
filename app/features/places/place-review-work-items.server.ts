@@ -81,8 +81,8 @@ function naverDecisionForCandidate(
   hasManualEvidence: boolean,
 ): NaverReviewDecision {
   if (status === "VERIFIED") return "VERIFIED";
-  if (status === "FAILED") return "FAILED";
   if (hasManualEvidence) return "MANUAL_OVERRIDE";
+  if (status === "FAILED") return "FAILED";
   if (status === "LIKELY" || status === "AMBIGUOUS") return "AMBIGUOUS";
   return "NOT_FOUND";
 }
@@ -92,8 +92,8 @@ function naverDecisionForPlace(
   hasManualEvidence: boolean,
 ): NaverReviewDecision {
   if (status === "MATCHED") return "MATCHED";
-  if (status === "ERROR") return "FAILED";
   if (hasManualEvidence) return "MANUAL_OVERRIDE";
+  if (status === "ERROR") return "FAILED";
   if (status === "AMBIGUOUS") return "AMBIGUOUS";
   return "NOT_FOUND";
 }
@@ -382,6 +382,8 @@ export async function updateReviewItemAddresses(db: AppDb, input: {
         await db.update(businessLicenses).set({
           roadAddress: address,
           regionCode: region,
+          latitude: current === address ? license?.latitude ?? null : null,
+          longitude: current === address ? license?.longitude ?? null : null,
           updatedAt: input.now,
         }).where(eq(businessLicenses.id, workItem.businessLicenseId));
         await db.delete(naverLocalCategoryVerifications).where(eq(naverLocalCategoryVerifications.businessLicenseId, workItem.businessLicenseId));
@@ -390,6 +392,7 @@ export async function updateReviewItemAddresses(db: AppDb, input: {
       const place = await db.query.places.findFirst({ where: eq(places.id, workItem.placeId) });
       if ((place?.address ?? "").trim() !== address) {
         await db.update(places).set({ address, updatedAt: input.now }).where(eq(places.id, workItem.placeId));
+        await db.delete(placeLivenessStates).where(eq(placeLivenessStates.placeId, workItem.placeId));
       }
     } else {
       skipped.push({ workItemId, code: "NOT_ACTIVE" });

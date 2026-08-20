@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { adminAuditLogs, businessLicenses, naverLocalCategoryVerifications, placeReviewWorkItems, users } from "../../app/db/schema";
+import { adminAuditLogs, businessLicenses, naverLocalCategoryVerifications, placeLivenessStates, placeReviewWorkItems, places, users } from "../../app/db/schema";
 import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, newReviewWorkItemValues, updateReviewItemAddresses } from "../../app/features/places/place-review-work-items.server";
 
 const now = "2026-08-15T12:00:00.000Z";
@@ -89,6 +89,26 @@ describe("place review work item transitions", () => {
       .resolves.toMatchObject({ stage: "CATEGORY_CONFIRMATION", manualEvidenceReason: "공공데이터 원천과 현장 상호가 같아 수동으로 넘긴다" });
   });
 
+  it("lets 20-character manual evidence override a FAILED NAVER status", async () => {
+    const { db, actorUserId, businessLicenseId, workItemId } = await createSourceReviewItem();
+    await advancePlaceReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: { [workItemId]: 0 }, actorUserId, now,
+    });
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId, status: "FAILED", mappedCategoryId: null, matchScore: 0, specificityScore: 0, confidenceScore: 0,
+      evidenceCodesJson: "[]", ruleVersion: "naver-category-v1", inputFingerprint: "failed", queriedAt: now, expiresAt: null, failureCode: "NAVER_LOCAL_SEARCH_UNAVAILABLE", createdAt: now, updatedAt: now,
+    });
+
+    await expect(advancePlaceReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "NAVER_VERIFICATION", expectedVersions: { [workItemId]: 1 }, actorUserId, now,
+    })).resolves.toEqual({ advanced: [], skipped: [{ workItemId, code: "NAVER_RETRY_REQUIRED" }] });
+
+    await expect(advancePlaceReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "NAVER_VERIFICATION", expectedVersions: { [workItemId]: 1 }, actorUserId, now,
+      manualEvidenceReason: "공공데이터 원천과 현장 상호가 같아 수동으로 넘긴다",
+    })).resolves.toEqual({ advanced: [workItemId], skipped: [] });
+  });
+
   it("updates a NAVER-stage address inside the region pack and clears cached NAVER evidence", async () => {
     const { db, actorUserId, businessLicenseId, workItemId } = await createSourceReviewItem();
     await advancePlaceReviewWorkItems(db, {
@@ -113,8 +133,40 @@ describe("place review work item transitions", () => {
       now,
     })).resolves.toEqual({ changed: [workItemId], skipped: [] });
     await expect(db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, businessLicenseId) }))
-      .resolves.toMatchObject({ roadAddress: "광주광역시 북구 검수로 12", regionCode: "GWANGJU" });
+      .resolves.toMatchObject({ roadAddress: "광주광역시 북구 검수로 12", regionCode: "GWANGJU", latitude: null, longitude: null });
     await expect(db.query.naverLocalCategoryVerifications.findFirst({ where: eq(naverLocalCategoryVerifications.businessLicenseId, businessLicenseId) }))
+      .resolves.toBeUndefined();
+  });
+
+  it("clears place NAVER liveness when the place address changes", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const actorUserId = `review-actor-${suffix}`;
+    const placeId = `review-place-${suffix}`;
+    await db.insert(users).values({
+      id: actorUserId, email: `${actorUserId}@example.test`, displayName: "검수 관리자", role: "ADMIN",
+      passwordHash: null, passwordSalt: null, emailVerifiedAt: now, createdAt: now, updatedAt: now,
+    });
+    await db.insert(places).values({
+      id: placeId, slug: placeId, name: "검수 장소", status: "DRAFT", address: "광주광역시 동구 서석로 1",
+      neighborhood: "서석동", latitude: 35.146, longitude: 126.923, searchText: "검수 장소", createdAt: now, updatedAt: now,
+    });
+    await db.insert(placeLivenessStates).values({
+      placeId, status: "MONITORING", kakaoStatus: "SKIPPED", naverStatus: "MATCHED",
+      naverEvidenceCodesJson: "[]", evidenceJson: "{}", updatedAt: now,
+    });
+    const item = newReviewWorkItemValues({ placeId, sourceKind: "PLACE_SUGGESTION", now });
+    await db.insert(placeReviewWorkItems).values({ ...item, stage: "NAVER_VERIFICATION", stageVersion: 1 });
+
+    await expect(updateReviewItemAddresses(db, {
+      workItemIds: [item.id],
+      addressByWorkItem: { [item.id]: "광주광역시 북구 검수로 12" },
+      actorUserId,
+      now,
+    })).resolves.toEqual({ changed: [item.id], skipped: [] });
+    await expect(db.query.places.findFirst({ where: eq(places.id, placeId) }))
+      .resolves.toMatchObject({ address: "광주광역시 북구 검수로 12" });
+    await expect(db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) }))
       .resolves.toBeUndefined();
   });
 });
