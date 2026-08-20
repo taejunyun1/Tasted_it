@@ -255,7 +255,7 @@ Google/네이버 로그인 실 IdP는 합성 대상이 아니다. 이메일 가�
 
 `#207` 슬라이스 하네스를 이 카탈로그로 바꾸기 전에는 풀 이용 완료를 주장하지 않는다.
 
-페르소나 에이전트 랩 결과와 다음 진입점(E1 하네스 / E2 랩 preview / E3 1M)은 [`2026-08-19-persona-lab-entry.md`](./2026-08-19-persona-lab-entry.md)에 둔다. 랩은 이 카탈로그를 대체하지 않는다.
+페르소나 에이전트 랩 진입점은 [`2026-08-19-persona-lab-entry.md`](./2026-08-19-persona-lab-entry.md), n200 게스트 첫인상 가설은 [`2026-08-19-persona-lab-n200.md`](./2026-08-19-persona-lab-n200.md)에 둔다. 랩은 이 카탈로그를 대체하지 않는다.
 
 ## 8. 시나리오 ID 색인
 
@@ -301,6 +301,6 @@ Google/네이버 로그인 실 IdP는 합성 대상이 아니다. 이메일 가�
 
 **Out of scope:** live writes, real NAVER/Resend, OAuth IdP, second city.
 
-Implementation requires a later PR that marks this document `GO` and maps each `S-*` id to an isolated test. Persona-lab pickup is [`2026-08-19-persona-lab-entry.md`](./2026-08-19-persona-lab-entry.md).
+Implementation requires a later PR that marks this document `GO` and maps each `S-*` id to an isolated test. Persona-lab pickup is [`2026-08-19-persona-lab-entry.md`](./2026-08-19-persona-lab-entry.md). n200 guest first-look hypotheses are [`2026-08-19-persona-lab-n200.md`](./2026-08-19-persona-lab-n200.md).
 
 **Tracking:** [#208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209)

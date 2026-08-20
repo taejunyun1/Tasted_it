@@ -15,6 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 2026-08-19 페르소나 랩 n200 게스트 첫인상 가설. Lightning을 분포로 쓰고 Luna 붕괴는 버린다. 공개 베타 GO·CI·제품 이슈 승격 아님. 키·라이브·새 스택 없음. | [Issue #212](https://github.com/taejunyun1/Tasted_it/issues/212) · [PR #213](https://github.com/taejunyun1/Tasted_it/pull/213) · [`docs/superpowers/plans/2026-08-19-persona-lab-n200.md`](./superpowers/plans/2026-08-19-persona-lab-n200.md) |
 | Proposed | 2026-08-19 페르소나 랩 결과와 향후 진입점. 랩은 저장소 밖. 기본 모델 Muse Glimmer. `#209` 하네스 `GO`와 랩 preview를 분리. 키·라이브·새 스택 없음. | [Issue #210](https://github.com/taejunyun1/Tasted_it/issues/210) · [PR #211](https://github.com/taejunyun1/Tasted_it/pull/211) · [`docs/superpowers/plans/2026-08-19-persona-lab-entry.md`](./superpowers/plans/2026-08-19-persona-lab-entry.md) |
 | Merged | 2026-08-18 300명 합성 테스트 시나리오 카탈로그. 테스터 200 + 뷰어 100의 풀 여정. 하네스 재작성·라이브 실행·일괄 공개·`k6` 없음. 문서 `PROPOSED`. | [Issue #208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209) · [`1ab3c50`](https://github.com/taejunyun1/Tasted_it/commit/1ab3c50) · [`docs/superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md`](./superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md) |
 | Proposed | 2026-08-18 격리 합성 베타 200 테스터 + 100 뷰어 하드테스트 플랜. 라이브 Worker·원격 D1·NAVER·Resend·`k6`·새 binding 없음. 문서 `PROPOSED`. | [Issue #206](https://github.com/taejunyun1/Tasted_it/issues/206) · [PR #207](https://github.com/taejunyun1/Tasted_it/pull/207) · [`docs/superpowers/plans/2026-08-18-synthetic-beta-200.md`](./superpowers/plans/2026-08-18-synthetic-beta-200.md) |
@@ -74,6 +75,7 @@
 
 | 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
 | --- | --- | --- | --- | --- |
+| 14:24 | 설계 / 테스트 | 게스트 첫인상 n200 가설을 기록한다. Lightning 분포, Luna 붕괴 폐기. 사람 localhost 재현 전에는 제품 이슈가 아니다. | 문서 4파일. 제품 코드·키·랩 러너·배포·원격 D1 없음. | [Issue #212](https://github.com/taejunyun1/Tasted_it/issues/212) · [PR #213](https://github.com/taejunyun1/Tasted_it/pull/213) · [`docs/superpowers/plans/2026-08-19-persona-lab-n200.md`](./superpowers/plans/2026-08-19-persona-lab-n200.md) |
 | 13:00 | 설계 / 테스트 | 페르소나 랩 실험 결과만 남기고 다음 진입점(E1 하네스 / E2 랩 preview)을 분리한다. 300 시나리오 로컬 브랜치는 Archive로 닫는다. | 문서 3파일. 제품 코드·키·랩 러너·배포·원격 D1 없음. | [Issue #210](https://github.com/taejunyun1/Tasted_it/issues/210) · [PR #211](https://github.com/taejunyun1/Tasted_it/pull/211) · [`docs/superpowers/plans/2026-08-19-persona-lab-entry.md`](./superpowers/plans/2026-08-19-persona-lab-entry.md) |
 
 ### 2026-08-18
