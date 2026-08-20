@@ -32,6 +32,26 @@ export type ReviewAdvanceResult =
   | { ok: true; nextStage: ReviewStage }
   | { ok: false; code: ReviewBlockCode };
 
+export const MANUAL_EVIDENCE_REASON_MIN = 20;
+
+const naverConfirmationStatuses = new Set([
+  "NO_MATCH",
+  "NOT_FOUND",
+  "AMBIGUOUS",
+  "LIKELY",
+  "FAILED",
+  "ERROR",
+  "OUT_OF_SCOPE",
+]);
+
+export function hasManualReviewEvidence(reason?: string | null) {
+  return (reason?.trim().length ?? 0) >= MANUAL_EVIDENCE_REASON_MIN;
+}
+
+export function naverNeedsConfirmation(status?: string | null) {
+  return Boolean(status && naverConfirmationStatuses.has(status));
+}
+
 export function evaluateReviewAdvance(stage: ReviewStage, evidence: ReviewGateEvidence): ReviewAdvanceResult {
   if (stage === "SOURCE_REVIEW") {
     return evidence.sourceReady

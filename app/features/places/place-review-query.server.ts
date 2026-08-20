@@ -11,6 +11,7 @@ import {
   placeReviewWorkItems,
 } from "../../db/schema";
 import { addressLikePatterns, regionFromAddress, type RegionCode } from "../regions/region-pack";
+import { naverNeedsConfirmation } from "./place-review-pipeline";
 import type { PlaceReviewQuery, ReviewStepNumber } from "./place-review-pagination";
 
 const stageByStep = {
@@ -55,7 +56,16 @@ function reviewConditions(query: PlaceReviewQuery): SQL[] {
   const conditions: SQL[] = [eq(placeReviewWorkItems.stage, reviewStageForStep(query.step))];
   if (query.status === "pending" || query.status === "ready") conditions.push(eq(placeReviewWorkItems.status, "ACTIVE"));
   if (query.status === "hold") conditions.push(eq(placeReviewWorkItems.status, "ON_HOLD"));
-  if (query.status === "attention") conditions.push(and(eq(placeReviewWorkItems.status, "ACTIVE"), sql`${placeReviewWorkItems.holdCode} is not null`)!);
+  if (query.status === "attention") {
+    conditions.push(and(
+      eq(placeReviewWorkItems.status, "ACTIVE"),
+      or(
+        sql`${placeReviewWorkItems.holdCode} is not null`,
+        inArray(naverLocalCategoryVerifications.status, ["NO_MATCH", "LIKELY", "AMBIGUOUS", "FAILED", "OUT_OF_SCOPE"]),
+        inArray(placeLivenessStates.naverStatus, ["NOT_FOUND", "AMBIGUOUS", "ERROR"]),
+      )!,
+    )!);
+  }
   if (query.status === "ready") {
     conditions.push(or(
       and(isNotNull(businessLicenses.latitude), isNotNull(businessLicenses.longitude)),
@@ -90,6 +100,8 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     .from(placeReviewWorkItems)
     .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId))
     .leftJoin(places, eq(places.id, placeReviewWorkItems.placeId))
+    .leftJoin(naverLocalCategoryVerifications, eq(naverLocalCategoryVerifications.businessLicenseId, businessLicenses.id))
+    .leftJoin(placeLivenessStates, eq(placeLivenessStates.placeId, places.id))
     .where(and(...conditions));
   const total = Number(countRow?.total ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / query.pageSize));
@@ -98,6 +110,8 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     .from(placeReviewWorkItems)
     .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId))
     .leftJoin(places, eq(places.id, placeReviewWorkItems.placeId))
+    .leftJoin(naverLocalCategoryVerifications, eq(naverLocalCategoryVerifications.businessLicenseId, businessLicenses.id))
+    .leftJoin(placeLivenessStates, eq(placeLivenessStates.placeId, places.id))
     .where(and(...conditions))
     .orderBy(
       sql`case when (${businessLicenses.latitude} is not null and ${businessLicenses.longitude} is not null) or (${places.latitude} is not null and ${places.longitude} is not null) then 0 else 1 end`,
@@ -143,9 +157,11 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     const sourceMissing = isBusinessLicense
       ? !address || businessLicense?.latitude == null || businessLicense.longitude == null
       : !place?.address || place.latitude == null || place.longitude == null;
+    const naverStatus = row.candidateNaverStatus ?? row.placeNaverStatus ?? null;
     const blockCodes = [
       ...(sourceMissing ? ["SOURCE_NOT_READY"] : []),
       ...(workItem.holdCode ? [workItem.holdCode] : []),
+      ...(naverNeedsConfirmation(naverStatus) && workItem.stage === "NAVER_VERIFICATION" ? ["NAVER_REVIEW_REQUIRED"] : []),
     ];
 
     return [workItem.id, {
@@ -158,7 +174,7 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
       address,
       region: businessLicense?.regionCode ?? regionFromAddress(place?.address ?? null),
       placeStatus: place?.status ?? null,
-      naverStatus: row.candidateNaverStatus ?? row.placeNaverStatus ?? null,
+      naverStatus,
       naverScore: row.candidateNaverScore ?? row.placeNaverScore ?? null,
       naverMappedCategoryId: row.candidateNaverMappedCategoryId ?? null,
       naverMappedCategoryName: row.naverMappedCategoryName ?? null,

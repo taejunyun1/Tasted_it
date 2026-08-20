@@ -1,14 +1,18 @@
-import { reviewStages, type ReviewStage } from "./place-review-pipeline";
+import { hasManualReviewEvidence, reviewStages, type ReviewStage } from "./place-review-pipeline";
 import { reviewErrorMessage, type ReviewErrorCode } from "./place-review-errors";
 
 export const REVIEW_BATCH_MIN = 1;
-export const REVIEW_BATCH_MAX = 25;
+export const REVIEW_BATCH_MAX = 50;
+export const REVIEW_SELECTION_LIMIT = 50;
+export const NAVER_REVIEW_RUN_MAX = 50;
 
 export const reviewIntents = [
   "auto-exclude-non-food-review-items",
   "verify-review-items-with-naver",
   "auto-verify-review-item-with-naver",
   "advance-review-items",
+  "approve-manual-review-evidence",
+  "update-review-item-addresses",
   "confirm-review-categories",
   "resolve-review-duplicates",
   "publish-review-items",
@@ -31,6 +35,8 @@ export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> 
     "verify-review-items-with-naver",
     "auto-verify-review-item-with-naver",
     "advance-review-items",
+    "approve-manual-review-evidence",
+    "update-review-item-addresses",
     "hold-review-items",
     "exclude-review-items",
   ],
@@ -47,6 +53,7 @@ export type ReviewRequestInput = {
   reason?: string;
   confirmPublish?: string;
   categoryByWorkItem?: Record<string, string>;
+  addressByWorkItem?: Record<string, string>;
 };
 
 export type ReviewRequestCheck =
@@ -87,6 +94,13 @@ export function checkReviewRequest(input: ReviewRequestInput): ReviewRequestChec
 
   if ((input.intent === "hold-review-items" || input.intent === "exclude-review-items") && !input.reason?.trim()) {
     return { ok: false, code: "REVIEW_REASON_REQUIRED" };
+  }
+  if (input.intent === "approve-manual-review-evidence" && !hasManualReviewEvidence(input.reason)) {
+    return { ok: false, code: "MANUAL_EVIDENCE_REASON_REQUIRED" };
+  }
+  if (input.intent === "update-review-item-addresses") {
+    const missingAddress = workItemIds.some((workItemId) => !input.addressByWorkItem?.[workItemId]?.trim());
+    if (missingAddress) return { ok: false, code: "REVIEW_ADDRESS_REQUIRED" };
   }
   if (input.intent === "publish-review-items" && input.confirmPublish !== "on") {
     return { ok: false, code: "PUBLISH_CONFIRM_REQUIRED" };

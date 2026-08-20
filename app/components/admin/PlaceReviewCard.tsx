@@ -1,4 +1,5 @@
 import type { PlaceReviewQueueRow } from "../../features/places/place-review-query.server";
+import { naverNeedsConfirmation } from "../../features/places/place-review-pipeline";
 
 const sourceLabels: Record<PlaceReviewQueueRow["sourceKind"], string> = {
   PUBLIC_DATA: "공공데이터",
@@ -7,18 +8,43 @@ const sourceLabels: Record<PlaceReviewQueueRow["sourceKind"], string> = {
   LIVENESS_RECHECK: "영업 재검증",
 };
 
-export function PlaceReviewCard({ row, checked, onToggle }: { row: PlaceReviewQueueRow; checked: boolean; onToggle: () => void }) {
-  return <article className="place-review-card">
-    <label className="place-review-card-select"><input type="checkbox" checked={checked} onChange={onToggle} /><span className="sr-only">{row.name} 선택</span></label>
+function naverStatusLabel(status: string | null) {
+  if (!status) return "미확인";
+  if (naverNeedsConfirmation(status)) return "확인필요";
+  if (status === "VERIFIED" || status === "MATCHED") return "일치";
+  return status;
+}
+
+export function PlaceReviewCard({ row, checked, onToggle, addressEditable = false }: {
+  row: PlaceReviewQueueRow;
+  checked: boolean;
+  onToggle: () => void;
+  addressEditable?: boolean;
+}) {
+  return <article className={`place-review-card${checked ? " is-selected" : ""}`} onClick={(event) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select, button, a, label.place-review-address-edit")) return;
+    onToggle();
+  }}>
+    <label className="place-review-card-select" onClick={(event) => event.stopPropagation()}>
+      <input type="checkbox" checked={checked} onChange={onToggle} onClick={(event) => event.stopPropagation()} />
+      <span className="sr-only">{row.name} 선택</span>
+    </label>
     <div className="place-review-card-main">
-      <p className="place-review-card-meta"><span>{sourceLabels[row.sourceKind]}</span>{row.region && <span>{row.region === "GWANGJU" ? "광주" : "전남"}</span>}{row.placeStatus && <span>{row.placeStatus}</span>}</p>
+      <p className="place-review-card-meta">
+        <span>{sourceLabels[row.sourceKind]}</span>
+        {row.region && <span>{row.region === "GWANGJU" ? "광주" : "전남"}</span>}
+        {row.placeStatus && <span>{row.placeStatus}</span>}
+        {naverNeedsConfirmation(row.naverStatus) && <span className="place-review-badge">확인필요</span>}
+      </p>
       <h3>{row.name || "상호 확인 필요"}</h3>
       <p>{row.address || "주소 확인 필요"}</p>
+      {addressEditable && checked && <label className="place-review-address-edit" onClick={(event) => event.stopPropagation()}>주소 상세<input name={`address:${row.workItemId}`} defaultValue={row.address} maxLength={200} /></label>}
       <dl>
-        <div><dt>NAVER</dt><dd>{row.naverStatus ?? "미확인"}{row.naverScore != null ? ` · ${row.naverScore}점` : ""}</dd></div>
+        <div><dt>NAVER</dt><dd>{naverStatusLabel(row.naverStatus)}{row.naverScore != null ? ` · ${row.naverScore}점` : ""}</dd></div>
         <div><dt>카테고리</dt><dd>{row.selectedCategoryName ?? (row.naverMappedCategoryName ? `NAVER 추천 · ${row.naverMappedCategoryName}` : "미확정")}</dd></div>
       </dl>
-      {row.blockCodes.length > 0 && <ul className="place-review-blocks">{row.blockCodes.map((code) => <li key={code}>{code}</li>)}</ul>}
+      {row.blockCodes.length > 0 && <ul className="place-review-blocks">{row.blockCodes.map((code) => <li key={code}>{code === "NAVER_REVIEW_REQUIRED" ? "확인필요" : code}</li>)}</ul>}
     </div>
   </article>;
 }

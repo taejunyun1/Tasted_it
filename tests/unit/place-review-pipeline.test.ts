@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateReviewAdvance } from "../../app/features/places/place-review-pipeline";
+import { evaluateReviewAdvance, hasManualReviewEvidence, naverNeedsConfirmation } from "../../app/features/places/place-review-pipeline";
 
 const ready = {
   sourceReady: true,
@@ -19,8 +19,20 @@ describe("place review stage gates", () => {
   it("blocks NAVER failures and permits a recorded manual evidence approval", () => {
     expect(evaluateReviewAdvance("NAVER_VERIFICATION", { ...ready, naverDecision: "FAILED" }))
       .toEqual({ ok: false, code: "NAVER_RETRY_REQUIRED" });
+    expect(evaluateReviewAdvance("NAVER_VERIFICATION", { ...ready, naverDecision: "NOT_FOUND" }))
+      .toEqual({ ok: false, code: "NAVER_REVIEW_REQUIRED" });
+    expect(evaluateReviewAdvance("NAVER_VERIFICATION", { ...ready, naverDecision: "AMBIGUOUS" }))
+      .toEqual({ ok: false, code: "NAVER_REVIEW_REQUIRED" });
     expect(evaluateReviewAdvance("NAVER_VERIFICATION", { ...ready, naverDecision: "MANUAL_OVERRIDE" }))
       .toEqual({ ok: true, nextStage: "CATEGORY_CONFIRMATION" });
+  });
+
+  it("treats NO_MATCH-like NAVER statuses as confirmation-needed and requires 20 characters of manual evidence", () => {
+    expect(naverNeedsConfirmation("NO_MATCH")).toBe(true);
+    expect(naverNeedsConfirmation("NOT_FOUND")).toBe(true);
+    expect(naverNeedsConfirmation("VERIFIED")).toBe(false);
+    expect(hasManualReviewEvidence("주소 확인 후 수동 이동")).toBe(false);
+    expect(hasManualReviewEvidence("공공데이터 원천과 현장 상호가 같아 수동으로 넘긴다")).toBe(true);
   });
 
   it("blocks unresolved duplicates and exclusions", () => {

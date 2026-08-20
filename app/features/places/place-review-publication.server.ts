@@ -3,13 +3,12 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, businessLicenses, placeCategories, placeReviewWorkItems, places } from "../../db/schema";
 import { approveCandidate } from "../candidates/candidate.server";
+import { REVIEW_BATCH_MAX } from "./place-review-io";
 import { listReviewDuplicateCandidates } from "./place-review-duplicates.server";
-
-const MAX_REVIEW_BATCH_SIZE = 25;
 
 function uniqueIds(ids: string[]) {
   const unique = [...new Set(ids.filter(Boolean))];
-  if (unique.length > MAX_REVIEW_BATCH_SIZE) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
+  if (unique.length > REVIEW_BATCH_MAX) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
   return unique;
 }
 

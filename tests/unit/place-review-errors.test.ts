@@ -42,6 +42,7 @@ describe("place review error catalog", () => {
       disposition: "STAY",
     });
     expect(reviewErrorCatalog.PUBLISH_CONFIRM_REQUIRED.message).toContain("공개");
+    expect(reviewErrorMessage("NAVER_REVIEW_REQUIRED").message).toContain("수동 근거");
   });
 
   it("does not throw on unknown domain codes", () => {

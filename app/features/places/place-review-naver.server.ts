@@ -8,7 +8,7 @@ import { verifyPlacesLivenessWithNaver } from "./naver-place-liveness.server";
 import { advancePlaceReviewWorkItems } from "./place-review-work-items.server";
 
 // Each item can perform one external request plus several D1 writes. The UI runs up
-// to ten of these as separate, sequential requests so a single Worker never exceeds
+// to fifty of these as separate, sequential requests so a single Worker never exceeds
 // its resource limit.
 export const MAX_NAVER_REVIEW_BATCH_SIZE = 1;
 
