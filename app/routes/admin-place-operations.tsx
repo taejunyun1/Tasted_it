@@ -35,7 +35,7 @@ import { checkReviewRequest } from "../features/places/place-review-io";
 import { parsePlaceReviewQuery } from "../features/places/place-review-pagination";
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
-import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems } from "../features/places/place-review-work-items.server";
+import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
@@ -245,8 +245,9 @@ export async function action({ request }: Route.ActionArgs) {
   const reason = String(form.get("reason") ?? "").trim();
   const confirmPublish = String(form.get("confirmPublish") ?? "");
   const categoryByWorkItem = Object.fromEntries(workItemIds.map((workItemId) => [workItemId, String(form.get(`category:${workItemId}`) ?? "")]));
+  const addressByWorkItem = Object.fromEntries(workItemIds.map((workItemId) => [workItemId, String(form.get(`address:${workItemId}`) ?? "")]));
   const checked = checkReviewRequest({
-    intent, expectedStage, workItemIds, automaticWorkItemIds, reason, confirmPublish, categoryByWorkItem,
+    intent, expectedStage, workItemIds, automaticWorkItemIds, reason, confirmPublish, categoryByWorkItem, addressByWorkItem,
   });
   if (!checked.ok) return reviewActionError(checked.code, batchId ? { batchId } : undefined);
 
@@ -282,7 +283,7 @@ export async function action({ request }: Route.ActionArgs) {
       const result = await verifyReviewItemsWithNaver(db, {
         workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env),
       });
-      return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
+      return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, passed: result.passed, attention: result.attention, failed: result.failed, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
     } catch (error) {
       return reviewCaughtError(error, { batchId });
     }
@@ -311,7 +312,20 @@ export async function action({ request }: Route.ActionArgs) {
     }
     if (intent === "advance-review-items") {
       const result = await advancePlaceReviewWorkItems(db, { workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now });
+      if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
       return { ok: true, message: `다음 단계 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    if (intent === "approve-manual-review-evidence") {
+      const result = await advancePlaceReviewWorkItems(db, {
+        workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, manualEvidenceReason: reason,
+      });
+      if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
+      return { ok: true, message: `수동 근거로 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    if (intent === "update-review-item-addresses") {
+      const result = await updateReviewItemAddresses(db, { workItemIds, addressByWorkItem, actorUserId: admin.id, now });
+      if (!result.changed.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
+      return { ok: true, message: `주소 저장 ${result.changed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "hold-review-items" || intent === "exclude-review-items") {
       const result = intent === "hold-review-items"

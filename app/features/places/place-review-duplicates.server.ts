@@ -3,9 +3,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, businessLicenses, placeReviewDuplicateResolutions, placeReviewWorkItems, places } from "../../db/schema";
 import { classifyChainStore } from "../candidates/chain-store-policy";
+import { REVIEW_BATCH_MAX } from "./place-review-io";
 import { normalizePlaceName } from "./place-name-groups";
 
-const MAX_REVIEW_BATCH_SIZE = 25;
 const MAX_MATCH_DISTANCE_METERS = 100;
 
 export type ReviewDuplicateCandidate = {
@@ -33,7 +33,7 @@ function distanceMeters(left: { latitude: number; longitude: number }, right: { 
 
 function uniqueIds(ids: string[]) {
   const unique = [...new Set(ids.filter(Boolean))];
-  if (unique.length > MAX_REVIEW_BATCH_SIZE) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
+  if (unique.length > REVIEW_BATCH_MAX) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
   return unique;
 }
 
@@ -96,7 +96,7 @@ export async function resolveReviewDuplicates(db: AppDb, input: {
   actorUserId: string;
   now: string;
 }) {
-  if (input.resolutions.length > MAX_REVIEW_BATCH_SIZE * 5) throw new Error("PLACE_REVIEW_DUPLICATE_BATCH_LIMIT_EXCEEDED");
+  if (input.resolutions.length > REVIEW_BATCH_MAX * 5) throw new Error("PLACE_REVIEW_DUPLICATE_BATCH_LIMIT_EXCEEDED");
   const accepted: string[] = [];
   const skipped: Array<{ candidatePlaceId: string; code: string }> = [];
   const byWorkItem = new Map<string, string[]>();

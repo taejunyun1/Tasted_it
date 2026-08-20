@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { adminAuditLogs, businessLicenses, placeReviewWorkItems, users } from "../../app/db/schema";
-import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
+import { adminAuditLogs, businessLicenses, naverLocalCategoryVerifications, placeReviewWorkItems, users } from "../../app/db/schema";
+import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, newReviewWorkItemValues, updateReviewItemAddresses } from "../../app/features/places/place-review-work-items.server";
 
 const now = "2026-08-15T12:00:00.000Z";
 
@@ -65,5 +65,56 @@ describe("place review work item transitions", () => {
       .resolves.toMatchObject({ status: "EXCLUDED", holdCode: "AUTO_NON_FOOD", holdNote: expect.stringContaining("NAME_CONVENIENCE_GS25") });
     await expect(nonFood.db.query.adminAuditLogs.findFirst({ where: eq(adminAuditLogs.targetId, nonFood.workItemId) }))
       .resolves.toMatchObject({ action: "PLACE_REVIEW_AUTO_EXCLUDE_NON_FOOD" });
+  });
+
+  it("keeps NO_MATCH on NAVER verification until 20-character manual evidence is recorded", async () => {
+    const { db, actorUserId, businessLicenseId, workItemId } = await createSourceReviewItem();
+    await advancePlaceReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: { [workItemId]: 0 }, actorUserId, now,
+    });
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId, status: "NO_MATCH", mappedCategoryId: null, matchScore: 0, specificityScore: 0, confidenceScore: 0,
+      evidenceCodesJson: "[]", ruleVersion: "naver-category-v1", inputFingerprint: "nomatch", queriedAt: now, expiresAt: null, failureCode: null, createdAt: now, updatedAt: now,
+    });
+
+    await expect(advancePlaceReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "NAVER_VERIFICATION", expectedVersions: { [workItemId]: 1 }, actorUserId, now,
+    })).resolves.toEqual({ advanced: [], skipped: [{ workItemId, code: "NAVER_REVIEW_REQUIRED" }] });
+
+    await expect(advancePlaceReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "NAVER_VERIFICATION", expectedVersions: { [workItemId]: 1 }, actorUserId, now,
+      manualEvidenceReason: "공공데이터 원천과 현장 상호가 같아 수동으로 넘긴다",
+    })).resolves.toEqual({ advanced: [workItemId], skipped: [] });
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) }))
+      .resolves.toMatchObject({ stage: "CATEGORY_CONFIRMATION", manualEvidenceReason: "공공데이터 원천과 현장 상호가 같아 수동으로 넘긴다" });
+  });
+
+  it("updates a NAVER-stage address inside the region pack and clears cached NAVER evidence", async () => {
+    const { db, actorUserId, businessLicenseId, workItemId } = await createSourceReviewItem();
+    await advancePlaceReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: { [workItemId]: 0 }, actorUserId, now,
+    });
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId, status: "NO_MATCH", mappedCategoryId: null, matchScore: 0, specificityScore: 0, confidenceScore: 0,
+      evidenceCodesJson: "[]", ruleVersion: "naver-category-v1", inputFingerprint: "nomatch", queriedAt: now, expiresAt: null, failureCode: null, createdAt: now, updatedAt: now,
+    });
+
+    await expect(updateReviewItemAddresses(db, {
+      workItemIds: [workItemId],
+      addressByWorkItem: { [workItemId]: "서울특별시 중구 세종대로 110" },
+      actorUserId,
+      now,
+    })).resolves.toEqual({ changed: [], skipped: [{ workItemId, code: "REVIEW_ADDRESS_REGION_INVALID" }] });
+
+    await expect(updateReviewItemAddresses(db, {
+      workItemIds: [workItemId],
+      addressByWorkItem: { [workItemId]: "광주광역시 북구 검수로 12" },
+      actorUserId,
+      now,
+    })).resolves.toEqual({ changed: [workItemId], skipped: [] });
+    await expect(db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, businessLicenseId) }))
+      .resolves.toMatchObject({ roadAddress: "광주광역시 북구 검수로 12", regionCode: "GWANGJU" });
+    await expect(db.query.naverLocalCategoryVerifications.findFirst({ where: eq(naverLocalCategoryVerifications.businessLicenseId, businessLicenseId) }))
+      .resolves.toBeUndefined();
   });
 });

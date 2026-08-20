@@ -29,7 +29,7 @@ test("verified member can open the place suggestion and status pages", async ({ 
   await expect(page.getByRole("heading", { name: "내 장소 제안" })).toBeVisible();
 });
 
-test("admin sees submitted suggestions on review step 1 only", async ({ page }) => {
+test("admin sees submitted suggestions on review step 1 only", async ({ page }, testInfo) => {
   await page.context().addCookies([{ name: "retaste_session", value: "qa-admin-session", domain: "127.0.0.1", path: "/" }]);
   await page.goto("/admin/place-operations");
   await expect(page.getByRole("heading", { name: "장소 검수" })).toBeVisible();
@@ -39,6 +39,10 @@ test("admin sees submitted suggestions on review step 1 only", async ({ page }) 
   await page.getByRole("link", { name: /NAVER 검증/ }).click();
   await expect(page).toHaveURL(/step=2/);
   await expect(page.getByRole("heading", { name: "회원 장소 제안" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /NAVER 검증/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "수동 근거로 카테고리 단계 이동" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 주소 저장" })).toBeVisible();
+  await page.screenshot({ path: `docs/evidence/2026-08-20-naver-nomatch-review-${testInfo.project.name}.png`, fullPage: true });
 });
 
 test("admin switches restored operations tabs without auto-merge", async ({ page }, testInfo) => {

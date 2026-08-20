@@ -25,19 +25,24 @@ describe("place review selection controls", () => {
     expect(component).toContain('query.step === 2 && <button className="secondary" name="intent" value="advance-review-items"');
   });
 
-  it("runs up to ten NAVER checks as sequential background actions instead of one Worker request", () => {
+  it("runs up to fifty NAVER checks as sequential background actions instead of one Worker request", () => {
     const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
     const route = readFileSync("app/routes/admin-place-operations.tsx", "utf8");
 
-    expect(component).toContain("const selectionLimit = 25;");
+    expect(component).toContain("const selectionLimit = REVIEW_SELECTION_LIMIT;");
     expect(component).toContain("useFetcher");
     expect(component).toContain("auto-verify-review-item-with-naver");
     expect(component).toContain("naverRegionUsage");
     expect(component).toContain("한 지역이 소진돼도 다른 지역은 계속됩니다");
-    expect(component).toContain("선택 중 10곳 NAVER 검증");
+    expect(component).toContain("곳 NAVER 검증");
+    expect(component).toContain("NAVER_REVIEW_RUN_MAX");
     expect(component).toContain("수동으로 NAVER 검증 대기로 이동");
+    expect(component).toContain("수동 근거로 카테고리 단계 이동");
+    expect(component).toContain("선택 주소 저장");
+    expect(component).toContain("확인필요");
     expect(route).toContain('intent === "auto-verify-review-item-with-naver"');
     expect(route).toContain("const workItemId = workItemIds[0]!");
+    expect(route).toContain('intent === "approve-manual-review-evidence"');
   });
 
   it("correlates each sequential NAVER response without reading idle fetcher form data", () => {
@@ -46,8 +51,20 @@ describe("place review selection controls", () => {
     expect(component).toContain('const requestId = `${naverBatch.id}:${naverBatch.nextIndex}`;');
     expect(component).toContain('formData.set("batchId", requestId);');
     expect(component).toContain('const expectedRequestId = `${naverBatch.id}:${naverBatch.nextIndex}`;');
-    expect(component).toContain("naverBatchFetcher.data?.batchId !== expectedRequestId");
-    expect(component).not.toContain("naverBatchFetcher.formData");
+    expect(component).toContain("previousState === \"idle\"");
+    expect(component).toContain("data?.batchId === expectedRequestId");
+    expect(component).toContain("overlayCopyByIntent");
+    expect(component).not.toContain("NAVER 근거를 확인하는 중입니다");
+  });
+
+  it("selects the whole review card and labels unmatched NAVER as confirmation-needed", () => {
+    const card = readFileSync("app/components/admin/PlaceReviewCard.tsx", "utf8");
+
+    expect(card).toContain("onClick={(event) => {");
+    expect(card).toContain("place-review-badge");
+    expect(card).toContain("확인필요");
+    expect(card).toContain("addressEditable");
+    expect(card).toContain("주소 상세");
   });
 
   it("uses the NAVER mapped category as the default category confirmation value", () => {

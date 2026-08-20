@@ -3,9 +3,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, naverLocalCategoryVerifications, placeReviewWorkItems } from "../../db/schema";
 import { getTerminalCategoryIds } from "../candidates/category-selection";
+import { REVIEW_BATCH_MAX } from "./place-review-io";
 import { advancePlaceReviewWorkItems } from "./place-review-work-items.server";
-
-const MAX_REVIEW_BATCH_SIZE = 25;
 
 export async function confirmReviewItemCategories(db: AppDb, input: {
   selections: Array<{ workItemId: string; categoryId: string; reason: string }>;
@@ -13,7 +12,7 @@ export async function confirmReviewItemCategories(db: AppDb, input: {
   now: string;
 }) {
   const selections = [...new Map(input.selections.filter((item) => item.workItemId && item.categoryId).map((item) => [item.workItemId, item])).values()];
-  if (!selections.length || selections.length > MAX_REVIEW_BATCH_SIZE) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
+  if (!selections.length || selections.length > REVIEW_BATCH_MAX) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
   const categoryRows = await db.select().from(categories).where(eq(categories.isActive, true));
   const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
   const categoriesById = new Map(categoryRows.map((category) => [category.id, category]));

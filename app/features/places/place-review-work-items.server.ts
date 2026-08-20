@@ -11,16 +11,17 @@ import {
   placeReviewWorkItems,
   places,
 } from "../../db/schema";
+import { REVIEW_BATCH_MAX } from "./place-review-io";
 import {
   evaluateReviewAdvance,
+  hasManualReviewEvidence,
   type NaverReviewDecision,
   type ReviewBlockCode,
   type ReviewStage,
 } from "./place-review-pipeline";
 import { openReviewDuplicateCount } from "./place-review-duplicates.server";
 import { classifyFoodVenue } from "./food-venue-policy";
-
-const MAX_REVIEW_BATCH_SIZE = 25;
+import { regionFromAddress } from "../regions/region-pack";
 
 export type ReviewSourceKind = "PUBLIC_DATA" | "PLACE_SUGGESTION" | "CATEGORY_RECALL" | "LIVENESS_RECHECK";
 export type NewReviewSubject =
@@ -33,7 +34,7 @@ type StateChangeResult = { changed: string[]; skipped: Array<{ workItemId: strin
 
 function uniqueWorkItemIds(workItemIds: string[]) {
   const ids = [...new Set(workItemIds.filter(Boolean))];
-  if (ids.length > MAX_REVIEW_BATCH_SIZE) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
+  if (ids.length > REVIEW_BATCH_MAX) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
   return ids;
 }
 
@@ -98,7 +99,7 @@ function naverDecisionForPlace(
 }
 
 async function reviewEvidence(db: AppDb, workItem: typeof placeReviewWorkItems.$inferSelect, manualEvidenceReason?: string) {
-  const hasManualEvidence = Boolean(manualEvidenceReason?.trim() || workItem.manualEvidenceReason?.trim());
+  const hasManualEvidence = hasManualReviewEvidence(manualEvidenceReason) || hasManualReviewEvidence(workItem.manualEvidenceReason);
   const [businessLicense, place, candidateNaver, placeLiveness, selectedCategory, activeExclusion] = await Promise.all([
     workItem.businessLicenseId
       ? db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, workItem.businessLicenseId) })
@@ -172,10 +173,14 @@ export async function advancePlaceReviewWorkItems(db: AppDb, input: {
       continue;
     }
 
+    const manualEvidenceReason = hasManualReviewEvidence(input.manualEvidenceReason)
+      ? input.manualEvidenceReason?.trim()
+      : workItem.manualEvidenceReason;
+
     const changed = await db.update(placeReviewWorkItems).set({
       stage: result.nextStage,
       stageVersion: workItem.stageVersion + 1,
-      manualEvidenceReason: input.manualEvidenceReason?.trim() || workItem.manualEvidenceReason,
+      manualEvidenceReason,
       lastTransitionBy: input.actorUserId,
       lastTransitionAt: input.now,
       updatedAt: input.now,
@@ -334,6 +339,72 @@ export async function autoExcludeNonFoodReviewItems(db: AppDb, input: {
       targetId: workItem.id,
       beforeState: JSON.stringify({ status: workItem.status, stage: workItem.stage }),
       afterState: JSON.stringify({ status: "EXCLUDED", code: "AUTO_NON_FOOD", note }),
+      createdAt: input.now,
+    });
+    changed.push(workItemId);
+  }
+
+  return { changed, skipped };
+}
+
+export async function updateReviewItemAddresses(db: AppDb, input: {
+  workItemIds: string[];
+  addressByWorkItem: Record<string, string>;
+  actorUserId: string;
+  now: string;
+}) {
+  const workItemIds = uniqueWorkItemIds(input.workItemIds);
+  const changed: string[] = [];
+  const skipped: Array<{ workItemId: string; code: "NOT_ACTIVE" | "REVIEW_ADDRESS_REQUIRED" | "REVIEW_ADDRESS_REGION_INVALID" }> = [];
+
+  for (const workItemId of workItemIds) {
+    const address = input.addressByWorkItem[workItemId]?.trim() ?? "";
+    if (!address) {
+      skipped.push({ workItemId, code: "REVIEW_ADDRESS_REQUIRED" });
+      continue;
+    }
+    const region = regionFromAddress(address);
+    if (!region) {
+      skipped.push({ workItemId, code: "REVIEW_ADDRESS_REGION_INVALID" });
+      continue;
+    }
+
+    const workItem = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) });
+    if (!workItem || workItem.status !== "ACTIVE" || workItem.stage !== "NAVER_VERIFICATION") {
+      skipped.push({ workItemId, code: "NOT_ACTIVE" });
+      continue;
+    }
+
+    if (workItem.businessLicenseId) {
+      const license = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, workItem.businessLicenseId) });
+      const current = (license?.roadAddress ?? license?.lotAddress ?? "").trim();
+      if (current !== address || license?.regionCode !== region) {
+        await db.update(businessLicenses).set({
+          roadAddress: address,
+          regionCode: region,
+          updatedAt: input.now,
+        }).where(eq(businessLicenses.id, workItem.businessLicenseId));
+        await db.delete(naverLocalCategoryVerifications).where(eq(naverLocalCategoryVerifications.businessLicenseId, workItem.businessLicenseId));
+      }
+    } else if (workItem.placeId) {
+      const place = await db.query.places.findFirst({ where: eq(places.id, workItem.placeId) });
+      if ((place?.address ?? "").trim() !== address) {
+        await db.update(places).set({ address, updatedAt: input.now }).where(eq(places.id, workItem.placeId));
+      }
+    } else {
+      skipped.push({ workItemId, code: "NOT_ACTIVE" });
+      continue;
+    }
+
+    await db.update(placeReviewWorkItems).set({ updatedAt: input.now }).where(eq(placeReviewWorkItems.id, workItem.id));
+    await db.insert(adminAuditLogs).values({
+      id: crypto.randomUUID(),
+      actorUserId: input.actorUserId,
+      action: "PLACE_REVIEW_ADDRESS_UPDATE",
+      targetType: "PLACE_REVIEW_WORK_ITEM",
+      targetId: workItem.id,
+      beforeState: JSON.stringify({ subject: workItem.businessLicenseId ? "BUSINESS_LICENSE" : "PLACE" }),
+      afterState: JSON.stringify({ address, region }),
       createdAt: input.now,
     });
     changed.push(workItemId);

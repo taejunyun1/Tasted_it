@@ -17,6 +17,8 @@ describe("place review request contract", () => {
       "verify-review-items-with-naver",
       "auto-verify-review-item-with-naver",
       "advance-review-items",
+      "approve-manual-review-evidence",
+      "update-review-item-addresses",
       "hold-review-items",
       "exclude-review-items",
     ]);
@@ -57,7 +59,7 @@ describe("place review request contract", () => {
     })).toEqual({ ok: false, code: "INVALID_INTENT" });
   });
 
-  it("enforces batch size 1-25 and auto-verify exactly one", () => {
+  it("enforces batch size 1-50 and auto-verify exactly one", () => {
     expect(checkReviewRequest({
       intent: "advance-review-items",
       expectedStage: "SOURCE_REVIEW",
@@ -66,7 +68,7 @@ describe("place review request contract", () => {
     expect(checkReviewRequest({
       intent: "advance-review-items",
       expectedStage: "SOURCE_REVIEW",
-      workItemIds: ids(26),
+      workItemIds: ids(51),
     })).toEqual({ ok: false, code: "PLACE_REVIEW_BATCH_LIMIT_EXCEEDED" });
     expect(checkReviewRequest({
       intent: "auto-verify-review-item-with-naver",
@@ -81,7 +83,7 @@ describe("place review request contract", () => {
     expect(checkReviewRequest({
       intent: "advance-review-items",
       expectedStage: "SOURCE_REVIEW",
-      workItemIds: ids(25),
+      workItemIds: ids(50),
     }).ok).toBe(true);
     expect(checkReviewRequest({
       intent: "advance-review-items",
@@ -125,6 +127,30 @@ describe("place review request contract", () => {
       expectedStage: "CATEGORY_CONFIRMATION",
       workItemIds: ["item-1"],
       categoryByWorkItem: { "item-1": "cat-local" },
+    }).ok).toBe(true);
+    expect(checkReviewRequest({
+      intent: "approve-manual-review-evidence",
+      expectedStage: "NAVER_VERIFICATION",
+      workItemIds: ["item-1"],
+      reason: "짧음",
+    })).toEqual({ ok: false, code: "MANUAL_EVIDENCE_REASON_REQUIRED" });
+    expect(checkReviewRequest({
+      intent: "approve-manual-review-evidence",
+      expectedStage: "NAVER_VERIFICATION",
+      workItemIds: ["item-1"],
+      reason: "공공데이터 원천과 현장 상호가 같아 수동으로 넘긴다",
+    }).ok).toBe(true);
+    expect(checkReviewRequest({
+      intent: "update-review-item-addresses",
+      expectedStage: "NAVER_VERIFICATION",
+      workItemIds: ["item-1"],
+      addressByWorkItem: { "item-1": "" },
+    })).toEqual({ ok: false, code: "REVIEW_ADDRESS_REQUIRED" });
+    expect(checkReviewRequest({
+      intent: "update-review-item-addresses",
+      expectedStage: "NAVER_VERIFICATION",
+      workItemIds: ["item-1"],
+      addressByWorkItem: { "item-1": "광주광역시 북구 검수로 12" },
     }).ok).toBe(true);
   });
 
