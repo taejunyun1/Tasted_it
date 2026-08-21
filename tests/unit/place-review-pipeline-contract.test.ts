@@ -70,9 +70,13 @@ describe("place review selection controls", () => {
   it("uses the NAVER mapped category as the default category confirmation value", () => {
     const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
     const query = readFileSync("app/features/places/place-review-query.server.ts", "utf8");
+    const card = readFileSync("app/components/admin/PlaceReviewCard.tsx", "utf8");
 
     expect(component).toContain("row.selectedCategoryId ?? row.naverMappedCategoryId ?? \"\"");
     expect(query).toContain("naverMappedCategoryId");
     expect(query).toContain("naverMappedCategoryName");
+    expect(query).toContain("naverCategoryEvidence");
+    expect(card).toContain("NAVER 세부 업종 추천");
+    expect(card).toContain("NAVER 광역 업종만 확인");
   });
 });

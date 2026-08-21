@@ -15,6 +15,13 @@ function naverStatusLabel(status: string | null) {
   return status;
 }
 
+function categoryEvidenceLabel(row: PlaceReviewQueueRow) {
+  if (row.selectedCategoryName) return row.selectedCategoryName;
+  if (row.naverCategoryEvidence === "SPECIFIC" && row.naverMappedCategoryName) return `NAVER 세부 업종 추천 · ${row.naverMappedCategoryName}`;
+  if (row.naverCategoryEvidence === "BROAD") return "NAVER 광역 업종만 확인";
+  return "미확정";
+}
+
 export function PlaceReviewCard({ row, checked, onToggle, addressEditable = false }: {
   row: PlaceReviewQueueRow;
   checked: boolean;
@@ -42,7 +49,7 @@ export function PlaceReviewCard({ row, checked, onToggle, addressEditable = fals
       {addressEditable && checked && <label className="place-review-address-edit" onClick={(event) => event.stopPropagation()}>주소 상세<input name={`address:${row.workItemId}`} defaultValue={row.address} maxLength={200} /></label>}
       <dl>
         <div><dt>NAVER</dt><dd>{naverStatusLabel(row.naverStatus)}{row.naverScore != null ? ` · ${row.naverScore}점` : ""}</dd></div>
-        <div><dt>카테고리</dt><dd>{row.selectedCategoryName ?? (row.naverMappedCategoryName ? `NAVER 추천 · ${row.naverMappedCategoryName}` : "미확정")}</dd></div>
+        <div><dt>카테고리</dt><dd>{categoryEvidenceLabel(row)}</dd></div>
       </dl>
       {row.blockCodes.length > 0 && <ul className="place-review-blocks">{row.blockCodes.map((code) => <li key={code}>{code === "NAVER_REVIEW_REQUIRED" ? "확인필요" : code}</li>)}</ul>}
     </div>

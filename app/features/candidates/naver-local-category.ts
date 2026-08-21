@@ -95,6 +95,7 @@ const specificCategoryMappings: ReadonlyArray<readonly [RegExp, string]> = [
 ];
 
 const broadCategoryPattern = /(?:^|>)\s*(?:음식점|한식|양식|일식|중식|카페|주점)\s*(?:>|$)/;
+const broadCategoryLeafPattern = /^(?:음식점|한식|양식|일식|중식|카페|주점|카페\s*[·,/]\s*디저트)$/;
 
 function normalizeForComparison(value: string) {
   return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/<[^>]+>/g, "").replace(/[^0-9a-z가-힣]/g, "");
@@ -128,7 +129,9 @@ function inRequestedRegion(address: string, regionCode: RegionCode) {
 }
 
 function mapCategory(category: string, terminalSlugs: Set<string>): CategoryMapping | null {
-  const matched = specificCategoryMappings.find(([pattern, slug]) => pattern.test(category) && terminalSlugs.has(slug));
+  const leaf = category.split(">").map((part) => part.trim()).filter(Boolean).at(-1) ?? "";
+  if (broadCategoryLeafPattern.test(leaf)) return null;
+  const matched = specificCategoryMappings.find(([pattern, slug]) => pattern.test(leaf) && terminalSlugs.has(slug));
   if (matched) return { slug: matched[1], specificityScore: 20 };
   if (broadCategoryPattern.test(category)) return null;
   return null;
