@@ -36,10 +36,22 @@ export type PlaceReviewQueueRow = {
   naverScore: number | null;
   naverMappedCategoryId: string | null;
   naverMappedCategoryName: string | null;
+  naverCategoryEvidence: "SPECIFIC" | "BROAD" | "NONE";
   selectedCategoryId: string | null;
   selectedCategoryName: string | null;
   blockCodes: string[];
 };
+
+function categoryEvidence(status: string | null, mappedCategoryId: string | null, evidenceCodesJson: string | null) {
+  if (mappedCategoryId) return "SPECIFIC" as const;
+  if (status !== "VERIFIED") return "NONE" as const;
+  try {
+    const codes = JSON.parse(evidenceCodesJson ?? "[]");
+    return Array.isArray(codes) && codes.includes("NAVER_BROAD_CATEGORY") ? "BROAD" as const : "NONE" as const;
+  } catch {
+    return "NONE" as const;
+  }
+}
 
 export type PlaceReviewPage = {
   rows: PlaceReviewQueueRow[];
@@ -134,6 +146,7 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     candidateNaverStatus: naverLocalCategoryVerifications.status,
     candidateNaverScore: naverLocalCategoryVerifications.matchScore,
     candidateNaverMappedCategoryId: naverLocalCategoryVerifications.mappedCategoryId,
+    candidateNaverEvidenceCodesJson: naverLocalCategoryVerifications.evidenceCodesJson,
     placeNaverStatus: placeLivenessStates.naverStatus,
     placeNaverScore: placeLivenessStates.naverMatchScore,
     selectedCategoryName: selectedCategories.name,
@@ -178,6 +191,7 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
       naverScore: row.candidateNaverScore ?? row.placeNaverScore ?? null,
       naverMappedCategoryId: row.candidateNaverMappedCategoryId ?? null,
       naverMappedCategoryName: row.naverMappedCategoryName ?? null,
+      naverCategoryEvidence: categoryEvidence(row.candidateNaverStatus, row.candidateNaverMappedCategoryId, row.candidateNaverEvidenceCodesJson),
       selectedCategoryId: workItem.selectedCategoryId,
       selectedCategoryName: row.selectedCategoryName,
       blockCodes,

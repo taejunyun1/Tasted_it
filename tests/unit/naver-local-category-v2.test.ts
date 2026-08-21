@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 import { verifyNaverCategoryV2 } from "../../app/features/candidates/naver-local-category-v2";
 import { verifyNaverCategoryV2WithAdapter } from "../../app/features/candidates/naver-category-v2.server";
 
-const input = (category: string, latitude = 35.15, longitude = 126.85) => ({ businessName: "신 돼지세끼", address: "광주광역시 서구 화정동 1", latitude: 35.15, longitude: 126.85, regionCode: "GWANGJU" as const, terminalSlugs: new Set(["grill"]), results: [{ name: "신 돼지세끼", address: "광주광역시 서구 화정동 1", category, latitude, longitude }] });
+const input = (category: string, latitude = 35.15, longitude = 126.85, terminalSlugs = new Set(["grill"])) => ({ businessName: "신 돼지세끼", address: "광주광역시 서구 화정동 1", latitude: 35.15, longitude: 126.85, regionCode: "GWANGJU" as const, terminalSlugs, results: [{ name: "신 돼지세끼", address: "광주광역시 서구 화정동 1", category, latitude, longitude }] });
 
 describe("NAVER category v2", () => {
   it("accepts exact matched concrete categories but not broad provider categories", () => {
     expect(verifyNaverCategoryV2(input("음식점>한식>육류,고기요리")).categorySlug).toBe("grill");
     expect(verifyNaverCategoryV2(input("음식점>한식"))).toMatchObject({ status: "BROAD", categorySlug: null, categoryVerification: "BROAD" });
+  });
+
+  it("does not turn a broad cafe-dessert breadcrumb into a dessert category", () => {
+    expect(verifyNaverCategoryV2(input("음식점>카페,디저트", 35.15, 126.85, new Set(["dessert"])))).toMatchObject({
+      status: "BROAD",
+      categorySlug: null,
+      categoryVerification: "BROAD",
+    });
   });
 
   it("fails closed for over-100m matches and unavailable providers", () => {

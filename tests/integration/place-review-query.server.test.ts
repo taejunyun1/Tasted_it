@@ -115,13 +115,13 @@ describe("place review work item query", () => {
     });
     await db.insert(naverLocalCategoryVerifications).values({
       businessLicenseId: licenseId, status: "VERIFIED", mappedCategoryId: category!.id, matchScore: 60, specificityScore: 20, confidenceScore: 80,
-      evidenceCodesJson: "[]", ruleVersion: "naver-category-v1", inputFingerprint: suffix, queriedAt: now, expiresAt: "2099-08-15T12:00:00.000Z", failureCode: null, createdAt: now, updatedAt: now,
+      evidenceCodesJson: '["NAVER_SPECIFIC_CATEGORY"]', ruleVersion: "naver-category-v1", inputFingerprint: suffix, queriedAt: now, expiresAt: "2099-08-15T12:00:00.000Z", failureCode: null, createdAt: now, updatedAt: now,
     });
 
     await expect(listPlaceReviewWorkItems(db, {
       step: 3, page: 1, pageSize: 25, status: "pending", region: null, query: "NAVER 근거 국밥",
     })).resolves.toMatchObject({
-      rows: [expect.objectContaining({ workItemId, naverMappedCategoryId: category!.id, naverMappedCategoryName: category!.name })],
+      rows: [expect.objectContaining({ workItemId, naverMappedCategoryId: category!.id, naverMappedCategoryName: category!.name, naverCategoryEvidence: "SPECIFIC" })],
     });
   });
 
@@ -197,6 +197,35 @@ describe("place review work item query", () => {
     })).resolves.toMatchObject({
       rows: [expect.objectContaining({ workItemId, naverStatus: "NO_MATCH", blockCodes: expect.arrayContaining(["NAVER_REVIEW_REQUIRED"]) })],
       pagination: { total: 1 },
+    });
+  });
+
+  it("keeps a NAVER broad category as confirmation evidence instead of a category recommendation", async () => {
+    const db = createDb(env.DB);
+    const token = `broad${crypto.randomUUID().replaceAll("-", "")}`;
+    const licenseId = `${token}-license`;
+    const workItemId = `${token}-work`;
+    await db.insert(businessLicenses).values({
+      id: licenseId, sourceType: "REST_CAFE", sourceManagementNo: token, businessName: `${token} 카페`, businessSubtype: "휴게음식점",
+      salesStatusCode: "01", salesStatusName: "영업/정상", detailStatusCode: "01", detailStatusName: "영업", normalizedStatus: "OPEN",
+      lotAddress: null, roadAddress: "광주광역시 북구 검수로 1", phone: null, sourceX: null, sourceY: null, latitude: 35.16, longitude: 126.91,
+      regionCode: "GWANGJU", sourceUpdatedAt: now, rawPayload: "{}", reviewStatus: "PENDING", reviewReason: null, reviewedBy: null, reviewedAt: null,
+      firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now,
+    });
+    await db.insert(placeReviewWorkItems).values({
+      id: workItemId, businessLicenseId: licenseId, placeId: null, sourceKind: "PUBLIC_DATA", stage: "CATEGORY_CONFIRMATION", status: "ACTIVE",
+      selectedCategoryId: null, categoryOverrideReason: null, manualEvidenceReason: null, stageVersion: 2, claimToken: null, claimedBy: null, claimedAt: null,
+      lastTransitionBy: null, lastTransitionAt: null, holdCode: null, holdNote: null, completedAt: null, createdAt: now, updatedAt: now,
+    });
+    await db.insert(naverLocalCategoryVerifications).values({
+      businessLicenseId: licenseId, status: "VERIFIED", mappedCategoryId: null, matchScore: 60, specificityScore: 0, confidenceScore: 60,
+      evidenceCodesJson: '["NAVER_BROAD_CATEGORY"]', ruleVersion: "naver-category-v1", inputFingerprint: token, queriedAt: now, expiresAt: "2099-08-15T12:00:00.000Z", failureCode: null, createdAt: now, updatedAt: now,
+    });
+
+    await expect(listPlaceReviewWorkItems(db, {
+      step: 3, page: 1, pageSize: 25, status: "pending", region: null, query: token,
+    })).resolves.toMatchObject({
+      rows: [expect.objectContaining({ workItemId, naverMappedCategoryId: null, naverCategoryEvidence: "BROAD" })],
     });
   });
 });
