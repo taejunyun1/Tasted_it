@@ -48,7 +48,7 @@ export async function action({ request }: Route.ActionArgs) {
     console.error("SIGNUP_FAILED", failure.logCode);
     return data({ ok: failure.ok, message: failure.message, ...fields }, { status: failure.status });
   }
-  return { ok: true, message: "가입 가능 여부와 관계없이 인증 안내가 등록된 이메일로 전송됩니다." };
+  return { ok: true, message: "가입 가능 여부와 관계없이 인증 안내가 등록된 이메일로 전송됩니다.", email: "", displayName: "" };
 }
 export default function Signup({ actionData, loaderData }: Route.ComponentProps) {
   return <AuthPage eyebrow="JOIN RE:TASTE" title="취향 기록을 시작하세요." description="Google·네이버 계정 또는 이메일로 간단하게 시작합니다."><div className="mt-8 grid gap-3"><GoogleAuthButton returnTo={loaderData.returnTo} /><NaverAuthButton returnTo={loaderData.returnTo} /></div><AuthDivider />{actionData?.message && <p className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${actionData.ok ? "border-emerald-600 bg-emerald-50" : "border-red-500 bg-red-50"}`} role="alert">{actionData.message}</p>}{actionData?.ok ? null : <Form method="post" className="grid gap-5"><AuthInput label="이름" name="displayName" type="text" autoComplete="name" defaultValue={actionData?.displayName} /><AuthInput label="이메일" name="email" type="email" autoComplete="email" defaultValue={actionData?.email} /><AuthInput label="비밀번호 · 10자 이상" name="password" type="password" autoComplete="new-password" /><label className="flex items-start gap-2 text-sm font-normal text-neutral-700"><input name="ageConfirmed" type="checkbox" value="yes" required className="mt-1" /><span>만 14세 이상입니다. 생년월일은 받지 않습니다.</span></label><button className="rounded-full bg-neutral-950 px-5 py-3 font-semibold text-white">인증 메일 받고 가입하기</button></Form>}<p className="mt-5 text-sm"><Link className="underline" to="/login">이미 계정이 있어요</Link></p></AuthPage>;
