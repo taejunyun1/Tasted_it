@@ -19,6 +19,8 @@
 
 2026-08-18: [Issue #203](https://github.com/taejunyun1/Tasted_it/issues/203) / [PR #204](https://github.com/taejunyun1/Tasted_it/pull/204) 병합 후 `0035_naver_run_region_code.sql` apply, 이어서 `origin/main` `e8df8fa`(`#204`, 코드 기준 `57b7f1c`)를 이 계정에 배포함. Version `49064c1f-bd3f-4eec-a9e5-5985d384a0c1`. rollback은 직전 버전 `5f031bd2-c34e-4191-8d1f-656fdc4d46a0`를 다시 배포한다. 라이브 NAVER·일괄 공개·D1 create 없음.
 
+2026-08-22: [Issue #236](https://github.com/taejunyun1/Tasted_it/issues/236) Jay 채팅 GO 후 `origin/main` [`fdf45d8`](https://github.com/taejunyun1/Tasted_it/commit/fdf45d8)(`#235`까지)를 이 계정에 배포함. 원격 `d1 migrations list` 대기 없음(최신 `0035`). Version `7579b600-7302-443b-9753-a4a5aaa3dd05`. rollback은 직전 라이브 버전 `b2268318-3473-4661-8598-e0560a7d1396`. 라이브 NAVER·일괄 공개·D1 create·secret 열람 없음. 익명 GET `/`·`/places` 200, `/admin` 302 `/login?returnTo=%2Fadmin`, `/privacy`·`/robots.txt` 200. HSTS `max-age=31536000; includeSubDomains`. Permissions-Policy `geolocation=()`. CSP에 `oapi.map.naver.com`·jsDelivr·Google Fonts.
+
 ## 사전 게이트
 
 - 단위·D1 통합·E2E·타입·빌드 통과
