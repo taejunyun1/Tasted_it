@@ -167,7 +167,7 @@ describe("taste onboarding contract", () => {
     const { action } = await import("../../app/routes/taste-onboarding");
 
     const response = await action({
-      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", headers: { Origin: "https://retaste.example" }, body: form }),
     } as never);
 
     expect(response).toMatchObject({ data: { ok: true } });
@@ -197,7 +197,7 @@ describe("taste onboarding contract", () => {
     const { action } = await import("../../app/routes/taste-onboarding");
 
     await expect(action({
-      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", headers: { Origin: "https://retaste.example" }, body: form }),
     } as never)).resolves.toMatchObject({ data: { ok: true, ignored: true } });
     expect(mocks.getOrCreateGuestSession).not.toHaveBeenCalled();
     expect(mocks.saveGuestOnboarding).not.toHaveBeenCalled();
@@ -224,7 +224,7 @@ describe("taste onboarding contract", () => {
     form.set("selectionEpoch", "1");
     form.set("selectionRevision", "1");
     form.set("returnTo", "/%5Cevil.example/path");
-    const response = await action({ request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }) } as never);
+    const response = await action({ request: new Request("https://retaste.example/onboarding/taste", { method: "POST", headers: { Origin: "https://retaste.example" }, body: form }) } as never);
     expect(response).toBeInstanceOf(Response);
     expect((response as Response).headers.get("Location")).toBe("/places");
   });
@@ -243,7 +243,7 @@ describe("taste onboarding contract", () => {
       form.set("returnTo", "/places.data?category=ramen-detail&_routes=routes%2Fplace-list");
 
       const response = await action({
-        request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+        request: new Request("https://retaste.example/onboarding/taste", { method: "POST", headers: { Origin: "https://retaste.example" }, body: form }),
       } as never);
 
       expect(response).toBeInstanceOf(Response);
@@ -264,7 +264,7 @@ describe("taste onboarding contract", () => {
     form.set("returnTo", "/places.data?category=ramen-detail&_routes=routes%2Fplace-list");
 
     const response = await action({
-      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", headers: { Origin: "https://retaste.example" }, body: form }),
     } as never) as Response;
 
     expect(response.headers.get("Location")).toBe("/places?category=ramen-detail");
@@ -286,7 +286,7 @@ describe("taste onboarding contract", () => {
     form.set("returnTo", "/places");
 
     const response = await action({
-      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form }),
+      request: new Request("https://retaste.example/onboarding/taste", { method: "POST", headers: { Origin: "https://retaste.example" }, body: form }),
     } as never) as Response;
 
     expect(response.headers.get("Location")).toBe("/places");
@@ -306,7 +306,7 @@ describe("taste onboarding contract", () => {
       form.set("selectionEpoch", "1");
       form.set("selectionRevision", "1");
       form.append("foodBadgeId", "food-outdated");
-      return new Request("https://retaste.example/onboarding/taste", { method: "POST", body: form });
+      return new Request("https://retaste.example/onboarding/taste", { method: "POST", headers: { Origin: "https://retaste.example" }, body: form });
     };
 
     mocks.saveGuestOnboarding.mockRejectedValueOnce(new Error("GUEST_ONBOARDING_BADGES_INVALID"));

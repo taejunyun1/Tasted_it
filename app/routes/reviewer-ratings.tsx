@@ -7,6 +7,7 @@ import { createDb } from "../db/client.server";
 import { categories, placeCategories, places } from "../db/schema";
 import { assertRole } from "../features/auth/guards.server";
 import { requireUser } from "../features/auth/session.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { getGoldenPickQuota } from "../features/ratings/golden-pick.server";
 import {
   REVIEWER_BADGE_CATALOG,
@@ -64,6 +65,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const user = await requireUser(request);
   assertRole(user.role, ["REVIEWER"]);
   return publishReviewerRatingRequest(request, {
