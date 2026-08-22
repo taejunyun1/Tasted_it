@@ -165,6 +165,8 @@ geo 인덱스는 이 시계에 **넣지 않는다.** 측정 증거가 없다.
 | **H54–H55** | 배포 런북 `SESSION_SECRET` / `pnpm deploy` 정합 |
 | **H55–H56** | week1 런북 `--remote` 시드 지시 제거 |
 
+**실행:** [#238](https://github.com/taejunyun1/Tasted_it/issues/238). cron `limit: 25`와 env `20000` 선언은 코드 변경 없이 운영 문구만 고친다.
+
 ---
 
 ### 시계 H — 검수 운영 (엔지니어링 시계 밖)
@@ -291,7 +293,7 @@ Rollback: 이 PR은 문서만 되돌리면 된다.
 
 **Clock F (H44–H52):** CI `build` + Playwright **smoke only**.
 
-**Clock G (H52–H56):** runbook drift.
+**Clock G (H52–H56):** runbook drift. **Issue #238** — docs only; no redeploy or live NAVER.
 
 **Clock H:** operator drain of ~35 stage-2 and ~708 stage-1 items. No bulk publish/geocode.
 

@@ -30,33 +30,34 @@
 
 ## 최소 권한 로그인
 
-사용자가 현재 터미널에서 `pnpm wrangler login`을 완료한다. API 토큰을 쓸 경우 Workers Scripts 편집, D1 편집, 계정 멤버십 읽기만 허용하며 Global API Key는 사용하지 않는다.
+사용자가 현재 터미널에서 `pnpm exec wrangler login`을 완료한다. API 토큰을 쓸 경우 Workers Scripts 편집, D1 편집, 계정 멤버십 읽기만 허용하며 Global API Key는 사용하지 않는다.
 
 첫 배포 전에 Cloudflare 계정 이메일 인증과 `workers.dev` 서브도메인 등록도 완료해야 한다. Wrangler 오류 `10034`는 계정 이메일 인증이 끝나지 않았다는 뜻이다.
 
 ## D1과 비밀값
 
-```bash
-pnpm exec wrangler d1 create retaste-production
-```
+기존 운영 D1 `retaste-production`은 다시 만들지 않는다. `wrangler d1 create`는 최초 1회뿐이며 이 계정의 라이브 데이터베이스에는 쓰지 않는다.
 
-반환된 `database_id`를 `wrangler.jsonc` 운영 설정에 반영한 다음:
+원격 migration apply는 병합 PR이 대상·한도·검증·rollback을 명시한 뒤에만 한다. 대기 목록이 비어 있으면 apply하지 않는다.
+
+최초 환경에만 아래를 **대화형**으로 넣는다. 값은 저장소, 셸 기록, 문서, PR에 남기지 않는다. 이후 배포에서는 대시보드에서 **존재 여부만** 확인한다.
 
 ```bash
-pnpm exec wrangler d1 migrations apply retaste-production --remote
 pnpm exec wrangler secret put SESSION_SECRET
 pnpm exec wrangler secret put ADMIN_EMAIL
 ```
 
-비밀값은 저장소, 셸 기록, 문서에 남기지 않는다.
+`SESSION_SECRET`은 강한 무작위 값이어야 한다. 문서 예시 문자열을 복사해 넣지 않는다.
 
 ## 배포와 데이터
 
+명령은 `pnpm run deploy`다 (`package.json`의 `build && wrangler deploy`). `pnpm deploy`는 pnpm 워크스페이스 패키지 배포 명령이라 쓰지 않는다.
+
 ```bash
-pnpm deploy
+CLOUDFLARE_ACCOUNT_ID=7543330c65069ee2df1b7b353fb0201c pnpm run deploy
 ```
 
-배포 URL에서 Admin CSV 가져오기로 검증 완료 데이터를 적재한다. 홈, 카테고리, 상세, 로그인, 투표, 저장, 관리자 거부, `/privacy`, `/terms`를 확인한다.
+배포 후 Worker version과 직전 version을 기록한다. 익명 GET으로 `/`·`/places` 200, `/admin` 302 `/login`을 확인한다. Admin CSV 가져오기는 별도 승인 범위가 있을 때만 한다.
 
 ```bash
 BASE_URL=https://<worker-url> pnpm test:e2e -- tests/e2e/release.spec.ts
