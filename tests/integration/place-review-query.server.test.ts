@@ -200,6 +200,33 @@ describe("place review work item query", () => {
     });
   });
 
+  it("lists unverified NAVER items in the attention filter", async () => {
+    const db = createDb(env.DB);
+    const token = `unv${crypto.randomUUID().replaceAll("-", "")}`;
+    const licenseId = `${token}-license`;
+    const workItemId = `${token}-work`;
+    await db.insert(businessLicenses).values({
+      id: licenseId, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: token, businessName: `${token} 미확인`, businessSubtype: "한식",
+      salesStatusCode: "01", salesStatusName: "영업/정상", detailStatusCode: "01", detailStatusName: "영업", normalizedStatus: "OPEN",
+      lotAddress: null, roadAddress: "광주광역시 북구 검수로 1", phone: null, sourceX: null, sourceY: null, latitude: 35.16, longitude: 126.91,
+      regionCode: "GWANGJU", sourceUpdatedAt: now, rawPayload: "{}", reviewStatus: "PENDING", reviewReason: null, reviewedBy: null, reviewedAt: null,
+      firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now,
+    });
+    await db.insert(placeReviewWorkItems).values({
+      id: workItemId, businessLicenseId: licenseId, placeId: null, sourceKind: "PUBLIC_DATA", stage: "NAVER_VERIFICATION", status: "ACTIVE",
+      selectedCategoryId: null, categoryOverrideReason: null, manualEvidenceReason: null, stageVersion: 1, claimToken: null, claimedBy: null, claimedAt: null,
+      lastTransitionBy: null, lastTransitionAt: null, holdCode: null, holdNote: null, completedAt: null, createdAt: now, updatedAt: now,
+    });
+
+    await expect(listPlaceReviewWorkItems(db, {
+      step: 2, page: 1, pageSize: 25, status: "attention", region: null, query: token,
+    })).resolves.toMatchObject({
+      rows: [expect.objectContaining({ workItemId, naverStatus: null })],
+      pagination: { total: 1 },
+    });
+  });
+
+
   it("keeps a NAVER broad category as confirmation evidence instead of a category recommendation", async () => {
     const db = createDb(env.DB);
     const token = `broad${crypto.randomUUID().replaceAll("-", "")}`;

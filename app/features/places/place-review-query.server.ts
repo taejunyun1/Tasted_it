@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, like, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, like, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 
 import type { AppDb } from "../../db/client.server";
@@ -74,6 +74,7 @@ function reviewConditions(query: PlaceReviewQuery): SQL[] {
       or(
         sql`${placeReviewWorkItems.holdCode} is not null`,
         inArray(naverLocalCategoryVerifications.status, ["NO_MATCH", "LIKELY", "AMBIGUOUS", "FAILED", "OUT_OF_SCOPE"]),
+        and(eq(placeReviewWorkItems.stage, "NAVER_VERIFICATION"), isNull(naverLocalCategoryVerifications.status)),
         inArray(placeLivenessStates.naverStatus, ["NOT_FOUND", "AMBIGUOUS", "ERROR"]),
       )!,
     )!);
