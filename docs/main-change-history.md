@@ -15,8 +15,10 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 2026-08-22 `origin/main` `7389537` 기준 잔여 작업을 시간 단위로 고정한다. 배포 실행·일괄 공개·두 번째 도시·결제·`k6`는 이 항목에 없다. | [Issue #219](https://github.com/taejunyun1/Tasted_it/issues/219) · [`docs/superpowers/plans/2026-08-22-remaining-work-hour-plan.md`](./superpowers/plans/2026-08-22-remaining-work-hour-plan.md) |
+| Merged | 2026-08-22 NAVER 카테고리 경로는 마지막 업종만 해석한다. 광역 업종은 세부 카테고리로 자동 지정하지 않고 검수 카드에 근거 상태를 표시한다. 원문 미보관. 배포·기존 카테고리 일괄 변경 없음. | [PR #218](https://github.com/taejunyun1/Tasted_it/pull/218) · [`7389537`](https://github.com/taejunyun1/Tasted_it/commit/7389537) · [`docs/superpowers/plans/2026-08-22-naver-category-evidence-v2.md`](./superpowers/plans/2026-08-22-naver-category-evidence-v2.md) |
 | Merged | 2026-08-20 NAVER 노매치는 자동으로 03으로 가지 않고 확인필요로 남긴다. 수동 근거 강제 이동·주소 수정·카드 선택·순차 50곳. Worker 요청당 NAVER 1회. | [Issue #214](https://github.com/taejunyun1/Tasted_it/issues/214) · [PR #215](https://github.com/taejunyun1/Tasted_it/pull/215) · [`f42e53a`](https://github.com/taejunyun1/Tasted_it/commit/f42e53a) |
-| Proposed | 2026-08-20 `f42e53a`를 운영 Worker에 배포하고 검수 2단계 NAVER 표본 2회를 기록한다. 원격 migration apply·일괄 공개 없음. rollback은 `49064c1f-bd3f-4eec-a9e5-5985d384a0c1`. | [Issue #216](https://github.com/taejunyun1/Tasted_it/issues/216) · [PR #217](https://github.com/taejunyun1/Tasted_it/pull/217) |
+| Merged | 2026-08-20 `f42e53a`를 운영 Worker에 배포하고 검수 2단계 NAVER 표본 2회를 기록한다. 원격 migration apply·일괄 공개 없음. rollback은 `49064c1f-bd3f-4eec-a9e5-5985d384a0c1`. | [Issue #216](https://github.com/taejunyun1/Tasted_it/issues/216) · [PR #217](https://github.com/taejunyun1/Tasted_it/pull/217) · [`6a1c5ea`](https://github.com/taejunyun1/Tasted_it/commit/6a1c5ea) |
 | Proposed | 2026-08-19 페르소나 랩 n200 게스트 첫인상 가설. Lightning을 분포로 쓰고 Luna 붕괴는 버린다. 공개 베타 GO·CI·제품 이슈 승격 아님. 키·라이브·새 스택 없음. | [Issue #212](https://github.com/taejunyun1/Tasted_it/issues/212) · [PR #213](https://github.com/taejunyun1/Tasted_it/pull/213) · [`docs/superpowers/plans/2026-08-19-persona-lab-n200.md`](./superpowers/plans/2026-08-19-persona-lab-n200.md) |
 | Proposed | 2026-08-19 페르소나 랩 결과와 향후 진입점. 랩은 저장소 밖. 기본 모델 Muse Glimmer. `#209` 하네스 `GO`와 랩 preview를 분리. 키·라이브·새 스택 없음. | [Issue #210](https://github.com/taejunyun1/Tasted_it/issues/210) · [PR #211](https://github.com/taejunyun1/Tasted_it/pull/211) · [`docs/superpowers/plans/2026-08-19-persona-lab-entry.md`](./superpowers/plans/2026-08-19-persona-lab-entry.md) |
 | Merged | 2026-08-18 300명 합성 테스트 시나리오 카탈로그. 테스터 200 + 뷰어 100의 풀 여정. 하네스 재작성·라이브 실행·일괄 공개·`k6` 없음. 문서 `PROPOSED`. | [Issue #208](https://github.com/taejunyun1/Tasted_it/issues/208) · [PR #209](https://github.com/taejunyun1/Tasted_it/pull/209) · [`1ab3c50`](https://github.com/taejunyun1/Tasted_it/commit/1ab3c50) · [`docs/superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md`](./superpowers/plans/2026-08-18-synthetic-beta-300-scenarios.md) |
@@ -72,6 +74,13 @@
 ## 상세 변경 이력
 
 모든 시각은 `Asia/Seoul` 기준이다. 커밋의 `+/-`는 해당 squash commit의 GitHub 통계이며 바이너리 파일의 크기 변화는 줄 수에 포함되지 않는다.
+
+### 2026-08-22
+
+| 시각 | 영역 | 변경과 이유 | 데이터·운영 영향 | 근거 |
+| --- | --- | --- | --- | --- |
+| — | 설계 / 잔여 | `7389537` 기준 남은 일을 시간 단위 시계로 고정한다. 라이브는 `#215` 기록, 익명 `/places`는 공개 카드 4. 배포·일괄 공개·도시 2·결제·`k6`는 이 항목에 없다. | 문서. 제품 코드·migration·배포 없음. | [Issue #219](https://github.com/taejunyun1/Tasted_it/issues/219) · [`docs/superpowers/plans/2026-08-22-remaining-work-hour-plan.md`](./superpowers/plans/2026-08-22-remaining-work-hour-plan.md) |
+| 08:09 | NAVER / 검수 | 카테고리 경로의 마지막 업종만 매핑한다. `카페,디저트` 같은 광역 leaf는 세부 카테고리 자동 지정을 하지 않는다. 카드에 세부 추천·광역 확인·미확정을 표시한다. | 코드·테스트. 원문 미보관. 기존 공개 카테고리 일괄 변경 없음. 병합 SHA `7389537`. 이 시각의 배포 기록 없음. | [PR #218](https://github.com/taejunyun1/Tasted_it/pull/218) · [`docs/superpowers/plans/2026-08-22-naver-category-evidence-v2.md`](./superpowers/plans/2026-08-22-naver-category-evidence-v2.md) |
 
 ### 2026-08-20
 

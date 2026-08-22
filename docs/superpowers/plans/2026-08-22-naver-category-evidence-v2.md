@@ -1,6 +1,8 @@
 # NAVER 카테고리 근거 v2 구현 계획
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **상태:** 코드는 [PR #218](https://github.com/taejunyun1/Tasted_it/pull/218) 병합 SHA [`7389537`](https://github.com/taejunyun1/Tasted_it/commit/7389537). 아래 체크박스는 구현 당시 추적이다. 재구현하지 않는다. 라이브 배포는 병합 본문의 rollout이며 이 문서 작성 시점에는 기록되지 않았다.
+>
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 이미 `main`에 있으면 이 플랜을 다시 실행하지 않는다.
 
 **Goal:** NAVER 장소 일치와 세부 카테고리 확정을 분리해, 넓은 NAVER 업종이 `디저트`·`백반·가정식` 같은 세부 카테고리로 자동 적용되지 않게 한다.
 
