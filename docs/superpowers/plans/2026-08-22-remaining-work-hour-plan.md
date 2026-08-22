@@ -105,6 +105,8 @@
 
 가설 (재현 전 이슈 금지): 공개 맵은 가입 없이 본다. 긴 온보딩을 맵 앞에 두지 않는다. 타인 투표만으로 가입을 설득하지 않는다.
 
+**실행 (2026-08-23):** 로컬 D1 week1+홈 큐레이션 QA 시드, `pnpm dev --host 127.0.0.1`. 비로그인 데스크톱 1280과 모바일 390. 세 가설은 **구멍으로 재현되지 않음.** 랩 숫자는 GO로 올리지 않음. 기록 [#240](https://github.com/taejunyun1/Tasted_it/issues/240). 라이브·운영 D1·NAVER 실호출 없음.
+
 ---
 
 ### 시계 C — 값싼 코드 PR (H06–H16) · 배포 뒤 또는 병행
@@ -283,7 +285,7 @@ Rollback: 이 PR은 문서만 되돌리면 된다.
 
 **Clock A (H00–H04):** this plan, history/wiki snapshot, deploy `7389537` (already authorized by #218), record Worker version. **Executed 2026-08-22** as HEAD `fdf45d8` after clocks C–F landed. Worker `7579b600-7302-443b-9753-a4a5aaa3dd05`. Record #236.
 
-**Clock B (H04–H06):** human localhost guest repro of persona hypotheses. Do not promote lab numbers.
+**Clock B (H04–H06):** human localhost guest repro of persona hypotheses. Do not promote lab numbers. **Executed 2026-08-23.** Three hypotheses not reproduced as holes. Record #240.
 
 **Clock C (H06–H16):** cheap PRs — `/admin` index, hide admin email, `attention` includes unverified NAVER, `slugPrefix` fake-pack tests, `returnTo`/form persist/`meta()`, contrast + reduced-motion + single `h1`.
 
