@@ -15,7 +15,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-22 공개 리스트/지도 점수는 최신 non-stale snapshot. 같은 값 재투표는 CHANGE 없음. 재import는 이전 primary를 해제. 홈 버전 `home-curation-v2` 유지. 배포 없음. | [Issue #230](https://github.com/taejunyun1/Tasted_it/issues/230) |
+| Proposed | 2026-08-22 CI에 `pnpm run build`와 Playwright smoke(`release.spec.ts` + 홈/장소 1건, chromium, `wrangler.e2e.jsonc`)를 넣는다. 전체 매트릭스·k6·coverage 없음. 배포 없음. | [Issue #232](https://github.com/taejunyun1/Tasted_it/issues/232) |
+| Merged | 2026-08-22 공개 리스트/지도 점수는 최신 non-stale snapshot. 같은 값 재투표는 CHANGE 없음. 재import는 이전 primary를 해제. 홈 버전 `home-curation-v2` 유지. 배포 없음. | [Issue #230](https://github.com/taejunyun1/Tasted_it/issues/230) · [PR #231](https://github.com/taejunyun1/Tasted_it/pull/231) · [`1bde726`](https://github.com/taejunyun1/Tasted_it/commit/1bde726) |
 | Merged | 2026-08-22 회원 vote/save·unsave·logout·제안·정정·온보딩·리뷰어 신청/발행 POST가 교차 출처를 거절한다. CSP와 같은 PR이 아니다. 배포 없음. | [Issue #228](https://github.com/taejunyun1/Tasted_it/issues/228) · [PR #229](https://github.com/taejunyun1/Tasted_it/pull/229) · [`e86a120`](https://github.com/taejunyun1/Tasted_it/commit/e86a120) |
 | Proposed | 2026-08-22 `origin/main` `7389537` 기준 잔여 작업을 시간 단위로 고정한다. 배포 실행·일괄 공개·두 번째 도시·결제·`k6`는 이 항목에 없다. | [Issue #219](https://github.com/taejunyun1/Tasted_it/issues/219) · [`docs/superpowers/plans/2026-08-22-remaining-work-hour-plan.md`](./superpowers/plans/2026-08-22-remaining-work-hour-plan.md) |
 | Merged | 2026-08-22 NAVER 카테고리 경로는 마지막 업종만 해석한다. 광역 업종은 세부 카테고리로 자동 지정하지 않고 검수 카드에 근거 상태를 표시한다. 원문 미보관. 배포·기존 카테고리 일괄 변경 없음. | [PR #218](https://github.com/taejunyun1/Tasted_it/pull/218) · [`7389537`](https://github.com/taejunyun1/Tasted_it/commit/7389537) · [`docs/superpowers/plans/2026-08-22-naver-category-evidence-v2.md`](./superpowers/plans/2026-08-22-naver-category-evidence-v2.md) |
