@@ -1,5 +1,6 @@
 import { Form, isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from "react-router";
 import type { Route } from "./+types/root";
+import { authEntryHref } from "./features/auth/login";
 import { getOptionalUser } from "./features/auth/session.server";
 import "./app.css";
 import "./styles/design-system.css";
@@ -34,8 +35,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
               {user.role === "ADMIN" && <Link to="/admin/place-operations">어드민</Link>}
               <Form method="post" action="/logout"><button type="submit">로그아웃</button></Form>
             </> : <>
-              <Link to="/login">로그인</Link>
-              <Link to="/signup">회원가입</Link>
+              <Link to={authEntryHref("/login", location.pathname, location.search)}>로그인</Link>
+              <Link to={authEntryHref("/signup", location.pathname, location.search)}>회원가입</Link>
             </>}
           </div>
         </details>

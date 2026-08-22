@@ -7,6 +7,10 @@ import { listPlaces } from "../features/places/place.server";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { PlaceCard } from "../components/places/PlaceCard";
 
+export function meta({ params }: Route.MetaArgs) {
+  return [{ title: `${params.categorySlug} 지도 — Re:Taste` }];
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const state = parseMapState(new URL(request.url).search);
   const places = await listPlaces(createDb(env.DB), { categorySlug: params.categorySlug, query: state.query, bbox: state.bbox });

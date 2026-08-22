@@ -15,6 +15,10 @@ import { toggleRecommendationSelection } from "../features/places/place-recommen
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
 import { useEffect, useState } from "react";
 
+export function meta() {
+  return [{ title: "맛집 리스트 — Re:Taste" }];
+}
+
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const state = parseMapState(url.search);
