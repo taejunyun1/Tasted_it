@@ -75,7 +75,7 @@ export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCuration
         <span className="home-curation-sheet__selection-rank">{String(selectedPlace.rank).padStart(2, "0")}</span>
         <strong className="home-curation-sheet__selection-name">{selectedPlace.name}</strong>
       </div> : <>
-        <div><p className="eyebrow">NEARBY / CURATED</p><h1>지금 갈 만한 5곳</h1></div>
+        <div><p className="eyebrow">NEARBY / CURATED</p><p className="home-curation-sheet__title">지금 갈 만한 5곳</p></div>
         <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
       </>}
     </div>

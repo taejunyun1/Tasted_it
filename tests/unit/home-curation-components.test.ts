@@ -90,8 +90,9 @@ describe("home curation presentation", () => {
     const panel = renderToStaticMarkup(createElement(HomeCurationPanel, props));
     const sheet = renderToStaticMarkup(createElement(HomeCurationSheet, sheetProps));
 
-    expect(panel).toContain("지금 갈 만한 5곳");
+    expect(panel).toContain("<h1>지금 갈 만한 5곳</h1>");
     expect(sheet).toContain("지금 갈 만한 5곳");
+    expect(sheet).not.toContain("<h1>지금 갈 만한 5곳</h1>");
     expect(panel).toContain("내 취향");
     expect(panel).not.toContain("전체 지도");
     expect(sheet).not.toContain("전체 지도");
