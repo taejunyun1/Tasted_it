@@ -14,6 +14,7 @@ import {
   placeSlugRedirects,
   places,
 } from "../../db/schema";
+import { attachLatestNonStaleRatingSnapshots } from "../ratings/recompute.server";
 import type {
   AdminPlaceSummary,
   PlaceDetail,
@@ -111,6 +112,9 @@ export async function importPlaceRows(
             updatedAt: values.updatedAt,
           },
         }),
+      ...(existing ? [
+        db.update(placeCategories).set({ isPrimary: false }).where(eq(placeCategories.placeId, id)),
+      ] : []),
       db
         .insert(placeCategories)
         .values({ placeId: id, categoryId: category.id, isPrimary: true })
@@ -308,18 +312,18 @@ export async function listPlaces(
   db: AppDb,
   filters: PlaceFilters = {},
 ): Promise<PlaceSummary[]> {
-  return selectPublicPlaces(db, filters);
+  return attachLatestNonStaleRatingSnapshots(db, await selectPublicPlaces(db, filters));
 }
 
 export async function listRecommendationCandidates(
   db: AppDb,
   filters: PlaceFilters = {},
 ): Promise<PlaceSummary[]> {
-  return selectPublicPlaces(db, { ...filters, limit: Math.min(filters.limit ?? 500, 500) }, undefined, {
+  return attachLatestNonStaleRatingSnapshots(db, await selectPublicPlaces(db, { ...filters, limit: Math.min(filters.limit ?? 500, 500) }, undefined, {
     maxLimit: 500,
     recommendationCandidates: true,
     recommendationOrder: true,
-  });
+  }));
 }
 
 export async function listPublicCategoryGroups(db: AppDb) {

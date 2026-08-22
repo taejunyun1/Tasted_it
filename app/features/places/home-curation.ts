@@ -49,6 +49,8 @@ export type HomeCurationInput = {
 };
 
 export type HomeCurationPage = {
+  // ARC-01: five-slot ranking already prefers the latest non-stale snapshot when present.
+  // List/map public numbers now use the same snapshot source. Version stays home-curation-v2.
   algorithmVersion: "home-curation-v2";
   status: "READY" | "EMPTY";
   places: HomeCuratedPlace[];

@@ -40,6 +40,8 @@ export interface PlaceSummary {
   primaryCategory: { slug: string; name: string; emoji: string };
   positive: number;
   negative: number;
+  ratingScore?: number | null;
+  ratingSampleCount?: number;
 }
 
 export interface PlaceDetail extends PlaceSummary {

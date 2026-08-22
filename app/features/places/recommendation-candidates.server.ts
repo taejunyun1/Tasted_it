@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { loadInD1Chunks } from "../../db/d1-query-chunks";
-import { currentVotes, ratingSnapshots, userTasteBadges } from "../../db/schema";
+import { currentVotes, userTasteBadges } from "../../db/schema";
 import {
   loadGoldenPickContextForPlaces,
   type GoldenPlaceSummary,
@@ -37,38 +37,6 @@ async function loadStoredTasteSignals(db: AppDb, userId?: string | null) {
     .from(userTasteBadges)
     .where(eq(userTasteBadges.userId, userId))
     .orderBy(desc(userTasteBadges.score));
-}
-
-async function attachLatestRatingSnapshots(db: AppDb, places: DiscoveryPlace[]) {
-  const placeIds = places.map((place) => place.id);
-  const snapshots = await loadInD1Chunks(placeIds, (placeIdChunk) => db.select()
-    .from(ratingSnapshots)
-    .where(and(
-      inArray(ratingSnapshots.placeId, placeIdChunk),
-      eq(ratingSnapshots.isStale, false),
-    ))
-    .orderBy(desc(ratingSnapshots.computedAt)), { reservedBindings: 1 });
-  const latestSnapshot = new Map<string, typeof snapshots[number]>();
-
-  snapshots.forEach((snapshot) => {
-    if (!latestSnapshot.has(snapshot.placeId)) latestSnapshot.set(snapshot.placeId, snapshot);
-  });
-
-  return places.map((place) => {
-    const snapshot = latestSnapshot.get(place.id);
-    if (!snapshot) return place;
-    return {
-      ...place,
-      ratingScore: snapshot.overallScore,
-      ratingSampleCount: snapshot.overallSampleCount,
-      userScore: snapshot.userScore,
-      reviewerScore: snapshot.reviewerScore,
-      userRatingScore: snapshot.userScore,
-      userRatingSampleCount: snapshot.userSampleCount,
-      reviewerRatingScore: snapshot.reviewerScore,
-      reviewerRatingSampleCount: snapshot.reviewerSampleCount,
-    };
-  });
 }
 
 async function loadDislikedPlaceIds(db: AppDb, userId: string | null | undefined, placeIds: string[]) {
@@ -120,12 +88,9 @@ export async function loadRecommendationCandidateContext(db: AppDb, input: {
     loadStoredTasteSignals(db, input.userId),
   ]);
   const placeIds = places.map((place) => place.id);
-  const [placesWithRatings, dislikedPlaceIds] = await Promise.all([
-    attachLatestRatingSnapshots(db, places),
-    loadDislikedPlaceIds(db, input.userId, placeIds),
-  ]);
+  const dislikedPlaceIds = await loadDislikedPlaceIds(db, input.userId, placeIds);
   const disliked = new Set(dislikedPlaceIds);
-  const candidates = placesWithRatings.filter((place) => evaluateAppEligibility({
+  const candidates = places.filter((place) => evaluateAppEligibility({
     // 이 공통 후보 계층은 기존 계약대로 현재 비추천 장소만 제외한다.
     // 홈 품질 하한은 home-curation의 모드별 랭킹 단계에서 별도로 적용한다.
     sampleCount: 0,

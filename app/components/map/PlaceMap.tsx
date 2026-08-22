@@ -245,7 +245,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
         icon: { content: button, anchor: new maps.Point(44, 18) },
       });
     }) : places.map((place) => {
-      const influence = getMarkerInfluence(place.positive, place.negative);
+      const influence = getMarkerInfluence(place.ratingSampleCount ?? 0, 0);
       const isSelected = selected === place.id;
       const markerRank = markerRanks[place.id];
       const markerSize = markerRank ? (isSelected ? 42 : 38) : isSelected ? 36 : influence === "high" ? 34 : influence === "medium" ? 32 : 30;
@@ -359,7 +359,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
         deliverQaBounds([west, south, east, north]);
       }}
     ><span>{cluster.label}</span><strong>{cluster.count}</strong></button>) : places.map((place) => {
-      const influence = getMarkerInfluence(place.positive, place.negative);
+      const influence = getMarkerInfluence(place.ratingSampleCount ?? 0, 0);
       const markerRank = markerRanks[place.id];
       return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-place-id={place.id} data-influence={influence} data-rank={markerRank} onClick={() => onSelect(place.id)}>{markerRank ?? place.primaryCategory.emoji}</button>;
     })}

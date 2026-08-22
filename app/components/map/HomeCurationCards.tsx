@@ -5,7 +5,7 @@ import type {
 } from "../../features/places/home-curation";
 import {
   formatDistance,
-  formatRatingSummary,
+  formatPublicRatingSummary,
 } from "../../features/places/place-discovery";
 
 export type HomeCurationPresentationProps = {
@@ -56,9 +56,7 @@ export function HomeCurationModeControls({
 }
 
 function ratingSummary(place: HomeCuratedPlace) {
-  return place.ratingScore != null && place.ratingSampleCount
-    ? `추천 ${place.ratingScore}% · ${place.ratingSampleCount}명 평가`
-    : formatRatingSummary(place);
+  return formatPublicRatingSummary(place);
 }
 
 export function HomeCurationCards({

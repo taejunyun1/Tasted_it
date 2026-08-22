@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { formatDistance, formatRatingSummary, type DiscoveryPlace } from "../../features/places/place-discovery";
+import { formatDistance, formatPublicRatingSummary, type DiscoveryPlace } from "../../features/places/place-discovery";
 import { shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
 
 export const RECOMMENDATION_SOURCE_RAILS = ["PERSONAL", "TRUSTED", "GOLDEN"] as const;
@@ -100,9 +100,7 @@ export function recommendationRequestPath(path: string, requestId: string) {
 }
 
 export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: (detailPath: string) => void }) {
-  const ratingSummary = place.ratingScore != null && place.ratingSampleCount
-    ? `추천 ${place.ratingScore}% · ${place.ratingSampleCount}명 평가`
-    : formatRatingSummary(place);
+  const ratingSummary = formatPublicRatingSummary(place);
   const detailPath = recommendationPlacePath(place.slug, {
     variant,
     discoveryMode: recommendationDiscoveryMode ?? place.discoveryMode,

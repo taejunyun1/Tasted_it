@@ -1,8 +1,9 @@
 import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenses, placeLivenessStates, placeSourceLinks } from "../../app/db/schema";
+import { businessLicenses, currentVotes, placeCategories, placeLivenessStates, placeSourceLinks, places, ratingSnapshots, users, voteEvents } from "../../app/db/schema";
 import {
   getPlaceBySlug,
   resolvePlaceSlugRedirect,
@@ -126,6 +127,124 @@ describe("place service", () => {
     expect(recommendationSlugs).not.toContain(hiddenId);
     await expect(getPlaceBySlug(db, excludedId)).resolves.toMatchObject({ slug: excludedId });
     await expect(getPlaceBySlug(db, hiddenId)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("lists public scores from the latest non-stale snapshot instead of live votes", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const placeId = `snapshot-score-${suffix}`;
+    const now = "2026-08-05T00:00:00.000Z";
+    await upsertPlace(db, {
+      id: placeId,
+      row: { ...baseRow, slug: placeId, name: "스냅샷 점수 장소" },
+      now,
+    });
+    await db.insert(users).values({
+      id: `snapshot-user-${suffix}`,
+      email: `snapshot-${suffix}@example.com`,
+      displayName: "스냅샷",
+      role: "USER",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(voteEvents).values({
+      id: `snapshot-vote-${suffix}`,
+      placeId,
+      userId: `snapshot-user-${suffix}`,
+      value: 1,
+      eventType: "CREATE",
+      createdAt: now,
+    });
+    await db.insert(currentVotes).values({
+      placeId,
+      userId: `snapshot-user-${suffix}`,
+      eventId: `snapshot-vote-${suffix}`,
+      value: 1,
+      updatedAt: now,
+    });
+    await db.insert(ratingSnapshots).values([
+      {
+        id: `snapshot-stale-${suffix}`,
+        placeId,
+        configId: "rating-config-v2",
+        inputHash: `stale-${suffix}`,
+        overallScore: 99,
+        userScore: 99,
+        reviewerScore: 99,
+        overallSampleCount: 20,
+        userSampleCount: 16,
+        reviewerSampleCount: 4,
+        reviewerRawWeight: 4,
+        reviewerCombinedWeight: 4,
+        reviewerWeightShare: 0.2,
+        reasonsJson: "{}",
+        isStale: true,
+        computedAt: "2026-08-04T00:00:00.000Z",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `snapshot-fresh-${suffix}`,
+        placeId,
+        configId: "rating-config-v2",
+        inputHash: `fresh-${suffix}`,
+        overallScore: 41,
+        userScore: 40,
+        reviewerScore: 42,
+        overallSampleCount: 8,
+        userSampleCount: 6,
+        reviewerSampleCount: 2,
+        reviewerRawWeight: 2,
+        reviewerCombinedWeight: 2,
+        reviewerWeightShare: 0.25,
+        reasonsJson: "{}",
+        isStale: false,
+        computedAt: "2026-08-05T00:00:00.000Z",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+
+    const listed = (await listPlaces(db, { categorySlug: "ramen" })).find((place) => place.id === placeId);
+    expect(listed).toMatchObject({
+      id: placeId,
+      ratingScore: 41,
+      ratingSampleCount: 8,
+      positive: 1,
+    });
+  });
+
+  it("unsets the previous primary category when a place is reimported", async () => {
+    const db = createDb(env.DB);
+    const now = "2026-08-05T00:00:00.000Z";
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO categories
+       (id, slug, name, emoji, sort_order, created_at, updated_at)
+       VALUES ('test-category-gukbap', 'gukbap', '국밥', '🍲', 2, ?, ?)`,
+    ).bind(now, now).run();
+    const slug = `reimport-primary-${crypto.randomUUID()}`;
+    await importPlaceRows(db, {
+      rows: [{ ...baseRow, slug, name: "재수입 장소", primaryCategory: "ramen" }],
+      ids: [`${slug}-id`],
+      now,
+    });
+    await importPlaceRows(db, {
+      rows: [{ ...baseRow, slug, name: "재수입 장소", primaryCategory: "gukbap" }],
+      ids: [`${slug}-id-ignored`],
+      now: "2026-08-05T00:01:00.000Z",
+    });
+
+    const place = await db.query.places.findFirst({ where: eq(places.slug, slug) });
+    const rows = await db.select({
+      categoryId: placeCategories.categoryId,
+      isPrimary: placeCategories.isPrimary,
+    }).from(placeCategories).where(eq(placeCategories.placeId, place!.id));
+    expect(rows.filter((row) => row.isPrimary)).toEqual([
+      expect.objectContaining({ categoryId: "test-category-gukbap", isPrimary: true }),
+    ]);
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ categoryId: "test-category-ramen", isPrimary: false }),
+    ]));
   });
 
   it("imports valid rows as one administrative batch", async () => {

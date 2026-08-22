@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDiscoverySections,
+  formatPublicRatingSummary,
   formatRatingSummary,
+  PUBLIC_RATING_FALLBACK_COPY,
   rankGoldenRelay,
   rankPersonalDiscovery,
   rankTrustedPlaces,
@@ -31,6 +33,12 @@ describe("place discovery", () => {
   it("shows progress below eight votes and the Bayesian score from eight", () => {
     expect(formatRatingSummary(place("seven", { latitude: 35, longitude: 126, positive: 6, negative: 1 }))).toBe("평가 7/8");
     expect(formatRatingSummary(place("eight", { latitude: 35, longitude: 126, positive: 6, negative: 2 }))).toBe("추천 67% · 8명 평가");
+  });
+
+  it("prints public list scores from a snapshot and fallback copy when none exists", () => {
+    expect(formatPublicRatingSummary({ ratingScore: 41, ratingSampleCount: 8 })).toBe("추천 41% · 8명 평가");
+    expect(formatPublicRatingSummary({ ratingScore: null, ratingSampleCount: 3 })).toBe(`${PUBLIC_RATING_FALLBACK_COPY} · 3/8`);
+    expect(formatPublicRatingSummary({})).toBe(PUBLIC_RATING_FALLBACK_COPY);
   });
 
   it("sorts nearby by distance and service picks by score then sample count", () => {

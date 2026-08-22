@@ -78,6 +78,42 @@ describe("castVote", () => {
     expect(jobs?.count).toBe(1);
   });
 
+  it("does not insert a CHANGE event when the same value is recast", async () => {
+    const db = createDb(env.DB);
+    const suffix = crypto.randomUUID();
+    const isolatedUserId = `vote-same-user-${suffix}`;
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO users
+       (id, email, display_name, role, created_at, updated_at)
+       VALUES (?, ?, ?, 'USER', ?, ?)`,
+    ).bind(isolatedUserId, `${isolatedUserId}@example.com`, "같은 값 투표", "2026-08-05T00:00:00Z", "2026-08-05T00:00:00Z").run();
+
+    await castVote(db, {
+      placeId,
+      userId: isolatedUserId,
+      value: 1,
+      now: "2026-08-05T00:05:00Z",
+      eventId: `vote-same-a-${suffix}`,
+    });
+    await castVote(db, {
+      placeId,
+      userId: isolatedUserId,
+      value: 1,
+      now: "2026-08-05T00:06:00Z",
+      eventId: `vote-same-b-${suffix}`,
+    });
+
+    expect(await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM vote_events WHERE place_id = ? AND user_id = ?",
+    ).bind(placeId, isolatedUserId).first<{ count: number }>()).toEqual({ count: 1 });
+    expect(await env.DB.prepare(
+      "SELECT id FROM vote_events WHERE id = ?",
+    ).bind(`vote-same-b-${suffix}`).first()).toBeNull();
+    expect(await env.DB.prepare(
+      "SELECT value FROM current_votes WHERE place_id = ? AND user_id = ?",
+    ).bind(placeId, isolatedUserId).first<{ value: number }>()).toEqual({ value: 1 });
+  });
+
   it("appends a withdrawal event, removes the current vote, and enqueues recompute", async () => {
     const db = createDb(env.DB);
     const suffix = crypto.randomUUID();
