@@ -258,7 +258,8 @@
 }
 
 .home-curation-header h1,
-.home-curation-sheet__summary h1{
+.home-curation-sheet__summary h1,
+.home-curation-sheet__title{
   margin:var(--space-2) 0 0;
   font-size:clamp(1.65rem,2.1vw,2.15rem);
   line-height:1.05;
@@ -645,7 +646,8 @@
     padding:0 var(--space-4) var(--space-3);
   }
 
-  .home-curation-sheet__summary h1{
+  .home-curation-sheet__summary h1,
+  .home-curation-sheet__title{
     font-size:1.35rem;
   }
 
