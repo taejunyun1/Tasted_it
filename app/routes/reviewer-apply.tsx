@@ -6,6 +6,7 @@ import type { Route } from "./+types/reviewer-apply";
 import { createDb } from "../db/client.server";
 import { categories } from "../db/schema";
 import { requireUser } from "../features/auth/session.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { getReviewerDashboard, submitReviewerApplication } from "../features/reviewers/reviewer.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -19,6 +20,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const user = await requireUser(request);
   const form = await request.formData();
   const values = {

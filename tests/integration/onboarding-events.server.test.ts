@@ -420,7 +420,7 @@ describe("product event route wiring", () => {
           : await route.action({
             request: new Request("https://retaste.test/onboarding/taste", {
               method: "POST",
-              headers: { Cookie: `retaste_guest=${guestSessionId}` },
+              headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
               body: (() => {
                 const form = onboardingForm({
                   intent: "SAVE_STEP",
@@ -469,7 +469,7 @@ describe("product event route wiring", () => {
       const response = await action({
         request: new Request("https://retaste.test/onboarding/taste", {
           method: "POST",
-          headers: { Cookie: `retaste_guest=${guestSessionId}` },
+          headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
           body: form,
         }),
       } as never) as Response;
@@ -496,6 +496,7 @@ describe("product event route wiring", () => {
     const response = await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
+        headers: { Origin: "https://retaste.test" },
         body: onboardingForm({ intent: "SKIP", currentStep: "LOCATION" }),
       }),
     } as never) as Response;
@@ -578,7 +579,7 @@ describe("product event route wiring", () => {
     await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({ intent, currentStep, foodBadgeIds: [...foodBadgeIds], styleBadgeIds: [...styleBadgeIds] }),
       }),
     } as never);
@@ -597,7 +598,7 @@ describe("product event route wiring", () => {
     await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({
           intent: "SAVE_STEP",
           currentStep: "STYLE",
@@ -622,7 +623,7 @@ describe("product event route wiring", () => {
     const response = await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({
           intent: "SAVE_SELECTION",
           currentStep: "STYLE",
@@ -658,7 +659,7 @@ describe("product event route wiring", () => {
     await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({
           intent: "SAVE_STEP",
           currentStep: "STYLE",
@@ -671,7 +672,7 @@ describe("product event route wiring", () => {
     await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({
           intent: "SAVE_SELECTION",
           currentStep: "STYLE",
@@ -684,7 +685,7 @@ describe("product event route wiring", () => {
     await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({
           intent: "SAVE_SELECTION",
           currentStep: "STYLE",
@@ -722,7 +723,7 @@ describe("product event route wiring", () => {
       await action({
         request: new Request("https://retaste.test/onboarding/taste", {
           method: "POST",
-          headers: { Cookie: `retaste_guest=${guestSessionId}` },
+          headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
           body: onboardingForm({
             intent,
             currentStep,
@@ -735,7 +736,7 @@ describe("product event route wiring", () => {
       await action({
         request: new Request("https://retaste.test/onboarding/taste", {
           method: "POST",
-          headers: { Cookie: `retaste_guest=${guestSessionId}` },
+          headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
           body: onboardingForm({
             intent: "SAVE_SELECTION",
             currentStep,
@@ -784,7 +785,7 @@ describe("product event route wiring", () => {
     const response = await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({
           intent: "SAVE_SELECTION",
           currentStep: "STYLE",
@@ -816,7 +817,7 @@ describe("product event route wiring", () => {
     const response = await action({
       request: new Request("https://retaste.test/onboarding/taste", {
         method: "POST",
-        headers: { Cookie: `retaste_guest=${guestSessionId}` },
+        headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
         body: onboardingForm({
           intent: "SAVE_SELECTION",
           currentStep: "STYLE",
@@ -847,7 +848,7 @@ describe("product event route wiring", () => {
       await expect(action({
         request: new Request("https://retaste.test/onboarding/taste", {
           method: "POST",
-          headers: { Cookie: `retaste_guest=${guestSessionId}` },
+          headers: { Cookie: `retaste_guest=${guestSessionId}`, Origin: "https://retaste.test" },
           body: onboardingForm({ intent: "COMPLETE", currentStep: "PREVIEW" }),
         }),
       } as never)).resolves.toBeInstanceOf(Response);
@@ -884,7 +885,7 @@ describe("product event route wiring", () => {
     });
     const requestPath = recommendationRequestPath(cardPath, crypto.randomUUID());
     await action({
-      request: new Request(`https://retaste.test${requestPath}`, { method: "POST", body: form }),
+      request: new Request(`https://retaste.test${requestPath}`, { method: "POST", headers: { Origin: "https://retaste.test" }, body: form }),
       params: { placeSlug: "place-event-test" },
     } as never);
 
@@ -911,7 +912,7 @@ describe("product event route wiring", () => {
 
     const { action } = await import("../../app/routes/place-detail");
     await action({
-      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", body: form }),
+      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", headers: { Origin: "https://retaste.test" }, body: form }),
       params: { placeSlug: "place-event-test" },
     } as never);
 
@@ -920,7 +921,7 @@ describe("product event route wiring", () => {
 
     form.set("saved", "false");
     await action({
-      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", body: form }),
+      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", headers: { Origin: "https://retaste.test" }, body: form }),
       params: { placeSlug: "place-event-test" },
     } as never);
     await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
@@ -1034,7 +1035,7 @@ describe("product event route wiring", () => {
 
     const { action } = await import("../../app/routes/place-detail");
     await expect(action({
-      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", body: form }),
+      request: new Request("https://retaste.test/places/place-event-test", { method: "POST", headers: { Origin: "https://retaste.test" }, body: form }),
       params: { placeSlug: "place-event-test" },
     } as never)).rejects.toThrow("PRIMARY_VOTE_FAILED");
     await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
@@ -1059,7 +1060,7 @@ describe("product event route wiring", () => {
       const cardPath = recommendationPlacePath("place-event-test", { variant: "golden" });
       const requestPath = recommendationRequestPath(cardPath, crypto.randomUUID());
       await expect(action({
-        request: new Request(`https://retaste.test${requestPath}`, { method: "POST", body: form }),
+        request: new Request(`https://retaste.test${requestPath}`, { method: "POST", headers: { Origin: "https://retaste.test" }, body: form }),
         params: { placeSlug: "place-event-test" },
       } as never)).resolves.toEqual({ ok: true });
 

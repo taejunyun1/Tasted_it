@@ -1,4 +1,5 @@
 import type { AppDb } from "../../db/client.server";
+import { isSameOriginMutation } from "../http/same-origin";
 import {
   ReviewerPhotoValidationError,
   MAX_REVIEWER_PHOTO_TOTAL_BYTES,
@@ -53,11 +54,6 @@ function safePublishError(error: unknown) {
   return actionError("REVIEW_PUBLISH_FAILED", 503);
 }
 
-function hasSameOrigin(request: Request) {
-  const origin = request.headers.get("Origin");
-  return origin === new URL(request.url).origin;
-}
-
 function preflightRequestSizeError(request: Request) {
   const value = request.headers.get("Content-Length");
   if (value == null) return null;
@@ -69,7 +65,7 @@ export async function publishReviewerRatingRequest(
   request: Request,
   dependencies: PublishRequestDependencies,
 ): Promise<Response> {
-  if (!hasSameOrigin(request)) return actionError("REVIEW_ORIGIN_INVALID", 403);
+  if (!isSameOriginMutation(request)) return actionError("REVIEW_ORIGIN_INVALID", 403);
   const requestSizeError = preflightRequestSizeError(request);
   if (requestSizeError) return actionError(requestSizeError, requestSizeError.includes("TOO_LARGE") ? 413 : 400);
 

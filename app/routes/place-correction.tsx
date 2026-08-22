@@ -2,8 +2,10 @@ import { env } from "cloudflare:workers"; import { asc, eq } from "drizzle-orm";
 import { createDb } from "../db/client.server"; import { places } from "../db/schema"; import { sendAccountEmail } from "../features/auth/email.server"; import { getOptionalUser } from "../features/auth/session.server"; import { createPlaceCorrectionRequest } from "../features/places/place-correction.server";
 import { accountActionUrl } from "../features/auth/token-link";
 import { consumeMailRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 export async function loader() { return { places: await createDb(env.DB).select({ id: places.id, name: places.name, address: places.address }).from(places).where(eq(places.status, "PUBLISHED")).orderBy(asc(places.name)).limit(1_000) }; }
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const form = await request.formData();
   const user = await getOptionalUser(request);
   const requesterEmail = String(form.get("email") ?? user?.email ?? "");

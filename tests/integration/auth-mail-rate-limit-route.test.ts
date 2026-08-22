@@ -13,6 +13,7 @@ function formRequest(url: string, fields: Record<string, string>, ip = "203.0.11
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       "CF-Connecting-IP": ip,
+      Origin: new URL(url).origin,
     },
     body,
   });

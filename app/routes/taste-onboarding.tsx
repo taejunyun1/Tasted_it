@@ -9,6 +9,7 @@ import {
 } from "../components/onboarding/TasteOnboarding";
 import { createDb, type AppDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import {
   claimGuestOnboardingDocument,
   getOrCreateGuestSession,
@@ -111,6 +112,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const form = await request.formData();
   const returnTo = safeOnboardingReturnTo(
     typeof form.get("returnTo") === "string" ? form.get("returnTo") as string : null,

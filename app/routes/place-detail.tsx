@@ -11,6 +11,7 @@ import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
 import { castVote, getCurrentVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
+import { isSameOriginMutation } from "../features/http/same-origin";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
 import { recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
 import { recordProductEvent, type ProductEventMetadata, type ProductEventName } from "../features/onboarding/onboarding-events.server";
@@ -133,6 +134,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const user = await requireUser(request);
   const parsed = actionSchema.safeParse(Object.fromEntries(await request.formData()));
   if (!parsed.success) throw new Response("Invalid reaction", { status: 400, statusText: "INVALID_REACTION" });

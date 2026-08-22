@@ -58,12 +58,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  if (!isSameOriginMutation(request)) {
+    throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
+  }
   const user = await requireUser(request);
   const form = await request.formData();
   if (String(form.get("intent") ?? "") === "withdraw") {
-    if (!isSameOriginMutation(request)) {
-      throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
-    }
     if (String(form.get("confirm") ?? "") !== WITHDRAW_CONFIRM_PHRASE) {
       return { withdrawError: "확인 문구를 정확히 입력해 주세요." };
     }
