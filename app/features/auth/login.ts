@@ -1,3 +1,16 @@
+export function authEntryHref(pathname: "/login" | "/signup", currentPath: string, search = "") {
+  const returnTo = safeReturnTo(`${currentPath}${search}`);
+  if (returnTo === "/") return pathname;
+  return `${pathname}?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
+export function retainedAuthFields(form: Record<string, FormDataEntryValue>) {
+  return {
+    email: typeof form.email === "string" ? form.email : "",
+    displayName: typeof form.displayName === "string" ? form.displayName : "",
+  };
+}
+
 export function safeReturnTo(value: string | null | undefined): string {
   const fallback = "/";
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
