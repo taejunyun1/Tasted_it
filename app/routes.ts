@@ -32,6 +32,7 @@ export default [
   route("review-photos/:photoId", "routes/reviewer-photo.ts"),
   route("reviewers/:slug", "routes/reviewer-profile.tsx"),
   route("logout", "routes/logout.tsx"),
+  route("admin", "routes/admin-index.tsx"),
   route("admin/places", "routes/admin-places.tsx"),
   route("admin/import", "routes/admin-import.tsx"),
   route("admin/candidates", "routes/admin-candidates.tsx"),
