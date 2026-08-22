@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { slugifyPlaceName } from "../../app/features/places/place-slug";
+import { nextUniqueSlug, prefixedSlugRedirect, slugifyPlaceName } from "../../app/features/places/place-slug";
 import {
   ACTIVE_REGION_CODES,
   LAUNCH_DEFAULT_BBOX,
@@ -91,7 +91,21 @@ describe("region pack", () => {
 
   it("applies slugPrefix only when a pack supplies one", () => {
     expect(REGION_PACKS.GWANGJU.slugPrefix).toBe("");
+    expect(REGION_PACKS.JEONNAM.slugPrefix).toBe("");
     expect(slugifyPlaceName("김밥천국")).toBe("김밥천국");
     expect(slugifyPlaceName("김밥천국", "jeju")).toBe("jeju-김밥천국");
+  });
+
+  it("proves a test-only non-empty slugPrefix pack does not loop redirects or change live prefixes", () => {
+    const fakePack = { ...REGION_PACKS.GWANGJU, slugPrefix: "lab" } as const;
+    expect(REGION_PACKS.GWANGJU.slugPrefix).toBe("");
+    expect(REGION_PACKS.JEONNAM.slugPrefix).toBe("");
+    const redirect = prefixedSlugRedirect("김밥천국", fakePack.slugPrefix);
+    expect(redirect.current).toBe("lab-김밥천국");
+    expect(redirect.unprefixed).toBe("김밥천국");
+    expect(redirect.needsRedirect).toBe(true);
+    expect(redirect.loops).toBe(false);
+    expect(nextUniqueSlug(redirect.current, new Set([redirect.current]))).toBe("lab-김밥천국-2");
+    expect(nextUniqueSlug(redirect.unprefixed, new Set([redirect.current]))).toBe("김밥천국");
   });
 });
