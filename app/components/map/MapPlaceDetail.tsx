@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { calculateRating } from "../../features/ratings/rating-v1";
+import { formatPublicRatingSummary, PUBLIC_RATING_FALLBACK_COPY } from "../../features/places/place-discovery";
 import type { PlaceSummary } from "../../features/places/place.types";
 
 export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSummary; onBack: () => void; onOpenDetail: (slug: string) => void }) {
-  const rating = calculateRating(place);
-  const voteCount = place.positive + place.negative;
-  const isVisible = rating.sampleStatus === "VISIBLE";
-  const progressValue = isVisible ? rating.displayScore : Math.min(voteCount, 8);
+  const score = place.ratingScore;
+  const isVisible = score != null;
+  const voteCount = place.ratingSampleCount ?? 0;
+  const progressValue = score ?? Math.min(voteCount, 8);
   const progressMax = isVisible ? 100 : 8;
   const progressPercent = (progressValue / progressMax) * 100;
   const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(place.address || place.name)}`;
@@ -32,12 +32,12 @@ export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSu
     <div className="map-place-sheet__rating">
       <div className="map-place-sheet__rating-head">
         <span>{isVisible ? "추천 지표" : "평가 공개까지"}</span>
-        <strong>{isVisible ? `${rating.displayScore}%` : `${voteCount}/8`}</strong>
+        <strong>{isVisible ? `${score}%` : voteCount ? `${voteCount}/8` : PUBLIC_RATING_FALLBACK_COPY}</strong>
       </div>
       <div className="map-rating-bar" role="progressbar" aria-label="추천 지표" aria-valuemin={0} aria-valuemax={progressMax} aria-valuenow={progressValue}>
         <span style={{ width: `${progressPercent}%` }} />
       </div>
-      <small>{isVisible ? `추천 ${place.positive} · 비추천 ${place.negative}` : "8표부터 추천률이 공개됩니다."}</small>
+      <small>{formatPublicRatingSummary(place)}</small>
     </div>
     <div className="map-place-sheet__actions">
       <a className="map-place-sheet__route" href={naverUrl} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>

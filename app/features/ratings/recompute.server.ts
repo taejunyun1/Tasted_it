@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
+import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import {
   currentVotes,
   invalidatedVoteEvents,
@@ -149,5 +150,38 @@ export async function getLatestRatingSnapshot(db: AppDb, placeId: string) {
   return db.query.ratingSnapshots.findFirst({
     where: and(eq(ratingSnapshots.placeId, placeId), eq(ratingSnapshots.isStale, false)),
     orderBy: [desc(ratingSnapshots.computedAt)],
+  });
+}
+
+export async function attachLatestNonStaleRatingSnapshots<T extends { id: string }>(
+  db: AppDb,
+  places: T[],
+) {
+  if (places.length === 0) return places;
+  const snapshots = await loadInD1Chunks(places.map((place) => place.id), (placeIdChunk) => db.select()
+    .from(ratingSnapshots)
+    .where(and(
+      inArray(ratingSnapshots.placeId, placeIdChunk),
+      eq(ratingSnapshots.isStale, false),
+    ))
+    .orderBy(desc(ratingSnapshots.computedAt)), { reservedBindings: 1 });
+  const latestSnapshot = new Map<string, typeof snapshots[number]>();
+  for (const snapshot of snapshots) {
+    if (!latestSnapshot.has(snapshot.placeId)) latestSnapshot.set(snapshot.placeId, snapshot);
+  }
+  return places.map((place) => {
+    const snapshot = latestSnapshot.get(place.id);
+    if (!snapshot) return place;
+    return {
+      ...place,
+      ratingScore: snapshot.overallScore,
+      ratingSampleCount: snapshot.overallSampleCount,
+      userScore: snapshot.userScore,
+      reviewerScore: snapshot.reviewerScore,
+      userRatingScore: snapshot.userScore,
+      userRatingSampleCount: snapshot.userSampleCount,
+      reviewerRatingScore: snapshot.reviewerScore,
+      reviewerRatingSampleCount: snapshot.reviewerSampleCount,
+    };
   });
 }

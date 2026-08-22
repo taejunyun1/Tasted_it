@@ -131,6 +131,18 @@ export function formatRatingSummary(place: Pick<PlaceSummary, "positive" | "nega
     : `평가 ${sampleCount}/8`;
 }
 
+export const PUBLIC_RATING_FALLBACK_COPY = "표본 수집 중";
+
+export function formatPublicRatingSummary(place: Pick<PlaceSummary, "ratingScore" | "ratingSampleCount">) {
+  if (place.ratingScore != null) {
+    return `추천 ${place.ratingScore}% · ${place.ratingSampleCount ?? 0}명 평가`;
+  }
+  if (place.ratingSampleCount != null && place.ratingSampleCount > 0) {
+    return `${PUBLIC_RATING_FALLBACK_COPY} · ${place.ratingSampleCount}/8`;
+  }
+  return PUBLIC_RATING_FALLBACK_COPY;
+}
+
 export function buildDiscoverySections(
   places: PlaceSummary[],
   goldenPicks: GoldenPickSummary[],

@@ -40,6 +40,10 @@ export async function castVote(
     ),
   });
 
+  if (previous?.value === input.value) {
+    return;
+  }
+
   await db.batch([
     db.insert(voteEvents).values({
       id: input.eventId,
