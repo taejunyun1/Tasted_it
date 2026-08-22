@@ -93,6 +93,8 @@
 
 `#218` 본문이 이미 “병합 후 main에서 배포”를 적었으므로 **새 배포 승인 PR은 필요 없다.** 실행 후 기록 PR만 연다 (`#217` 패턴).
 
+**실행 (2026-08-22):** 시계 C–F가 먼저 `main`에 병합된 뒤 HEAD [`fdf45d8`](https://github.com/taejunyun1/Tasted_it/commit/fdf45d8)(`#235`)를 배포했다. Worker `7579b600-7302-443b-9753-a4a5aaa3dd05`. rollback `b2268318-3473-4661-8598-e0560a7d1396`. 기록 [#236](https://github.com/taejunyun1/Tasted_it/issues/236). 원격 apply·일괄 NAVER·일괄 공개 없음.
+
 ---
 
 ### 시계 B — 사람 확인 (H04–H06) · 배포와 독립 가능
@@ -277,7 +279,7 @@ Rollback: 이 PR은 문서만 되돌리면 된다.
 
 **One line:** Invite-HOLD is cleared in code. Public beta is still **NO-GO** (catalog, legal contact, `main` protection). Next work is deploy HEAD, drain the review queue by hand, and close leftover P1s one PR at a time — in **hours**, not weeks.
 
-**Clock A (H00–H04):** this plan, history/wiki snapshot, deploy `7389537` (already authorized by #218), record Worker version.
+**Clock A (H00–H04):** this plan, history/wiki snapshot, deploy `7389537` (already authorized by #218), record Worker version. **Executed 2026-08-22** as HEAD `fdf45d8` after clocks C–F landed. Worker `7579b600-7302-443b-9753-a4a5aaa3dd05`. Record #236.
 
 **Clock B (H04–H06):** human localhost guest repro of persona hypotheses. Do not promote lab numbers.
 
