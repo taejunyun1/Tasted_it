@@ -163,3 +163,5 @@ CSV에 `PUBLISHED`를 적으면 5단계를 안 거치고 상태가 올라갈 수
 ## 7. 지금 큐
 
 공개 리스트의 `PUBLISHED`만 “허용된 POI”다. 1–4단계 ACTIVE는 아직 등록이 아니다. 그 줄을 사람이 줄이는 일은 Clock H이며 이 문서 범위가 아니다.
+
+1→4를 근거가 있을 때만 옮기고 공개는 사람으로 남기는 안은 [`docs/superpowers/plans/2026-08-23-confident-review-advance.md`](../superpowers/plans/2026-08-23-confident-review-advance.md) (`PROPOSED`). 그 플랜 병합은 구현이 아니다. 5단계 자동 `PUBLISHED`는 원래 목적 밖이다.
