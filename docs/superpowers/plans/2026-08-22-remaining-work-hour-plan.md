@@ -132,6 +132,8 @@
 
 Playwright CI 스모크는 **H44–H52**. CSP와 한 PR에 넣지 않는다.
 
+**실행 (2026-08-23):** 라이브에서 `nrbe.pstatic.net` 스타일 JSONP가 `script-src`에 막혀 맵이 비었다. [#246](https://github.com/taejunyun1/Tasted_it/issues/246)/[#247](https://github.com/taejunyun1/Tasted_it/pull/247)이 `https://*.pstatic.net`만 허용. nelo는 그대로 차단. 배포 Worker `7445cc93-747f-46e0-ae0c-ef21fadc7a4f`. rollback `7579b600-7302-443b-9753-a4a5aaa3dd05`. 코드 SHA [`43503f7`](https://github.com/taejunyun1/Tasted_it/commit/43503f7).
+
 ---
 
 ### 시계 E — 점수 정합 (H28–H44) · 제품 P0
@@ -289,7 +291,7 @@ Rollback: 이 PR은 문서만 되돌리면 된다.
 
 **Clock C (H06–H16):** cheap PRs — `/admin` index, hide admin email, `attention` includes unverified NAVER, `slugPrefix` fake-pack tests, `returnTo`/form persist/`meta()`, contrast + reduced-motion + single `h1`.
 
-**Clock D (H16–H28):** CSP+HSTS; same-origin on member POSTs.
+**Clock D (H16–H28):** CSP+HSTS; same-origin on member POSTs. **Follow-up 2026-08-23:** live map needed `https://*.pstatic.net` (#247). Worker `7445cc93-747f-46e0-ae0c-ef21fadc7a4f`. nelo still blocked.
 
 **Clock E (H28–H44):** list/map scores from rating snapshots; same-value vote no-op; primary-category reimport.
 
