@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-23 검수 1→4 조건부 자동 이동. 공개는 사람. NAVER 일괄·cron 추가·자동 PUBLISHED 없음. 이 항목 병합은 구현 아님. | [Issue #244](https://github.com/taejunyun1/Tasted_it/issues/244) · [`docs/superpowers/plans/2026-08-23-confident-review-advance.md`](./superpowers/plans/2026-08-23-confident-review-advance.md) |
+| Proposed | 2026-08-23 검수 1→4 조건부 자동 이동. 공개는 사람. NAVER 일괄·cron 추가·자동 PUBLISHED 없음. 이 항목 병합은 구현 아님. | [Issue #244](https://github.com/taejunyun1/Tasted_it/issues/244) · [PR #245](https://github.com/taejunyun1/Tasted_it/pull/245) · [`docs/superpowers/plans/2026-08-23-confident-review-advance.md`](./superpowers/plans/2026-08-23-confident-review-advance.md) |
 | Merged | 2026-08-23 POI 등록 절차를 유저 제안과 관리자 검수 5단계로 문서화한다. 공개 허용은 5단계만. 제품 코드·배포 없음. | [Issue #242](https://github.com/taejunyun1/Tasted_it/issues/242) · [PR #243](https://github.com/taejunyun1/Tasted_it/pull/243) · [`9272920`](https://github.com/taejunyun1/Tasted_it/commit/9272920) · [`docs/operations/poi-registration.md`](./operations/poi-registration.md) |
 | Merged | 2026-08-23 Clock B localhost 게스트 재현. 공개 맵·`/places`·상세는 가입 없이 열림. 온보딩은 URL 직접 진입만, 맵 앞 강제 없음. 투표 CTA는 내 취향. 랩 숫자 GO 아님. 제품 코드·배포 없음. | [Issue #240](https://github.com/taejunyun1/Tasted_it/issues/240) · [PR #241](https://github.com/taejunyun1/Tasted_it/pull/241) · [`5ed1eba`](https://github.com/taejunyun1/Tasted_it/commit/5ed1eba) |
 | Merged | 2026-08-22 Clock G 런북 정합. NAVER는 지역 10k+`/admin/place-operations`, 배포는 `pnpm run deploy`, week1 운영 `--remote` 시드 삭제. 제품 코드·재배포·라이브 NAVER 없음. | [Issue #238](https://github.com/taejunyun1/Tasted_it/issues/238) · [PR #239](https://github.com/taejunyun1/Tasted_it/pull/239) · [`ca9caa6`](https://github.com/taejunyun1/Tasted_it/commit/ca9caa6) |

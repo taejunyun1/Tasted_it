@@ -2,7 +2,7 @@
 
 > **상태:** `PROPOSED` — 목록과 금지선을 채택한다. 이 문서 병합은 구현, 배포, 라이브 NAVER, 5단계 공개를 승인하지 않는다.
 >
-> **추적:** [#244](https://github.com/taejunyun1/Tasted_it/issues/244)
+> **추적:** [#244](https://github.com/taejunyun1/Tasted_it/issues/244) · [PR #245](https://github.com/taejunyun1/Tasted_it/pull/245)
 >
 > **원래 목적:** 손님 리스트는 관리자가 **고른** `PUBLISHED`만. 유저 제안·공공데이터는 대기열. NAVER 통과만으로 공개하지 않는다. ([POI 등록 절차](../../operations/poi-registration.md), [파이프라인 설계](../specs/2026-08-15-place-review-pipeline-design.md))
 
