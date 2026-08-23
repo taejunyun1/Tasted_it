@@ -18,6 +18,10 @@ describe("applySecurityHeaders", () => {
     expect(csp).toContain("https://fonts.googleapis.com");
     expect(csp).toContain("https://fonts.gstatic.com");
     expect(csp).toContain("https://oapi.map.naver.com");
+    expect(csp).toContain("https://*.pstatic.net");
+    expect(csp).toMatch(/script-src[^;]*https:\/\/\*\.pstatic\.net/);
+    expect(csp).toMatch(/connect-src[^;]*https:\/\/\*\.pstatic\.net/);
+    expect(csp).not.toContain("nelo.navercorp.com");
     expect(headers.get("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
     expect(headers.get("Permissions-Policy")).toContain("geolocation=()");
   });
