@@ -96,13 +96,28 @@ describe("reviewer photo deletion boundary", () => {
 
   it("deletes a reviewer's rows in bounded pages without bucket listing or touching another reviewer", async () => {
     const db = createDb(env.DB);
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
     const photos = Array.from({ length: 101 }, (_, index) => ({
       reviewId: `delete-page-review-${index}`,
       photoId: `delete-page-photo-${index}`,
     }));
-    for (const item of photos) {
-      await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, { ...reviewInput(item.reviewId), photos: [photo(item.photoId)] });
+    const statements = photos.flatMap((item) => {
+      const objectKey = getReviewerPhotoObjectKey(item.reviewId, item.photoId);
+      return [
+        env.DB.prepare("INSERT INTO reviewer_visit_reviews (id, place_id, reviewer_user_id, category_id, evaluation, badges_json, photo_count, version, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'RECOMMEND', '[]', 1, 1, ?, ?, ?)")
+          .bind(item.reviewId, placeId, reviewerUserId, categoryId, now, now, now),
+        env.DB.prepare("INSERT INTO reviewer_visit_photos (id, review_id, object_key, content_type, byte_size, position, created_at, updated_at) VALUES (?, ?, ?, 'image/jpeg', 4, 0, ?, ?)")
+          .bind(item.photoId, item.reviewId, objectKey, now, now),
+      ];
+    });
+    for (let index = 0; index < statements.length; index += 40) {
+      await env.DB.batch(statements.slice(index, index + 40));
     }
+    await Promise.all(photos.map((item) => env.REVIEW_PHOTOS.put(
+      getReviewerPhotoObjectKey(item.reviewId, item.photoId),
+      jpeg,
+      { httpMetadata: { contentType: "image/jpeg" } },
+    )));
 
     const otherUserId = `photo-delete-other-${crypto.randomUUID()}`;
     await env.DB.batch([
