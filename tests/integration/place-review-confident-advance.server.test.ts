@@ -206,4 +206,23 @@ describe("confident review advance button", () => {
       .resolves.toMatchObject({ stage: "NAVER_VERIFICATION", status: "ACTIVE" });
     await expect(countPublished()).resolves.toBe(publishedBefore);
   });
+
+  it("reports NAVER_REVIEW_REQUIRED instead of CATEGORY_REQUIRED when no-match is already at naver", async () => {
+    const { db, actorUserId, workItemId } = await createCandidateReview({ mappedCategory: "none", naverStatus: "NO_MATCH" });
+    await advanceConfidentReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: { [workItemId]: 0 }, actorUserId, now, confidentAdvanceEnabled: true,
+    });
+    const current = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) });
+    expect(current?.stage).toBe("NAVER_VERIFICATION");
+    const result = await advanceConfidentReviewWorkItems(db, {
+      workItemIds: [workItemId],
+      expectedStage: "NAVER_VERIFICATION",
+      expectedVersions: { [workItemId]: current?.stageVersion ?? 0 },
+      actorUserId,
+      now,
+      confidentAdvanceEnabled: true,
+    });
+    expect(result.advanced).toEqual([]);
+    expect(result.skipped).toEqual([{ workItemId, code: "NAVER_REVIEW_REQUIRED" }]);
+  });
 });

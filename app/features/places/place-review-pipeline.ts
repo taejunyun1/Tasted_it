@@ -126,3 +126,32 @@ export function confidentAdvanceAllowed(
 
   return evaluateReviewAdvance(stage, evidence).ok;
 }
+
+/**
+ * Skip code for a stage that `confidentAdvanceAllowed` refused.
+ * Extra confident-gate reasons (exclusion, missing leaf, missing manual evidence)
+ * are not collapsed into CATEGORY_REQUIRED when evaluateReviewAdvance is still ok.
+ */
+export function confidentAdvanceSkipCode(
+  stage: ReviewStage,
+  evidence: ConfidentAdvanceEvidence,
+): ReviewBlockCode {
+  if (stage === "FINAL_APPROVAL") return "ALREADY_FINAL";
+  if (evidence.activeExclusion) return "ACTIVE_EXCLUSION";
+
+  if (stage === "NAVER_VERIFICATION") {
+    if (evidence.naverDecision === "MANUAL_OVERRIDE") {
+      if (!evidence.hasManualEvidence) return "NAVER_REVIEW_REQUIRED";
+      if (!evidence.categoryLeaf) return "CATEGORY_REQUIRED";
+    } else if (!confidentNaverDecisions.has(evidence.naverDecision)) {
+      return evidence.naverDecision === "FAILED" ? "NAVER_RETRY_REQUIRED" : "NAVER_REVIEW_REQUIRED";
+    } else if (!evidence.categoryLeaf) {
+      return "CATEGORY_REQUIRED";
+    }
+  }
+
+  if (stage === "CATEGORY_CONFIRMATION" && !evidence.categoryLeaf) return "CATEGORY_REQUIRED";
+
+  const evaluation = evaluateReviewAdvance(stage, evidence);
+  return evaluation.ok ? "CATEGORY_REQUIRED" : evaluation.code;
+}
