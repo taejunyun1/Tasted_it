@@ -32,6 +32,16 @@ export type ReviewAdvanceResult =
   | { ok: true; nextStage: ReviewStage }
   | { ok: false; code: ReviewBlockCode };
 
+export type ConfidentAdvanceEvidence = ReviewGateEvidence & {
+  categoryLeaf: boolean;
+  hasManualEvidence: boolean;
+};
+
+const confidentNaverDecisions = new Set<NaverReviewDecision>([
+  "VERIFIED",
+  "MATCHED",
+]);
+
 export const MANUAL_EVIDENCE_REASON_MIN = 20;
 
 const naverConfirmationStatuses = new Set([
@@ -87,4 +97,28 @@ export function evaluateReviewAdvance(stage: ReviewStage, evidence: ReviewGateEv
   }
 
   return { ok: false, code: "ALREADY_FINAL" };
+}
+
+/**
+ * Stamp-only gate for 1→4. Never returns true at FINAL_APPROVAL.
+ * Does not publish, call NAVER, or invent manual evidence text.
+ */
+export function confidentAdvanceAllowed(
+  stage: ReviewStage,
+  evidence: ConfidentAdvanceEvidence,
+): boolean {
+  if (stage === "FINAL_APPROVAL") return false;
+  if (evidence.activeExclusion) return false;
+
+  if (stage === "NAVER_VERIFICATION") {
+    if (evidence.naverDecision === "MANUAL_OVERRIDE") {
+      if (!evidence.hasManualEvidence || !evidence.categoryLeaf) return false;
+    } else if (!confidentNaverDecisions.has(evidence.naverDecision) || !evidence.categoryLeaf) {
+      return false;
+    }
+  }
+
+  if (stage === "CATEGORY_CONFIRMATION" && !evidence.categoryLeaf) return false;
+
+  return evaluateReviewAdvance(stage, evidence).ok;
 }
