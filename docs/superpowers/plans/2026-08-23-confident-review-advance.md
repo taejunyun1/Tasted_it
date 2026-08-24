@@ -121,7 +121,7 @@
 | ID | 내용 | 성공 | 하지 않음 |
 |---|---|---|---|
 | S0 | 이 플랜 | `PROPOSED` 채택 | 코드 |
-| S1 | 순수 함수 `confidentAdvanceAllowed(stage, evidence)` + 단위 테스트 | 광역·노매치·중복 열림·5단계는 false | NAVER, D1 쓰기 |
+| S1 | 순수 함수 `confidentAdvanceAllowed(stage, evidence)` + 단위 테스트 | 광역·노매치·중복 열림·5단계는 false | NAVER, D1 쓰기. 구현 [#252](https://github.com/taejunyun1/Tasted_it/issues/252) |
 | S2 | 한 건 액션 뒤 같은 항목 체인 (A) | VERIFIED+말단이면 5 대기까지. PUBLISHED 수 불변 | 다른 항목, 새 호출 |
 | S3 | 버튼 B + 킬 스위치 기본 off | off면 이동 0. on이어도 publish 0, NAVER 0 | cron |
 | S4 | 검수 화면에 “자동으로 5단계 대기 N건 / 공개 0” | 카운트만. 공개 버튼과 분리 | 자동 공개 카피 |
