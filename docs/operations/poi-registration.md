@@ -133,13 +133,13 @@
 
 ### 1→4 조건부 이동 스위치
 
-wrangler var `REVIEW_CONFIDENT_ADVANCE_ENABLED`. 기본 `"false"`. 새 binding이 아니다.
+wrangler var `REVIEW_CONFIDENT_ADVANCE_ENABLED`. 새 binding이 아니다.
 
-- `false`: 한 건 체인(S2)과 버튼 **근거 있는 항목만 다음 단계**(S3) 모두 추가 이동 0. 기존 수동 한 칸은 그대로
-- `true`: 저장된 근거가 있는 항목만 5단계 **대기**까지. `publishReviewedPlaces` 호출 없음. 이 버튼은 NAVER를 부르지 않음
+- `"true"`: 저장된 근거가 있는 항목만 5단계 **대기**까지. `publishReviewedPlaces` 호출 없음. 이 버튼은 NAVER를 부르지 않음
+- `"false"`: 한 건 체인(S2)과 버튼 **근거 있는 항목만 다음 단계**(S3) 모두 추가 이동 0. 기존 수동 한 칸은 그대로
 - 5단계 공개 버튼과 분리. cron에 검수 이동을 붙이지 않음
 
-켜는 것은 별도 배포 범위다. 이 문서만으로 스위치를 켜지 않는다.
+운영 wrangler 기본값은 `"true"`다. 끄려면 var를 `"false"`로 되돌린 뒤 재배포한다. 이 문서만으로 라이브 Worker를 바꾸지 않는다.
 
 ### CSV 옆문
 
@@ -174,4 +174,4 @@ CSV에 `PUBLISHED`를 적으면 5단계를 안 거치고 상태가 올라갈 수
 
 공개 리스트의 `PUBLISHED`만 “허용된 POI”다. 1–4단계 ACTIVE는 아직 등록이 아니다. 그 줄을 사람이 줄이는 일은 Clock H이며 이 문서 범위가 아니다.
 
-1→4를 근거가 있을 때만 옮기고 공개는 사람으로 남기는 안은 [`docs/superpowers/plans/2026-08-23-confident-review-advance.md`](../superpowers/plans/2026-08-23-confident-review-advance.md). S1 게이트·S2 한 건 체인·S3 버튼은 코드에 있다. 스위치 기본 `false`. 5단계 자동 `PUBLISHED`는 원래 목적 밖이다.
+1→4를 근거가 있을 때만 옮기고 공개는 사람으로 남기는 안은 [`docs/superpowers/plans/2026-08-23-confident-review-advance.md`](../superpowers/plans/2026-08-23-confident-review-advance.md). S1 게이트·S2 한 건 체인·S3 버튼은 코드에 있다. wrangler 스위치 `"true"`. 5단계 자동 `PUBLISHED`는 원래 목적 밖이다.

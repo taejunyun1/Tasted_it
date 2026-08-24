@@ -17,8 +17,8 @@
 		"REVIEW_PHOTO_UPLOAD_ENABLED": "false",
 		"PLACE_CATEGORY_V5_ENABLED": "false",
 		"COURSE_CONTEXT_V2_ENABLED": "false",
-		// 검수 1→4 조건부 이동. 기본 false. true여도 공개·NAVER 호출 없음.
-		"REVIEW_CONFIDENT_ADVANCE_ENABLED": "false"
+		// 검수 1→4 조건부 이동. true여도 공개·NAVER 호출 없음. 끄려면 "false".
+		"REVIEW_CONFIDENT_ADVANCE_ENABLED": "true"
 	},
 	"d1_databases": [
 		{
