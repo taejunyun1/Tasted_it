@@ -21,6 +21,7 @@ declare namespace Cloudflare {
     REVIEW_PHOTO_UPLOAD_ENABLED: string;
     PLACE_CATEGORY_V5_ENABLED: string;
     COURSE_CONTEXT_V2_ENABLED: string;
+    REVIEW_CONFIDENT_ADVANCE_ENABLED: string;
     REVIEW_PHOTOS: R2Bucket;
   }
 }

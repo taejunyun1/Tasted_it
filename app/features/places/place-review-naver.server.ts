@@ -18,6 +18,7 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   now: string;
   dailyLimit?: number;
   adapter: NaverLocalSearchAdapter;
+  confidentAdvanceEnabled?: boolean;
 }) {
   const workItemIds = [...new Set(input.workItemIds.filter(Boolean))];
   if (!workItemIds.length) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
@@ -51,7 +52,7 @@ export async function verifyReviewItemsWithNaver(db: AppDb, input: {
   }
   const versions = Object.fromEntries(eligible.map((item) => [item.id, item.stageVersion]));
   const advancedResult = eligible.length ? await advancePlaceReviewWorkItems(db, {
-    workItemIds: eligible.map((item) => item.id), expectedStage: "NAVER_VERIFICATION", expectedVersions: versions, actorUserId: input.actorUserId, now: input.now,
+    workItemIds: eligible.map((item) => item.id), expectedStage: "NAVER_VERIFICATION", expectedVersions: versions, actorUserId: input.actorUserId, now: input.now, confidentAdvanceEnabled: input.confidentAdvanceEnabled,
   }) : { advanced: [], skipped: [] };
   const candidateFailed = candidateResult?.failed ?? 0;
   const placeFailed = placeResult?.failed ?? 0;
@@ -72,11 +73,12 @@ export async function approveManualReviewEvidence(db: AppDb, input: {
   actorUserId: string;
   reason: string;
   now: string;
+  confidentAdvanceEnabled?: boolean;
 }) {
   const reason = input.reason.trim();
   if (reason.length < 20) throw new Error("MANUAL_EVIDENCE_REASON_REQUIRED");
   const result = await advancePlaceReviewWorkItems(db, {
-    workItemIds: [input.workItemId], expectedStage: "NAVER_VERIFICATION", expectedVersions: { [input.workItemId]: input.expectedStageVersion }, actorUserId: input.actorUserId, now: input.now, manualEvidenceReason: reason,
+    workItemIds: [input.workItemId], expectedStage: "NAVER_VERIFICATION", expectedVersions: { [input.workItemId]: input.expectedStageVersion }, actorUserId: input.actorUserId, now: input.now, manualEvidenceReason: reason, confidentAdvanceEnabled: input.confidentAdvanceEnabled,
   });
   if (!result.advanced.length) throw new Error(result.skipped[0]?.code ?? "NAVER_REVIEW_REQUIRED");
   return { workItemId: input.workItemId, nextStage: "CATEGORY_CONFIRMATION" as const };

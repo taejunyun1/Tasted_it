@@ -99,6 +99,10 @@ export function evaluateReviewAdvance(stage: ReviewStage, evidence: ReviewGateEv
   return { ok: false, code: "ALREADY_FINAL" };
 }
 
+export function isConfidentAdvanceEnabled(value?: string | null) {
+  return value === "true";
+}
+
 /**
  * Stamp-only gate for 1→4. Never returns true at FINAL_APPROVAL.
  * Does not publish, call NAVER, or invent manual evidence text.
