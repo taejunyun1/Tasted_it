@@ -14,6 +14,7 @@ import {
 import { REVIEW_BATCH_MAX } from "./place-review-io";
 import {
   confidentAdvanceAllowed,
+  confidentAdvanceSkipCode,
   evaluateReviewAdvance,
   hasManualReviewEvidence,
   type ConfidentAdvanceEvidence,
@@ -319,8 +320,7 @@ export async function advanceConfidentReviewWorkItems(db: AppDb, input: {
     const withCategory = await applyStoredLeafCategory(db, workItem, input.now);
     const evidence = await reviewEvidence(db, withCategory);
     if (!confidentAdvanceAllowed(withCategory.stage, evidence)) {
-      const evaluation = evaluateReviewAdvance(withCategory.stage, evidence);
-      skipped.push({ workItemId, code: evaluation.ok ? "CATEGORY_REQUIRED" : evaluation.code });
+      skipped.push({ workItemId, code: confidentAdvanceSkipCode(withCategory.stage, evidence) });
       continue;
     }
 

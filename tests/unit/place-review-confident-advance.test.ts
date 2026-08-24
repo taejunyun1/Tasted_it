@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { confidentAdvanceAllowed } from "../../app/features/places/place-review-pipeline";
+import { confidentAdvanceAllowed, confidentAdvanceSkipCode } from "../../app/features/places/place-review-pipeline";
 
 const ready = {
   sourceReady: true,
@@ -56,5 +56,42 @@ describe("confidentAdvanceAllowed", () => {
 
   it("never allows final approval", () => {
     expect(confidentAdvanceAllowed("FINAL_APPROVAL", ready)).toBe(false);
+  });
+});
+
+describe("confidentAdvanceSkipCode", () => {
+  it("maps final approval to ALREADY_FINAL", () => {
+    expect(confidentAdvanceSkipCode("FINAL_APPROVAL", ready)).toBe("ALREADY_FINAL");
+  });
+
+  it("maps an active exclusion to ACTIVE_EXCLUSION even when source is ready", () => {
+    const excluded = { ...ready, activeExclusion: true };
+    expect(confidentAdvanceSkipCode("SOURCE_REVIEW", excluded)).toBe("ACTIVE_EXCLUSION");
+    expect(confidentAdvanceSkipCode("NAVER_VERIFICATION", excluded)).toBe("ACTIVE_EXCLUSION");
+    expect(confidentAdvanceSkipCode("CATEGORY_CONFIRMATION", excluded)).toBe("ACTIVE_EXCLUSION");
+  });
+
+  it("maps failed NAVER to NAVER_RETRY_REQUIRED and no-match to NAVER_REVIEW_REQUIRED", () => {
+    expect(confidentAdvanceSkipCode("NAVER_VERIFICATION", { ...ready, naverDecision: "FAILED" })).toBe("NAVER_RETRY_REQUIRED");
+    expect(confidentAdvanceSkipCode("NAVER_VERIFICATION", { ...ready, naverDecision: "NOT_FOUND" })).toBe("NAVER_REVIEW_REQUIRED");
+    expect(confidentAdvanceSkipCode("NAVER_VERIFICATION", { ...ready, naverDecision: "AMBIGUOUS" })).toBe("NAVER_REVIEW_REQUIRED");
+  });
+
+  it("maps a manual override without recorded evidence to NAVER_REVIEW_REQUIRED", () => {
+    expect(confidentAdvanceSkipCode("NAVER_VERIFICATION", {
+      ...ready,
+      naverDecision: "MANUAL_OVERRIDE",
+      hasManualEvidence: false,
+    })).toBe("NAVER_REVIEW_REQUIRED");
+  });
+
+  it("maps verified or category stages without a leaf to CATEGORY_REQUIRED", () => {
+    const broad = { ...ready, categoryLeaf: false };
+    expect(confidentAdvanceSkipCode("NAVER_VERIFICATION", broad)).toBe("CATEGORY_REQUIRED");
+    expect(confidentAdvanceSkipCode("CATEGORY_CONFIRMATION", broad)).toBe("CATEGORY_REQUIRED");
+  });
+
+  it("maps an open duplicate to DUPLICATE_REVIEW_REQUIRED", () => {
+    expect(confidentAdvanceSkipCode("DUPLICATE_REVIEW", { ...ready, openDuplicateCount: 1 })).toBe("DUPLICATE_REVIEW_REQUIRED");
   });
 });
