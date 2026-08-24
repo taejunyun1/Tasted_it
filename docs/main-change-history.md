@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Ready | 2026-08-24 검수 버튼 **근거 있는 항목만 다음 단계**. 스위치 기본 false면 이동 0. on이어도 공개 0·NAVER 0. 배포·플래그 on 없음. | [Issue #256](https://github.com/taejunyun1/Tasted_it/issues/256) |
+| Ready | 2026-08-24 검수 버튼 **근거 있는 항목만 다음 단계**. 스위치 기본 false면 이동 0. on이어도 공개 0·NAVER 0. 배포·플래그 on 없음. | [Issue #256](https://github.com/taejunyun1/Tasted_it/issues/256) · [PR #257](https://github.com/taejunyun1/Tasted_it/pull/257) |
 | Merged | 2026-08-24 검수 한 건 성공 뒤 같은 항목만 5단계 대기 체인. `REVIEW_CONFIDENT_ADVANCE_ENABLED` 기본 false. 공개·NAVER 호출 없음. | [Issue #254](https://github.com/taejunyun1/Tasted_it/issues/254) · [PR #255](https://github.com/taejunyun1/Tasted_it/pull/255) · [`80c7e61`](https://github.com/taejunyun1/Tasted_it/commit/80c7e61) |
 | Merged | 2026-08-24 검수 1→4 자신 있음 게이트 `confidentAdvanceAllowed`. 광역·노매치·열린 중복·5단계는 false. 공개·NAVER·체인 없음. | [Issue #252](https://github.com/taejunyun1/Tasted_it/issues/252) · [PR #253](https://github.com/taejunyun1/Tasted_it/pull/253) · [`57f3ec2`](https://github.com/taejunyun1/Tasted_it/commit/57f3ec2) |
 | Merged | 2026-08-24 사진 삭제 페이징 테스트가 101건 sequential publish로 CI 5초를 넘기지 않게 D1/R2 배치 시드를 쓴다. 제품 코드·배포 없음. | [Issue #250](https://github.com/taejunyun1/Tasted_it/issues/250) · [PR #251](https://github.com/taejunyun1/Tasted_it/pull/251) · [`6c31bb6`](https://github.com/taejunyun1/Tasted_it/commit/6c31bb6) |
