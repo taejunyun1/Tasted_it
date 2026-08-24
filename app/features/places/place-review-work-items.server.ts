@@ -30,7 +30,7 @@ export type NewReviewSubject =
   | { businessLicenseId: string; placeId?: never }
   | { placeId: string; businessLicenseId?: never };
 
-type TransitionSkipCode = ReviewBlockCode | "STALE_WORK_ITEM" | "NOT_ACTIVE";
+type TransitionSkipCode = ReviewBlockCode | "STALE_WORK_ITEM" | "NOT_ACTIVE" | "CONFIDENT_ADVANCE_DISABLED";
 type TransitionResult = { advanced: string[]; skipped: Array<{ workItemId: string; code: TransitionSkipCode }> };
 type StateChangeResult = { changed: string[]; skipped: Array<{ workItemId: string; code: "STALE_WORK_ITEM" | "NOT_ACTIVE" }> };
 
@@ -281,6 +281,59 @@ export async function advancePlaceReviewWorkItems(db: AppDb, input: {
       actorUserId: input.actorUserId,
       now: input.now,
     });
+  }
+
+  return { advanced, skipped };
+}
+
+export async function advanceConfidentReviewWorkItems(db: AppDb, input: {
+  workItemIds: string[];
+  expectedStage: ReviewStage;
+  expectedVersions: Record<string, number>;
+  actorUserId: string;
+  now: string;
+  confidentAdvanceEnabled?: boolean;
+}): Promise<TransitionResult> {
+  const workItemIds = uniqueWorkItemIds(input.workItemIds);
+  if (!input.confidentAdvanceEnabled) {
+    return {
+      advanced: [],
+      skipped: workItemIds.map((workItemId) => ({ workItemId, code: "CONFIDENT_ADVANCE_DISABLED" as const })),
+    };
+  }
+
+  const advanced: string[] = [];
+  const skipped: TransitionResult["skipped"] = [];
+
+  for (const workItemId of workItemIds) {
+    const workItem = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) });
+    if (!workItem || workItem.status !== "ACTIVE") {
+      skipped.push({ workItemId, code: "NOT_ACTIVE" });
+      continue;
+    }
+    if (workItem.stage !== input.expectedStage || input.expectedVersions[workItemId] !== workItem.stageVersion) {
+      skipped.push({ workItemId, code: "STALE_WORK_ITEM" });
+      continue;
+    }
+
+    const withCategory = await applyStoredLeafCategory(db, workItem, input.now);
+    const evidence = await reviewEvidence(db, withCategory);
+    if (!confidentAdvanceAllowed(withCategory.stage, evidence)) {
+      const evaluation = evaluateReviewAdvance(withCategory.stage, evidence);
+      skipped.push({ workItemId, code: evaluation.ok ? "CATEGORY_REQUIRED" : evaluation.code });
+      continue;
+    }
+
+    const result = await advancePlaceReviewWorkItems(db, {
+      workItemIds: [withCategory.id],
+      expectedStage: withCategory.stage,
+      expectedVersions: { [withCategory.id]: withCategory.stageVersion },
+      actorUserId: input.actorUserId,
+      now: input.now,
+      confidentAdvanceEnabled: true,
+    });
+    if (result.advanced.length) advanced.push(workItemId);
+    skipped.push(...result.skipped);
   }
 
   return { advanced, skipped };

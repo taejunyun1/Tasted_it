@@ -10,7 +10,7 @@ import {
   placeReviewWorkItems,
   places,
 } from "../../app/db/schema";
-import { advancePlaceReviewWorkItems, newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
+import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
 
 const now = "2026-08-24T12:00:00.000Z";
 
@@ -39,18 +39,20 @@ async function createCandidateReview(input: {
     env.DB.prepare("INSERT INTO categories (id, slug, name, emoji, parent_id, is_active, sort_order, created_at, updated_at) VALUES (?, ?, '국밥', '🥣', ?, 1, 2, ?, ?)")
       .bind(leafId, leafId, parentId, now, now),
   ]);
+  const businessName = `체인 검수 식당 ${suffix.slice(0, 8)}`;
+  const roadAddress = `광주광역시 북구 검수로 ${suffix.slice(0, 8)}`;
   await db.insert(businessLicenses).values({
-    id: businessLicenseId, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: suffix, businessName: "체인 검수 식당", businessSubtype: "한식",
+    id: businessLicenseId, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: suffix, businessName, businessSubtype: "한식",
     salesStatusCode: "01", salesStatusName: "영업/정상", detailStatusCode: "01", detailStatusName: "영업", normalizedStatus: "OPEN",
-    lotAddress: null, roadAddress: "광주광역시 북구 검수로 1", phone: null, sourceX: null, sourceY: null, latitude: 35.16, longitude: 126.91,
+    lotAddress: null, roadAddress, phone: null, sourceX: null, sourceY: null, latitude: 35.16, longitude: 126.91,
     regionCode: "GWANGJU", sourceUpdatedAt: now, rawPayload: "{}", reviewStatus: "PENDING", reviewReason: null, reviewedBy: null, reviewedAt: null,
     firstSeenAt: now, lastSeenAt: now, createdAt: now, updatedAt: now,
   });
   if (input.duplicatePlace) {
     await db.insert(places).values({
-      id: `chain-dup-${suffix}`, slug: `chain-dup-${suffix}`, name: "체인 검수 식당", status: "PUBLISHED",
-      address: "광주광역시 북구 검수로 1", neighborhood: "검수", latitude: 35.16, longitude: 126.91,
-      searchText: "체인 검수 식당", createdAt: now, updatedAt: now,
+      id: `chain-dup-${suffix}`, slug: `chain-dup-${suffix}`, name: businessName, status: "PUBLISHED",
+      address: roadAddress, neighborhood: "검수", latitude: 35.16, longitude: 126.91,
+      searchText: businessName, createdAt: now, updatedAt: now,
     });
   }
   if (input.naverStatus === "VERIFIED" || input.naverStatus === "NO_MATCH") {
@@ -74,7 +76,7 @@ async function createCandidateReview(input: {
   }
   const item = newReviewWorkItemValues({ businessLicenseId, sourceKind: "PUBLIC_DATA", now });
   await db.insert(placeReviewWorkItems).values(item);
-  return { db, actorUserId, workItemId: item.id, otherWorkItemId: null as string | null };
+  return { db, actorUserId, workItemId: item.id, businessLicenseId, otherWorkItemId: null as string | null };
 }
 
 describe("confident review advance chain", () => {
@@ -138,5 +140,70 @@ describe("confident review advance chain", () => {
     });
     await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) }))
       .resolves.toMatchObject({ stage: "NAVER_VERIFICATION" });
+  });
+});
+
+describe("confident review advance button", () => {
+  it("moves 0 items when the switch is off", async () => {
+    const publishedBefore = await countPublished();
+    const { db, actorUserId, workItemId } = await createCandidateReview({ mappedCategory: "leaf", naverStatus: "VERIFIED" });
+
+    const result = await advanceConfidentReviewWorkItems(db, {
+      workItemIds: [workItemId],
+      expectedStage: "SOURCE_REVIEW",
+      expectedVersions: { [workItemId]: 0 },
+      actorUserId,
+      now,
+      confidentAdvanceEnabled: false,
+    });
+
+    expect(result.advanced).toEqual([]);
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) }))
+      .resolves.toMatchObject({ stage: "SOURCE_REVIEW", status: "ACTIVE", stageVersion: 0 });
+    await expect(countPublished()).resolves.toBe(publishedBefore);
+  });
+
+  it("chains selected verified leaf items to final-approval wait without publishing or calling NAVER", async () => {
+    const publishedBefore = await countPublished();
+    const { db, actorUserId, workItemId, businessLicenseId } = await createCandidateReview({ mappedCategory: "leaf", naverStatus: "VERIFIED" });
+    const other = await createCandidateReview({ mappedCategory: "leaf", naverStatus: "VERIFIED" });
+    const verificationBefore = await db.query.naverLocalCategoryVerifications.findFirst({
+      where: eq(naverLocalCategoryVerifications.businessLicenseId, businessLicenseId),
+    });
+
+    const result = await advanceConfidentReviewWorkItems(db, {
+      workItemIds: [workItemId],
+      expectedStage: "SOURCE_REVIEW",
+      expectedVersions: { [workItemId]: 0 },
+      actorUserId,
+      now,
+      confidentAdvanceEnabled: true,
+    });
+
+    expect(result.advanced).toEqual([workItemId]);
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) }))
+      .resolves.toMatchObject({ stage: "FINAL_APPROVAL", status: "ACTIVE" });
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, other.workItemId) }))
+      .resolves.toMatchObject({ stage: "SOURCE_REVIEW", status: "ACTIVE" });
+    await expect(countPublished()).resolves.toBe(publishedBefore);
+
+    const verificationAfter = await db.query.naverLocalCategoryVerifications.findFirst({
+      where: eq(naverLocalCategoryVerifications.businessLicenseId, businessLicenseId),
+    });
+    expect(verificationAfter?.queriedAt).toBe(verificationBefore?.queriedAt);
+    expect(verificationAfter?.status).toBe("VERIFIED");
+  });
+
+  it("leaves no-match items at naver verification and does not publish", async () => {
+    const publishedBefore = await countPublished();
+    const { db, actorUserId, workItemId } = await createCandidateReview({ mappedCategory: "none", naverStatus: "NO_MATCH" });
+
+    await advanceConfidentReviewWorkItems(db, {
+      workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: { [workItemId]: 0 }, actorUserId, now, confidentAdvanceEnabled: true,
+    });
+
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) }))
+      .resolves.toMatchObject({ stage: "NAVER_VERIFICATION", status: "ACTIVE" });
+    await expect(countPublished()).resolves.toBe(publishedBefore);
   });
 });

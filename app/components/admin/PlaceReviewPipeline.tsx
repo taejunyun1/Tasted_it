@@ -47,9 +47,10 @@ const overlayCopyByIntent: Record<string, string> = {
   "hold-review-items": "선택한 항목을 보류하는 중입니다",
   "exclude-review-items": "선택한 항목을 제외하는 중입니다",
   "auto-exclude-non-food-review-items": "비음식점을 제외하는 중입니다",
+  "advance-confident-review-items": "근거 있는 항목만 다음 단계로 옮기는 중입니다",
 };
 
-export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverRegionUsage, message, error, nextStep, processedWorkItemIds }: {
+export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverRegionUsage, message, error, nextStep, processedWorkItemIds, confidentAdvanceEnabled }: {
   query: PlaceReviewQuery;
   page: PlaceReviewPage;
   counts: PlaceReviewStageCounts;
@@ -60,6 +61,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   error?: string;
   nextStep?: 3;
   processedWorkItemIds: string[];
+  confidentAdvanceEnabled: boolean;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [naverBatch, setNaverBatch] = useState<NaverBatch | null>(null);
@@ -141,7 +143,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     {naverBatchMessage && <p className="admin-notice" role="status">{naverBatchMessage}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
-    <div className="place-review-quota"><span>오늘 NAVER 요청</span>{naverRegionUsage.map((row) => <strong key={row.regionCode}>{row.displayName} {row.enabled ? "켜짐" : "꺼짐"} {row.used.toLocaleString()} / {row.budget.toLocaleString()}회</strong>)}<p>지역 예산은 팩 필드입니다. 한 지역이 소진돼도 다른 지역은 계속됩니다. {selectionLimit}곳까지 선택할 수 있습니다. NAVER 검증은 최대 {NAVER_REVIEW_RUN_MAX}곳을 한 곳씩 순차 처리합니다. 노매치는 자동으로 넘어가지 않으며 확인필요로 남습니다.</p></div>
+    <div className="place-review-quota"><span>오늘 NAVER 요청</span>{naverRegionUsage.map((row) => <strong key={row.regionCode}>{row.displayName} {row.enabled ? "켜짐" : "꺼짐"} {row.used.toLocaleString()} / {row.budget.toLocaleString()}회</strong>)}<p>지역 예산은 팩 필드입니다. 한 지역이 소진돼도 다른 지역은 계속됩니다. {selectionLimit}곳까지 선택할 수 있습니다. NAVER 검증은 최대 {NAVER_REVIEW_RUN_MAX}곳을 한 곳씩 순차 처리합니다. 노매치는 자동으로 넘어가지 않으며 확인필요로 남습니다. 조건부 이동 스위치(`REVIEW_CONFIDENT_ADVANCE_ENABLED`)는 {confidentAdvanceEnabled ? "켜짐" : "꺼짐"}입니다. 꺼져 있으면 근거 버튼은 0곳입니다. NAVER 호출과 공개는 하지 않습니다.</p></div>
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />
@@ -178,6 +180,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         <button className="danger" name="intent" value="exclude-review-items" disabled={!selectedIds.length}>선택 항목 제외</button>
         {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={!selectedIds.length}>선택 중복 판정 저장</button>}
         {(query.step === 1 || query.step === 2) && <button type="button" onClick={startNaverBatch} disabled={!selectedIds.length || Boolean(naverBatch)}>선택 중 {Math.min(selectedIds.length, NAVER_REVIEW_RUN_MAX)}곳 NAVER 검증</button>}
+        {query.step !== 5 && <button className="secondary" name="intent" value="advance-confident-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>근거 있는 항목만 다음 단계</button>}
         {query.step === 1 && <button className="secondary" name="intent" value="advance-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>수동으로 NAVER 검증 대기로 이동</button>}
         {query.step === 2 && <button className="secondary" name="intent" value="update-review-item-addresses" disabled={!selectedIds.length || Boolean(naverBatch)}>선택 주소 저장</button>}
         {query.step === 2 && <button className="secondary" name="intent" value="advance-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>선택 항목을 카테고리 확정으로 이동</button>}

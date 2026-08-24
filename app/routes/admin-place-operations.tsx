@@ -36,7 +36,7 @@ import { parsePlaceReviewQuery } from "../features/places/place-review-paginatio
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { isConfidentAdvanceEnabled } from "../features/places/place-review-pipeline";
-import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
+import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
@@ -108,6 +108,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     naverRegionUsage,
     naverMapsClientId: placeGeocodingEnabled ? env.NAVER_MAPS_CLIENT_ID ?? "" : "",
     placeGeocodingEnabled,
+    confidentAdvanceEnabled: isConfidentAdvanceEnabled(env.REVIEW_CONFIDENT_ADVANCE_ENABLED),
   };
 }
 
@@ -291,6 +292,18 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
   try {
+    if (intent === "advance-confident-review-items") {
+      const result = await advanceConfidentReviewWorkItems(db, {
+        workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, confidentAdvanceEnabled,
+      });
+      return {
+        ok: true,
+        message: confidentAdvanceEnabled
+          ? `근거 있는 항목 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳 · 공개 0곳`
+          : "조건부 이동이 꺼져 있습니다. 이동 0곳 · 공개 0곳",
+        skipped: result.skipped,
+      };
+    }
     if (intent === "confirm-review-categories") {
       const selections = workItemIds.map((workItemId) => ({ workItemId, categoryId: String(form.get(`category:${workItemId}`) ?? ""), reason: String(form.get("reason") ?? "") }));
       const result = await confirmReviewItemCategories(db, { selections, actorUserId: admin.id, now, confidentAdvanceEnabled });
@@ -386,7 +399,7 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
           ))}
           {!loaderData.suggestions.length && <p>검토할 제안이 없습니다.</p>}
         </section>}
-        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverRegionUsage={loaderData.naverRegionUsage} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} />
+        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverRegionUsage={loaderData.naverRegionUsage} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} confidentAdvanceEnabled={loaderData.confidentAdvanceEnabled} />
       </>}
       {loaderData.tab === "liveness" && <PlaceLivenessPanel livenessFilter={loaderData.livenessFilter} livenessRows={loaderData.livenessRows} />}
       {loaderData.tab === "corrections" && <PlaceCorrectionPanel corrections={loaderData.corrections} />}
