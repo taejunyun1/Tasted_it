@@ -35,6 +35,7 @@ export const reviewErrorCatalog = {
   PUBLISH_CONFIRM_REQUIRED: { message: "선택한 장소를 공개한다는 확인이 필요합니다.", disposition: "STAY" },
   REVIEW_SELECTION_REQUIRED: { message: "처리할 장소를 선택해 주세요.", disposition: "STAY" },
   AUTO_VERIFY_SINGLE_REQUIRED: { message: "순차 NAVER 검증은 한 번에 한 장소만 처리합니다.", disposition: "STAY" },
+  CONFIDENT_ADVANCE_DISABLED: { message: "조건부 이동이 꺼져 있습니다. 이동하지 않았습니다.", disposition: "STAY" },
   NOT_SOURCE_REVIEW: { message: "원천 검수 단계에서만 자동 제외할 수 있습니다.", disposition: "STAY" },
   NOT_NON_FOOD: { message: "확실한 비음식점이 아니라 자동 제외하지 않았습니다.", disposition: "STAY" },
   MANUAL_EVIDENCE_REASON_REQUIRED: { message: "수동 근거 사유를 20자 이상 입력해 주세요.", disposition: "STAY" },

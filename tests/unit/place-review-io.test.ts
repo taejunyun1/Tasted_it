@@ -10,6 +10,7 @@ describe("place review request contract", () => {
       "verify-review-items-with-naver",
       "auto-verify-review-item-with-naver",
       "advance-review-items",
+      "advance-confident-review-items",
       "hold-review-items",
       "exclude-review-items",
     ]));
@@ -17,6 +18,7 @@ describe("place review request contract", () => {
       "verify-review-items-with-naver",
       "auto-verify-review-item-with-naver",
       "advance-review-items",
+      "advance-confident-review-items",
       "approve-manual-review-evidence",
       "update-review-item-addresses",
       "hold-review-items",
@@ -24,12 +26,14 @@ describe("place review request contract", () => {
     ]);
     expect(reviewIntentsByStage.CATEGORY_CONFIRMATION).toEqual([
       "confirm-review-categories",
+      "advance-confident-review-items",
       "hold-review-items",
       "exclude-review-items",
     ]);
     expect(reviewIntentsByStage.DUPLICATE_REVIEW).toEqual([
       "resolve-review-duplicates",
       "advance-review-items",
+      "advance-confident-review-items",
       "hold-review-items",
       "exclude-review-items",
     ]);
@@ -90,6 +94,31 @@ describe("place review request contract", () => {
       expectedStage: "NAVER_VERIFICATION",
       workItemIds: ["item-1"],
     }).ok).toBe(true);
+    expect(checkReviewRequest({
+      intent: "advance-confident-review-items",
+      expectedStage: "SOURCE_REVIEW",
+      workItemIds: ["item-1"],
+    }).ok).toBe(true);
+    expect(checkReviewRequest({
+      intent: "advance-confident-review-items",
+      expectedStage: "CATEGORY_CONFIRMATION",
+      workItemIds: ids(50),
+    }).ok).toBe(true);
+    expect(checkReviewRequest({
+      intent: "advance-confident-review-items",
+      expectedStage: "SOURCE_REVIEW",
+      workItemIds: [],
+    })).toEqual({ ok: false, code: "REVIEW_SELECTION_REQUIRED" });
+    expect(checkReviewRequest({
+      intent: "advance-confident-review-items",
+      expectedStage: "DUPLICATE_REVIEW",
+      workItemIds: ids(51),
+    })).toEqual({ ok: false, code: "PLACE_REVIEW_BATCH_LIMIT_EXCEEDED" });
+    expect(checkReviewRequest({
+      intent: "advance-confident-review-items",
+      expectedStage: "FINAL_APPROVAL",
+      workItemIds: ["item-1"],
+    })).toEqual({ ok: false, code: "INVALID_INTENT" });
   });
 
   it("requires hold/exclude reason, publish confirmation, and category selections", () => {
