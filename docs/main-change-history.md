@@ -15,7 +15,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Merged | 2026-08-24 검수 1→4 자신 있음 게이트 `confidentAdvanceAllowed`. 광역·노매치·열린 중복·5단계는 false. 공개·NAVER·체인 없음. | [Issue #252](https://github.com/taejunyun1/Tasted_it/issues/252) · [PR #253](https://github.com/taejunyun1/Tasted_it/pull/253) |
+| Merged | 2026-08-24 검수 한 건 성공 뒤 같은 항목만 5단계 대기 체인. `REVIEW_CONFIDENT_ADVANCE_ENABLED` 기본 false. 공개·NAVER 호출 없음. | [Issue #254](https://github.com/taejunyun1/Tasted_it/issues/254) · [PR #255](https://github.com/taejunyun1/Tasted_it/pull/255) |
+| Merged | 2026-08-24 검수 1→4 자신 있음 게이트 `confidentAdvanceAllowed`. 광역·노매치·열린 중복·5단계는 false. 공개·NAVER·체인 없음. | [Issue #252](https://github.com/taejunyun1/Tasted_it/issues/252) · [PR #253](https://github.com/taejunyun1/Tasted_it/pull/253) · [`57f3ec2`](https://github.com/taejunyun1/Tasted_it/commit/57f3ec2) |
 | Merged | 2026-08-24 사진 삭제 페이징 테스트가 101건 sequential publish로 CI 5초를 넘기지 않게 D1/R2 배치 시드를 쓴다. 제품 코드·배포 없음. | [Issue #250](https://github.com/taejunyun1/Tasted_it/issues/250) · [PR #251](https://github.com/taejunyun1/Tasted_it/pull/251) · [`6c31bb6`](https://github.com/taejunyun1/Tasted_it/commit/6c31bb6) |
 | Merged | 2026-08-23 `origin/main` `43503f7`를 운영 Worker에 배포. Version `7445cc93-747f-46e0-ae0c-ef21fadc7a4f`. 원격 migration apply·일괄 NAVER·일괄 공개 없음. rollback은 `7579b600-7302-443b-9753-a4a5aaa3dd05`. 홈 지도 pstatic 스타일 200. nelo는 계속 차단. | [Issue #248](https://github.com/taejunyun1/Tasted_it/issues/248) · [PR #249](https://github.com/taejunyun1/Tasted_it/pull/249) · [`667d764`](https://github.com/taejunyun1/Tasted_it/commit/667d764) |
 | Merged | 2026-08-23 라이브 지도 CSP에 `https://*.pstatic.net` allowlist. nelo 수집 도메인은 넣지 않음. 병합 후 배포. | [Issue #246](https://github.com/taejunyun1/Tasted_it/issues/246) · [PR #247](https://github.com/taejunyun1/Tasted_it/pull/247) · [`43503f7`](https://github.com/taejunyun1/Tasted_it/commit/43503f7) |

@@ -35,6 +35,7 @@ import { checkReviewRequest } from "../features/places/place-review-io";
 import { parsePlaceReviewQuery } from "../features/places/place-review-pagination";
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
+import { isConfidentAdvanceEnabled } from "../features/places/place-review-pipeline";
 import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
@@ -116,6 +117,7 @@ export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const db = createDb(env.DB);
   const now = new Date().toISOString();
+  const confidentAdvanceEnabled = isConfidentAdvanceEnabled(env.REVIEW_CONFIDENT_ADVANCE_ENABLED);
   const intent = String(form.get("intent") ?? "");
   if (intent === "approve-suggestion") {
     const suggestionId = String(form.get("suggestionId") ?? "");
@@ -263,7 +265,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "verify-review-items-with-naver") {
     try {
       assertNaverLocalSearchEnabled(env);
-      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env) });
+      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env), confidentAdvanceEnabled });
       const deferred = result.deferred ? ` · 다음 실행 ${result.deferred}곳` : "";
       return { ok: true, message: `선택 ${workItemIds.length}곳 중 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}${deferred}`, skipped: result.skipped, processedWorkItemIds: result.processedWorkItemIds, nextStep: 3 as const };
     } catch (error) {
@@ -275,13 +277,13 @@ export async function action({ request }: Route.ActionArgs) {
     try {
       if (expectedStage === "SOURCE_REVIEW") {
         const advanced = await advancePlaceReviewWorkItems(db, {
-          workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: versions, actorUserId: admin.id, now,
+          workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: versions, actorUserId: admin.id, now, confidentAdvanceEnabled,
         });
         if (!advanced.advanced.length) return reviewActionError(advanced.skipped[0]?.code ?? "UNKNOWN", { batchId });
       }
       assertNaverLocalSearchEnabled(env);
       const result = await verifyReviewItemsWithNaver(db, {
-        workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env),
+        workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env), confidentAdvanceEnabled,
       });
       return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, passed: result.passed, attention: result.attention, failed: result.failed, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
     } catch (error) {
@@ -291,7 +293,7 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     if (intent === "confirm-review-categories") {
       const selections = workItemIds.map((workItemId) => ({ workItemId, categoryId: String(form.get(`category:${workItemId}`) ?? ""), reason: String(form.get("reason") ?? "") }));
-      const result = await confirmReviewItemCategories(db, { selections, actorUserId: admin.id, now });
+      const result = await confirmReviewItemCategories(db, { selections, actorUserId: admin.id, now, confidentAdvanceEnabled });
       return { ok: true, message: `카테고리 확정 ${result.confirmed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "resolve-review-duplicates") {
@@ -311,13 +313,13 @@ export async function action({ request }: Route.ActionArgs) {
       return { ok: true, message: `선택 공개 ${result.published.length}곳 완료 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "advance-review-items") {
-      const result = await advancePlaceReviewWorkItems(db, { workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now });
+      const result = await advancePlaceReviewWorkItems(db, { workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, confidentAdvanceEnabled });
       if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
       return { ok: true, message: `다음 단계 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "approve-manual-review-evidence") {
       const result = await advancePlaceReviewWorkItems(db, {
-        workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, manualEvidenceReason: reason,
+        workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, manualEvidenceReason: reason, confidentAdvanceEnabled,
       });
       if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
       return { ok: true, message: `수동 근거로 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };

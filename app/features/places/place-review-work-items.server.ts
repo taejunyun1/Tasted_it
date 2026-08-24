@@ -13,8 +13,10 @@ import {
 } from "../../db/schema";
 import { REVIEW_BATCH_MAX } from "./place-review-io";
 import {
+  confidentAdvanceAllowed,
   evaluateReviewAdvance,
   hasManualReviewEvidence,
+  type ConfidentAdvanceEvidence,
   type NaverReviewDecision,
   type ReviewBlockCode,
   type ReviewStage,
@@ -98,7 +100,11 @@ function naverDecisionForPlace(
   return "NOT_FOUND";
 }
 
-async function reviewEvidence(db: AppDb, workItem: typeof placeReviewWorkItems.$inferSelect, manualEvidenceReason?: string) {
+async function reviewEvidence(
+  db: AppDb,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  manualEvidenceReason?: string,
+): Promise<ConfidentAdvanceEvidence> {
   const hasManualEvidence = hasManualReviewEvidence(manualEvidenceReason) || hasManualReviewEvidence(workItem.manualEvidenceReason);
   const [businessLicense, place, candidateNaver, placeLiveness, selectedCategory, activeExclusion] = await Promise.all([
     workItem.businessLicenseId
@@ -123,6 +129,10 @@ async function reviewEvidence(db: AppDb, workItem: typeof placeReviewWorkItems.$
       ) })
       : Promise.resolve(undefined),
   ]);
+  const mappedCategory = !selectedCategory && candidateNaver?.mappedCategoryId
+    ? await db.query.categories.findFirst({ where: eq(categories.id, candidateNaver.mappedCategoryId) })
+    : undefined;
+  const leafCategory = selectedCategory ?? mappedCategory;
   const sourceReady = businessLicense
     ? businessLicense.normalizedStatus === "OPEN"
       && Boolean(businessLicense.roadAddress ?? businessLicense.lotAddress)
@@ -137,10 +147,60 @@ async function reviewEvidence(db: AppDb, workItem: typeof placeReviewWorkItems.$
       ? naverDecisionForCandidate(candidateNaver?.status, hasManualEvidence)
       : naverDecisionForPlace(placeLiveness?.naverStatus, hasManualEvidence),
     selectedCategoryId: workItem.selectedCategoryId,
-    categoryActive: Boolean(selectedCategory?.isActive),
+    categoryActive: Boolean(leafCategory?.isActive),
     openDuplicateCount,
     activeExclusion: Boolean(activeExclusion),
+    categoryLeaf: Boolean(leafCategory?.parentId),
+    hasManualEvidence,
   };
+}
+
+async function applyStoredLeafCategory(
+  db: AppDb,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  now: string,
+) {
+  if (workItem.selectedCategoryId || !workItem.businessLicenseId) return workItem;
+  const verification = await db.query.naverLocalCategoryVerifications.findFirst({
+    where: eq(naverLocalCategoryVerifications.businessLicenseId, workItem.businessLicenseId),
+  });
+  if (verification?.status !== "VERIFIED" || !verification.mappedCategoryId) return workItem;
+  const mapped = await db.query.categories.findFirst({ where: eq(categories.id, verification.mappedCategoryId) });
+  if (!mapped?.parentId || !mapped.isActive) return workItem;
+  const updated = await db.update(placeReviewWorkItems).set({
+    selectedCategoryId: mapped.id,
+    categoryOverrideReason: null,
+    updatedAt: now,
+  }).where(and(
+    eq(placeReviewWorkItems.id, workItem.id),
+    eq(placeReviewWorkItems.stage, workItem.stage),
+    eq(placeReviewWorkItems.stageVersion, workItem.stageVersion),
+    eq(placeReviewWorkItems.status, "ACTIVE"),
+  )).returning();
+  return updated[0] ?? workItem;
+}
+
+async function chainConfidentReviewAdvance(db: AppDb, input: {
+  workItemId: string;
+  actorUserId: string;
+  now: string;
+}) {
+  for (let step = 0; step < 4; step += 1) {
+    const current = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, input.workItemId) });
+    if (!current || current.status !== "ACTIVE") return;
+    const withCategory = await applyStoredLeafCategory(db, current, input.now);
+    const evidence = await reviewEvidence(db, withCategory);
+    if (!confidentAdvanceAllowed(withCategory.stage, evidence)) return;
+    const result = await advancePlaceReviewWorkItems(db, {
+      workItemIds: [withCategory.id],
+      expectedStage: withCategory.stage,
+      expectedVersions: { [withCategory.id]: withCategory.stageVersion },
+      actorUserId: input.actorUserId,
+      now: input.now,
+      skipChain: true,
+    });
+    if (!result.advanced.length) return;
+  }
 }
 
 export async function advancePlaceReviewWorkItems(db: AppDb, input: {
@@ -150,6 +210,8 @@ export async function advancePlaceReviewWorkItems(db: AppDb, input: {
   actorUserId: string;
   now: string;
   manualEvidenceReason?: string;
+  confidentAdvanceEnabled?: boolean;
+  skipChain?: boolean;
 }): Promise<TransitionResult> {
   const workItemIds = uniqueWorkItemIds(input.workItemIds);
   const advanced: string[] = [];
@@ -206,6 +268,19 @@ export async function advancePlaceReviewWorkItems(db: AppDb, input: {
       createdAt: input.now,
     });
     advanced.push(workItemId);
+  }
+
+  if (
+    input.confidentAdvanceEnabled
+    && !input.skipChain
+    && workItemIds.length === 1
+    && advanced.length === 1
+  ) {
+    await chainConfidentReviewAdvance(db, {
+      workItemId: advanced[0]!,
+      actorUserId: input.actorUserId,
+      now: input.now,
+    });
   }
 
   return { advanced, skipped };

@@ -10,6 +10,7 @@ export async function confirmReviewItemCategories(db: AppDb, input: {
   selections: Array<{ workItemId: string; categoryId: string; reason: string }>;
   actorUserId: string;
   now: string;
+  confidentAdvanceEnabled?: boolean;
 }) {
   const selections = [...new Map(input.selections.filter((item) => item.workItemId && item.categoryId).map((item) => [item.workItemId, item])).values()];
   if (!selections.length || selections.length > REVIEW_BATCH_MAX) throw new Error("PLACE_REVIEW_BATCH_LIMIT_EXCEEDED");
@@ -34,7 +35,7 @@ export async function confirmReviewItemCategories(db: AppDb, input: {
       .where(and(eq(placeReviewWorkItems.id, workItem.id), eq(placeReviewWorkItems.stage, "CATEGORY_CONFIRMATION"), eq(placeReviewWorkItems.status, "ACTIVE"), eq(placeReviewWorkItems.stageVersion, workItem.stageVersion))).returning({ id: placeReviewWorkItems.id });
     if (!updated.length) { skipped.push({ workItemId: selection.workItemId, code: "STALE_WORK_ITEM" }); continue; }
     await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_CATEGORY_CONFIRMED", targetType: "PLACE_REVIEW_WORK_ITEM", targetId: workItem.id, beforeState: JSON.stringify({ categoryId: workItem.selectedCategoryId }), afterState: JSON.stringify({ categoryId: category.id, reason: selection.reason.trim() || null }), createdAt: input.now });
-    const advanced = await advancePlaceReviewWorkItems(db, { workItemIds: [workItem.id], expectedStage: "CATEGORY_CONFIRMATION", expectedVersions: { [workItem.id]: workItem.stageVersion }, actorUserId: input.actorUserId, now: input.now });
+    const advanced = await advancePlaceReviewWorkItems(db, { workItemIds: [workItem.id], expectedStage: "CATEGORY_CONFIRMATION", expectedVersions: { [workItem.id]: workItem.stageVersion }, actorUserId: input.actorUserId, now: input.now, confidentAdvanceEnabled: input.confidentAdvanceEnabled });
     if (advanced.advanced.length) confirmed.push(workItem.id); else skipped.push(...advanced.skipped);
   }
   return { confirmed, skipped };
