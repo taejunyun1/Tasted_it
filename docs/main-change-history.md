@@ -15,7 +15,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Ready | 2026-08-24 검수 조건부 이동 스위치를 `"true"`로 두고 운영 Worker에 배포한다. 자동 공개·일괄 NAVER·원격 apply 없음. | [Issue #260](https://github.com/taejunyun1/Tasted_it/issues/260) · [PR #261](https://github.com/taejunyun1/Tasted_it/pull/261) |
+| Ready | 2026-08-24 `7bc907b` 운영 배포 기록. Worker `f10e59ff-…`. 스위치 true. 재배포·원격 apply 없음. | [Issue #262](https://github.com/taejunyun1/Tasted_it/issues/262) · [PR #263](https://github.com/taejunyun1/Tasted_it/pull/263) |
+| Merged | 2026-08-24 검수 조건부 이동 스위치를 `"true"`로 두고 운영 Worker에 배포한다. 자동 공개·일괄 NAVER·원격 apply 없음. | [Issue #260](https://github.com/taejunyun1/Tasted_it/issues/260) · [PR #261](https://github.com/taejunyun1/Tasted_it/pull/261) · [`7bc907b`](https://github.com/taejunyun1/Tasted_it/commit/7bc907b) |
 | Merged | 2026-08-24 검수 자신 있음 건너뜀 코드를 제외·노매치·광역 이유로 매핑한다. | [Issue #258](https://github.com/taejunyun1/Tasted_it/issues/258) · [PR #259](https://github.com/taejunyun1/Tasted_it/pull/259) · [`b4d03cf`](https://github.com/taejunyun1/Tasted_it/commit/b4d03cf) |
 | Merged | 2026-08-24 검수 버튼 **근거 있는 항목만 다음 단계**. 스위치 기본 false면 이동 0. on이어도 공개 0·NAVER 0. | [Issue #256](https://github.com/taejunyun1/Tasted_it/issues/256) · [PR #257](https://github.com/taejunyun1/Tasted_it/pull/257) · [`815c120`](https://github.com/taejunyun1/Tasted_it/commit/815c120) |
 | Merged | 2026-08-24 검수 한 건 성공 뒤 같은 항목만 5단계 대기 체인. `REVIEW_CONFIDENT_ADVANCE_ENABLED` 기본 false. 공개·NAVER 호출 없음. | [Issue #254](https://github.com/taejunyun1/Tasted_it/issues/254) · [PR #255](https://github.com/taejunyun1/Tasted_it/pull/255) · [`80c7e61`](https://github.com/taejunyun1/Tasted_it/commit/80c7e61) |
