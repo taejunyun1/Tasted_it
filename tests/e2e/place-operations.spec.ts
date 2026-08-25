@@ -35,6 +35,8 @@ test("admin sees submitted suggestions on review step 1 only", async ({ page }, 
   await expect(page.getByRole("heading", { name: "장소 검수" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "회원 장소 제안" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "장소 검수 단계" })).toBeVisible();
+  await expect(page.getByText(/자동으로 5단계 대기 \d+건 \/ 공개 0/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toHaveCount(0);
 
   await page.getByRole("link", { name: /NAVER 검증/ }).click();
   await expect(page).toHaveURL(/step=2/);
@@ -42,7 +44,15 @@ test("admin sees submitted suggestions on review step 1 only", async ({ page }, 
   await expect(page.getByRole("button", { name: /NAVER 검증/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "수동 근거로 카테고리 단계 이동" })).toBeVisible();
   await expect(page.getByRole("button", { name: "선택 주소 저장" })).toBeVisible();
+  await expect(page.getByText(/자동으로 5단계 대기 \d+건 \/ 공개 0/)).toBeVisible();
   await page.screenshot({ path: `docs/evidence/2026-08-20-naver-nomatch-review-${testInfo.project.name}.png`, fullPage: true });
+
+  await page.getByRole("link", { name: /승인·공개/ }).click();
+  await expect(page).toHaveURL(/step=5/);
+  await expect(page.getByText(/자동으로 5단계 대기 \d+건 \/ 공개 0/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "근거 있는 항목만 다음 단계" })).toHaveCount(0);
+  await page.screenshot({ path: `docs/evidence/2026-08-26-confident-queue-copy-${testInfo.project.name}.png`, fullPage: true });
 });
 
 test("admin switches restored operations tabs without auto-merge", async ({ page }, testInfo) => {

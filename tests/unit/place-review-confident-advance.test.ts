@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { confidentAdvanceAllowed, confidentAdvanceSkipCode } from "../../app/features/places/place-review-pipeline";
+import { confidentAdvanceAllowed, confidentAdvanceSkipCode, formatConfidentAdvanceQueueCopy } from "../../app/features/places/place-review-pipeline";
 
 const ready = {
   sourceReady: true,
@@ -93,5 +93,12 @@ describe("confidentAdvanceSkipCode", () => {
 
   it("maps an open duplicate to DUPLICATE_REVIEW_REQUIRED", () => {
     expect(confidentAdvanceSkipCode("DUPLICATE_REVIEW", { ...ready, openDuplicateCount: 1 })).toBe("DUPLICATE_REVIEW_REQUIRED");
+  });
+});
+
+describe("formatConfidentAdvanceQueueCopy", () => {
+  it("reports waiting count at final approval and always zero publishes", () => {
+    expect(formatConfidentAdvanceQueueCopy(0)).toBe("자동으로 5단계 대기 0건 / 공개 0");
+    expect(formatConfidentAdvanceQueueCopy(7)).toBe("자동으로 5단계 대기 7건 / 공개 0");
   });
 });

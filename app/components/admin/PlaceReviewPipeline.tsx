@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Link, useFetcher, useNavigation } from "react-router";
 
 import { NAVER_REVIEW_RUN_MAX, REVIEW_SELECTION_LIMIT } from "../../features/places/place-review-io";
-import type { ReviewStage } from "../../features/places/place-review-pipeline";
+import { formatConfidentAdvanceQueueCopy, type ReviewStage } from "../../features/places/place-review-pipeline";
 import { buildPlaceReviewNextStepHref, type PlaceReviewQuery } from "../../features/places/place-review-pagination";
 import type { PlaceReviewPage, PlaceReviewStageCounts } from "../../features/places/place-review-query.server";
 import type { ReviewDuplicateCandidate } from "../../features/places/place-review-duplicates.server";
@@ -143,6 +143,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     {naverBatchMessage && <p className="admin-notice" role="status">{naverBatchMessage}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
+    <p className="place-review-confident-copy" role="status">{formatConfidentAdvanceQueueCopy(counts[5])}</p>
     <div className="place-review-quota"><span>오늘 NAVER 요청</span>{naverRegionUsage.map((row) => <strong key={row.regionCode}>{row.displayName} {row.enabled ? "켜짐" : "꺼짐"} {row.used.toLocaleString()} / {row.budget.toLocaleString()}회</strong>)}<p>지역 예산은 팩 필드입니다. 한 지역이 소진돼도 다른 지역은 계속됩니다. {selectionLimit}곳까지 선택할 수 있습니다. NAVER 검증은 최대 {NAVER_REVIEW_RUN_MAX}곳을 한 곳씩 순차 처리합니다. 노매치는 자동으로 넘어가지 않으며 확인필요로 남습니다. 조건부 이동 스위치(`REVIEW_CONFIDENT_ADVANCE_ENABLED`)는 {confidentAdvanceEnabled ? "켜짐" : "꺼짐"}입니다. 꺼져 있으면 근거 버튼은 0곳입니다. NAVER 호출과 공개는 하지 않습니다.</p></div>
     <PlaceReviewToolbar query={query} page={page} />
     <Form method="post" className="place-review-batch-form">
