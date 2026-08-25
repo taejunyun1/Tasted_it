@@ -2,6 +2,8 @@
 
 > **상태:** `PROPOSED` — 목록과 금지선을 채택한다. 이 문서 병합은 구현, 배포, 라이브 NAVER, 5단계 공개를 승인하지 않는다.
 >
+> **슬라이스 코드:** S1 [#253](https://github.com/taejunyun1/Tasted_it/pull/253) · S2 [#255](https://github.com/taejunyun1/Tasted_it/pull/255) · S3 [#257](https://github.com/taejunyun1/Tasted_it/pull/257) · 스위치 [#261](https://github.com/taejunyun1/Tasted_it/pull/261) · S4 카운트 [#266](https://github.com/taejunyun1/Tasted_it/pull/266). 5단계 자동 `PUBLISHED`는 계속 이 문서 밖이다.
+>
 > **추적:** [#244](https://github.com/taejunyun1/Tasted_it/issues/244) · [PR #245](https://github.com/taejunyun1/Tasted_it/pull/245)
 >
 > **원래 목적:** 손님 리스트는 관리자가 **고른** `PUBLISHED`만. 유저 제안·공공데이터는 대기열. NAVER 통과만으로 공개하지 않는다. ([POI 등록 절차](../../operations/poi-registration.md), [파이프라인 설계](../specs/2026-08-15-place-review-pipeline-design.md))
@@ -121,10 +123,10 @@
 | ID | 내용 | 성공 | 하지 않음 |
 |---|---|---|---|
 | S0 | 이 플랜 | `PROPOSED` 채택 | 코드 |
-| S1 | 순수 함수 `confidentAdvanceAllowed(stage, evidence)` + 단위 테스트 | 광역·노매치·중복 열림·5단계는 false | NAVER, D1 쓰기. 구현 [#252](https://github.com/taejunyun1/Tasted_it/issues/252) |
-| S2 | 한 건 액션 뒤 같은 항목 체인 (A) | VERIFIED+말단이면 5 대기까지. PUBLISHED 수 불변 | 다른 항목, 새 호출. 구현 [#254](https://github.com/taejunyun1/Tasted_it/issues/254). 스위치 기본 off |
-| S3 | 버튼 B + 킬 스위치 기본 off | off면 이동 0. on이어도 publish 0, NAVER 0 | cron. 구현 [#256](https://github.com/taejunyun1/Tasted_it/issues/256) |
-| S4 | 검수 화면에 “자동으로 5단계 대기 N건 / 공개 0” | 카운트만. 공개 버튼과 분리 | 자동 공개 카피 |
+| S1 | 순수 함수 `confidentAdvanceAllowed(stage, evidence)` + 단위 테스트 | 광역·노매치·중복 열림·5단계는 false | NAVER, D1 쓰기. 구현 [#252](https://github.com/taejunyun1/Tasted_it/issues/252) · [#253](https://github.com/taejunyun1/Tasted_it/pull/253) |
+| S2 | 한 건 액션 뒤 같은 항목 체인 (A) | VERIFIED+말단이면 5 대기까지. PUBLISHED 수 불변 | 다른 항목, 새 호출. 구현 [#254](https://github.com/taejunyun1/Tasted_it/issues/254) · [#255](https://github.com/taejunyun1/Tasted_it/pull/255). 스위치 기본 off |
+| S3 | 버튼 B + 킬 스위치 기본 off | off면 이동 0. on이어도 publish 0, NAVER 0 | cron. 구현 [#256](https://github.com/taejunyun1/Tasted_it/issues/256) · [#257](https://github.com/taejunyun1/Tasted_it/pull/257). 운영 on은 [#261](https://github.com/taejunyun1/Tasted_it/pull/261) |
+| S4 | 검수 화면에 “자동으로 5단계 대기 N건 / 공개 0” | 카운트만. 공개 버튼과 분리 | 자동 공개 카피. 구현 [#264](https://github.com/taejunyun1/Tasted_it/issues/264) · [#266](https://github.com/taejunyun1/Tasted_it/pull/266) |
 
 예상 집중 시간: S1 2h, S2 3–4h, S3 3–4h, S4 2h. Clock H 사람 큐와 섞지 않음.
 
@@ -148,7 +150,7 @@ Rollback: 문서 revert.
 
 # 2026-08-23 Confident review advance (stages 1–4)
 
-> **Status:** `PROPOSED`. Merging adopts the boundary. It does not implement auto-advance, auto-publish, live NAVER, a sixth cron job, queues, or new bindings.
+> **Status:** `PROPOSED`. Merging adopts the boundary. It does not implement auto-publish, live NAVER, a sixth cron job, queues, or new bindings. Stamp slices: S1 `#253`, S2 `#255`, S3 `#257`, switch `#261`, S4 copy `#266`.
 
 **One line:** Automate **stamps**, not **listing**. Stage 5 `PUBLISHED` stays a human selection.
 
@@ -158,4 +160,4 @@ Rollback: 문서 revert.
 
 **Do not:** auto-call NAVER in batch; invent manual-evidence text; auto-merge franchises; publish.
 
-**Next:** dedicated PRs S1 (pure predicate tests) → S2 (same-item chain) → S3 (button + kill switch default false) → S4 (count copy). Kill switch `REVIEW_CONFIDENT_ADVANCE_ENABLED` default `false` only when an implementation PR lists it.
+**Next:** S1–S4 have dedicated PRs. Auto-publish and live NAVER stay out of this document. Kill switch `REVIEW_CONFIDENT_ADVANCE_ENABLED` is on in operating wrangler (`#261`); off is `"false"` then redeploy.

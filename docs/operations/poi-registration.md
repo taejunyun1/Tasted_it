@@ -141,6 +141,8 @@ wrangler var `REVIEW_CONFIDENT_ADVANCE_ENABLED`. 새 binding이 아니다.
 
 운영 wrangler 기본값은 `"true"`다. 끄려면 var를 `"false"`로 되돌린 뒤 재배포한다. 이 문서만으로 라이브 Worker를 바꾸지 않는다.
 
+검수 화면 카운트: `자동으로 5단계 대기 N건 / 공개 0`. N은 5단계 ACTIVE 대기. 공개 버튼과 분리. 카운트만으로 공개하지 않는다.
+
 ### CSV 옆문
 
 CSV에 `PUBLISHED`를 적으면 5단계를 안 거치고 상태가 올라갈 수 있다. 기본값은 `DRAFT`다. 운영 D1에 week1 시드를 넣지 않는다. 초기 소수 공개는 이 경로이거나 예전에 관리자가 공개한 값일 수 있다. 새 카탈로그는 5단계로만 연다.
@@ -174,4 +176,4 @@ CSV에 `PUBLISHED`를 적으면 5단계를 안 거치고 상태가 올라갈 수
 
 공개 리스트의 `PUBLISHED`만 “허용된 POI”다. 1–4단계 ACTIVE는 아직 등록이 아니다. 그 줄을 사람이 줄이는 일은 Clock H이며 이 문서 범위가 아니다.
 
-1→4를 근거가 있을 때만 옮기고 공개는 사람으로 남기는 안은 [`docs/superpowers/plans/2026-08-23-confident-review-advance.md`](../superpowers/plans/2026-08-23-confident-review-advance.md). S1 게이트·S2 한 건 체인·S3 버튼은 코드에 있다. wrangler 스위치 `"true"`. 5단계 자동 `PUBLISHED`는 원래 목적 밖이다.
+1→4를 근거가 있을 때만 옮기고 공개는 사람으로 남기는 안은 [`docs/superpowers/plans/2026-08-23-confident-review-advance.md`](../superpowers/plans/2026-08-23-confident-review-advance.md). S1 게이트·S2 한 건 체인·S3 버튼은 코드에 있다. wrangler 스위치 `"true"`. 화면 카피 S4는 5단계 대기 N건 / 공개 0이다 ([#266](https://github.com/taejunyun1/Tasted_it/pull/266)). 5단계 자동 `PUBLISHED`는 원래 목적 밖이다.
