@@ -39,6 +39,9 @@ describe("place review selection controls", () => {
     expect(component).toContain("수동으로 NAVER 검증 대기로 이동");
     expect(component).toContain("근거 있는 항목만 다음 단계");
     expect(component).toContain("advance-confident-review-items");
+    expect(component).toContain("formatConfidentAdvanceQueueCopy(counts[5])");
+    expect(component).toContain("place-review-confident-copy");
+    expect(component).not.toContain("자동 공개");
     expect(component).toContain("수동 근거로 카테고리 단계 이동");
     expect(component).toContain("선택 주소 저장");
     expect(component).toContain("확인필요");

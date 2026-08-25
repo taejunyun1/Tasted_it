@@ -103,6 +103,11 @@ export function isConfidentAdvanceEnabled(value?: string | null) {
   return value === "true";
 }
 
+/** Standing copy for the stamp-only path. Never implies auto-publish. */
+export function formatConfidentAdvanceQueueCopy(waitingCount: number) {
+  return `자동으로 5단계 대기 ${waitingCount}건 / 공개 0`;
+}
+
 /**
  * Stamp-only gate for 1→4. Never returns true at FINAL_APPROVAL.
  * Does not publish, call NAVER, or invent manual evidence text.
