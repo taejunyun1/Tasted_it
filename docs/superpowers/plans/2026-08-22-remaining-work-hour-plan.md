@@ -299,7 +299,7 @@ Rollback: 이 PR은 문서만 되돌리면 된다.
 
 **Clock G (H52–H56):** runbook drift. **Issue #238** — docs only; no redeploy or live NAVER.
 
-**Clock H:** operator drain of ~35 stage-2 and ~708 stage-1 items. No bulk publish/geocode.
+**Clock H:** operator drain of ~35 stage-2 and ~708 stage-1 items. No bulk publish/geocode. Confident-advance S1–S3 plus the S4 standing copy (`#266`) do not empty this queue and do not auto-publish.
 
 **Clock I:** only after explicit GO — synthetic-200 run report, E1 300 harness, short post-map taste, `/me` settings, richer OG, focus trap, PBKDF2 raise.
 
