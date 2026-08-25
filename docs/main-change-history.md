@@ -15,7 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-08-26 검수 화면에 `자동으로 5단계 대기 N건 / 공개 0`. 공개 버튼과 분리. 자동 공개·NAVER·배포 없음. | [Issue #264](https://github.com/taejunyun1/Tasted_it/issues/264) |
+| Proposed | 2026-08-26 검수 화면에 `자동으로 5단계 대기 N건 / 공개 0`. 공개 버튼과 분리. 자동 공개·NAVER·배포 없음. | [Issue #264](https://github.com/taejunyun1/Tasted_it/issues/264) · [PR #266](https://github.com/taejunyun1/Tasted_it/pull/266) |
 | Ready | 2026-08-24 `7bc907b` 운영 배포 기록. Worker `f10e59ff-…`. 스위치 true. 재배포·원격 apply 없음. | [Issue #262](https://github.com/taejunyun1/Tasted_it/issues/262) · [PR #263](https://github.com/taejunyun1/Tasted_it/pull/263) |
 | Merged | 2026-08-24 검수 조건부 이동 스위치를 `"true"`로 두고 운영 Worker에 배포한다. 자동 공개·일괄 NAVER·원격 apply 없음. | [Issue #260](https://github.com/taejunyun1/Tasted_it/issues/260) · [PR #261](https://github.com/taejunyun1/Tasted_it/pull/261) · [`7bc907b`](https://github.com/taejunyun1/Tasted_it/commit/7bc907b) |
 | Merged | 2026-08-24 검수 자신 있음 건너뜀 코드를 제외·노매치·광역 이유로 매핑한다. | [Issue #258](https://github.com/taejunyun1/Tasted_it/issues/258) · [PR #259](https://github.com/taejunyun1/Tasted_it/pull/259) · [`b4d03cf`](https://github.com/taejunyun1/Tasted_it/commit/b4d03cf) |
