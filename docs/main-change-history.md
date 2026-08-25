@@ -15,6 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 2026-08-26 장소 상세·빠른정보 시트 Tab 포커스를 안에 가둔다. 새 의존성·배포 없음. | [Issue #268](https://github.com/taejunyun1/Tasted_it/issues/268) |
 | Proposed | 2026-08-26 검수 자신 있음 플랜에 S1–S4 코드 PR을 적는다. 자동 공개는 계속 문서 밖. 제품 코드·배포 없음. | [Issue #265](https://github.com/taejunyun1/Tasted_it/issues/265) · [PR #267](https://github.com/taejunyun1/Tasted_it/pull/267) |
 | Merged | 2026-08-26 검수 화면에 `자동으로 5단계 대기 N건 / 공개 0`. 공개 버튼과 분리. 자동 공개·NAVER·배포 없음. | [Issue #264](https://github.com/taejunyun1/Tasted_it/issues/264) · [PR #266](https://github.com/taejunyun1/Tasted_it/pull/266) · [`91cab8f`](https://github.com/taejunyun1/Tasted_it/commit/91cab8f) |
 | Ready | 2026-08-24 `7bc907b` 운영 배포 기록. Worker `f10e59ff-…`. 스위치 true. 재배포·원격 apply 없음. | [Issue #262](https://github.com/taejunyun1/Tasted_it/issues/262) · [PR #263](https://github.com/taejunyun1/Tasted_it/pull/263) |

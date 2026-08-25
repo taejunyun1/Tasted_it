@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useRef } from "react";
 import { Link } from "react-router";
 import { formatPublicRatingSummary, PUBLIC_RATING_FALLBACK_COPY } from "../../features/places/place-discovery";
 import type { PlaceSummary } from "../../features/places/place.types";
+import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
 
 export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSummary; onBack: () => void; onOpenDetail: (slug: string) => void }) {
+  const sheetRef = useRef<HTMLElement>(null);
   const score = place.ratingScore;
   const isVisible = score != null;
   const voteCount = place.ratingSampleCount ?? 0;
@@ -11,14 +13,9 @@ export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSu
   const progressMax = isVisible ? 100 : 8;
   const progressPercent = (progressValue / progressMax) * 100;
   const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(place.address || place.name)}`;
+  useDialogFocusTrap(sheetRef, { active: true, onClose: onBack });
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onBack(); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onBack]);
-
-  return <aside className="map-place-sheet" role="dialog" aria-label={`${place.name} 빠른 정보`}>
+  return <aside ref={sheetRef} className="map-place-sheet" role="dialog" aria-modal="true" tabIndex={-1} aria-label={`${place.name} 빠른 정보`}>
     <div className="map-place-sheet__handle" aria-hidden="true" />
     <button type="button" className="map-place-sheet__close" aria-label="빠른 정보 닫기" onClick={onBack}>×</button>
     <div className="map-place-sheet__image">
