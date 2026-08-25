@@ -1,3 +1,9 @@
+export const PUBLIC_LOGIN_ERROR = "이메일 또는 비밀번호가 올바르지 않습니다.";
+
+export function publicLoginError(_error: unknown) {
+  return PUBLIC_LOGIN_ERROR;
+}
+
 export function authEntryHref(pathname: "/login" | "/signup", currentPath: string, search = "") {
   const returnTo = safeReturnTo(`${currentPath}${search}`);
   if (returnTo === "/") return pathname;
