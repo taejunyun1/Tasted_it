@@ -16,4 +16,16 @@ describe("e2e wrangler isolation", () => {
     expect(e2eId).toBe(E2E_PLACEHOLDER_ID);
     expect(e2eId).not.toBe(productionId);
   });
+
+  it("does not bootstrap the default local D1 when Playwright starts pnpm dev", () => {
+    const bootstrap = readFileSync("scripts/ensure-local-dev-db.mjs", "utf8");
+    const playwrightConfig = readFileSync("playwright.config.ts", "utf8");
+    const syntheticConfig = readFileSync("playwright.synthetic-beta.config.ts", "utf8");
+    expect(bootstrap).toContain('process.env.RETASTE_E2E === "true"');
+    expect(bootstrap).toContain('process.env.SYNTHETIC_BETA === "1"');
+    expect(bootstrap).toContain("--local");
+    expect(bootstrap).not.toContain("--remote");
+    expect(playwrightConfig).toContain("RETASTE_E2E=true");
+    expect(syntheticConfig).toContain("RETASTE_E2E=true");
+  });
 });

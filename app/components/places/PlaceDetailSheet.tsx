@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFetcher } from "react-router";
 import type { loader as placeDetailLoader } from "../../routes/place-detail";
+import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
 import { safePlaceDetailRequestPath } from "./PlaceCard";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
@@ -12,21 +13,21 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
 }) {
   const detail = useFetcher<DetailData>();
   const save = useFetcher<{ ok: true }>();
+  const sheetRef = useRef<HTMLElement>(null);
   const requestPath = detailPath === undefined
     ? safePlaceDetailRequestPath(slug ? `/places/${slug}` : null)
     : safePlaceDetailRequestPath(detailPath);
   useEffect(() => { if (requestPath) detail.load(requestPath); }, [requestPath]);
   useEffect(() => {
     if (!requestPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", close);
-    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", close); };
-  }, [requestPath, onClose]);
+    return () => { document.body.style.overflow = ""; };
+  }, [requestPath]);
+  useDialogFocusTrap(sheetRef, { active: Boolean(requestPath), onClose });
   if (!requestPath) return null;
   const data = detail.data;
   return <div className="place-detail-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside className="place-detail-sheet" role="dialog" aria-modal="true" aria-label={data ? `${data.place.name} 상세 정보` : "장소 상세 불러오는 중"}>
+    <aside ref={sheetRef} className="place-detail-sheet" role="dialog" aria-modal="true" tabIndex={-1} aria-label={data ? `${data.place.name} 상세 정보` : "장소 상세 불러오는 중"}>
       <div className="place-detail-sheet__handle" aria-hidden="true" />
       <button type="button" className="place-detail-sheet__close" aria-label="상세 정보 닫기" onClick={onClose}>×</button>
       {!data ? <p className="place-detail-sheet__loading">장소 정보를 불러오는 중…</p> : <>

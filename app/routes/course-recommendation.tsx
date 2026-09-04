@@ -7,6 +7,7 @@ import { toggleMealCategorySelection } from "../features/courses/course-filter-s
 import { parseCourseOptions } from "../features/courses/course-options";
 import { recommendCourses } from "../features/courses/course-recommendation.server";
 import { listPublicCategoryGroups } from "../features/places/place.server";
+import { tabWrapTarget, visibleFocusableElements } from "../features/a11y/dialog-focus";
 
 export function meta() {
   return [{ title: "오늘의 두 곳 코스 — Re:Taste" }, { name: "description", content: "한 끼와 카페·디저트, 주차까지 이동거리 중심으로 고른 코스" }];
@@ -140,12 +141,12 @@ export default function CourseRecommendation({ loaderData }: Route.ComponentProp
       return;
     }
     if (event.key !== "Tab") return;
-    const focusable = [...(filterSheetRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled])') ?? [])]
-      .filter((element) => element.offsetParent !== null);
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    const root = filterSheetRef.current;
+    if (!root) return;
+    const wrap = tabWrapTarget(visibleFocusableElements(root), document.activeElement, event.shiftKey);
+    if (!wrap) return;
+    event.preventDefault();
+    wrap.focus();
   };
   const mealSummary = loaderData.options.mealCategories.length
     ? loaderData.options.mealCategories.map((slug) => loaderData.categories.find((item) => item.slug === slug)?.name ?? "한 끼").join("·")

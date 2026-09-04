@@ -7,7 +7,7 @@ function qaPath(search = "") {
   return `/?${params.toString()}`;
 }
 
-test("a map pin opens a quick bottom sheet while preserving the explorer list", async ({ page }) => {
+test("a map pin opens a quick bottom sheet while preserving the explorer list", async ({ page }, testInfo) => {
   await page.goto(qaPath());
   const map = page.getByLabel("장소 지도");
   await map.getByRole("button", { name: /음식점 \d+곳, 확대해서 보기$/ }).first().click();
@@ -29,6 +29,11 @@ test("a map pin opens a quick bottom sheet while preserving the explorer list", 
   await expect(page.getByRole("progressbar", { name: "추천 지표" })).toBeVisible();
   await expect(page.getByText("검수 완료", { exact: true }).last()).toBeVisible();
   await expect(page.getByRole("link", { name: "상세 보기" })).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: `${placeName} 빠른 정보` });
+  await expect(dialog.getByRole("button", { name: "빠른 정보 닫기" })).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.getByRole("link", { name: "상세 보기" })).toBeFocused();
+  await page.screenshot({ path: `docs/evidence/2026-08-26-place-sheet-focus-${testInfo.project.name}.png`, fullPage: true });
 });
 
 test("the explorer presents the local food atlas identity and verified places", async ({ page }) => {

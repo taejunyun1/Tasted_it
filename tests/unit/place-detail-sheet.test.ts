@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { shouldOpenPlaceDetailSheet } from "../../app/features/places/place-detail-sheet";
 import {
@@ -37,5 +38,20 @@ describe("shouldOpenPlaceDetailSheet", () => {
       .toThrow("RECOMMENDATION_PATH_NOT_ALLOWED");
     expect(() => recommendationRequestPath("/places/sample", requestId))
       .toThrow("RECOMMENDATION_PATH_NOT_ALLOWED");
+  });
+});
+
+describe("place sheet dialogs trap keyboard focus", () => {
+  it("uses the shared trap on the map quick sheet and the full detail sheet", () => {
+    const detail = readFileSync("app/components/places/PlaceDetailSheet.tsx", "utf8");
+    const quick = readFileSync("app/components/map/MapPlaceDetail.tsx", "utf8");
+    const course = readFileSync("app/routes/course-recommendation.tsx", "utf8");
+
+    expect(detail).toContain("useDialogFocusTrap");
+    expect(detail).toContain("aria-modal=\"true\"");
+    expect(quick).toContain("useDialogFocusTrap");
+    expect(quick).toContain("aria-modal=\"true\"");
+    expect(course).toContain("tabWrapTarget");
+    expect(course).toContain("visibleFocusableElements");
   });
 });
