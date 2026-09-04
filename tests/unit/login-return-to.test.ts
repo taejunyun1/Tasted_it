@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { authEntryHref, retainedAuthFields, safeReturnTo } from "../../app/features/auth/login";
+import { authEntryHref, publicLoginError, PUBLIC_LOGIN_ERROR, retainedAuthFields, safeReturnTo } from "../../app/features/auth/login";
 
 describe("safeReturnTo", () => {
   it("returns to a requested place or admin path after login", () => {
@@ -45,6 +45,17 @@ describe("auth entry href and field retention", () => {
     expect(signup).toContain("회원가입 — Re:Taste");
     expect(places).toContain("맛집 리스트 — Re:Taste");
     expect(maps).toContain("지도 — Re:Taste");
+    expect(login).toContain("publicLoginError");
+    expect(login).not.toContain("이메일 인증을 먼저 완료해 주세요");
+    expect(login).not.toContain("EMAIL_NOT_VERIFIED");
+  });
+});
+
+describe("publicLoginError", () => {
+  it("uses one public message for unverified and invalid logins", () => {
+    expect(publicLoginError(new Error("EMAIL_NOT_VERIFIED"))).toBe(PUBLIC_LOGIN_ERROR);
+    expect(publicLoginError(new Error("LOGIN_INVALID"))).toBe(PUBLIC_LOGIN_ERROR);
+    expect(PUBLIC_LOGIN_ERROR).toBe("이메일 또는 비밀번호가 올바르지 않습니다.");
   });
 });
 

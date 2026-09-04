@@ -29,3 +29,13 @@ test("anonymous visitor is redirected from admin review", async ({ page }) => {
   await page.goto("/admin/place-operations?step=1");
   await expect(page).toHaveURL(/\/login\?returnTo=%2Fadmin%2Fplace-operations%3Fstep%3D1$/);
 });
+
+test("a failed password login shows one public error", async ({ page }, testInfo) => {
+  await page.goto("/login");
+  await page.getByLabel("이메일").fill("missing-user@example.test");
+  await page.getByLabel("비밀번호").fill("not-the-password");
+  await page.getByRole("button", { name: "로그인" }).click();
+  await expect(page.getByText("이메일 또는 비밀번호가 올바르지 않습니다.")).toBeVisible();
+  await expect(page.getByText("이메일 인증을 먼저 완료해 주세요.")).toHaveCount(0);
+  await page.screenshot({ path: `docs/evidence/2026-08-26-login-error-${testInfo.project.name}.png` });
+});

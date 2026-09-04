@@ -9,7 +9,7 @@ import {
   GoogleAuthButton,
   oauthErrorMessage,
 } from "../features/auth/google-auth-ui";
-import { retainedAuthFields, safeReturnTo } from "../features/auth/login";
+import { publicLoginError, retainedAuthFields, safeReturnTo } from "../features/auth/login";
 import { NaverAuthButton, naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
 import { createUserSession, getOptionalUser } from "../features/auth/session.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
@@ -59,7 +59,7 @@ export async function action({ request }: Route.ActionArgs) {
     });
     return redirect(safeReturnTo(parsed.data.returnTo), { headers });
   } catch (error) {
-    return data({ error: error instanceof Error && error.message === "EMAIL_NOT_VERIFIED" ? "이메일 인증을 먼저 완료해 주세요." : "이메일 또는 비밀번호가 올바르지 않습니다.", ...fields }, { status: 400 });
+    return data({ error: publicLoginError(error), ...fields }, { status: 400 });
   }
 }
 export default function Login({ actionData, loaderData }: Route.ComponentProps) {
