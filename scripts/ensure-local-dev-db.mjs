@@ -1,9 +1,18 @@
 import { spawnSync } from "node:child_process";
 
-const skipBootstrap = process.env.RETASTE_SKIP_LOCAL_DB_BOOTSTRAP === "true";
+// Playwright and synthetic-beta seed isolated persist-to DBs, then call `pnpm dev`.
+// Skip those runs so they do not migrate or seed the default local D1.
+const skipReason =
+  process.env.RETASTE_SKIP_LOCAL_DB_BOOTSTRAP === "true"
+    ? "RETASTE_SKIP_LOCAL_DB_BOOTSTRAP=true"
+    : process.env.RETASTE_E2E === "true"
+      ? "RETASTE_E2E=true"
+      : process.env.SYNTHETIC_BETA === "1"
+        ? "SYNTHETIC_BETA=1"
+        : null;
 
-if (skipBootstrap) {
-  console.log("[retaste] skipping local DB bootstrap because RETASTE_SKIP_LOCAL_DB_BOOTSTRAP=true");
+if (skipReason) {
+  console.log(`[retaste] skipping local DB bootstrap because ${skipReason}`);
   process.exit(0);
 }
 

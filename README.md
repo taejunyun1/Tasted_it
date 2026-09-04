@@ -19,7 +19,7 @@ pnpm install
 pnpm dev --host 127.0.0.1
 ```
 
-`pnpm dev`는 시작 전에 로컬 D1 migration과 `scripts/seed-week1.sql`을 자동 적용해 `/places/sample-dongmyeong-ramen`, `/maps/gukbap-detail` 같은 샘플 경로가 404가 되지 않게 합니다. 기존처럼 수동으로 제어하려면 `pnpm run dev:bare -- --host 127.0.0.1` 뒤에 `pnpm run db:migrate:local`, `pnpm run db:seed:local`을 직접 실행하거나, `RETASTE_SKIP_LOCAL_DB_BOOTSTRAP=true pnpm dev --host 127.0.0.1`를 사용합니다.
+`pnpm dev`는 시작 전에 로컬 D1 migration과 `scripts/seed-week1.sql`을 자동 적용해 `/places/sample-dongmyeong-ramen`, `/maps/gukbap-detail` 같은 샘플 경로가 404가 되지 않게 합니다. 시드는 `INSERT OR IGNORE`라서 이미 있는 로컬 행은 덮어쓰지 않습니다. Playwright/synthetic-beta는 격리 D1을 따로 시드한 뒤 `RETASTE_E2E=true`로 `pnpm dev`를 부르므로 기본 로컬 D1 bootstrap은 건너뜁니다. 기존처럼 수동으로 제어하려면 `pnpm run dev:bare -- --host 127.0.0.1` 뒤에 `pnpm run db:migrate:local`, `pnpm run db:seed:local`을 직접 실행하거나, `RETASTE_SKIP_LOCAL_DB_BOOTSTRAP=true pnpm dev --host 127.0.0.1`를 사용합니다.
 
 기본 주소는 `http://127.0.0.1:5173`입니다. `localhost`는 일부 환경에서 IPv6(`::1`)로 먼저 해석될 수 있으므로 로컬 검수와 네이버 클라우드 플랫폼 Web Dynamic Map의 Web 서비스 URL에는 이 주소를 사용합니다.
 
