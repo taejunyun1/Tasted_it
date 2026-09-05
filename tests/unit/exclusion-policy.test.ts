@@ -7,10 +7,8 @@ describe("classifyAutomaticExclusion", () => {
     { businessName: "황제 룸싸롱", businessSubtype: "유흥주점영업" },
     { businessName: "로얄룸살롱", businessSubtype: "일반음식점" },
     { businessName: "상호 없는 유흥업소", businessSubtype: "유흥주점영업" },
-    { businessName: "7080 별밤 라이브바", businessSubtype: "일반음식점" },
     { businessName: "황금 카바레", businessSubtype: "경양식" },
     { businessName: "청춘 캬바레", businessSubtype: "기타" },
-    { businessName: "그랜드 라이브클럽", businessSubtype: "일반음식점" },
     { businessName: "시니어 콜라텍", businessSubtype: "일반음식점" },
     { businessName: "오페라 가라오케", businessSubtype: "일반음식점" },
     { businessName: "동네 단란주점", businessSubtype: "단란주점영업" },
@@ -19,6 +17,8 @@ describe("classifyAutomaticExclusion", () => {
     { businessName: "청춘회관", businessSubtype: "카바레" },
     { businessName: "별밤뮤직타운", businessSubtype: "노래연습장업" },
     { businessName: "월드노래방", businessSubtype: "일반음식점" },
+    { businessName: "7080 별밤 라이브바", businessSubtype: "일반음식점" },
+    { businessName: "그랜드 라이브클럽", businessSubtype: "일반음식점" },
   ])("excludes adult entertainment candidate $businessName", (candidate) => {
     expect(classifyAutomaticExclusion(candidate)).toMatchObject({
       reason: "ADULT_ENTERTAINMENT",
@@ -36,9 +36,9 @@ describe("classifyAutomaticExclusion", () => {
   });
 
   it.each([
-    { businessName: "별밤 라이브카페", businessSubtype: "일반음식점" },
     { businessName: "청춘PC방", businessSubtype: "일반음식점" },
     { businessName: "오늘의 도자기공방", businessSubtype: "일반음식점" },
+    { businessName: "별밤 라이브카페", businessSubtype: "일반음식점" },
     { businessName: "CU 광주충장로점", businessSubtype: "휴게음식점" },
     { businessName: "GS25 동명점", businessSubtype: "일반음식점" },
     { businessName: "세븐일레븐 광주점", businessSubtype: "휴게음식점" },

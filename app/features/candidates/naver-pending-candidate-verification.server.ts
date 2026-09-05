@@ -8,6 +8,7 @@ import { getTerminalCategoryIds } from "./category-selection";
 import { classifyCandidate, getAuthoritativeSubtypeCategorySlug, getStrongestNameFoodCategorySlug } from "./category-suggestion";
 import { decideCategoryAuthority, matchNaverLocalCategory, NAVER_CATEGORY_RULE_VERSION, type NaverLocalCategoryMatch } from "./naver-local-category";
 import { NaverLocalSearchError, type NaverLocalSearchAdapter } from "./naver-local-search.server";
+import { diningSubjectKey, type DiningSubject } from "../places/local-dining-policy";
 
 const MAX_BATCH_SIZE = 25;
 const CACHE_DAYS = 90;
@@ -51,13 +52,8 @@ function nextCacheExpiry(now: string) {
   return new Date(Date.parse(now) + CACHE_DAYS * 24 * 60 * 60 * 1_000).toISOString();
 }
 
-async function fingerprint(row: PendingWorkRow) {
-  const value = [
-    row.businessName.normalize("NFKC").trim().toLocaleLowerCase("ko-KR"),
-    row.address.normalize("NFKC").trim().toLocaleLowerCase("ko-KR"),
-    row.latitude?.toFixed(6) ?? "",
-    row.longitude?.toFixed(6) ?? "",
-  ].join("|");
+export async function pendingVerificationFingerprint(row: DiningSubject) {
+  const value = diningSubjectKey(row);
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -109,6 +105,7 @@ async function upsertVerification(db: AppDb, input: {
   mappedCategoryId: string | null;
   failureCode: string | null;
   now: string;
+  fetchedAt: string;
 }) {
   const values = {
     status: input.match.status,
@@ -117,10 +114,11 @@ async function upsertVerification(db: AppDb, input: {
     specificityScore: Math.round(input.match.specificityScore),
     confidenceScore: Math.round(input.match.confidenceScore),
     evidenceCodesJson: JSON.stringify(input.match.evidenceCodes),
+    matchedCategoryPath: input.match.matchedCategoryPath ?? null,
     ruleVersion: NAVER_CATEGORY_RULE_VERSION,
     inputFingerprint: input.inputFingerprint,
-    queriedAt: input.now,
-    expiresAt: input.match.status === "VERIFIED" ? nextCacheExpiry(input.now) : null,
+    queriedAt: input.fetchedAt,
+    expiresAt: input.match.status === "VERIFIED" ? nextCacheExpiry(input.fetchedAt) : null,
     failureCode: input.failureCode,
     updatedAt: input.now,
   };
@@ -161,11 +159,13 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
 
     for (const row of rows) {
       scanned += 1;
-      const inputFingerprint = await fingerprint(row);
+      const inputFingerprint = await pendingVerificationFingerprint(row);
       const cached = await db.query.naverLocalCategoryVerifications.findFirst({ where: eq(naverLocalCategoryVerifications.businessLicenseId, row.id) });
       let match: NaverLocalCategoryMatch;
       let failureCode: string | null = null;
-      if (cached && cached.status === "VERIFIED" && cached.inputFingerprint === inputFingerprint && cached.expiresAt && cached.expiresAt > input.now) {
+      let fetchedAt = input.now;
+      if (cached && cached.ruleVersion === NAVER_CATEGORY_RULE_VERSION && cached.status === "VERIFIED" && cached.inputFingerprint === inputFingerprint && cached.expiresAt && cached.expiresAt > input.now) {
+        fetchedAt = cached.queriedAt;
         const category = cached.mappedCategoryId ? categoryRows.find((item) => item.id === cached.mappedCategoryId) : null;
         match = {
           status: "VERIFIED",
@@ -174,6 +174,7 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
           specificityScore: cached.specificityScore,
           confidenceScore: cached.confidenceScore,
           evidenceCodes: JSON.parse(cached.evidenceCodesJson) as NaverLocalCategoryMatch["evidenceCodes"],
+          matchedCategoryPath: cached.matchedCategoryPath,
         };
       } else if (!isNaverRegionSearchEnabled(row.regionCode)) {
         match = { status: "SKIPPED", mappedCategorySlug: null, matchScore: 0, specificityScore: 0, confidenceScore: 0, evidenceCodes: [] };
@@ -206,8 +207,8 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
         nameSlug: getStrongestNameFoodCategorySlug({ sourceType: row.sourceType, businessSubtype: row.businessSubtype, businessName: row.businessName, address: row.address }),
         naver: match,
       });
-      const mappedCategory = authority.naver?.mappedCategorySlug ? categoryBySlug.get(authority.naver.mappedCategorySlug) ?? null : null;
-      await upsertVerification(db, { businessLicenseId: row.id, inputFingerprint, match: authority.naver ?? match, mappedCategoryId: mappedCategory?.id ?? null, failureCode, now: input.now });
+      const mappedCategory = authority.automatic && authority.naver?.mappedCategorySlug ? categoryBySlug.get(authority.naver.mappedCategorySlug) ?? null : null;
+      await upsertVerification(db, { businessLicenseId: row.id, inputFingerprint, match: authority.naver ?? match, mappedCategoryId: mappedCategory?.id ?? null, failureCode, now: input.now, fetchedAt });
       if (match.status === "VERIFIED") verified += 1;
       if (match.status === "FAILED" || match.status === "SKIPPED") failed += 1;
       else if (authority.automatic && mappedCategory && terminalCategoryIds.has(mappedCategory.id)) automatic += 1;

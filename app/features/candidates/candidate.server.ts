@@ -251,6 +251,7 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
   const match = classifyAutomaticExclusion({
     businessName: input.businessName,
     businessSubtype: input.businessSubtype,
+    sourceType: input.sourceType,
   });
   const exclusion = await db.query.businessLicenseExclusions.findFirst({ where: eq(businessLicenseExclusions.businessLicenseId, id) });
   const canExclude = input.normalizedStatus === "OPEN" && (existing?.reviewStatus ?? "PENDING") === "PENDING";

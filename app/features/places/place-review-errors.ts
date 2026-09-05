@@ -7,6 +7,10 @@ export type ReviewErrorEntry = {
 };
 
 export const reviewErrorCatalog = {
+  LOCAL_DINING_REVIEW_REQUIRED: { message: "로컬 식당이며 방문 식사가 가능한지 확인되지 않았습니다. 업체 1곳을 선택하고 확인 근거를 저장해 주세요.", disposition: "STAY" },
+  LOCAL_DINING_CONFIRMATION_REQUIRED: { message: "로컬·방문 식사 확인에 체크하고 실제 확인 근거를 20~300자로 입력해 주세요.", disposition: "STAY" },
+  LOCAL_DINING_SINGLE_REQUIRED: { message: "방문 식사 확인은 업체별 근거가 필요합니다. 한 곳만 선택해 주세요.", disposition: "STAY" },
+  AUTO_LOCAL_DINING_EXCLUSION: { message: "로컬 방문 식당 정책의 자동 제외 대상입니다.", disposition: "EXCLUDE" },
   SOURCE_NOT_READY: { message: "원천 정보가 부족해 다음 단계로 이동할 수 없습니다.", disposition: "STAY" },
   NAVER_REVIEW_REQUIRED: { message: "NAVER가 일치하지 않거나 근거가 부족합니다. 확인필요 항목은 20자 이상 수동 근거로만 다음 단계로 이동합니다.", disposition: "STAY" },
   NAVER_RETRY_REQUIRED: { message: "NAVER 확인에 실패했습니다. 다시 시도해 주세요.", disposition: "RETRY" },

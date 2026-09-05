@@ -9,6 +9,7 @@ const ready = {
   categoryActive: true,
   openDuplicateCount: 0,
   activeExclusion: false,
+  localDiningDecision: "ELIGIBLE" as const,
   categoryLeaf: true,
   hasManualEvidence: false,
 };

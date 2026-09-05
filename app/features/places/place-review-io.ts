@@ -4,7 +4,8 @@ import { reviewErrorMessage, type ReviewErrorCode } from "./place-review-errors"
 export const REVIEW_BATCH_MIN = 1;
 export const REVIEW_BATCH_MAX = 50;
 export const REVIEW_SELECTION_LIMIT = 50;
-export const NAVER_REVIEW_RUN_MAX = 50;
+/** A single click may select up to 50 rows, but NAVER calls are capped at 10. */
+export const NAVER_REVIEW_RUN_MAX = 10;
 
 export const reviewIntents = [
   "auto-exclude-non-food-review-items",
@@ -13,6 +14,7 @@ export const reviewIntents = [
   "advance-review-items",
   "advance-confident-review-items",
   "approve-manual-review-evidence",
+  "confirm-local-dining",
   "update-review-item-addresses",
   "confirm-review-categories",
   "resolve-review-duplicates",
@@ -26,6 +28,7 @@ export type ReviewIntent = (typeof reviewIntents)[number];
 export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> = {
   SOURCE_REVIEW: [
     "auto-exclude-non-food-review-items",
+    "confirm-local-dining",
     "verify-review-items-with-naver",
     "auto-verify-review-item-with-naver",
     "advance-review-items",
@@ -34,6 +37,7 @@ export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> 
     "exclude-review-items",
   ],
   NAVER_VERIFICATION: [
+    "confirm-local-dining",
     "verify-review-items-with-naver",
     "auto-verify-review-item-with-naver",
     "advance-review-items",
@@ -43,9 +47,9 @@ export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> 
     "hold-review-items",
     "exclude-review-items",
   ],
-  CATEGORY_CONFIRMATION: ["confirm-review-categories", "advance-confident-review-items", "hold-review-items", "exclude-review-items"],
-  DUPLICATE_REVIEW: ["resolve-review-duplicates", "advance-review-items", "advance-confident-review-items", "hold-review-items", "exclude-review-items"],
-  FINAL_APPROVAL: ["publish-review-items", "hold-review-items", "exclude-review-items"],
+  CATEGORY_CONFIRMATION: ["confirm-local-dining", "confirm-review-categories", "advance-confident-review-items", "hold-review-items", "exclude-review-items"],
+  DUPLICATE_REVIEW: ["confirm-local-dining", "resolve-review-duplicates", "advance-review-items", "advance-confident-review-items", "hold-review-items", "exclude-review-items"],
+  FINAL_APPROVAL: ["confirm-local-dining", "publish-review-items", "hold-review-items", "exclude-review-items"],
 };
 
 export type ReviewRequestInput = {
@@ -55,6 +59,7 @@ export type ReviewRequestInput = {
   automaticWorkItemIds?: string[];
   reason?: string;
   confirmPublish?: string;
+  confirmLocalDining?: string;
   categoryByWorkItem?: Record<string, string>;
   addressByWorkItem?: Record<string, string>;
 };
@@ -100,6 +105,10 @@ export function checkReviewRequest(input: ReviewRequestInput): ReviewRequestChec
   }
   if (input.intent === "approve-manual-review-evidence" && !hasManualReviewEvidence(input.reason)) {
     return { ok: false, code: "MANUAL_EVIDENCE_REASON_REQUIRED" };
+  }
+  if (input.intent === "confirm-local-dining") {
+    if (workItemIds.length !== 1) return { ok: false, code: "LOCAL_DINING_SINGLE_REQUIRED" };
+    if (input.confirmLocalDining !== "on" || !hasManualReviewEvidence(input.reason) || (input.reason?.length ?? 0) > 300) return { ok: false, code: "LOCAL_DINING_CONFIRMATION_REQUIRED" };
   }
   if (input.intent === "update-review-item-addresses") {
     const missingAddress = workItemIds.some((workItemId) => !input.addressByWorkItem?.[workItemId]?.trim());

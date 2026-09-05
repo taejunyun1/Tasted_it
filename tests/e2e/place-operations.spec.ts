@@ -111,6 +111,15 @@ test("admin confirms a suggested pin on the map before approving exactly one dra
   const queueCard = page.locator(".place-review-card", { hasText: name });
   await expect(queueCard).toBeVisible();
   await expect(queueCard).toContainText("회원 제안");
+  await expect(queueCard).toContainText("로컬·방문 식사 확인 필요");
+  await queueCard.getByRole("checkbox").check();
+  await page.getByLabel("선택한 1곳이 체인이 아닌 로컬 식당이며, 직접 방문해 식사할 수 있음을 확인했습니다.").check();
+  await page.getByLabel("보류·제외·수동 근거").fill("현장 확인으로 방문 식사 좌석과 메뉴를 확인했으며 체인이 아닌 로컬 식당입니다.");
+  await page.getByRole("button", { name: "로컬·방문 식사 근거 저장 (20자 이상)" }).click();
+  await expect(queueCard).toContainText("확인 완료");
+  await page.goto(`/admin/place-operations?flow=review&q=${encodeURIComponent(name)}`);
+  await expect(queueCard).toContainText("확인 완료");
+  await page.screenshot({ path: `docs/evidence/2026-09-05-local-dining-${testInfo.project.name}.png`, fullPage: true });
 });
 
 test("public correction form is accessible before authentication", async ({ page }) => {

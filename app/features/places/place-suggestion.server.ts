@@ -6,6 +6,7 @@ import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput
 import { isSupportedRegionAddress, normalizeSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
 import { slugifyPlaceNameForAddress } from "./place-slug";
 import { newReviewWorkItemValues } from "./place-review-work-items.server";
+import { enforceReviewDiningExclusion } from "./local-dining-review.server";
 import { reviewableSuggestionStatuses } from "./place-suggestion-io";
 
 export interface SuggestionInput extends PlaceIdentityInput {
@@ -154,6 +155,8 @@ export async function approvePlaceSuggestion(db: AppDb, input: {
     }
     throw error;
   }
+  const reviewItem = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.placeId, placeId) });
+  if (reviewItem) await enforceReviewDiningExclusion(db, reviewItem, input.actorUserId, input.now);
   return { placeId, slug, status: "DRAFT" as const };
 }
 

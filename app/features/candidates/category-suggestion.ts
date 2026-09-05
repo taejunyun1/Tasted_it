@@ -174,7 +174,7 @@ export function getAuthoritativeSubtypeCategorySlug(
   const subtype = input.businessSubtype?.normalize("NFKC").trim() ?? "";
   if (!subtype || classification.confidence === "CONFLICT") return null;
   const matchesFinalCategory = subtypeCategoryRules.some((rule) =>
-    rule.slug === classification.categorySlug
+    (rule.kind === "FOOD" || rule.kind === "VENUE") && rule.slug === classification.categorySlug
     && rule.pattern.test(subtype)
     && !rule.excludePattern?.test(subtype),
   );
