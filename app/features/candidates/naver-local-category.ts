@@ -2,7 +2,7 @@ import type { CandidateClassification, ClassificationConfidence } from "./catego
 import type { NaverLocalSearchResult } from "./naver-local-search.server";
 import { addressMatchesRegion, type RegionCode } from "../regions/region-pack";
 
-export const NAVER_CATEGORY_RULE_VERSION = "naver-category-v1" as const;
+export const NAVER_CATEGORY_RULE_VERSION = "naver-category-v3-local-dining" as const;
 
 export type NaverVerificationStatus =
   | "VERIFIED"
@@ -25,6 +25,7 @@ export type NaverEvidenceCode =
   | "NAME_FOOD_MATCH";
 
 export type NaverLocalCategoryMatch = {
+  matchedCategoryPath?: string | null;
   status: NaverVerificationStatus;
   mappedCategorySlug: string | null;
   matchScore: number;
@@ -129,6 +130,8 @@ function inRequestedRegion(address: string, regionCode: RegionCode) {
 }
 
 function mapCategory(category: string, terminalSlugs: Set<string>): CategoryMapping | null {
+  const root = category.split(">")[0]?.replace(/\s/g, "") ?? "";
+  if (!/^(?:음식점|한식|양식|일식|중식|카페[,·/]디저트|카페|술집|분식|아시아음식)$/.test(root)) return null;
   const leaf = category.split(">").map((part) => part.trim()).filter(Boolean).at(-1) ?? "";
   if (broadCategoryLeafPattern.test(leaf)) return null;
   const matched = specificCategoryMappings.find(([pattern, slug]) => pattern.test(leaf) && terminalSlugs.has(slug));
@@ -162,7 +165,7 @@ export function matchNaverLocalCategory(input: MatchInput): NaverLocalCategoryMa
     const sameAddress = normalizeAddress(input.address) === normalizeAddress(result.address);
     const closeCoordinates = input.latitude != null && input.longitude != null
       && distanceMeters(input.latitude, input.longitude, result.latitude, result.longitude) <= 100;
-    return { matchedName, sameAddress, closeCoordinates, mapped: mapCategory(result.category, input.terminalSlugs) };
+    return { matchedName, sameAddress, closeCoordinates, categoryPath: result.category, mapped: mapCategory(result.category, input.terminalSlugs) };
   });
   const verified = candidates.filter((candidate) => candidate.matchedName && (candidate.sameAddress || candidate.closeCoordinates));
   if (verified.length > 1) return naverDecision("AMBIGUOUS", null);
@@ -173,7 +176,8 @@ export function matchNaverLocalCategory(input: MatchInput): NaverLocalCategoryMa
       candidate.sameAddress ? "NAVER_EXACT_ADDRESS" : "NAVER_COORDINATES_WITHIN_100M",
       candidate.mapped ? "NAVER_SPECIFIC_CATEGORY" : "NAVER_BROAD_CATEGORY",
     ];
-    return naverDecision("VERIFIED", candidate.mapped?.slug ?? null, 60, candidate.mapped?.specificityScore ?? 0, evidenceCodes);
+    return { ...naverDecision("VERIFIED", candidate.mapped?.slug ?? null, 60, candidate.mapped?.specificityScore ?? 0, evidenceCodes),
+      matchedCategoryPath: candidate.sameAddress ? candidate.categoryPath : null };
   }
   if (candidates.some((candidate) => candidate.matchedName)) return naverDecision("LIKELY", null);
   return naverDecision("NO_MATCH", null);

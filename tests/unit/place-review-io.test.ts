@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkReviewRequest, checkReviewResponse, reviewIntentsByStage } from "../../app/features/places/place-review-io";
+import { checkReviewRequest, checkReviewResponse, reviewIntentsByStage, NAVER_REVIEW_RUN_MAX, REVIEW_SELECTION_LIMIT } from "../../app/features/places/place-review-io";
 
 const ids = (count: number) => Array.from({ length: count }, (_, index) => `item-${index + 1}`);
 
@@ -15,6 +15,7 @@ describe("place review request contract", () => {
       "exclude-review-items",
     ]));
     expect(reviewIntentsByStage.NAVER_VERIFICATION).toEqual([
+      "confirm-local-dining",
       "verify-review-items-with-naver",
       "auto-verify-review-item-with-naver",
       "advance-review-items",
@@ -25,12 +26,14 @@ describe("place review request contract", () => {
       "exclude-review-items",
     ]);
     expect(reviewIntentsByStage.CATEGORY_CONFIRMATION).toEqual([
+      "confirm-local-dining",
       "confirm-review-categories",
       "advance-confident-review-items",
       "hold-review-items",
       "exclude-review-items",
     ]);
     expect(reviewIntentsByStage.DUPLICATE_REVIEW).toEqual([
+      "confirm-local-dining",
       "resolve-review-duplicates",
       "advance-review-items",
       "advance-confident-review-items",
@@ -38,6 +41,7 @@ describe("place review request contract", () => {
       "exclude-review-items",
     ]);
     expect(reviewIntentsByStage.FINAL_APPROVAL).toEqual([
+      "confirm-local-dining",
       "publish-review-items",
       "hold-review-items",
       "exclude-review-items",
@@ -64,6 +68,8 @@ describe("place review request contract", () => {
   });
 
   it("enforces batch size 1-50 and auto-verify exactly one", () => {
+    expect(REVIEW_SELECTION_LIMIT).toBe(50);
+    expect(NAVER_REVIEW_RUN_MAX).toBe(10);
     expect(checkReviewRequest({
       intent: "advance-review-items",
       expectedStage: "SOURCE_REVIEW",

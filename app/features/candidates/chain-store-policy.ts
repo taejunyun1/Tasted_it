@@ -124,13 +124,33 @@ export function classifyChainStore(businessName: string): ChainClassification | 
 }
 
 export function matchChainStore(businessName: string): ChainStoreMatch | null {
-  const classification = classifyChainStore(businessName);
+  const classification = classifyDiningChainStore(businessName);
   if (
     !classification ||
     classification.confidence < 0.9 ||
-    !["NATIONAL_CHAIN", "REGIONAL_CHAIN"].includes(classification.chainStatus)
+    !["NATIONAL_CHAIN", "REGIONAL_CHAIN", "LOCAL_CHAIN"].includes(classification.chainStatus)
   ) {
     return null;
   }
   return classification;
+}
+
+/** Strict brand/branch grammar for exclusions; a name prefix alone is not proof. */
+export function classifyDiningChainStore(businessName: string): ChainClassification | null {
+  const name = normalizeChainStoreName(businessName);
+  for (const [definitions, scope] of [[localAllowlist, "LOCAL_CHAIN"], [manualBlacklist, "NATIONAL_CHAIN"]] as const) {
+    for (const definition of definitions) {
+      for (const [term, alias] of [[definition.name, false], ...definition.aliases.map((term) => [term, true] as const)] as const) {
+        // Generic short aliases such as "가족" are not safe automatic exclusions.
+        const brand = normalizeChainStoreName(term);
+        if (alias && brand.length <= 2) continue;
+        const exact = name === brand;
+        const branch = name.startsWith(brand) && /^(?:[가-힣a-z0-9]+)?(?:점|dt)$/.test(name.slice(brand.length));
+        if (!exact && !branch) continue;
+        return { chainStatus: scope, chainId: definition.id, chainName: definition.name, matchedTerm: term,
+          matchMethod: exact ? alias ? "ALIAS_EXACT" : "BRAND_EXACT" : alias ? "ALIAS_PREFIX" : "BRAND_PREFIX", confidence: exact ? 1 : alias ? 0.9 : 0.95 };
+      }
+    }
+  }
+  return null;
 }

@@ -1,11 +1,13 @@
 import { eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { naverLocalCategoryRuns, placeLivenessStates, places } from "../../db/schema";
+import { categories, naverLocalCategoryRuns, placeLivenessStates, places } from "../../db/schema";
+import { getTerminalCategoryIds } from "../candidates/category-selection";
 import { matchNaverLocalCategory, type NaverLocalCategoryMatch } from "../candidates/naver-local-category";
 import { NaverLocalSearchError, type NaverLocalSearchAdapter } from "../candidates/naver-local-search.server";
 import { ACTIVE_REGION_CODES, regionFromAddress, type RegionCode } from "../regions/region-pack";
 import { assertNaverRegionQuota, getNaverLocalSearchApiCallsToday, isNaverRegionSearchEnabled, uniqueRunRegion } from "./naver-region-quota.server";
+import { diningSubjectKey } from "./local-dining-policy";
 
 const MAX_BATCH_SIZE = 25;
 
@@ -49,6 +51,10 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
   if (placeIds.length < 1 || placeIds.length > MAX_BATCH_SIZE) throw new Error("NAVER_PLACE_LIVENESS_LIMIT_INVALID");
   const rows = await db.select({ id: places.id, name: places.name, address: places.address, latitude: places.latitude, longitude: places.longitude })
     .from(places).where(inArray(places.id, placeIds));
+  const categoryRows = await db.select().from(categories).where(eq(categories.isActive, true));
+  const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
+  const terminalSlugs = new Set(categoryRows.filter((category) => terminalCategoryIds.has(category.id)).map((category) => category.slug));
+  const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category.id]));
   const runId = crypto.randomUUID();
   await db.insert(naverLocalCategoryRuns).values({
     id: runId, mode: "APPLY", scope: "PUBLISHED", status: "RUNNING", requestedLimit: placeIds.length,
@@ -71,6 +77,9 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
       let status: "MATCHED" | "AMBIGUOUS" | "NOT_FOUND" | "ERROR" = "ERROR";
       let score: number | null = null;
       let evidenceCodes: string[] = [];
+      let naverCategoryPath: string | null = null;
+      let naverMappedCategoryId: string | null = null;
+      const naverSubjectKey = diningSubjectKey({ businessName: row.name, address: row.address, latitude: row.latitude, longitude: row.longitude, sourceType: "PLACE" });
       if (!regionCode) {
         status = "NOT_FOUND";
       } else if (!isNaverRegionSearchEnabled(regionCode)) {
@@ -86,10 +95,12 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
           const results = await input.adapter.search({ businessName: row.name, address: row.address, regionCode });
           apiCalls += 1;
           extraCalls[regionCode] += 1;
-          const match = matchNaverLocalCategory({ ...row, businessName: row.name, regionCode, results, terminalSlugs: new Set() });
+          const match = matchNaverLocalCategory({ ...row, businessName: row.name, regionCode, results, terminalSlugs });
           status = naverStatus(match);
           score = match.matchScore;
           evidenceCodes = match.evidenceCodes;
+          naverCategoryPath = match.matchedCategoryPath ?? null;
+          naverMappedCategoryId = match.mappedCategorySlug ? categoryBySlug.get(match.mappedCategorySlug) ?? null : null;
         } catch (error) {
           apiCalls += 1;
           extraCalls[regionCode] += 1;
@@ -100,9 +111,9 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
       if (status === "MATCHED") matched += 1;
       else if (status !== "ERROR") manual += 1;
       await db.insert(placeLivenessStates).values({
-        placeId: row.id, naverStatus: status, naverMatchScore: score, naverEvidenceCodesJson: JSON.stringify(evidenceCodes), naverLastCheckedAt: input.now, updatedAt: input.now,
+        placeId: row.id, naverStatus: status, naverMatchScore: score, naverMappedCategoryId, naverEvidenceCodesJson: JSON.stringify(evidenceCodes), naverLastCheckedAt: input.now, naverCategoryPath, naverSubjectKey, updatedAt: input.now,
       }).onConflictDoUpdate({ target: placeLivenessStates.placeId, set: {
-        naverStatus: status, naverMatchScore: score, naverEvidenceCodesJson: JSON.stringify(evidenceCodes), naverLastCheckedAt: input.now, updatedAt: input.now,
+        naverStatus: status, naverMatchScore: score, naverMappedCategoryId, naverEvidenceCodesJson: JSON.stringify(evidenceCodes), naverLastCheckedAt: input.now, naverCategoryPath, naverSubjectKey, updatedAt: input.now,
       } });
     }
     const result = { runId, scanned, matched, manual, failed, apiCalls };

@@ -23,7 +23,8 @@ import {
   type ReviewStage,
 } from "./place-review-pipeline";
 import { openReviewDuplicateCount } from "./place-review-duplicates.server";
-import { classifyFoodVenue } from "./food-venue-policy";
+import { enforceReviewDiningExclusion, getReviewDiningContext } from "./local-dining-review.server";
+import { getTerminalCategoryIds } from "../candidates/category-selection";
 import { regionFromAddress } from "../regions/region-pack";
 
 export type ReviewSourceKind = "PUBLIC_DATA" | "PLACE_SUGGESTION" | "CATEGORY_RECALL" | "LIVENESS_RECHECK";
@@ -75,7 +76,8 @@ export async function createReviewWorkItem(db: AppDb, input: NewReviewSubject & 
   now: string;
 }) {
   const values = newReviewWorkItemValues(input);
-  await db.insert(placeReviewWorkItems).values(values).onConflictDoNothing();
+  const inserted = await db.insert(placeReviewWorkItems).values(values).onConflictDoNothing().returning();
+  if (inserted[0]) await enforceReviewDiningExclusion(db, inserted[0], null, input.now);
   return values;
 }
 
@@ -105,6 +107,7 @@ async function reviewEvidence(
   db: AppDb,
   workItem: typeof placeReviewWorkItems.$inferSelect,
   manualEvidenceReason?: string,
+  now = new Date().toISOString(),
 ): Promise<ConfidentAdvanceEvidence> {
   const hasManualEvidence = hasManualReviewEvidence(manualEvidenceReason) || hasManualReviewEvidence(workItem.manualEvidenceReason);
   const [businessLicense, place, candidateNaver, placeLiveness, selectedCategory, activeExclusion] = await Promise.all([
@@ -141,6 +144,8 @@ async function reviewEvidence(
       && businessLicense.longitude != null
     : Boolean(place?.address && place.latitude != null && place.longitude != null);
   const openDuplicateCount = await openReviewDuplicateCount(db, workItem);
+  const dining = await getReviewDiningContext(db, workItem, now);
+  const activeCategories = await db.select().from(categories).where(eq(categories.isActive, true));
 
   return {
     sourceReady,
@@ -151,7 +156,8 @@ async function reviewEvidence(
     categoryActive: Boolean(leafCategory?.isActive),
     openDuplicateCount,
     activeExclusion: Boolean(activeExclusion),
-    categoryLeaf: Boolean(leafCategory?.parentId),
+    localDiningDecision: dining.decision.decision,
+    categoryLeaf: Boolean(leafCategory && getTerminalCategoryIds(activeCategories).has(leafCategory.id)),
     hasManualEvidence,
   };
 }
@@ -162,12 +168,15 @@ async function applyStoredLeafCategory(
   now: string,
 ) {
   if (workItem.selectedCategoryId || !workItem.businessLicenseId) return workItem;
+  const dining = await getReviewDiningContext(db, workItem, now);
+  if (dining.decision.decision === "EXCLUDE" || !dining.candidateFresh) return workItem;
   const verification = await db.query.naverLocalCategoryVerifications.findFirst({
     where: eq(naverLocalCategoryVerifications.businessLicenseId, workItem.businessLicenseId),
   });
   if (verification?.status !== "VERIFIED" || !verification.mappedCategoryId) return workItem;
   const mapped = await db.query.categories.findFirst({ where: eq(categories.id, verification.mappedCategoryId) });
-  if (!mapped?.parentId || !mapped.isActive) return workItem;
+  const activeCategories = await db.select().from(categories).where(eq(categories.isActive, true));
+  if (!mapped?.isActive || !getTerminalCategoryIds(activeCategories).has(mapped.id)) return workItem;
   const updated = await db.update(placeReviewWorkItems).set({
     selectedCategoryId: mapped.id,
     categoryOverrideReason: null,
@@ -190,7 +199,7 @@ async function chainConfidentReviewAdvance(db: AppDb, input: {
     const current = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, input.workItemId) });
     if (!current || current.status !== "ACTIVE") return;
     const withCategory = await applyStoredLeafCategory(db, current, input.now);
-    const evidence = await reviewEvidence(db, withCategory);
+    const evidence = await reviewEvidence(db, withCategory, undefined, input.now);
     if (!confidentAdvanceAllowed(withCategory.stage, evidence)) return;
     const result = await advancePlaceReviewWorkItems(db, {
       workItemIds: [withCategory.id],
@@ -229,7 +238,9 @@ export async function advancePlaceReviewWorkItems(db: AppDb, input: {
       continue;
     }
 
-    const evidence = await reviewEvidence(db, workItem, input.manualEvidenceReason);
+    const dining = await enforceReviewDiningExclusion(db, workItem, input.actorUserId, input.now);
+    if (dining.decision.decision === "EXCLUDE") { skipped.push({ workItemId, code: "ACTIVE_EXCLUSION" }); continue; }
+    const evidence = await reviewEvidence(db, workItem, input.manualEvidenceReason, input.now);
     const result = evaluateReviewAdvance(workItem.stage, evidence);
     if (!result.ok) {
       skipped.push({ workItemId, code: result.code });
@@ -317,8 +328,10 @@ export async function advanceConfidentReviewWorkItems(db: AppDb, input: {
       continue;
     }
 
+    const dining = await enforceReviewDiningExclusion(db, workItem, input.actorUserId, input.now);
+    if (dining.decision.decision === "EXCLUDE") { skipped.push({ workItemId, code: "ACTIVE_EXCLUSION" }); continue; }
     const withCategory = await applyStoredLeafCategory(db, workItem, input.now);
-    const evidence = await reviewEvidence(db, withCategory);
+    const evidence = await reviewEvidence(db, withCategory, undefined, input.now);
     if (!confidentAdvanceAllowed(withCategory.stage, evidence)) {
       skipped.push({ workItemId, code: confidentAdvanceSkipCode(withCategory.stage, evidence) });
       continue;
@@ -432,43 +445,15 @@ export async function autoExcludeNonFoodReviewItems(db: AppDb, input: {
       continue;
     }
 
-    const license = workItem.businessLicenseId
-      ? await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, workItem.businessLicenseId) })
-      : undefined;
-    const decision = classifyFoodVenue({ businessName: license?.businessName ?? "", businessSubtype: license?.businessSubtype ?? null });
-    if (decision.decision !== "EXCLUDE") {
+    const result = await enforceReviewDiningExclusion(db, workItem, input.actorUserId, input.now);
+    if (result.decision.decision !== "EXCLUDE") {
       skipped.push({ workItemId, code: "NOT_NON_FOOD" });
       continue;
     }
-
-    const note = `${decision.matchedRule} · ${decision.matchMethod}`;
-    const updated = await db.update(placeReviewWorkItems).set({
-      status: "EXCLUDED",
-      holdCode: "AUTO_NON_FOOD",
-      holdNote: note,
-      lastTransitionBy: input.actorUserId,
-      lastTransitionAt: input.now,
-      updatedAt: input.now,
-    }).where(and(
-      eq(placeReviewWorkItems.id, workItem.id),
-      eq(placeReviewWorkItems.status, "ACTIVE"),
-      eq(placeReviewWorkItems.stage, "SOURCE_REVIEW"),
-      eq(placeReviewWorkItems.stageVersion, workItem.stageVersion),
-    )).returning({ id: placeReviewWorkItems.id });
-    if (!updated.length) {
+    if (!result.excluded) {
       skipped.push({ workItemId, code: "STALE_WORK_ITEM" });
       continue;
     }
-    await db.insert(adminAuditLogs).values({
-      id: crypto.randomUUID(),
-      actorUserId: input.actorUserId,
-      action: "PLACE_REVIEW_AUTO_EXCLUDE_NON_FOOD",
-      targetType: "PLACE_REVIEW_WORK_ITEM",
-      targetId: workItem.id,
-      beforeState: JSON.stringify({ status: workItem.status, stage: workItem.stage }),
-      afterState: JSON.stringify({ status: "EXCLUDED", code: "AUTO_NON_FOOD", note }),
-      createdAt: input.now,
-    });
     changed.push(workItemId);
   }
 

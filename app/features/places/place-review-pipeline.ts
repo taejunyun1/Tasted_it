@@ -17,6 +17,7 @@ export type ReviewBlockCode =
   | "CATEGORY_INACTIVE"
   | "DUPLICATE_REVIEW_REQUIRED"
   | "ACTIVE_EXCLUSION"
+  | "LOCAL_DINING_REVIEW_REQUIRED"
   | "ALREADY_FINAL";
 
 export type ReviewGateEvidence = {
@@ -26,6 +27,7 @@ export type ReviewGateEvidence = {
   categoryActive: boolean;
   openDuplicateCount: number;
   activeExclusion: boolean;
+  localDiningDecision?: "ELIGIBLE" | "EXCLUDE" | "REVIEW";
 };
 
 export type ReviewAdvanceResult =
@@ -63,6 +65,10 @@ export function naverNeedsConfirmation(status?: string | null) {
 }
 
 export function evaluateReviewAdvance(stage: ReviewStage, evidence: ReviewGateEvidence): ReviewAdvanceResult {
+  if (evidence.activeExclusion || evidence.localDiningDecision === "EXCLUDE") return { ok: false, code: "ACTIVE_EXCLUSION" };
+  if (["CATEGORY_CONFIRMATION", "DUPLICATE_REVIEW"].includes(stage) && evidence.localDiningDecision === "REVIEW") {
+    return { ok: false, code: "LOCAL_DINING_REVIEW_REQUIRED" };
+  }
   if (stage === "SOURCE_REVIEW") {
     return evidence.sourceReady
       ? { ok: true, nextStage: "NAVER_VERIFICATION" }
@@ -118,6 +124,7 @@ export function confidentAdvanceAllowed(
 ): boolean {
   if (stage === "FINAL_APPROVAL") return false;
   if (evidence.activeExclusion) return false;
+  if (stage !== "SOURCE_REVIEW" && evidence.localDiningDecision === "REVIEW") return false;
 
   if (stage === "NAVER_VERIFICATION") {
     if (evidence.naverDecision === "MANUAL_OVERRIDE") {
@@ -143,6 +150,8 @@ export function confidentAdvanceSkipCode(
 ): ReviewBlockCode {
   if (stage === "FINAL_APPROVAL") return "ALREADY_FINAL";
   if (evidence.activeExclusion) return "ACTIVE_EXCLUSION";
+  if (evidence.localDiningDecision === "EXCLUDE") return "ACTIVE_EXCLUSION";
+  if (stage !== "SOURCE_REVIEW" && evidence.localDiningDecision === "REVIEW") return "LOCAL_DINING_REVIEW_REQUIRED";
 
   if (stage === "NAVER_VERIFICATION") {
     if (evidence.naverDecision === "MANUAL_OVERRIDE") {

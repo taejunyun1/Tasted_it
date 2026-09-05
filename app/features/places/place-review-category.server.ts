@@ -5,6 +5,7 @@ import { adminAuditLogs, categories, naverLocalCategoryVerifications, placeRevie
 import { getTerminalCategoryIds } from "../candidates/category-selection";
 import { REVIEW_BATCH_MAX } from "./place-review-io";
 import { advancePlaceReviewWorkItems } from "./place-review-work-items.server";
+import { enforceReviewDiningExclusion } from "./local-dining-review.server";
 
 export async function confirmReviewItemCategories(db: AppDb, input: {
   selections: Array<{ workItemId: string; categoryId: string; reason: string }>;
@@ -26,6 +27,8 @@ export async function confirmReviewItemCategories(db: AppDb, input: {
     const workItem = workItemsById.get(selection.workItemId);
     const category = categoriesById.get(selection.categoryId);
     if (!workItem || workItem.status !== "ACTIVE" || workItem.stage !== "CATEGORY_CONFIRMATION") { skipped.push({ workItemId: selection.workItemId, code: "NOT_ACTIVE" }); continue; }
+    const dining = await enforceReviewDiningExclusion(db, workItem, input.actorUserId, input.now);
+    if (dining.decision.decision !== "ELIGIBLE") { skipped.push({ workItemId: selection.workItemId, code: dining.decision.decision === "EXCLUDE" ? "ACTIVE_EXCLUSION" : "LOCAL_DINING_REVIEW_REQUIRED" }); continue; }
     if (!category || !terminalCategoryIds.has(category.id)) { skipped.push({ workItemId: selection.workItemId, code: "CATEGORY_INACTIVE" }); continue; }
     const naverCategoryId = workItem.businessLicenseId
       ? (await db.query.naverLocalCategoryVerifications.findFirst({ where: eq(naverLocalCategoryVerifications.businessLicenseId, workItem.businessLicenseId) }))?.mappedCategoryId

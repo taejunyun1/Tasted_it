@@ -12,7 +12,7 @@ import {
 } from "../../db/schema";
 import { classifyCandidate } from "./category-suggestion";
 import { getTerminalCategoryIds } from "./category-selection";
-import { classifyFoodVenue } from "../places/food-venue-policy";
+import { classifyLocalDining } from "../places/local-dining-policy";
 
 const MAX_PAGE_SIZE = 100;
 
@@ -39,7 +39,7 @@ type ReclassificationWorkItem = ReclassificationChange & {
   fromCategoryId: string;
   toCategoryId: string | null;
   businessLicenseId: string;
-  exclusionCategory: "ADULT_ENTERTAINMENT" | "NOT_RESTAURANT" | null;
+  exclusionCategory: "CHAIN_STORE" | "ADULT_ENTERTAINMENT" | "NOT_RESTAURANT" | null;
   matchedRule: string | null;
 };
 
@@ -83,9 +83,18 @@ async function getReclassificationWork(db: AppDb, input: { afterPlaceId: string 
   const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
   const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
   const items: ReclassificationWorkItem[] = pageRows.map((row) => {
-    const venue = classifyFoodVenue({ businessName: row.businessName, businessSubtype: row.businessSubtype });
+    const dining = classifyLocalDining({ businessName: row.businessName, businessSubtype: row.businessSubtype, sourceType: row.sourceType });
     const overridden = row.exclusionStatus === "OVERRIDDEN";
-    if (venue.decision === "EXCLUDE" && !overridden) {
+    if (dining.decision === "EXCLUDE" && !overridden) {
+      const exclusionCategory = dining.reasons.includes("CHAIN_STORE")
+        ? "CHAIN_STORE" as const
+        : dining.reasons.includes("ADULT_ENTERTAINMENT")
+          ? "ADULT_ENTERTAINMENT" as const
+          : "NOT_RESTAURANT" as const;
+      const matchedRule = dining.matchedRules.length === 1 && dining.matchedRules[0] === "NAME_NON_FOOD_VENUE"
+        && /(?:pc방|피씨방|피시방)$/iu.test(row.businessName)
+        ? "NAME_PC_BANG"
+        : dining.matchedRules.join("|");
       if (row.exclusionStatus === "ACTIVE") {
         return {
           placeId: row.placeId,
@@ -94,8 +103,8 @@ async function getReclassificationWork(db: AppDb, input: { afterPlaceId: string 
           fromSlug: row.fromSlug,
           toSlug: null,
           toCategoryId: null,
-          exclusionCategory: venue.category,
-          matchedRule: venue.matchedRule,
+          exclusionCategory,
+          matchedRule,
           decision: "KEEP",
           reason: "이미 자동 제외됨",
         };
@@ -107,10 +116,10 @@ async function getReclassificationWork(db: AppDb, input: { afterPlaceId: string 
         fromSlug: row.fromSlug,
         toSlug: null,
         toCategoryId: null,
-        exclusionCategory: venue.category,
-        matchedRule: venue.matchedRule,
+        exclusionCategory,
+        matchedRule,
         decision: "EXCLUDE",
-        reason: `${venue.matchedRule} · 음식점 아닌 시설`,
+        reason: `${matchedRule} · 로컬 방문 식당 정책 제외`,
       };
     }
     const classification = classifyCandidate({
@@ -230,9 +239,11 @@ export async function applyCategoryReclassification(db: AppDb, input: {
     if (item.decision !== "EXCLUDE" || !item.exclusionCategory || !item.matchedRule) continue;
     const exclusionCategory = item.exclusionCategory;
     const matchedRule = item.matchedRule;
-    const action = exclusionCategory === "ADULT_ENTERTAINMENT"
-      ? "AUTO_EXCLUDE_ADULT_ENTERTAINMENT"
-      : "AUTO_EXCLUDE_NOT_RESTAURANT";
+    const action = exclusionCategory === "CHAIN_STORE"
+      ? "AUTO_EXCLUDE_CHAIN_STORE"
+      : exclusionCategory === "ADULT_ENTERTAINMENT"
+        ? "AUTO_EXCLUDE_ADULT_ENTERTAINMENT"
+        : "AUTO_EXCLUDE_NOT_RESTAURANT";
     await db.batch([
       db.insert(businessLicenseExclusions).values({
         businessLicenseId: item.businessLicenseId,

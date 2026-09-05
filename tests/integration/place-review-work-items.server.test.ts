@@ -62,9 +62,9 @@ describe("place review work item transitions", () => {
     expect(result.changed).toEqual([nonFood.workItemId]);
     expect(result.skipped).toContainEqual({ workItemId: restaurant.workItemId, code: "NOT_NON_FOOD" });
     await expect(nonFood.db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, nonFood.workItemId) }))
-      .resolves.toMatchObject({ status: "EXCLUDED", holdCode: "AUTO_NON_FOOD", holdNote: expect.stringContaining("NAME_CONVENIENCE_GS25") });
+      .resolves.toMatchObject({ status: "EXCLUDED", holdCode: "AUTO_LOCAL_DINING_EXCLUSION", holdNote: expect.stringContaining("NAME_CONVENIENCE_GS25") });
     await expect(nonFood.db.query.adminAuditLogs.findFirst({ where: eq(adminAuditLogs.targetId, nonFood.workItemId) }))
-      .resolves.toMatchObject({ action: "PLACE_REVIEW_AUTO_EXCLUDE_NON_FOOD" });
+      .resolves.toMatchObject({ action: "PLACE_REVIEW_AUTO_EXCLUDE_LOCAL_DINING" });
   });
 
   it("keeps NO_MATCH on NAVER verification until 20-character manual evidence is recorded", async () => {

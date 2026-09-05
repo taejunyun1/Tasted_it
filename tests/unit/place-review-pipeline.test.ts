@@ -8,9 +8,15 @@ const ready = {
   categoryActive: true,
   openDuplicateCount: 0,
   activeExclusion: false,
+  localDiningDecision: "ELIGIBLE" as const,
 };
 
 describe("place review stage gates", () => {
+  it("never interprets missing local/dine-in evidence as eligibility", () => {
+    expect(evaluateReviewAdvance("CATEGORY_CONFIRMATION", { ...ready, localDiningDecision: "REVIEW" })).toEqual({ ok: false, code: "LOCAL_DINING_REVIEW_REQUIRED" });
+    expect(evaluateReviewAdvance("DUPLICATE_REVIEW", { ...ready, localDiningDecision: "REVIEW" })).toEqual({ ok: false, code: "LOCAL_DINING_REVIEW_REQUIRED" });
+    expect(evaluateReviewAdvance("SOURCE_REVIEW", { ...ready, localDiningDecision: "EXCLUDE" })).toEqual({ ok: false, code: "ACTIVE_EXCLUSION" });
+  });
   it("moves exactly one stage", () => {
     expect(evaluateReviewAdvance("SOURCE_REVIEW", ready)).toEqual({ ok: true, nextStage: "NAVER_VERIFICATION" });
     expect(evaluateReviewAdvance("NAVER_VERIFICATION", ready)).toEqual({ ok: true, nextStage: "CATEGORY_CONFIRMATION" });

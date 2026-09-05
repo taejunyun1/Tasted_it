@@ -34,6 +34,7 @@ import { reviewErrorMessage } from "../features/places/place-review-errors";
 import { checkReviewRequest } from "../features/places/place-review-io";
 import { parsePlaceReviewQuery } from "../features/places/place-review-pagination";
 import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
+import { confirmLocalDiningReview } from "../features/places/local-dining-review.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { isConfidentAdvanceEnabled } from "../features/places/place-review-pipeline";
 import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
@@ -247,17 +248,18 @@ export async function action({ request }: Route.ActionArgs) {
   const expectedStage = String(form.get("expectedStage") ?? "");
   const reason = String(form.get("reason") ?? "").trim();
   const confirmPublish = String(form.get("confirmPublish") ?? "");
+  const confirmLocalDining = String(form.get("confirmLocalDining") ?? "");
   const categoryByWorkItem = Object.fromEntries(workItemIds.map((workItemId) => [workItemId, String(form.get(`category:${workItemId}`) ?? "")]));
   const addressByWorkItem = Object.fromEntries(workItemIds.map((workItemId) => [workItemId, String(form.get(`address:${workItemId}`) ?? "")]));
   const checked = checkReviewRequest({
-    intent, expectedStage, workItemIds, automaticWorkItemIds, reason, confirmPublish, categoryByWorkItem, addressByWorkItem,
+    intent, expectedStage, workItemIds, automaticWorkItemIds, reason, confirmPublish, confirmLocalDining, categoryByWorkItem, addressByWorkItem,
   });
   if (!checked.ok) return reviewActionError(checked.code, batchId ? { batchId } : undefined);
 
   if (intent === "auto-exclude-non-food-review-items") {
     try {
       const result = await autoExcludeNonFoodReviewItems(db, { workItemIds: automaticWorkItemIds, actorUserId: admin.id, now });
-      return { ok: true, message: `비음식점 자동 제외 ${result.changed.length}곳 · 유지 ${result.skipped.length}곳`, skipped: result.skipped };
+      return { ok: true, message: `로컬 방문 식당 정책 제외 ${result.changed.length}곳 · 추가 검토 ${result.skipped.length}곳`, skipped: result.skipped };
     } catch (error) {
       return reviewCaughtError(error);
     }
@@ -303,6 +305,10 @@ export async function action({ request }: Route.ActionArgs) {
           : "조건부 이동이 꺼져 있습니다. 이동 0곳 · 공개 0곳",
         skipped: result.skipped,
       };
+    }
+    if (intent === "confirm-local-dining") {
+      const result = await confirmLocalDiningReview(db, { workItemIds, expectedVersions: versions, actorUserId: admin.id, reason, confirmed: confirmLocalDining === "on", now });
+      return { ok: true, message: `로컬·방문 식사 근거 ${result.confirmed.length}곳 저장. 단계 이동과 공개는 별도입니다.` };
     }
     if (intent === "confirm-review-categories") {
       const selections = workItemIds.map((workItemId) => ({ workItemId, categoryId: String(form.get(`category:${workItemId}`) ?? ""), reason: String(form.get("reason") ?? "") }));

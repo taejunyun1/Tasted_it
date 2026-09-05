@@ -11,6 +11,9 @@ import {
   places,
 } from "../../app/db/schema";
 import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
+import { diningSubjectKey, LOCAL_DINING_POLICY_VERSION } from "../../app/features/places/local-dining-policy";
+import { NAVER_CATEGORY_RULE_VERSION } from "../../app/features/candidates/naver-local-category";
+import { pendingVerificationFingerprint } from "../../app/features/candidates/naver-pending-candidate-verification.server";
 
 const now = "2026-08-24T12:00:00.000Z";
 
@@ -41,6 +44,7 @@ async function createCandidateReview(input: {
   ]);
   const businessName = `체인 검수 식당 ${suffix.slice(0, 8)}`;
   const roadAddress = `광주광역시 북구 검수로 ${suffix.slice(0, 8)}`;
+  const subject = { businessName, address: roadAddress, businessSubtype: "한식", sourceType: "GENERAL_RESTAURANT", latitude: 35.16, longitude: 126.91 };
   await db.insert(businessLicenses).values({
     id: businessLicenseId, sourceType: "GENERAL_RESTAURANT", sourceManagementNo: suffix, businessName, businessSubtype: "한식",
     salesStatusCode: "01", salesStatusName: "영업/정상", detailStatusCode: "01", detailStatusName: "영업", normalizedStatus: "OPEN",
@@ -65,17 +69,17 @@ async function createCandidateReview(input: {
       specificityScore: input.mappedCategory === "leaf" ? 1 : 0,
       confidenceScore: input.naverStatus === "VERIFIED" ? 1 : 0,
       evidenceCodesJson: input.mappedCategory === "broad" ? '["NAVER_BROAD_CATEGORY"]' : "[]",
-      ruleVersion: "naver-category-v1",
-      inputFingerprint: suffix,
+      ruleVersion: NAVER_CATEGORY_RULE_VERSION,
+      inputFingerprint: await pendingVerificationFingerprint(subject),
       queriedAt: now,
-      expiresAt: null,
+      expiresAt: "2026-11-01T00:00:00.000Z",
       failureCode: null,
       createdAt: now,
       updatedAt: now,
     });
   }
   const item = newReviewWorkItemValues({ businessLicenseId, sourceKind: "PUBLIC_DATA", now });
-  await db.insert(placeReviewWorkItems).values(item);
+  await db.insert(placeReviewWorkItems).values({ ...item, localDiningEvidenceJson: JSON.stringify({ policyVersion: LOCAL_DINING_POLICY_VERSION, subjectKey: diningSubjectKey(subject), actorUserId, confirmedAt: now, reason: "로컬 독립 식당이며 현장에 방문하여 식사 가능한 좌석과 영업을 확인했습니다." }) });
   return { db, actorUserId, workItemId: item.id, businessLicenseId, otherWorkItemId: null as string | null };
 }
 

@@ -1,5 +1,6 @@
 import type { PlaceReviewQueueRow } from "../../features/places/place-review-query.server";
 import { naverNeedsConfirmation } from "../../features/places/place-review-pipeline";
+import { reviewErrorMessage } from "../../features/places/place-review-errors";
 
 const sourceLabels: Record<PlaceReviewQueueRow["sourceKind"], string> = {
   PUBLIC_DATA: "공공데이터",
@@ -48,10 +49,14 @@ export function PlaceReviewCard({ row, checked, onToggle, addressEditable = fals
       <p>{row.address || "주소 확인 필요"}</p>
       {addressEditable && checked && <label className="place-review-address-edit" onClick={(event) => event.stopPropagation()}>주소 상세<input name={`address:${row.workItemId}`} defaultValue={row.address} maxLength={200} /></label>}
       <dl>
-        <div><dt>NAVER</dt><dd>{naverStatusLabel(row.naverStatus)}{row.naverScore != null ? ` · ${row.naverScore}점` : ""}</dd></div>
+        <div><dt>NAVER 장소 대조</dt><dd>{naverStatusLabel(row.naverStatus)}</dd></div>
         <div><dt>카테고리</dt><dd>{categoryEvidenceLabel(row)}</dd></div>
+        <div><dt>로컬·방문 식사</dt><dd>{row.diningStatus === "ELIGIBLE" ? "확인 완료" : row.diningStatus === "EXCLUDE" ? "자동 제외 대상" : "확인 필요"}</dd></div>
+        <div><dt>원천 업태·업종</dt><dd>{row.businessSubtype || "자료 없음"}</dd></div>
+        <div><dt>NAVER 업종 근거</dt><dd>{row.naverCategoryPath || "현재 유효한 상세 업종 근거 없음"}</dd></div>
       </dl>
-      {row.blockCodes.length > 0 && <ul className="place-review-blocks">{row.blockCodes.map((code) => <li key={code}>{code === "NAVER_REVIEW_REQUIRED" ? "확인필요" : code}</li>)}</ul>}
+      {!!row.diningReasons?.length && <p>{row.diningReasons.join(" · ")}</p>}
+      {row.blockCodes.length > 0 && <ul className="place-review-blocks">{row.blockCodes.map((code) => <li key={code}>{reviewErrorMessage(code).message}</li>)}</ul>}
     </div>
   </article>;
 }

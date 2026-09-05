@@ -5,6 +5,7 @@ import { adminAuditLogs, businessLicenses, placeCategories, placeReviewWorkItems
 import { approveCandidate } from "../candidates/candidate.server";
 import { REVIEW_BATCH_MAX } from "./place-review-io";
 import { listReviewDuplicateCandidates } from "./place-review-duplicates.server";
+import { enforceReviewDiningExclusion } from "./local-dining-review.server";
 
 function uniqueIds(ids: string[]) {
   const unique = [...new Set(ids.filter(Boolean))];
@@ -31,6 +32,11 @@ export async function publishReviewedPlaces(db: AppDb, input: {
     }
     if (!item.selectedCategoryId) {
       skipped.push({ workItemId: item.id, code: "CATEGORY_REQUIRED" });
+      continue;
+    }
+    const dining = await enforceReviewDiningExclusion(db, item, input.actorUserId, input.now);
+    if (dining.decision.decision !== "ELIGIBLE") {
+      skipped.push({ workItemId: item.id, code: dining.decision.decision === "EXCLUDE" ? "ACTIVE_EXCLUSION" : "LOCAL_DINING_REVIEW_REQUIRED" });
       continue;
     }
     const duplicateCandidates = await listReviewDuplicateCandidates(db, [item.id]);

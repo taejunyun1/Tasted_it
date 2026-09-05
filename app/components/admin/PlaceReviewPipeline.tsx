@@ -46,7 +46,8 @@ const overlayCopyByIntent: Record<string, string> = {
   "advance-review-items": "다음 단계로 이동하는 중입니다",
   "hold-review-items": "선택한 항목을 보류하는 중입니다",
   "exclude-review-items": "선택한 항목을 제외하는 중입니다",
-  "auto-exclude-non-food-review-items": "비음식점을 제외하는 중입니다",
+  "auto-exclude-non-food-review-items": "방문 식당 제외 대상을 거르는 중입니다",
+  "confirm-local-dining": "방문 식사 근거를 저장하는 중입니다",
   "advance-confident-review-items": "근거 있는 항목만 다음 단계로 옮기는 중입니다",
 };
 
@@ -70,6 +71,8 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   const naverBatchFetcher = useFetcher<NaverBatchActionData>();
   const naverFetcherState = useRef(naverBatchFetcher.state);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedReviewRows = useMemo(() => page.rows.filter((row) => selectedSet.has(row.workItemId)), [page.rows, selectedSet]);
+  const canConfirmLocalDining = selectedReviewRows.length === 1 && selectedReviewRows[0]?.diningStatus === "REVIEW";
   const duplicatesByWorkItem = useMemo(() => duplicateCandidates.reduce<Record<string, ReviewDuplicateCandidate[]>>((groups, candidate) => {
     groups[candidate.workItemId] = [...(groups[candidate.workItemId] ?? []), candidate];
     return groups;
@@ -156,7 +159,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
       <div className="place-review-selection-bar">
         <strong>{selectedIds.length} / {selectionLimit} 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다.</span>
         <button type="button" className="secondary" onClick={togglePageSelection}>{selectedIds.length ? "선택 해제" : `현재 페이지 ${Math.min(page.rows.length, selectionLimit)}곳 선택`}</button>
-        {query.step === 1 && <button className="danger" name="intent" value="auto-exclude-non-food-review-items" disabled={!page.rows.length}>비음식점 자동 제외</button>}
+        {query.step === 1 && <button className="danger" name="intent" value="auto-exclude-non-food-review-items" disabled={!page.rows.length}>방문 식당 제외 대상 걸러내기</button>}
       </div>
       <div className="place-review-grid">
         {page.rows.map((row) => <div key={row.workItemId} className="place-review-card-wrap"><PlaceReviewCard row={row} checked={selectedSet.has(row.workItemId)} onToggle={() => toggle(row.workItemId)} addressEditable={query.step === 2} />
@@ -175,7 +178,10 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
       </div>
       {!page.rows.length && <p className="place-review-empty">이 조건에 해당하는 검수 항목이 없습니다.</p>}
       <div className="place-review-actions">
+        <p>체인·유흥·배달전문·마트·유통 업체는 자동 제외합니다. 음식점 업종만으로 홀 식사를 확정하지 않습니다.</p>
+        {canConfirmLocalDining && <label key={selectedIds.join("|")} className="place-review-publish-confirm"><span><input type="checkbox" name="confirmLocalDining" /> 선택한 1곳이 체인이 아닌 로컬 식당이며, 직접 방문해 식사할 수 있음을 확인했습니다.</span></label>}
         <label>보류·제외·수동 근거<input name="reason" maxLength={300} placeholder="보류·제외 사유, 또는 강제 이동 시 20자 이상" /></label>
+        {canConfirmLocalDining && <button className="secondary" name="intent" value="confirm-local-dining" disabled={Boolean(naverBatch)}>로컬·방문 식사 근거 저장 (20자 이상)</button>}
         {query.step === 5 && <label className="place-review-publish-confirm"><span><input type="checkbox" name="confirmPublish" /> 선택한 장소만 공개하며, 이 동작은 되돌릴 수 있음을 확인합니다.</span></label>}
         <button className="secondary" name="intent" value="hold-review-items" disabled={!selectedIds.length}>선택 항목 보류</button>
         <button className="danger" name="intent" value="exclude-review-items" disabled={!selectedIds.length}>선택 항목 제외</button>

@@ -13,6 +13,8 @@ import {
 import { addressLikePatterns, regionFromAddress, type RegionCode } from "../regions/region-pack";
 import { naverNeedsConfirmation } from "./place-review-pipeline";
 import type { PlaceReviewQuery, ReviewStepNumber } from "./place-review-pagination";
+import { reviewDiningContextFromRows } from "./local-dining-review.server";
+import { diningReasonLabels } from "./local-dining-policy";
 
 const stageByStep = {
   1: "SOURCE_REVIEW",
@@ -40,6 +42,10 @@ export type PlaceReviewQueueRow = {
   selectedCategoryId: string | null;
   selectedCategoryName: string | null;
   blockCodes: string[];
+  diningStatus?: "ELIGIBLE" | "EXCLUDE" | "REVIEW";
+  diningReasons?: string[];
+  businessSubtype?: string | null;
+  naverCategoryPath?: string | null;
 };
 
 function categoryEvidence(status: string | null, mappedCategoryId: string | null, evidenceCodesJson: string | null) {
@@ -141,9 +147,11 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
   const selectedCategories = alias(categories, "place_review_selected_categories");
   const naverMappedCategories = alias(categories, "place_review_naver_mapped_categories");
   const hydrated = await db.select({
-    workItem: placeReviewWorkItems,
-    businessLicense: businessLicenses,
-    place: places,
+    workItem: { id: placeReviewWorkItems.id, businessLicenseId: placeReviewWorkItems.businessLicenseId, placeId: placeReviewWorkItems.placeId, sourceKind: placeReviewWorkItems.sourceKind, stage: placeReviewWorkItems.stage, stageVersion: placeReviewWorkItems.stageVersion, status: placeReviewWorkItems.status, selectedCategoryId: placeReviewWorkItems.selectedCategoryId, holdCode: placeReviewWorkItems.holdCode, manualEvidenceReason: placeReviewWorkItems.manualEvidenceReason, localDiningEvidenceJson: placeReviewWorkItems.localDiningEvidenceJson },
+    businessLicense: { businessName: businessLicenses.businessName, roadAddress: businessLicenses.roadAddress, lotAddress: businessLicenses.lotAddress, latitude: businessLicenses.latitude, longitude: businessLicenses.longitude, sourceType: businessLicenses.sourceType, businessSubtype: businessLicenses.businessSubtype, regionCode: businessLicenses.regionCode },
+    place: { name: places.name, address: places.address, latitude: places.latitude, longitude: places.longitude, status: places.status },
+    candidateNaver: { status: naverLocalCategoryVerifications.status, ruleVersion: naverLocalCategoryVerifications.ruleVersion, expiresAt: naverLocalCategoryVerifications.expiresAt, queriedAt: naverLocalCategoryVerifications.queriedAt, inputFingerprint: naverLocalCategoryVerifications.inputFingerprint, matchedCategoryPath: naverLocalCategoryVerifications.matchedCategoryPath },
+    placeNaver: { naverStatus: placeLivenessStates.naverStatus, naverLastCheckedAt: placeLivenessStates.naverLastCheckedAt, naverSubjectKey: placeLivenessStates.naverSubjectKey, naverCategoryPath: placeLivenessStates.naverCategoryPath, naverMappedCategoryId: placeLivenessStates.naverMappedCategoryId },
     candidateNaverStatus: naverLocalCategoryVerifications.status,
     candidateNaverScore: naverLocalCategoryVerifications.matchScore,
     candidateNaverMappedCategoryId: naverLocalCategoryVerifications.mappedCategoryId,
@@ -162,7 +170,7 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     .leftJoin(naverMappedCategories, eq(naverMappedCategories.id, naverLocalCategoryVerifications.mappedCategoryId))
     .where(inArray(placeReviewWorkItems.id, workItemIds.map((row) => row.id)));
 
-  const rowsById = new Map(hydrated.map((row) => {
+  const rowsById = new Map(await Promise.all(hydrated.map(async (row) => {
     const workItem = row.workItem;
     const businessLicense = row.businessLicense;
     const place = row.place;
@@ -172,10 +180,12 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
       ? !address || businessLicense?.latitude == null || businessLicense.longitude == null
       : !place?.address || place.latitude == null || place.longitude == null;
     const naverStatus = row.candidateNaverStatus ?? row.placeNaverStatus ?? null;
+    const dining = await reviewDiningContextFromRows(workItem, businessLicense, place, row.candidateNaver, row.placeNaver, new Date().toISOString());
     const blockCodes = [
       ...(sourceMissing ? ["SOURCE_NOT_READY"] : []),
       ...(workItem.holdCode ? [workItem.holdCode] : []),
       ...(naverNeedsConfirmation(naverStatus) && workItem.stage === "NAVER_VERIFICATION" ? ["NAVER_REVIEW_REQUIRED"] : []),
+      ...(dining.decision.decision === "REVIEW" && workItem.stage !== "SOURCE_REVIEW" ? ["LOCAL_DINING_REVIEW_REQUIRED"] : []),
     ];
 
     return [workItem.id, {
@@ -196,8 +206,12 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
       selectedCategoryId: workItem.selectedCategoryId,
       selectedCategoryName: row.selectedCategoryName,
       blockCodes,
-    } satisfies PlaceReviewQueueRow];
-  }));
+      diningStatus: dining.decision.decision,
+      diningReasons: dining.decision.reasons.map((reason) => diningReasonLabels[reason]),
+      businessSubtype: businessLicense?.businessSubtype ?? null,
+      naverCategoryPath: dining.naverCategory,
+    } satisfies PlaceReviewQueueRow] as const;
+  })));
 
   return {
     rows: workItemIds.flatMap((row) => {

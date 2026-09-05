@@ -22,6 +22,7 @@ describe("NAVER 지역검색 카테고리 migration", () => {
       "failure_code",
       "created_at",
       "updated_at",
+      "matched_category_path",
     ]);
     expect(columns.results.map((column) => column.name)).not.toEqual(expect.arrayContaining([
       "provider_place_id", "raw_response", "image_url", "review_text", "description", "provider_link",
