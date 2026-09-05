@@ -4,8 +4,8 @@ import { reviewErrorMessage, type ReviewErrorCode } from "./place-review-errors"
 export const REVIEW_BATCH_MIN = 1;
 export const REVIEW_BATCH_MAX = 50;
 export const REVIEW_SELECTION_LIMIT = 50;
-/** A single click may select up to 50 rows, but NAVER calls are capped at 10. */
-export const NAVER_REVIEW_RUN_MAX = 10;
+/** A single click may select up to 50 rows; NAVER requests still run one-by-one. */
+export const NAVER_REVIEW_RUN_MAX = 50;
 
 export const reviewIntents = [
   "auto-exclude-non-food-review-items",

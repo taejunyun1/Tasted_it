@@ -67,9 +67,9 @@ describe("place review request contract", () => {
     })).toEqual({ ok: false, code: "INVALID_INTENT" });
   });
 
-  it("enforces batch size 1-50 and auto-verify exactly one", () => {
+  it("keeps the 50-item selection and sequential NAVER run limits aligned", () => {
     expect(REVIEW_SELECTION_LIMIT).toBe(50);
-    expect(NAVER_REVIEW_RUN_MAX).toBe(10);
+    expect(NAVER_REVIEW_RUN_MAX).toBe(REVIEW_SELECTION_LIMIT);
     expect(checkReviewRequest({
       intent: "advance-review-items",
       expectedStage: "SOURCE_REVIEW",
