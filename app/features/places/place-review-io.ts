@@ -3,9 +3,9 @@ import { reviewErrorMessage, type ReviewErrorCode } from "./place-review-errors"
 
 export const REVIEW_BATCH_MIN = 1;
 export const REVIEW_BATCH_MAX = 50;
-export const REVIEW_SELECTION_LIMIT = 50;
-/** A single click may select up to 50 rows; NAVER requests still run one-by-one. */
-export const NAVER_REVIEW_RUN_MAX = 50;
+export const REVIEW_SELECTION_LIMIT = 100;
+/** A single click may select up to 100 rows; NAVER requests still run one-by-one. */
+export const NAVER_REVIEW_RUN_MAX = 100;
 
 export const reviewIntents = [
   "auto-exclude-non-food-review-items",
@@ -96,7 +96,7 @@ export function checkReviewRequest(input: ReviewRequestInput): ReviewRequestChec
     if (workItemIds.length !== 1) return { ok: false, code: "AUTO_VERIFY_SINGLE_REQUIRED" };
   } else if (workItemIds.length < REVIEW_BATCH_MIN) {
     return { ok: false, code: "REVIEW_SELECTION_REQUIRED" };
-  } else if (workItemIds.length > REVIEW_BATCH_MAX) {
+  } else if (workItemIds.length > (input.intent === "verify-review-items-with-naver" ? NAVER_REVIEW_RUN_MAX : REVIEW_BATCH_MAX)) {
     return { ok: false, code: "PLACE_REVIEW_BATCH_LIMIT_EXCEEDED" };
   }
 
