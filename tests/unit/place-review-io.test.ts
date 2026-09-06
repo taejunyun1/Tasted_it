@@ -67,8 +67,8 @@ describe("place review request contract", () => {
     })).toEqual({ ok: false, code: "INVALID_INTENT" });
   });
 
-  it("keeps the 50-item selection and sequential NAVER run limits aligned", () => {
-    expect(REVIEW_SELECTION_LIMIT).toBe(50);
+  it("allows 100 sequential NAVER checks while keeping other actions at 50", () => {
+    expect(REVIEW_SELECTION_LIMIT).toBe(100);
     expect(NAVER_REVIEW_RUN_MAX).toBe(REVIEW_SELECTION_LIMIT);
     expect(checkReviewRequest({
       intent: "advance-review-items",
@@ -79,6 +79,16 @@ describe("place review request contract", () => {
       intent: "advance-review-items",
       expectedStage: "SOURCE_REVIEW",
       workItemIds: ids(51),
+    })).toEqual({ ok: false, code: "PLACE_REVIEW_BATCH_LIMIT_EXCEEDED" });
+    expect(checkReviewRequest({
+      intent: "verify-review-items-with-naver",
+      expectedStage: "SOURCE_REVIEW",
+      workItemIds: ids(100),
+    }).ok).toBe(true);
+    expect(checkReviewRequest({
+      intent: "verify-review-items-with-naver",
+      expectedStage: "SOURCE_REVIEW",
+      workItemIds: ids(101),
     })).toEqual({ ok: false, code: "PLACE_REVIEW_BATCH_LIMIT_EXCEEDED" });
     expect(checkReviewRequest({
       intent: "auto-verify-review-item-with-naver",

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, Link, useFetcher, useNavigation } from "react-router";
 
-import { NAVER_REVIEW_RUN_MAX, REVIEW_SELECTION_LIMIT } from "../../features/places/place-review-io";
+import { NAVER_REVIEW_RUN_MAX, REVIEW_BATCH_MAX, REVIEW_SELECTION_LIMIT } from "../../features/places/place-review-io";
 import { formatConfidentAdvanceQueueCopy, type ReviewStage } from "../../features/places/place-review-pipeline";
 import { buildPlaceReviewNextStepHref, type PlaceReviewQuery } from "../../features/places/place-review-pagination";
 import type { PlaceReviewPage, PlaceReviewStageCounts } from "../../features/places/place-review-query.server";
@@ -79,6 +79,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   }, {}), [duplicateCandidates]);
   const pageKey = `${query.step}:${query.page}:${query.pageSize}:${query.status ?? ""}:${query.region ?? ""}:${query.query}`;
   const selectionLimit = REVIEW_SELECTION_LIMIT;
+  const standardBatchDisabled = !selectedIds.length || selectedIds.length > REVIEW_BATCH_MAX || Boolean(naverBatch);
   useEffect(() => setSelectedIds([]), [pageKey]);
   useEffect(() => {
     if (!processedWorkItemIds.length) return;
@@ -157,7 +158,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         return <span key={id}><input type="hidden" name="workItem" value={`${id}|${row?.stageVersion ?? 0}`} /><input type="hidden" name="workItemId" value={id} /></span>;
       })}
       <div className="place-review-selection-bar">
-        <strong>{selectedIds.length} / {selectionLimit} 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다.</span>
+        <strong>{selectedIds.length} / {selectionLimit} 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다. NAVER 검증은 {NAVER_REVIEW_RUN_MAX}곳, 그 외 일괄 작업은 {REVIEW_BATCH_MAX}곳까지입니다.</span>
         <button type="button" className="secondary" onClick={togglePageSelection}>{selectedIds.length ? "선택 해제" : `현재 페이지 ${Math.min(page.rows.length, selectionLimit)}곳 선택`}</button>
         {query.step === 1 && <button className="danger" name="intent" value="auto-exclude-non-food-review-items" disabled={!page.rows.length}>방문 식당 제외 대상 걸러내기</button>}
       </div>
@@ -183,16 +184,16 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         <label>보류·제외·수동 근거<input name="reason" maxLength={300} placeholder="보류·제외 사유, 또는 강제 이동 시 20자 이상" /></label>
         {canConfirmLocalDining && <button className="secondary" name="intent" value="confirm-local-dining" disabled={Boolean(naverBatch)}>로컬·방문 식사 근거 저장 (20자 이상)</button>}
         {query.step === 5 && <label className="place-review-publish-confirm"><span><input type="checkbox" name="confirmPublish" /> 선택한 장소만 공개하며, 이 동작은 되돌릴 수 있음을 확인합니다.</span></label>}
-        <button className="secondary" name="intent" value="hold-review-items" disabled={!selectedIds.length}>선택 항목 보류</button>
-        <button className="danger" name="intent" value="exclude-review-items" disabled={!selectedIds.length}>선택 항목 제외</button>
-        {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={!selectedIds.length}>선택 중복 판정 저장</button>}
+        <button className="secondary" name="intent" value="hold-review-items" disabled={standardBatchDisabled}>선택 항목 보류</button>
+        <button className="danger" name="intent" value="exclude-review-items" disabled={standardBatchDisabled}>선택 항목 제외</button>
+        {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={standardBatchDisabled}>선택 중복 판정 저장</button>}
         {(query.step === 1 || query.step === 2) && <button type="button" onClick={startNaverBatch} disabled={!selectedIds.length || Boolean(naverBatch)}>선택 중 {Math.min(selectedIds.length, NAVER_REVIEW_RUN_MAX)}곳 NAVER 검증</button>}
-        {query.step !== 5 && <button className="secondary" name="intent" value="advance-confident-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>근거 있는 항목만 다음 단계</button>}
-        {query.step === 1 && <button className="secondary" name="intent" value="advance-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>수동으로 NAVER 검증 대기로 이동</button>}
-        {query.step === 2 && <button className="secondary" name="intent" value="update-review-item-addresses" disabled={!selectedIds.length || Boolean(naverBatch)}>선택 주소 저장</button>}
-        {query.step === 2 && <button className="secondary" name="intent" value="advance-review-items" disabled={!selectedIds.length || Boolean(naverBatch)}>선택 항목을 카테고리 확정으로 이동</button>}
-        {query.step === 2 && <button name="intent" value="approve-manual-review-evidence" disabled={!selectedIds.length || Boolean(naverBatch)}>수동 근거로 카테고리 단계 이동</button>}
-        {query.step !== 1 && query.step !== 2 && <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={!selectedIds.length}>{query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>}
+        {query.step !== 5 && <button className="secondary" name="intent" value="advance-confident-review-items" disabled={standardBatchDisabled}>근거 있는 항목만 다음 단계</button>}
+        {query.step === 1 && <button className="secondary" name="intent" value="advance-review-items" disabled={standardBatchDisabled}>수동으로 NAVER 검증 대기로 이동</button>}
+        {query.step === 2 && <button className="secondary" name="intent" value="update-review-item-addresses" disabled={standardBatchDisabled}>선택 주소 저장</button>}
+        {query.step === 2 && <button className="secondary" name="intent" value="advance-review-items" disabled={standardBatchDisabled}>선택 항목을 카테고리 확정으로 이동</button>}
+        {query.step === 2 && <button name="intent" value="approve-manual-review-evidence" disabled={standardBatchDisabled}>수동 근거로 카테고리 단계 이동</button>}
+        {query.step !== 1 && query.step !== 2 && <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={standardBatchDisabled}>{query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>}
         {query.step === 2 && !naverBatch && <Link className="secondary" to={buildPlaceReviewNextStepHref(query)}>{nextStep === 3 ? "NAVER 확인 후 카테고리 확정 단계 보기" : "카테고리 확정 단계로 이동"}</Link>}
       </div>
     </Form>
