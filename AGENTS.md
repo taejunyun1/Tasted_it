@@ -91,3 +91,10 @@ Before changing dependencies, runtimes, databases, authentication providers, ext
 - 코드나 설치 패키지가 이미 존재한다는 사실만으로 추가 확장을 승인하지 않는다.
 - 모든 예외는 담당자, 근거, 비용·보안·개인정보 영향, rollback과 제거 조건을 Issue 또는 Pull Request에 기록한다.
 - `PROPOSED` 또는 `HOLD` 상태의 plan은 구현 승인이 아니다.
+
+
+## Agent self-check on Cloudflare
+
+After a change that can affect runtime or user-visible routes, do not treat local tests as completion. Probe the live Worker and read Workers Observability. The loop is in [`docs/superpowers/plans/2026-09-08-agent-cloudflare-self-check.md`](docs/superpowers/plans/2026-09-08-agent-cloudflare-self-check.md). Run `pnpm run verify:cloudflare-live`. Do not add Workers AI, cron, Queue, Durable Objects, or Workers Builds for this loop. A live probe is not a production deploy.
+
+런타임이나 사용자 경로를 건드릴 수 있는 변경 뒤에 로컬 테스트만으로 완료를 선언하지 않는다. 라이브 Worker를 탐색하고 Workers Observability를 읽는다. 루프는 [`docs/superpowers/plans/2026-09-08-agent-cloudflare-self-check.md`](docs/superpowers/plans/2026-09-08-agent-cloudflare-self-check.md)다. `pnpm run verify:cloudflare-live`를 실행한다. 이 루프를 위해 Workers AI, cron, Queue, Durable Object, Workers Builds를 추가하지 않는다. 라이브 탐색은 운영 배포가 아니다.
