@@ -5,6 +5,7 @@ import { runScheduledRatingMaintenance } from "../app/features/ratings/scheduled
 import { runScheduledPlaceMaintenance } from "../app/features/places/scheduled-place.server";
 import { runScheduledParkingSync } from "../app/features/parking/scheduled-parking.server";
 import { runScheduledOnboardingDataLifecycle } from "../app/features/onboarding/data-lifecycle.server";
+import { isRsiCron } from "../app/features/operations/rsi-self-check";
 import { handleRsiOnDemandRequest, runScheduledRsiSelfCheck } from "../app/features/operations/rsi-self-check.server";
 
 const requestHandler = createRequestHandler(
@@ -18,7 +19,11 @@ export default {
     if (rsi) return withSecurityHeaders(rsi);
     return withSecurityHeaders(await requestHandler(request));
   },
-  async scheduled(_controller, env, ctx) {
+  async scheduled(controller, env, ctx) {
+    if (isRsiCron(controller.cron)) {
+      ctx.waitUntil(runScheduledRsiSelfCheck(env));
+      return;
+    }
     ctx.waitUntil(Promise.all([
       runScheduledCandidateSync(env),
       runScheduledRatingMaintenance(env),
@@ -26,6 +31,5 @@ export default {
       runScheduledParkingSync(env),
       runScheduledOnboardingDataLifecycle(env),
     ]));
-    ctx.waitUntil(runScheduledRsiSelfCheck(env));
   },
 } satisfies ExportedHandler<Env>;

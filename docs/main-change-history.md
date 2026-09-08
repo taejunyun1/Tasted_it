@@ -15,7 +15,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
-| Proposed | 2026-09-08 `b46858c` 운영 배포 기록. Worker `0c4e5c32-…`. rollback `3132ad56-…`. 재배포·원격 apply 없음. | [Issue #284](https://github.com/taejunyun1/Tasted_it/issues/284) · [PR #285](https://github.com/taejunyun1/Tasted_it/pull/285) |
+| Proposed | 2026-09-08 RSI 주기를 6시간 cron으로 분리하고 범위 확장 단계를 플랜으로 남긴다. 이번 PR에서 경로 추가 없음. 병합 후 지정 운영자 배포. | [Issue #286](https://github.com/taejunyun1/Tasted_it/issues/286) · [PR #287](https://github.com/taejunyun1/Tasted_it/pull/287) |
+| Merged | 2026-09-08 `b46858c` 운영 배포 기록. Worker `0c4e5c32-…`. rollback `3132ad56-…`. 재배포·원격 apply 없음. | [Issue #284](https://github.com/taejunyun1/Tasted_it/issues/284) · [PR #285](https://github.com/taejunyun1/Tasted_it/pull/285) · [`e37bc7d`](https://github.com/taejunyun1/Tasted_it/commit/e37bc7d) |
 | Merged | 2026-09-08 RSI 자검을 기존 cron의 격리 `waitUntil`과 Worker 온디맨드로 옮긴다. 로컬 Node는 루프가 아니다. 새 cron·원격 D1·Workers AI 없음. 병합 후 배포. | [Issue #282](https://github.com/taejunyun1/Tasted_it/issues/282) · [PR #283](https://github.com/taejunyun1/Tasted_it/pull/283) · [`b46858c`](https://github.com/taejunyun1/Tasted_it/commit/b46858c) |
 | Merged | 2026-09-08 에이전트 자검 루프를 라이브 Cloudflare Worker HTTP와 Observability 읽기로 고정한다. 배포·원격 D1·Workers AI 없음. | [Issue #280](https://github.com/taejunyun1/Tasted_it/issues/280) · [PR #281](https://github.com/taejunyun1/Tasted_it/pull/281) · [`67c3e5e`](https://github.com/taejunyun1/Tasted_it/commit/67c3e5e) |
 | Proposed | 2026-09-04 `pnpm dev`가 시작 전에 로컬 D1 migration과 week1 샘플 시드를 자동 적용한다. fresh local checkout에서도 샘플 공개 경로 404를 줄인다. 운영 배포·원격 D1·관리자 QA fixture 없음. | [Issue #272](https://github.com/taejunyun1/Tasted_it/issues/272) · [PR #273](https://github.com/taejunyun1/Tasted_it/pull/273) |
