@@ -25,6 +25,8 @@
 
 2026-09-08: [Issue #282](https://github.com/taejunyun1/Tasted_it/issues/282) / [PR #283](https://github.com/taejunyun1/Tasted_it/pull/283) 병합 후 `origin/main` [`b46858c`](https://github.com/taejunyun1/Tasted_it/commit/b46858c)를 이 계정에 배포함. 원격 apply 없음. Version `0c4e5c32-f9f9-4b53-bec8-9fcde781f0c2`. rollback은 직전 라이브 버전 `3132ad56-7f2c-4d34-be20-a77c8f277cfe`. `RSI_CLOUDFLARE_ENABLED=true`. 온디맨드 `RSI_CHECK_TOKEN`은 아직 없음(없으면 스케줄 RSI만). 라이브 NAVER 일괄·일괄 공개·D1 create·secret 값 열람 없음. 익명 GET `/`·`/places`·`/login`·`/privacy`·`/robots.txt` 200, `/admin` 302 `/login?returnTo=%2Fadmin`. 토큰 없는 `GET /internal/rsi-self-check` 404. Observability 배포 직후 `$metadata.error` 0.
 
+2026-09-08: [Issue #286](https://github.com/taejunyun1/Tasted_it/issues/286) / [PR #287](https://github.com/taejunyun1/Tasted_it/pull/287) 병합 후 `origin/main` [`0562910`](https://github.com/taejunyun1/Tasted_it/commit/0562910)를 이 계정에 배포함. 원격 apply 없음. Version `739a0b2d-d7fb-48ec-92f6-df3e21ea82ef`. rollback은 직전 라이브 버전 `0c4e5c32-f9f9-4b53-bec8-9fcde781f0c2`. RSI cron `47 */6 * * *`, maintenance `17 18 * * *`. 익명 GET 6경로 계약 유지. 경로 추가·원격 D1·secret 값 열람 없음.
+
 2026-08-23: [Issue #246](https://github.com/taejunyun1/Tasted_it/issues/246) / [PR #247](https://github.com/taejunyun1/Tasted_it/pull/247) 병합 후 `origin/main` [`43503f7`](https://github.com/taejunyun1/Tasted_it/commit/43503f7)를 이 계정에 배포함. 원격 apply 없음(최신 `0035`). Version `7445cc93-747f-46e0-ae0c-ef21fadc7a4f`. rollback은 직전 라이브 버전 `7579b600-7302-443b-9753-a4a5aaa3dd05`. 라이브 NAVER·일괄 공개·D1 create·secret 열람 없음. 익명 GET `/`·`/places` 200, `/admin` 302 `/login?returnTo=%2Fadmin`. CSP `script-src`/`connect-src`에 `https://*.pstatic.net`. nelo 없음. 홈 지도 `nrbe.pstatic.net` 스타일·타일 200(데스크톱 1440·모바일 390).
 
 ## 사전 게이트
