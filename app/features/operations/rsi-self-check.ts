@@ -1,6 +1,12 @@
 export const RSI_LIVE_ORIGIN = "https://retaste-beta.retaste-beta.workers.dev";
 export const RSI_ON_DEMAND_PATH = "/internal/rsi-self-check";
 export const RSI_CHECK_TOKEN_HEADER = "x-rsi-check-token";
+export const MAINTENANCE_CRON = "17 18 * * *";
+export const RSI_CRON = "47 */6 * * *";
+
+export function isRsiCron(cron: string) {
+  return cron === RSI_CRON;
+}
 export const RSI_SELF_CHECK_USER_AGENT =
   "Mozilla/5.0 (compatible; ReTasteCloudflareSelfCheck/1.0; +https://github.com/taejunyun1/Tasted_it)";
 

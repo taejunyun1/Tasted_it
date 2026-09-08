@@ -20,7 +20,7 @@
 
 - 로컬 Node를 RSI 루프로 사용 (`pnpm run verify:cloudflare-live`는 smoke일 뿐)
 - Workers AI, Queue, Durable Object, Workers Builds
-- 새 cron / 기존 `Promise.all`에 자검 추가
+- RSI 전용 주기 외의 새 cron / 기존 `Promise.all`에 자검 추가
 - 원격 D1 쓰기, 라이브 시드, 비밀값 출력
 - 이 루프만으로 `pnpm run deploy`
 

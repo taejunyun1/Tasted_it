@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   isRsiCloudflareEnabled,
+  isRsiCron,
+  MAINTENANCE_CRON,
   resolveRsiOrigin,
+  RSI_CRON,
   RSI_LIVE_ORIGIN,
   RSI_ON_DEMAND_PATH,
   RSI_PUBLIC_PATH_CHECKS,
@@ -49,6 +52,12 @@ describe("rsi self-check", () => {
     const failed = await runRsiPublicPathCheck({ fetch: failingFetch, origin: RSI_LIVE_ORIGIN });
     expect(failed.ok).toBe(false);
     expect(failed.results[0]).toMatchObject({ path: "/", status: 500, ok: false });
+  });
+
+  it("treats only the six-hour cron as the RSI schedule", () => {
+    expect(isRsiCron(RSI_CRON)).toBe(true);
+    expect(isRsiCron(MAINTENANCE_CRON)).toBe(false);
+    expect(RSI_CRON).toBe("47 */6 * * *");
   });
 
   it("requires the kill switch and APP_BASE_URL for scheduled RSI", async () => {

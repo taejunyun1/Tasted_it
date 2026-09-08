@@ -7,7 +7,8 @@
 	"name": "retaste-beta",
 	"compatibility_date": "2026-08-05",
 	"main": "./workers/app.ts",
-	"triggers": { "crons": ["17 18 * * *"] },
+	// maintenance `17 18 * * *`, RSI `47 */6 * * *`. scheduled()가 cron 식으로 갈라 실행한다.
+	"triggers": { "crons": ["17 18 * * *", "47 */6 * * *"] },
 	"preview_urls": false,
 	"vars": {
 		"ONBOARDING_ENABLED": "true",
