@@ -18,7 +18,9 @@
 		"PLACE_CATEGORY_V5_ENABLED": "false",
 		"COURSE_CONTEXT_V2_ENABLED": "false",
 		// 검수 1→4 조건부 이동. true여도 공개·NAVER 호출 없음. 끄려면 "false".
-		"REVIEW_CONFIDENT_ADVANCE_ENABLED": "true"
+		"REVIEW_CONFIDENT_ADVANCE_ENABLED": "true",
+		// RSI 자검. 기존 maintenance Promise.all에 넣지 않음. 끄려면 "false".
+		"RSI_CLOUDFLARE_ENABLED": "true"
 	},
 	"d1_databases": [
 		{

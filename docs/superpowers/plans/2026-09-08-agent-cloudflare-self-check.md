@@ -11,19 +11,20 @@
 
 쓰는 것:
 
-- 라이브 Worker 익명 HTTP (`pnpm run verify:cloudflare-live`)
+- 라이브 Worker에서 도는 RSI. 실행기는 [`2026-09-08-rsi-cloudflare.md`](./2026-09-08-rsi-cloudflare.md)
 - Workers Observability 읽기 (오류·5xx. PII 원문 복사 금지)
 - 운영 계정 SSOT (`docs/operations/cloudflare-deploy.md`)
 - Worker 코드를 바꾸면 `pnpm exec wrangler deploy --dry-run`
 
 넣지 않는 것:
 
+- 로컬 Node를 RSI 루프로 사용 (`pnpm run verify:cloudflare-live`는 smoke일 뿐)
 - Workers AI, Queue, Durable Object, Workers Builds
-- 새 cron / 예약 작업
+- 새 cron / 기존 `Promise.all`에 자검 추가
 - 원격 D1 쓰기, 라이브 시드, 비밀값 출력
 - 이 루프만으로 `pnpm run deploy`
 
-로컬 `pnpm dev`는 재현용이다. 사용자에게 보이는 완료 주장은 라이브 Worker와 Observability가 받쳐야 한다.
+로컬 `pnpm dev`는 재현용이다. 사용자에게 보이는 완료 주장은 라이브 Worker RSI와 Observability가 받쳐야 한다.
 
 ## 2. 루프
 
@@ -32,7 +33,7 @@
 1. **관찰.** `git status`, 라이브 탐색, Observability에서 `$metadata.service=retaste-beta` 오류. 로컬 200과 라이브 404/302/5xx가 갈리면 라이브를 우선한다.
 2. **가설.** 코드 회귀, 시드 없는 로컬, 포트 혼선, 배포되지 않은 `main`, GitHub private 404를 갈라낸다.
 3. **수정.** 최소 패치. 원격 D1·배포가 필요하면 별도 PR 범위로 뺀다.
-4. **재탐색.** 같은 `verify:cloudflare-live`와 Observability를 다시 본다. 로컬만 통과한 상태를 완료로 쓰지 않는다.
+4. **재탐색.** 같은 Worker RSI와 Observability를 다시 본다. 로컬 Node만 통과한 상태를 완료로 쓰지 않는다.
 5. **기록.** 이슈/PR에 라이브 상태 코드와 관측 요약만 남긴다. 상호·이메일·토큰·운영 주소 원문을 위키에 쓰지 않는다.
 
 ## 3. 1회차 증거 (2026-09-08)

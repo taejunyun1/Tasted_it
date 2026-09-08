@@ -51,6 +51,8 @@ pnpm exec wrangler secret put SESSION_SECRET
 pnpm exec wrangler secret put ADMIN_EMAIL
 ```
 
+온디맨드 RSI(`GET /internal/rsi-self-check`)를 쓰려면 같은 방식으로 `RSI_CHECK_TOKEN` 존재만 확인한다. 값은 남기지 않는다. 토큰이 없으면 스케줄 RSI만 동작한다. kill switch는 `wrangler.jsonc`의 `RSI_CLOUDFLARE_ENABLED`다.
+
 `SESSION_SECRET`은 강한 무작위 값이어야 한다. 문서 예시 문자열을 복사해 넣지 않는다.
 
 ## 배포와 데이터

@@ -5,6 +5,7 @@ import { runScheduledRatingMaintenance } from "../app/features/ratings/scheduled
 import { runScheduledPlaceMaintenance } from "../app/features/places/scheduled-place.server";
 import { runScheduledParkingSync } from "../app/features/parking/scheduled-parking.server";
 import { runScheduledOnboardingDataLifecycle } from "../app/features/onboarding/data-lifecycle.server";
+import { handleRsiOnDemandRequest, runScheduledRsiSelfCheck } from "../app/features/operations/rsi-self-check.server";
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
@@ -12,7 +13,9 @@ const requestHandler = createRequestHandler(
 );
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    const rsi = await handleRsiOnDemandRequest(request, env);
+    if (rsi) return withSecurityHeaders(rsi);
     return withSecurityHeaders(await requestHandler(request));
   },
   async scheduled(_controller, env, ctx) {
@@ -23,5 +26,6 @@ export default {
       runScheduledParkingSync(env),
       runScheduledOnboardingDataLifecycle(env),
     ]));
+    ctx.waitUntil(runScheduledRsiSelfCheck(env));
   },
 } satisfies ExportedHandler<Env>;

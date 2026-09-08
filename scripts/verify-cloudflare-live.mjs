@@ -1,3 +1,4 @@
+// Laptop smoke only. The RSI loop runs on the Worker, not this script.
 const baseUrl = process.env.BASE_URL ?? "https://retaste-beta.retaste-beta.workers.dev";
 
 const checks = [
