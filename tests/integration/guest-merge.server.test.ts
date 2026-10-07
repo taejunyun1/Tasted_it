@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeMocks = vi.hoisted(() => ({
   authenticateAccount: vi.fn(),
@@ -488,10 +488,16 @@ async function executeLoginRoute(provider: LoginProvider, userId: string, guestI
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(MERGED_AT);
   for (const mock of Object.values(routeMocks)) mock.mockReset();
   routeMocks.consumeGoogleOAuthRequest.mockResolvedValue(undefined);
   routeMocks.consumeOAuthRequest.mockResolvedValue(undefined);
   routeMocks.sendGoogleWelcomeIfNeeded.mockResolvedValue(false);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("authenticated session cookie composition", () => {
