@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeMocks = vi.hoisted(() => ({
   castVote: vi.fn(async () => undefined),
@@ -158,6 +158,8 @@ function compileTimeAllowlistContract(db: AppDb, guestSessionId: string) {
 void compileTimeAllowlistContract;
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime("2026-08-10T00:10:00.000Z");
   routeMocks.castVote.mockReset();
   routeMocks.castVote.mockResolvedValue(undefined);
   routeMocks.getOptionalUser.mockReset();
@@ -176,6 +178,10 @@ beforeEach(() => {
   routeMocks.resolvePlaceSlugRedirect.mockResolvedValue(null);
   routeMocks.setSavedAndRefreshTaste.mockReset();
   routeMocks.setSavedAndRefreshTaste.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("recordProductEvent", () => {
