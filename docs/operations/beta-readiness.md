@@ -1,16 +1,26 @@
 # 베타 운영 준비: 집계·검수·출시 판정
 
-**상태: UNVERIFIED / 운영 계정 접근 복구 대기 (2026-10-07).** 담당 TJ/Codex, [Issue #290](https://github.com/taejunyun1/Tasted_it/issues/290), [Draft PR #291](https://github.com/taejunyun1/Tasted_it/pull/291). 조회 기준 소스는 `origin/main` `75094f25224914b07e787b9ca2076482628a67d3`이다. 이 문서는 읽기 전용 집계와 기존 관리자 검수·공개 절차를 연결한다. 문서·SQL 변경에는 배포가 필요하지 않다. 실제 운영 수치와 공개 베타 GO는 아직 확인되지 않았다.
+**상태: UNVERIFIED / 지정 운영 계정 접근·추가 OAuth 권한 승인 대기 (2026-10-07).** 담당 TJ/Codex, [Issue #290](https://github.com/taejunyun1/Tasted_it/issues/290). [PR #291](https://github.com/taejunyun1/Tasted_it/pull/291)과 [PR #293](https://github.com/taejunyun1/Tasted_it/pull/293)은 병합·CI 확인을 마쳤다. 이번 조회 기준 소스는 `origin/main` `b1c07932c4c95546cd9d2df34e891584376f49e6`이다. 이 문서는 읽기 전용 집계와 기존 관리자 검수·공개 절차를 연결한다. 문서 갱신 자체에는 배포가 필요하지 않지만, PR #293의 제품 수정은 운영 배포와 라이브 검증이 남아 있다. 실제 운영 수치와 공개 베타 GO는 아직 확인되지 않았다.
 
 ## 확인된 증거와 비어 있는 증거
 
 | 영역 | 2026-10-07 기준 증거 | 남은 확인 |
 | --- | --- | --- |
-| 공개 HTTP | `07:49:39 UTC`(16:49 KST)에 `/`, `/places`, `/login`, `/privacy`, `/terms`, `/robots.txt` 모두 200. HSTS·CSP 응답. 비로그인 `/admin`은 302로 `/login?returnTo=%2Fadmin`. `/privacy`와 `/terms`에는 `DRAFT`·출시 전 검토 안내가 있다. `/places` 최초 HTML의 고유 장소 링크는 4개. | 최초 HTML 4개는 전체 D1 공개 장소 수가 아니다. 실제 배포 버전·RSI 로그도 미확인. |
-| 운영 접근 | CLI 로그인은 유효하고 계정 2개가 보이나 지정 운영 계정은 보이지 않는다. 브라우저에서도 대상에 접근할 수 없다. | 원격 D1 수치·스키마·migration 상태, 실제 검수·공개 결과 모두 미확인. 원격 읽기/쓰기, NAVER 실호출, 배포는 수행하지 않았다. |
-| 저장소 | GitHub 저장소는 Private, 소유자 관리자 권한은 확인, `main` 보호는 없음. Branch protection/ruleset 조회는 403이며 응답은 GitHub Pro 업그레이드 또는 Public 전환을 안내했다. Wiki API `has_wiki=false`이나 인증된 `wiki.git` clone은 가능하다. | Private 유지 상태의 보호 방식은 소유자가 결정. 구매·가시성 변경은 수행하지 않았다. |
-| 로컬 검증·CI | `origin/main` 기준선 `75094f2`에서 단위 테스트 147개 파일·906개 통과. 작업 커밋 `719693d`에서 SQL 32개 지표의 로컬 fixture/읽기 전용 검증. [PR #291 기존 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/37590401493)는 build·typecheck·unit·Playwright 통과, 통합 테스트 357개 중 17개 실패(2개 파일). 로컬에서도 같은 17개 실패를 재현했다. 원인은 2026-09-09 만료 시드와 실행 시각을 읽는 경로의 혼용이었다. 두 테스트 파일에서 `Date`만 2026-08-10 00:10 UTC로 고정하고 매 테스트 후 복원하자 해당 76개가 모두 통과했다. 공백 없는 임시 복사본의 전체 통합 테스트도 71개 파일·357개 통과했다. [PR #291 재실행 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/37591891922)는 head `bd0d16dec300ea87dd7b2897bbd0668b5dcf0e52`에서 build·integration·Playwright·typecheck/unit 4개 잡이 모두 성공했다. | 수정 후 PR CI 코드 검증은 통과했다. 원래 로컬 worktree 경로의 공백은 별도 2개 파일에서 React 모듈 수집 오류를 일으켜, 그 경로의 전체 실행은 69개 파일·353개 테스트 통과 및 2개 파일 수집 실패였다. 임시 복사본과 작업 브랜치의 수정 테스트 파일 해시는 일치한다. 원격 D1·라이브 Worker·출시 GO는 별도 확인이 필요하다. |
+| 공개 HTTP | [20:13 KST 재점검 기록](https://github.com/taejunyun1/Tasted_it/issues/290#issuecomment-6036888845)의 조회 시각은 `11:13:44 UTC`다. `/`, `/places`, `/login`, `/privacy`, `/terms`, `/robots.txt` 모두 200, HSTS·CSP 응답. 비로그인 `/admin`은 302로 로그인 경로 이동. `/privacy`와 `/terms`에는 `DRAFT`·출시 전 검토 안내가 있다. | HTTP 응답은 최신 `main` 배포·라이브 RSI·전체 공개 장소 수의 증거가 아니다. 이전 `07:49:39 UTC`(16:49 KST) 최초 HTML에서 확인한 고유 장소 링크 4개도 전체 D1 수치가 아니다. |
+| 운영 접근 | [후속 배포 요청 재점검](https://github.com/taejunyun1/Tasted_it/issues/290#issuecomment-6036888845)에서도 CLI 계정 2개 중 지정 운영 계정은 보이지 않았다. Wrangler OAuth 재연결 시 지속 로그인과 Workers·D1 쓰기 권한 요청이 자동 승인 검토에서 거절됐다. 추가 권한 연결은 사용자 승인 및 본인 인증 대기(`PENDING`)다. | 배포·원격 D1 migration 목록/집계·라이브 RSI·실제 검수/공개 모두 미실행·미확인. 다른 계정으로 대체하지 않았다. 이전 브라우저 접근 실패 기록은 별도 시점의 증거이며 최신 계정 접근 확인을 대신하지 않는다. |
+| 저장소 | 앞선 같은 날 조회에서 GitHub 저장소 Private·소유자 관리자 권한·`main` 보호 없음이 확인됐다. Branch protection/ruleset 조회는 403이며 GitHub Pro 업그레이드 또는 Public 전환 안내가 있었다. Wiki API `has_wiki=false`이나 인증된 `wiki.git` clone은 가능했다. | 이번 배포 재점검에서 저장소 보호 설정을 재조회하지 않았다. Private 유지 상태의 보호 방식은 소유자가 결정. 구매·가시성 변경은 수행하지 않았다. |
+| PR #291 병합·CI | 병합 소스 [`8057bcf`](https://github.com/taejunyun1/Tasted_it/commit/8057bcf4e2ae25dc1d765ef7e511fbc753f82a3a). [최종 PR CI](https://github.com/taejunyun1/Tasted_it/actions/runs/37592478548)는 head `00d5135a928795a377f6158bd47d03fe11152402`, [병합 main CI](https://github.com/taejunyun1/Tasted_it/actions/runs/37592951407)는 `8057bcf4e2ae25dc1d765ef7e511fbc753f82a3a`에서 각각 build·integration·Playwright·typecheck/unit 4개 잡 모두 성공. SQL 32개 지표의 로컬 fixture/읽기 전용 검증, 수정 범위 76개·전체 단위 906개·전체 통합 357개 통과. | 런북·SQL·테스트 수정의 코드 검증이다. 운영 데이터·법률 문안·배포 확인을 대신하지 않는다. |
+| PR #293 병합·CI | 병합 소스 [`b1c0793`](https://github.com/taejunyun1/Tasted_it/commit/b1c07932c4c95546cd9d2df34e891584376f49e6). [최종 PR CI](https://github.com/taejunyun1/Tasted_it/actions/runs/37603222048)는 head `5f9b8fee7768dea3f4d43e2657d0248045642ef2`, [병합 main CI](https://github.com/taejunyun1/Tasted_it/actions/runs/37603717573)는 `b1c07932c4c95546cd9d2df34e891584376f49e6`에서 각각 4개 잡 모두 성공. 최종 공개의 활성 말단 분류 재검사에 신규 8개·범위 34개·전체 단위 906개·전체 통합 365개, 로컬 typecheck·build 통과. 독립 리뷰 승인. | 코드 병합은 완료됐다. PR에 명시된 운영 배포·원격 D1 읽기·라이브 Worker 검증은 지정 계정 접근 복구 후 실행해야 한다. |
 | 배포 기록 | [배포 런북](./cloudflare-deploy.md)에 기록된 최근 버전은 `739a0b2d-d7fb-48ec-92f6-df3e21ea82ef`(소스 `0562910`, [PR #289](https://github.com/taejunyun1/Tasted_it/pull/289)의 2026-09-08 기록). | 기록된 버전이 **현재 라이브 버전이라는 확인은 없다**. 코드에는 RSI stage 0과 6시간 cron이 구현되어 있다. stage 1–4 확대는 HOLD다. |
+
+PR #291의 [초기 CI](https://github.com/taejunyun1/Tasted_it/actions/runs/37590401493)는 통합 테스트 357개 중 17개가 실패했고 로컬에서도 재현했다. 2026-09-09 만료 시드와 실제 실행 시각을 섞어 쓰던 두 테스트 파일에서 `Date`만 2026-08-10 00:10 UTC로 고정하고 매 테스트 후 복원했다. 전체 통합 테스트는 공백 없는 임시 복사본에서 검증했다. 원래 worktree 경로의 공백으로 발생한 별도 2개 파일의 React 모듈 수집 오류를 우회한 것으로, PR #291·#293의 임시 복사본과 작업 브랜치는 검증한 소스 해시가 일치했다. 로컬 테스트는 로컬 D1과 mock 외부 서비스를 사용했으며 운영 D1·NAVER·메일 실호출의 증거가 아니다.
+
+### 인수인계와 재개 조건
+
+1. 완료: PR #291의 읽기 전용 집계/런북·게스트 테스트 날짜 고정, PR #293의 후보·기존 장소 공통 공개 분류 재검사, 각 최종 PR/main CI.
+2. 대기: 추가 OAuth 권한 연결의 명시적 사용자 승인과 본인 인증 후 지정 계정 접근 확인. 자동 승인 검토의 거절 사유는 기존 읽기 전용 D1 확인 범위를 넘어 지속 Workers·D1 쓰기 권한을 요청한다는 것이었다. **이번 문서 변경의 병합은 해당 권한 연결을 승인하지 않으며 `PENDING`을 유지한다.**
+3. 접근 복구 후: [PR #293의 승인된 rollout](https://github.com/taejunyun1/Tasted_it/pull/293)에 따라 현재 정상 Worker 버전 확인·기록 → 병합 `main` 배포 → 공개 HTTP와 Worker Observability RSI 확인 → 지정 D1 migration 목록과 32개 읽기 전용 지표 확인. 이 절차에서 원격 migration apply/create, 시드, 일괄 공개를 수행하지 않는다.
+4. 별도 운영 게이트: 실제 근거에 따른 관리자 검수·선택 공개, 광주 300곳·지역/분류 커버리지, 법적 운영 주체·연락처·실제 처리/보존 설정, Private 저장소 보호 방식과 소유자 GO. 미완료이므로 Issue #290은 열어 둔다. RSI stage 1–4는 HOLD다.
 
 로컬 단위 테스트와 SQL 검증은 운영 데이터 상태나 법률 문안 확정의 증거가 아니다. 원시 응답 본문, 장소 이름·주소·ID, 이메일, 토큰은 기록하지 않는다. 보고에는 집계값, 조회 시각, 소스 SHA, 공개 경로, 저장소 설정 메타데이터만 남긴다.
 
