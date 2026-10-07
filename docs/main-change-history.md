@@ -15,6 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 2026-10-07 베타 운영 준비 런북. SQL 32개 읽기 전용 지표와 근거별 검수 절차를 연결한다. 운영 계정 접근 차단으로 원격 집계·공개는 UNVERIFIED, 공개 HTTP는 정상 응답 확인. 문서 변경에 배포 없음. | [Issue #290](https://github.com/taejunyun1/Tasted_it/issues/290) · [PR #291](https://github.com/taejunyun1/Tasted_it/pull/291) · [`beta-readiness.md`](./operations/beta-readiness.md) |
 | Proposed | 2026-09-08 `0562910` 운영 배포 기록. Worker `739a0b2d-…`. RSI cron 6시간. rollback `0c4e5c32-…`. 재배포·원격 apply 없음. | [Issue #288](https://github.com/taejunyun1/Tasted_it/issues/288) · [PR #289](https://github.com/taejunyun1/Tasted_it/pull/289) |
 | Merged | 2026-09-08 RSI 주기를 6시간 cron으로 분리하고 범위 확장 단계를 플랜으로 남긴다. 이번 PR에서 경로 추가 없음. 병합 후 배포. | [Issue #286](https://github.com/taejunyun1/Tasted_it/issues/286) · [PR #287](https://github.com/taejunyun1/Tasted_it/pull/287) · [`0562910`](https://github.com/taejunyun1/Tasted_it/commit/0562910) |
 | Merged | 2026-09-08 `b46858c` 운영 배포 기록. Worker `0c4e5c32-…`. rollback `3132ad56-…`. 재배포·원격 apply 없음. | [Issue #284](https://github.com/taejunyun1/Tasted_it/issues/284) · [PR #285](https://github.com/taejunyun1/Tasted_it/pull/285) · [`e37bc7d`](https://github.com/taejunyun1/Tasted_it/commit/e37bc7d) |
