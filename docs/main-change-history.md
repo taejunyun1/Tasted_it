@@ -15,6 +15,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Proposed | 2026-10-07 최종 공개에서 선택한 분류가 이후 비활성화되거나 활성 하위 분류가 생긴 경우를 막는다. 후보·기존 장소의 공통 공개 함수가 현재 활성 말단 분류를 재확인해 부적격이면 claim·쓰기 전에 `CATEGORY_REQUIRED`로 건너뛴다. 신규 8개·범위 34개·전체 단위 906개·전체 통합 365개와 로컬 typecheck·build 통과, Task 1 리뷰 APPROVED; PR CI 진행 중. Migration·환경 변수·외부 서비스 변경 없음. 운영 계정 접근 대기로 배포·라이브 RSI 검증은 UNVERIFIED. Rollback은 이전에 검증한 Worker 버전 복귀와 이 PR의 코드 되돌리기. | [Issue #292](https://github.com/taejunyun1/Tasted_it/issues/292) · [PR #293](https://github.com/taejunyun1/Tasted_it/pull/293) · [`beta-readiness.md`](./operations/beta-readiness.md) |
 | Proposed | 2026-10-07 베타 운영 준비 런북. SQL 32개 읽기 전용 지표와 근거별 검수 절차를 연결하고, 게스트 통합 테스트 2개 파일의 실행 날짜 의존성을 고정한다. 로컬 통합 테스트 357개 통과, 수정 후 PR CI는 확인 전. 운영 계정 접근 차단으로 원격 집계·공개는 UNVERIFIED, 공개 HTTP는 정상 응답 확인. 제품 동작·설정·배포 변경 없음. | [Issue #290](https://github.com/taejunyun1/Tasted_it/issues/290) · [PR #291](https://github.com/taejunyun1/Tasted_it/pull/291) · [`beta-readiness.md`](./operations/beta-readiness.md) |
 | Proposed | 2026-09-08 `0562910` 운영 배포 기록. Worker `739a0b2d-…`. RSI cron 6시간. rollback `0c4e5c32-…`. 재배포·원격 apply 없음. | [Issue #288](https://github.com/taejunyun1/Tasted_it/issues/288) · [PR #289](https://github.com/taejunyun1/Tasted_it/pull/289) |
 | Merged | 2026-09-08 RSI 주기를 6시간 cron으로 분리하고 범위 확장 단계를 플랜으로 남긴다. 이번 PR에서 경로 추가 없음. 병합 후 배포. | [Issue #286](https://github.com/taejunyun1/Tasted_it/issues/286) · [PR #287](https://github.com/taejunyun1/Tasted_it/pull/287) · [`0562910`](https://github.com/taejunyun1/Tasted_it/commit/0562910) |
