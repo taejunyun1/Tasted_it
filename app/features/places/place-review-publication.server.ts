@@ -1,8 +1,9 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { adminAuditLogs, businessLicenses, placeCategories, placeReviewWorkItems, places } from "../../db/schema";
+import { adminAuditLogs, businessLicenses, categories, placeCategories, placeReviewWorkItems, places } from "../../db/schema";
 import { approveCandidate } from "../candidates/candidate.server";
+import { getTerminalCategoryIds } from "../candidates/category-selection";
 import { REVIEW_BATCH_MAX } from "./place-review-io";
 import { listReviewDuplicateCandidates } from "./place-review-duplicates.server";
 import { enforceReviewDiningExclusion } from "./local-dining-review.server";
@@ -24,13 +25,15 @@ export async function publishReviewedPlaces(db: AppDb, input: {
   const published: string[] = [];
   const skipped: Array<{ workItemId: string; code: string }> = [];
   const items = await db.select().from(placeReviewWorkItems).where(inArray(placeReviewWorkItems.id, ids));
+  const activeCategories = await db.select({ id: categories.id, parentId: categories.parentId }).from(categories).where(eq(categories.isActive, true));
+  const terminalCategoryIds = getTerminalCategoryIds(activeCategories);
 
   for (const item of items) {
     if (item.status !== "ACTIVE" || item.stage !== "FINAL_APPROVAL" || input.expectedVersions[item.id] !== item.stageVersion) {
       skipped.push({ workItemId: item.id, code: "STALE_WORK_ITEM" });
       continue;
     }
-    if (!item.selectedCategoryId) {
+    if (!item.selectedCategoryId || !terminalCategoryIds.has(item.selectedCategoryId)) {
       skipped.push({ workItemId: item.id, code: "CATEGORY_REQUIRED" });
       continue;
     }
