@@ -29,4 +29,13 @@ describe("signup failure policy", () => {
       message: "가입 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     });
   });
+
+  it("keeps delivery diagnostics server-side and rejects injected provider text", () => {
+    const safe = describeSignupFailure(new Error("RESEND_SEND_FAILED:403:SENDER_DOMAIN_NOT_VERIFIED"));
+    expect(safe.logCode).toBe("RESEND_SEND_FAILED:403:SENDER_DOMAIN_NOT_VERIFIED");
+    expect(safe.message).not.toContain("SENDER_DOMAIN");
+    const unsafe = describeSignupFailure(new Error("RESEND_SEND_FAILED:403:owner@example.com\nsecret"));
+    expect(unsafe.logCode).toBe("RESEND_SEND_FAILED:UNKNOWN");
+    expect(unsafe.message).toBe(safe.message);
+  });
 });

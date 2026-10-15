@@ -6,6 +6,15 @@ import {
 } from "../../app/features/auth/email.server";
 
 describe("sendAccountEmail", () => {
+  it("surfaces the provider refusal reason without its recipient address", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      name: "validation_error",
+      message: "You can only send testing emails to your own email address (owner@example.com).",
+    }), { status: 403 }));
+    await expect(sendAccountEmail({ apiKey: "secret", from: "onboarding@resend.dev", to: "user@example.com", purpose: "VERIFY_EMAIL", url: "https://example.com/verify-email#abc", fetcher }))
+      .rejects.toThrow("RESEND_SEND_FAILED:403:TEST_RECIPIENT_RESTRICTED");
+  });
+
   it("sends a verified account link through Resend", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ id: "email-1" }), { status: 200 }));
     await sendAccountEmail({ apiKey: "secret", from: "Re:Taste <account@example.com>", to: "user@example.com", purpose: "VERIFY_EMAIL", url: "https://example.com/verify-email#abc", fetcher });
