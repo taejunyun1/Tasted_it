@@ -1,6 +1,6 @@
 const REASONS = new Set([
   "TEST_RECIPIENT_RESTRICTED", "SENDER_DOMAIN_NOT_VERIFIED", "API_KEY_SUSPENDED",
-  "API_KEY_INACTIVE", "API_KEY_INVALID", "API_KEY_RESTRICTED", "API_PERMISSION_MISSING",
+  "API_KEY_INACTIVE", "API_KEY_INVALID", "API_KEY_FORMAT_INVALID", "API_KEY_RESTRICTED", "API_PERMISSION_MISSING",
   "UNCLASSIFIED",
 ]);
 
@@ -29,7 +29,7 @@ async function readErrorBody(response: Response): Promise<unknown> {
   }
 }
 
-export async function resendFailureCode(response: Response) {
+export async function resendFailureCode(response: Response, configuration?: { apiKey: string }) {
   const body = await readErrorBody(response);
   const fields = body && typeof body === "object" ? body as Record<string, unknown> : {};
   const name = typeof fields.name === "string" ? fields.name : "";
@@ -42,6 +42,7 @@ export async function resendFailureCode(response: Response) {
   else if (message.includes("api key is invalid")) reason = "API_KEY_INVALID";
   else if (name === "restricted_api_key") reason = "API_KEY_RESTRICTED";
   else if (name === "invalid_permission") reason = "API_PERMISSION_MISSING";
+  if (reason === "API_KEY_INVALID" && configuration && !configuration.apiKey.startsWith("re_")) reason = "API_KEY_FORMAT_INVALID";
   // Provider text may contain addresses, credentials or links. Emit fixed codes only.
   return `RESEND_SEND_FAILED:${response.status}:${reason}`;
 }

@@ -32,4 +32,9 @@ describe("Resend failure diagnostics", () => {
     expect(safeResendLogCode("RESEND_SEND_FAILED:403:owner@example.com\nsecret"))
       .toBe("RESEND_SEND_FAILED:UNKNOWN");
   });
+
+  it.each([["re_test-key", "API_KEY_INVALID"], ["another-provider-test-key", "API_KEY_FORMAT_INVALID"]])("identifies invalid credential format without revealing the key", async (apiKey, reason) => {
+    const response = new Response(JSON.stringify({ name: "validation_error", message: "API key is invalid" }), { status: 403 });
+    await expect(resendFailureCode(response, { apiKey })).resolves.toBe(`RESEND_SEND_FAILED:403:${reason}`);
+  });
 });
