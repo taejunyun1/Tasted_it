@@ -1119,3 +1119,41 @@ export const studentInvitations = sqliteTable("student_invitations", {
   uniqueIndex("student_invitation_open_seat_idx").on(t.seatCode).where(sql`${t.consumedAt} is null and ${t.revokedAt} is null`),
   index("student_invitation_expiry_idx").on(t.expiresAt),
 ]);
+
+export const studentTasks = sqliteTable("student_tasks", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["PLACE", "REVIEW", "QA"] }).notNull(),
+  targetId: text("target_id").notNull(),
+  title: text("title").notNull(),
+  assignedSeat: text("assigned_seat", { enum: ["A", "B", "C", "D"] }).notNull().references(() => studentSeats.code),
+  checkerSeat: text("checker_seat", { enum: ["A", "B", "C", "D"] }).notNull().references(() => studentSeats.code),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  status: text("status", { enum: ["OPEN", "SUBMITTED", "VERIFIED", "APPROVED", "NEEDS_INFO"] }).notNull().default("OPEN"),
+  version: integer("version").notNull().default(0),
+  classificationJson: text("classification_json"),
+  targetFingerprint: text("target_fingerprint"),
+  submittedBy: text("submitted_by").references(() => users.id, { onDelete: "set null" }),
+  submittedAt: text("submitted_at"),
+  checkedBy: text("checked_by").references(() => users.id, { onDelete: "set null" }),
+  checkedAt: text("checked_at"),
+  reviewNote: text("review_note"),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (t) => [
+  index("student_task_assignment_idx").on(t.assignedSeat, t.isActive, t.updatedAt, t.id),
+  index("student_task_checker_idx").on(t.checkerSeat, t.isActive, t.status, t.updatedAt, t.id),
+  uniqueIndex("student_place_target_idx").on(t.targetId).where(sql`${t.kind} = 'PLACE' and ${t.isActive} = 1`),
+  uniqueIndex("student_review_target_idx").on(t.targetId).where(sql`${t.kind} = 'REVIEW' and ${t.isActive} = 1`),
+  check("student_task_distinct_checker", sql`${t.assignedSeat} <> ${t.checkerSeat}`),
+]);
+
+export const studentTaskRevisions = sqliteTable("student_task_revisions", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").notNull().references(() => studentTasks.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  actorSeat: text("actor_seat", { enum: ["A", "B", "C", "D"] }).notNull().references(() => studentSeats.code),
+  eventType: text("event_type", { enum: ["SUBMIT", "CHECK", "REGISTRATION_ATTEST"] }).notNull(),
+  payloadJson: text("payload_json").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => [uniqueIndex("student_task_revision_idx").on(t.taskId, t.version)]);
