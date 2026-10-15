@@ -40,6 +40,7 @@ Cloudflare 관리화면의 Agent Lee와 서비스 내부 Workers AI는 용도가
 
 - D1의 [`batch()`](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch)는 같은 D1의 SQL 묶음을 transaction으로 처리한다. R2 put과 D1 update를 하나의 transaction으로 묶어 주지는 않는다. `RECEIVED → STORED_PRIVATE → CHECKING → HUMAN_REVIEW → APPROVED` 상태와 실패 이력을 별도로 기록하고, 객체 저장 후 DB 실패·DB 예약 후 중단을 복구할 조정 절차를 둔다. 보상 정리는 다른 사용 중인 객체를 지우지 않도록 업로드 ID·객체 버전·현재 참조를 확인한다.
 - 객체 키는 서버에서 발급하고 불변으로 저장한다. [R2 조건부 생성](https://developers.cloudflare.com/r2/reference/consistency/#conditional-writes)으로 재시도·동시 업로드가 같은 키를 덮어쓰지 않게 한다. AI·사람 승인도 `uploadId + hash + version + 현재 상태`가 일치할 때만 반영한다. 공개 시에도 최신 승인 버전을 다시 확인한다.
+- D1 예약은 조건부 update의 affected rows로 실제 획득 여부를 확인한 후에만 외부 호출을 시작한다. 별도 실행 lease와 만료 시각을 두고, 관리자 재실행 때 중단된 작업을 회수한다. 예약 직후 중단됐는지 호출 직후 중단됐는지 모르면 비용 집계를 임의 환불하지 않고 UNKNOWN으로 보수적으로 기록한다. 만료된 lease의 늦은 결과는 거부한다. 관리자 버튼만 쓰는 초기안에는 사람이 다시 실행하기 전 자동 복구가 시작되지 않는 한계가 있다.
 - R2 `checksums.sha256`은 put 시 checksum을 제공한 객체에서 확인하는 값이다. 이전 객체에 값이 없으면 이를 정상 일치로 기록하지 않고 재읽기 계산 또는 별도 보완 대상으로 둔다. 실제 무결성 점검은 기대값·저장 metadata 비교와 필요한 바이트 재읽기를 구분한다.
 - [Workers isolate의 128MB 메모리 한도](https://developers.cloudflare.com/workers/platform/limits/#memory)는 동시 요청과 WebAssembly 할당까지 공유한다. JPEG 전체 디코딩·재인코딩은 기존 signature 검사로 해결되지 않는다. 디코더·최대 픽셀·동시 처리 수를 고정해 CPU/메모리를 실측해야 한다. [Images binding](https://developers.cloudflare.com/images/optimization/binding/)을 선택하면 별도 binding·요금·처리 위치 검토와 PR 승인이 필요하다. 현재 기능이 안전한 재인코딩을 이미 제공한다고 가정하지 않는다.
 
@@ -65,8 +66,19 @@ CSV는 원본 bytes hash·정규화 rows hash·parser/rule version·확인자·�
 
 Worker의 binding과 사진·AI 공개 설정을 GET으로 진단하고, 위 업로드 설계를 공식 문서에 대조하도록 요청했다. Agent Lee에는 비밀값·사용자 정보·D1 업무 레코드를 읽거나 출력하지 않고, 배포·DB 쓰기·추론 호출·추가 권한 연결을 하지 않도록 범위를 명시했다.
 
-Agent Lee의 읽기 GET 진단에서 `DB` → 지정 D1, `REVIEW_PHOTOS` → 기존 R2, Workers AI binding 없음, `REVIEW_PHOTO_UPLOAD_ENABLED=false`를 확인했다. binding과 사진 스위치는 저장소 설정·앞선 관리화면 관찰과 일치했다. 비밀값·D1 업무 레코드는 조회하지 않았다는 응답이며, 실제 업로드 성공이나 모든 외부 AI 호출 부재를 입증하는 시험은 아니다.
+Agent Lee의 읽기 GET 진단에서 `DB` → 지정 D1, `REVIEW_PHOTOS` → 기존 R2, Workers AI binding 없음, `REVIEW_PHOTO_UPLOAD_ENABLED=false`를 확인했다. binding과 사진 스위치는 저장소 설정·앞선 관리화면 관찰과 일치했다. 비밀값·D1 업무 레코드는 조회하지 않았다는 응답이며, 실제 업로드 성공이나 모든 외부 AI 호출 부재를 입증하는 시험은 아니다. R2 버킷 공개 여부는 Agent Lee의 추가 권한 없이 기존 관리화면에서 따로 확인했으며, `공개 액세스: 사용 안 함`이었다. 이는 버킷의 직접 공개 설정이며 Worker 사진 endpoint의 검수 전 차단을 대신하지 않는다.
 
 응답이 `RSI_CLOUDFLARE_ENABLED`를 AI/추천 기능일 수 있다고 추정한 부분은 채택하지 않았다. 코드와 저장소 런북에 따라 공개 HTTP 경로 자가 점검임을 바로잡고, 업로드 검사 설계의 추가 검토를 요청했다. Agent Lee의 설계 의견은 운영 승인·보안 인증·무결성 보증으로 취급하지 않는다.
+
+### 설계 검토 결과와 대조
+
+추가 문서 기반 검토 답변까지 수신했다. 채택한 보완은 R2/D1의 중간 실패 복구, 조건부 D1 예약과 lease 만료, CPU·메모리 실측, 비공개 저장·공개 endpoint의 승인 확인이다. UNKNOWN 처리와 ETag를 무결성 hash로 사용하지 않는 방향도 확인했다. 다음 추정은 사실과 구분한다.
+
+- `workers.dev` 공개 주소나 Access 부재는 애플리케이션의 무인증을 뜻하지 않는다. 기존 관리자/리뷰어와 이번 학생 경로는 서버 인증·권한 검사가 있으므로 Agent Lee의 “무인증 업로드 endpoint” 단정은 채택하지 않는다. 새 업로드 경로에도 별도 인증·배정 시험이 필요하다.
+- 지원 티어만으로 Workers Free/Paid 플랜이나 CPU 한도를 확정하지 않는다. 실제 플랜과 Worker 한도를 확인하고 디코딩 표본을 실측한 뒤 실행 방식을 선택한다.
+- AI binding 없음은 현재 `env.AI` 기반 검사를 바로 켤 수 없다는 사실이다. 모든 외부 AI API 호출이 불가능하다는 뜻은 아니다. 별도 REST credential이나 우회 호출을 추가하지 않는다.
+- Agent Lee가 찾지 못한 Workers AI 데이터 정책은 위 [공식 데이터 사용 문서](https://developers.cloudflare.com/workers-ai/platform/data-usage/)에서 직접 확인했다. 무학습 정책을 보존기간·처리 위치·로그 전체의 무저장 보장으로 확대하지 않는다.
+
+따라서 현재 판정은 **조건부 도입 검토**다. 학생 분류 기능의 로컬 구현·시험과 별개로, 업로드 검사 구현·모델 성능 시험·운영 적용은 아직 완료되지 않았다. 실제 Workers 플랜·CPU 예산과 모델/보존/요금을 확정하고, R2 직접 공개 비활성 유지·Worker 경유의 검수 전 조회 차단을 도입 전에 시험해야 한다.
 
 도입 구현은 새 업로드 목적·학생 권한·사전 비공개 저장 상태·보존기간·모델·회귀 결과·비용 상한·실행 담당자·rollback을 명시한 후 별도 PR로 결정한다. 본 학생 분류 PR은 새 AI binding·추론 호출·업로드 권한을 켜지 않는다.
