@@ -1,6 +1,6 @@
 # 업로드 무결성과 Cloudflare AI 보조 검사 검토
 
-검토일: 2026-10-15. 상태: 제안, 모델 호출·새 권한 연결·운영 기능 확장 미실행. 학생 작업공간의 분류 기능과 별도 도입 판단이며 현재 자동 검사 완료를 뜻하지 않는다.
+검토일: 2026-10-15. 상태: 서비스 업로드 검사 제안. 사용자 승인으로 Agent Lee에 읽기 권한 5개를 연결했다. 서비스의 Workers AI 검사 모델 호출·새 binding·업로드 기능 확장은 실행하지 않았다. 학생 작업공간의 분류 기능과 별도 도입 판단이며 현재 자동 검사 완료를 뜻하지 않는다.
 
 ## 판단
 
@@ -36,6 +36,13 @@ Cloudflare 관리화면의 Agent Lee와 서비스 내부 Workers AI는 용도가
 
 처음에는 관리자의 검증 실행 버튼으로 최대 25건씩 처리하고, 실패·대기만 다시 처리한다. 안정성 증거와 새 기술 승인 전에는 기존 maintenance `Promise.all`·RSI cron에 작업을 끼워 넣지 않는다. 장시간 처리가 필요하면 별도 승인 범위에서 D1 작업표 또는 Workflows/Queues를 비교한다. `waitUntil` 한 번만으로 유실 없는 작업 완료를 보장하지 않는다.
 
+### 저장·동시성·실행 자원
+
+- D1의 [`batch()`](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch)는 같은 D1의 SQL 묶음을 transaction으로 처리한다. R2 put과 D1 update를 하나의 transaction으로 묶어 주지는 않는다. `RECEIVED → STORED_PRIVATE → CHECKING → HUMAN_REVIEW → APPROVED` 상태와 실패 이력을 별도로 기록하고, 객체 저장 후 DB 실패·DB 예약 후 중단을 복구할 조정 절차를 둔다. 보상 정리는 다른 사용 중인 객체를 지우지 않도록 업로드 ID·객체 버전·현재 참조를 확인한다.
+- 객체 키는 서버에서 발급하고 불변으로 저장한다. [R2 조건부 생성](https://developers.cloudflare.com/r2/reference/consistency/#conditional-writes)으로 재시도·동시 업로드가 같은 키를 덮어쓰지 않게 한다. AI·사람 승인도 `uploadId + hash + version + 현재 상태`가 일치할 때만 반영한다. 공개 시에도 최신 승인 버전을 다시 확인한다.
+- R2 `checksums.sha256`은 put 시 checksum을 제공한 객체에서 확인하는 값이다. 이전 객체에 값이 없으면 이를 정상 일치로 기록하지 않고 재읽기 계산 또는 별도 보완 대상으로 둔다. 실제 무결성 점검은 기대값·저장 metadata 비교와 필요한 바이트 재읽기를 구분한다.
+- [Workers isolate의 128MB 메모리 한도](https://developers.cloudflare.com/workers/platform/limits/#memory)는 동시 요청과 WebAssembly 할당까지 공유한다. JPEG 전체 디코딩·재인코딩은 기존 signature 검사로 해결되지 않는다. 디코더·최대 픽셀·동시 처리 수를 고정해 CPU/메모리를 실측해야 한다. [Images binding](https://developers.cloudflare.com/images/optimization/binding/)을 선택하면 별도 binding·요금·처리 위치 검토와 PR 승인이 필요하다. 현재 기능이 안전한 재인코딩을 이미 제공한다고 가정하지 않는다.
+
 CSV는 원본 bytes hash·정규화 rows hash·parser/rule version·확인자·확정할 변경 diff를 서버 batch에 묶고, confirm이 그 batch를 한 번만 소비하게 한다. 중복 slug·지역·활성 말단 업종·원천 근거·기존 공개 자료 덮어쓰기를 코드로 검사한다. AI에는 개인정보 필드를 뺀 상호·음식 종류·허용 후보만 주어 의심 행을 표시하게 한다. AI가 CSV 내용을 수정하거나 PUBLISHED로 바꿀 수 없어야 한다. CSV 내보내기를 추가하면 spreadsheet 수식 주입도 별도로 방어한다.
 
 ## AI 계약과 운영 한도 제안
@@ -52,6 +59,14 @@ CSV는 원본 bytes hash·정규화 rows hash·parser/rule version·확인자·�
 
 위조 MIME, 손상 JPEG, 과대 픽셀, metadata, 동일/다른 hash, 배정 외 업로드, 기한 만료, 잘못된 계정, 이중 업로드, R2 실패, DB 실패, 검수 전 조회 차단, 모델 timeout·잘못된 JSON·명령문 삽입, 중복 재시도·과거 버전 응답, 일일 한도 동시 호출, 사람 판정과 AI 불일치, 삭제 후 잔여 객체를 시험한다. 모델과 고정 회귀 표본의 오탐·누락을 확인하고 부족하면 수동 운영한다.
 
-Agent Lee의 실제 계정 진단은 별도 읽기 권한 연결이 필요하다. 관리화면에서 Workers Scripts·D1·Workers AI와 필수 Account Settings·User Details의 5개 읽기만 선택한 미인증 상태까지 확인했다. 쓰기·DNS·로그·Zero Trust 권한을 연결하지 않았다. 최종 인증 전 사용자 확인이 필요하며, Agent Lee가 계정을 진단했다거나 검사 루틴이 작동했다고 주장하지 않는다.
+## Agent Lee 실제 진단 범위
+
+사용자가 승인한 Workers Scripts·D1·Workers AI와 필수 Account Settings·User Details의 5개 읽기를 연결하고, 관리화면의 `Read only` 상태를 확인했다. 쓰기·DNS·로그·Zero Trust 권한은 연결하지 않았다. 서비스 설정을 읽는 보조 진단이며 CLI 배포 권한 복구나 새 AI 검사 기능 가동을 의미하지 않는다.
+
+Worker의 binding과 사진·AI 공개 설정을 GET으로 진단하고, 위 업로드 설계를 공식 문서에 대조하도록 요청했다. Agent Lee에는 비밀값·사용자 정보·D1 업무 레코드를 읽거나 출력하지 않고, 배포·DB 쓰기·추론 호출·추가 권한 연결을 하지 않도록 범위를 명시했다.
+
+Agent Lee의 읽기 GET 진단에서 `DB` → 지정 D1, `REVIEW_PHOTOS` → 기존 R2, Workers AI binding 없음, `REVIEW_PHOTO_UPLOAD_ENABLED=false`를 확인했다. binding과 사진 스위치는 저장소 설정·앞선 관리화면 관찰과 일치했다. 비밀값·D1 업무 레코드는 조회하지 않았다는 응답이며, 실제 업로드 성공이나 모든 외부 AI 호출 부재를 입증하는 시험은 아니다.
+
+응답이 `RSI_CLOUDFLARE_ENABLED`를 AI/추천 기능일 수 있다고 추정한 부분은 채택하지 않았다. 코드와 저장소 런북에 따라 공개 HTTP 경로 자가 점검임을 바로잡고, 업로드 검사 설계의 추가 검토를 요청했다. Agent Lee의 설계 의견은 운영 승인·보안 인증·무결성 보증으로 취급하지 않는다.
 
 도입 구현은 새 업로드 목적·학생 권한·사전 비공개 저장 상태·보존기간·모델·회귀 결과·비용 상한·실행 담당자·rollback을 명시한 후 별도 PR로 결정한다. 본 학생 분류 PR은 새 AI binding·추론 호출·업로드 권한을 켜지 않는다.
