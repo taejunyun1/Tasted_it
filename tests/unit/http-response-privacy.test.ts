@@ -17,6 +17,11 @@ describe("student response privacy at the Worker boundary", () => {
     "/admin/students.data",
     "/%73tudent.data",
     "/admin/%73tudents",
+    "/Student",
+    "/STUDENT/tasks/example",
+    "/Admin/Students",
+    "/Student.data",
+    "/Admin/%53tudents.data",
   ])("overrides cacheable login redirects for %s", (path) => {
     const response = new Response(null, {
       status: 302,

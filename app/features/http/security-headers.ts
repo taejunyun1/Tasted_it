@@ -37,6 +37,7 @@ function isStudentWorkspaceRequest(request: Request) {
   } catch {
     // The raw namespace can still identify malformed student paths.
   }
+  path = path.toLowerCase();
   return path === "/student" || path === "/student.data" || path.startsWith("/student/")
     || path === "/admin/students" || path === "/admin/students.data" || path.startsWith("/admin/students/");
 }
