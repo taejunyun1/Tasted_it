@@ -1091,3 +1091,31 @@ export const productEvents = sqliteTable("product_events", {
     .on(table.guestSessionId, table.eventName)
     .where(sql`${table.guestSessionId} is not null and ${table.eventName} in ('ONBOARDING_STARTED', 'GUEST_CONVERTED')`),
 ]);
+
+export const studentSeats = sqliteTable("student_seats", {
+  code: text("code", { enum: ["A", "B", "C", "D"] }).primaryKey(),
+  label: text("label").notNull(),
+  userId: text("user_id").unique().references(() => users.id, { onDelete: "set null" }),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  canClassifyPlaces: integer("can_classify_places", { mode: "boolean" }).notNull().default(false),
+  canClassifyReviews: integer("can_classify_reviews", { mode: "boolean" }).notNull().default(false),
+  canRecordQa: integer("can_record_qa", { mode: "boolean" }).notNull().default(true),
+  canApproveRegistration: integer("can_approve_registration", { mode: "boolean" }).notNull().default(false),
+  expiresAt: text("expires_at").notNull(),
+  ...timestamps,
+});
+
+export const studentInvitations = sqliteTable("student_invitations", {
+  id: text("id").primaryKey(),
+  seatCode: text("seat_code", { enum: ["A", "B", "C", "D"] }).notNull().references(() => studentSeats.code, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: text("expires_at").notNull(),
+  consumedAt: text("consumed_at"),
+  consumedBy: text("consumed_by").references(() => users.id, { onDelete: "set null" }),
+  revokedAt: text("revoked_at"),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  uniqueIndex("student_invitation_open_seat_idx").on(t.seatCode).where(sql`${t.consumedAt} is null and ${t.revokedAt} is null`),
+  index("student_invitation_expiry_idx").on(t.expiresAt),
+]);
