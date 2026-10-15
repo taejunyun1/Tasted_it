@@ -13,6 +13,8 @@
 
 쓰지 않는 대상: 가정 계정 `a58fbe3a0082c49f571d69d08c1227ab`, 개인 계정 `f43d6ae07d0d75a6d9ca80befae153eb`. 배포 전 `CLOUDFLARE_ACCOUNT_ID`를 위 운영 계정으로 두고 `wrangler whoami`에서 그 계정만 보이는지 확인한다. 개인 계정이 유일한/기본 계정이면 중단한다. 기존 D1를 다시 만들지 않는다.
 
+2026-10-15: [PR #296](https://github.com/taejunyun1/Tasted_it/pull/296) 병합 main `0cf49ef`를 지정 계정에 배포하고 D1 `0037_student_invitations.sql`·`0038_student_tasks.sql`만 적용했다. 기존 기본 auth 프로필을 보존하고 `tastedit-production` 프로필에 지정 계정만의 승인 OAuth 6개를 연결했다. 최초 false Worker `02540a1c-4810-4939-b825-0e4bca6d7aac`, 초기 학생 활성화 Worker `34d297d6-1ea5-4bbd-91ef-da37fa9ca6b7`, 도입 이전 rollback `739a0b2d-d7fb-48ec-92f6-df3e21ea82ef`. 사전 Time Travel bookmark는 비공개 운영 기록에 보관했다. [Issue #297](https://github.com/taejunyun1/Tasted_it/issues/297) 범위로 별도 운영 ADMIN 1개와 감사 기록을 만들고 실제 A~D 미사용 초대 4개를 발급했다. 개인 서비스 계정의 역할·기존 두 cron·사진/AI 스위치는 유지했다. 초기 302 세 경로에서 발견한 캐시 헤더 누락을 이 변경에서 수정하며, 병합 main의 최종 배포 version·HTTP·Observability 실행 결과는 #297 및 위키에 기록한다. 실제 학생 수락·작업 전체 흐름과 새 배포 RSI는 PENDING이다. 상세 한도와 인수는 [학생 운영 런북](./student-workspace.md)을 따른다.
+
 2026-08-17: 원격 `d1 migrations list`는 대기 없음. `origin/main` `5c4285f`를 이 계정에 배포함. Version `194a3423-7964-4c58-98d5-0f2d0d822d0d`. rollback은 직전 버전 `d899f619-3df5-49a1-85f6-c5d3b9de87bf`를 다시 배포한다.
 
 2026-08-17: 원격 `d1 migrations list`는 대기 없음. `origin/main` `7a10dd0`를 이 계정에 배포함. Version `099d8361-989b-488d-bd94-91163551bfb6`. rollback은 직전 버전 `a78d44c8-953a-4331-9854-ed15a986b35b`를 다시 배포한다.

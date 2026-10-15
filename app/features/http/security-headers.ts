@@ -1,3 +1,5 @@
+import { NO_STORE_HEADERS } from "../students/policy";
+
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -28,10 +30,28 @@ export function applySecurityHeaders(headers: Headers) {
   return next;
 }
 
-export function withSecurityHeaders(response: Response) {
+function isStudentWorkspaceRequest(request: Request) {
+  let path = new URL(request.url).pathname;
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // The raw namespace can still identify malformed student paths.
+  }
+  path = path.toLowerCase();
+  return path === "/student" || path === "/student.data" || path.startsWith("/student/")
+    || path === "/admin/students" || path === "/admin/students.data" || path.startsWith("/admin/students/");
+}
+
+export function withSecurityHeaders(response: Response, request?: Request) {
+  const headers = applySecurityHeaders(response.headers);
+  // Router redirects bypass route-level headers. Enforce privacy on the final
+  // Worker response, including auth redirects, errors, and single-fetch data.
+  if (request && isStudentWorkspaceRequest(request)) {
+    for (const [key, value] of Object.entries(NO_STORE_HEADERS)) headers.set(key, value);
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers: applySecurityHeaders(response.headers),
+    headers,
   });
 }
