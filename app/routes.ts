@@ -46,5 +46,6 @@ export default [
   route("admin/ratings", "routes/admin-ratings.tsx"),
   route("admin/place-operations", "routes/admin-place-operations.tsx"),
   route("admin/operations", "routes/admin-operations.tsx"),
+  route("admin/operations/email-domain", "routes/admin-email-domain.ts"),
   route("admin/audit", "routes/admin-audit.tsx"),
 ] satisfies RouteConfig;
