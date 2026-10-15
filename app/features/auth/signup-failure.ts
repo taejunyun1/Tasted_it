@@ -1,9 +1,11 @@
+import { safeResendLogCode } from "./resend-failure";
+
 const GENERIC_SUCCESS = "가입 가능 여부와 관계없이 인증 안내가 등록된 이메일로 전송됩니다.";
 
 export function describeSignupFailure(error: unknown) {
   const rawCode = error instanceof Error ? error.message : "UNKNOWN";
   const logCode = rawCode.startsWith("RESEND_SEND_FAILED:")
-    ? rawCode
+    ? safeResendLogCode(rawCode)
     : rawCode.split(":", 1)[0] || "UNKNOWN";
 
   if (logCode === "ACCOUNT_EXISTS") {

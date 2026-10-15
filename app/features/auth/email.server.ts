@@ -1,3 +1,5 @@
+import { resendFailureCode } from "./resend-failure";
+
 export async function sendAccountEmail(input: {
   apiKey: string;
   from: string;
@@ -17,7 +19,7 @@ export async function sendAccountEmail(input: {
       html: `<div style="font-family:sans-serif;color:#171b18"><h1 style="font-size:16.8px">Re:Taste ${title}</h1><p>아래 링크는 30분 동안 한 번만 사용할 수 있습니다.</p><p><a href="${input.url}">${title} 계속하기</a></p><p>요청하지 않았다면 이 메일을 무시하세요.</p></div>`,
     }),
   });
-  if (!response.ok) throw new Error(`RESEND_SEND_FAILED:${response.status}`);
+  if (!response.ok) throw new Error(await resendFailureCode(response, { apiKey: input.apiKey }));
   return response.json() as Promise<{ id: string }>;
 }
 
@@ -54,7 +56,7 @@ export async function sendGoogleWelcomeEmail(input: {
       text: `${input.displayName.trim() || "새 회원"}님, Re:Taste Google 계정 연결이 완료되었습니다. 맛 코스 둘러보기: ${coursesUrl}`,
     }),
   });
-  if (!response.ok) throw new Error(`RESEND_SEND_FAILED:${response.status}`);
+  if (!response.ok) throw new Error(await resendFailureCode(response, { apiKey: input.apiKey }));
   return response.json() as Promise<{ id: string }>;
 }
 
