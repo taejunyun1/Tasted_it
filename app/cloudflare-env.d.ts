@@ -1,5 +1,6 @@
 declare namespace Cloudflare {
   interface Env {
+    STUDENT_WORKSPACE_ENABLED: string;
     ADMIN_EMAIL: string;
     NAVER_MAPS_CLIENT_ID: string;
     NAVER_PLACE_GEOCODING_ENABLED: string;

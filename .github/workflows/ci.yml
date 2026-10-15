@@ -125,5 +125,5 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Playwright smoke
-        run: pnpm exec playwright test tests/e2e/release.spec.ts tests/e2e/ci-smoke-places.spec.ts --project=chromium
+        run: pnpm exec playwright test tests/e2e/release.spec.ts tests/e2e/ci-smoke-places.spec.ts tests/e2e/student-workspace.spec.ts --project=chromium
 

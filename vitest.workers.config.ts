@@ -18,6 +18,7 @@ export default defineConfig({
 
         r2Buckets: ["REVIEW_PHOTOS"],
         bindings: {
+          STUDENT_WORKSPACE_ENABLED: "true",
           ADMIN_EMAIL: "admin@example.com",
           ONBOARDING_ENABLED: "true",
           REVIEW_PHOTO_UPLOAD_ENABLED: "true",

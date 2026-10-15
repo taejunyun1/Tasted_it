@@ -1,7 +1,10 @@
+import { env } from "cloudflare:workers";
 import { Form, isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from "react-router";
 import type { Route } from "./+types/root";
 import { authEntryHref } from "./features/auth/login";
 import { getOptionalUser } from "./features/auth/session.server";
+import { createDb } from "./db/client.server";
+import { getStudentSeat } from "./features/students/invitations.server";
 import "./app.css";
 import "./styles/design-system.css";
 
@@ -11,7 +14,12 @@ export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
   { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+KR:wght@400;500;600&display=swap" },
 ];
-export async function loader({ request }: Route.LoaderArgs) { return { user: await getOptionalUser(request) }; }
+export async function loader({ request }: Route.LoaderArgs) {
+  const user = await getOptionalUser(request);
+  const studentWorkspaceEnabled = env.STUDENT_WORKSPACE_ENABLED === "true";
+  const student = user && user.role !== "ADMIN" && studentWorkspaceEnabled ? await getStudentSeat(createDb(env.DB), { userId: user.id, now: new Date().toISOString() }) : null;
+  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student) };
+}
 export function Layout({ children }: { children: React.ReactNode }) { return <html lang="ko"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><Meta/><Links/></head><body><a className="skip-link" href="#main">본문으로 건너뛰기</a>{children}<ScrollRestoration/><Scripts/></body></html>; }
 export default function App({ loaderData }: Route.ComponentProps) {
   const user = loaderData.user;
@@ -33,6 +41,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
               <Link to="/suggestions/new">장소 제안</Link>
               {user.role === "REVIEWER" && <Link to="/reviewer/ratings">리뷰어 평가</Link>}
               {user.role === "ADMIN" && <Link to="/admin/place-operations">어드민</Link>}
+              {user.role === "ADMIN" && loaderData.studentWorkspaceEnabled && <Link to="/admin/students">학생 계정과 업무</Link>}
+              {loaderData.hasStudentWorkspace && <Link to="/student">학생 작업공간</Link>}
               <Form method="post" action="/logout"><button type="submit">로그아웃</button></Form>
             </> : <>
               <Link to={authEntryHref("/login", location.pathname, location.search)}>로그인</Link>
