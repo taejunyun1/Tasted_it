@@ -87,3 +87,7 @@ BASE_URL=https://<worker-url> pnpm test:e2e -- tests/e2e/release.spec.ts
 ## 롤백
 
 오류 시 신규 데이터 공개를 `HIDDEN`으로 전환하고 Cloudflare version rollback으로 직전 정상 Worker를 복원한다. 스키마 변경은 파괴적 역마이그레이션 대신 호환 가능한 전진 수정이 원칙이다. 장애 시간, 영향, 버전, D1 상태, 조치자를 기록한다.
+
+## 2026년 10월 15일 RSI 재검사
+
+같은 Worker 공개 주소 점검에는 `global_fetch_strictly_public`을 유지한다. 배포 후 기존 ADMIN 세션에서 동일 origin의 `POST /admin/operations/rsi-check`에 `intent=run`을 보내 고정6경로를 검사할 수 있다. 새 토큰은 만들지 않는다. HTTP200과 `ok:true`·경로6개를 확인하고 운영 감사 `rsi-admin` 한 행을 대조한다. HTTP503 또는 감사 저장 실패는 PASS로 처리하지 않는다. 이는 수동 결과이며 기존 cron의 `rsi-scheduled` 결과를 대신하지 않는다. 실행 한도·복원·승인 범위는 [결정 문서](../decisions/2026-10-15-rsi-public-fetch.md)를 따른다.
