@@ -10,6 +10,8 @@
 
 [Cloudflare 공식 설명](https://developers.cloudflare.com/workers/configuration/compatibility-flags/#global-fetch-strictly-public)에 따라 `global_fetch_strictly_public`을 추가한다. compatibility date와 다른 플래그는 유지한다. 고정 6경로만 익명 GET하며 `/admin`의 리디렉션은 따라가지 않는다. 같은 함수 내부 응답으로 검사를 대체하지 않고 실제 공개 HTTP 경로를 호출한다.
 
+플래그 적용 후의 첫 관리자 재검사도 6경로 status 0이었다. 실제 workerd에서 전역 `fetch`를 입력 객체의 메서드로 호출하면 `Illegal invocation`이 발생하고 전역 객체에 바인딩하면 200을 반환하는 것을 외부 통신 없는 fixture로 재현했다. 공통 점검 함수에서 fetch의 수신 객체를 명시적으로 전역에 바인딩한다. 일반 JS mock과 Vitest Workers의 fetch wrapper만으로는 이 native 조건이 드러나지 않았다. 기존 Wrangler의 Miniflare와 실제 점검 함수로 네트워크 없는 native 회귀를 추가한다.
+
 ## 한정 승인과 인증 경계
 
 기존 RSI Stage 3 중 **기존 ADMIN 세션을 이용한 같은 6경로의 수동 재검사만 GO**로 전환한다. 신규 토큰 없이 `POST /admin/operations/rsi-check`에서 기존 서버 세션과 ADMIN을 먼저 검증한다. 같은 origin과 정확한 `intent=run` 양식만 허용한다. 클라이언트는 origin·경로·상태 계약을 바꿀 수 없다. GET은 인증 확인 후 405다. 응답과 인증 오류는 private/no-store다.

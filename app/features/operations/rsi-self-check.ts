@@ -59,6 +59,7 @@ export async function runRsiPublicPathCheck(input: {
   fetch: typeof fetch;
   origin: string;
 }): Promise<RsiSelfCheckResult> {
+  const fetchPath = input.fetch.bind(globalThis);
   const headers = {
     Accept: "text/html,text/plain;q=0.9,*/*;q=0.8",
     "User-Agent": RSI_SELF_CHECK_USER_AGENT,
@@ -68,7 +69,7 @@ export async function runRsiPublicPathCheck(input: {
     RSI_PUBLIC_PATH_CHECKS.map(async (check) => {
       const url = new URL(check.path, `${input.origin}/`);
       try {
-        const response = await input.fetch(url, {
+        const response = await fetchPath(url, {
           method: "GET",
           redirect: "manual",
           headers,
