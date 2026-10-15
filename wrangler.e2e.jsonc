@@ -2,9 +2,11 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "retaste-e2e",
   "compatibility_date": "2026-08-05",
-  "main": "./workers/app.ts",
+  "main": "./tests/e2e/local-email-worker.ts",
   "vars": {
     "STUDENT_WORKSPACE_ENABLED": "true",
+    "RESEND_API_KEY": "local-e2e-email-fake",
+    "RESEND_FROM_EMAIL": "test@example.test",
     "ONBOARDING_ENABLED": "true",
     "NAVER_MAPS_CLIENT_ID": "e2e-naver-map-client",
     "NAVER_PLACE_GEOCODING_ENABLED": "true",

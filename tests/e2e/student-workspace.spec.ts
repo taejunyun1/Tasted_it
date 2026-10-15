@@ -33,10 +33,36 @@ test.describe("student workspace", () => {
         expect(new URL(invite).hash.length).toBe(44);
         const studentContext = await browser.newContext({ baseURL, viewport: admin.viewportSize(), isMobile: info.project.name === "mobile-chromium", hasTouch: info.project.name === "mobile-chromium" });
         contexts.push(studentContext);
-        await studentContext.addCookies([{ name: "retaste_session", value: `qa-student-${code.toLowerCase()}-session`, url: baseURL! }]);
         const student = await studentContext.newPage(); students[code] = student;
         await student.goto(invite);
         await expect(student).toHaveURL(`${baseURL}/student/join`);
+        await expect(student.getByRole("heading", { name: "먼저 개인 계정으로 로그인해 주세요" })).toBeVisible();
+        // Keep the original invitation tab alive while signup and verification
+        // run in another tab, exactly as the student-facing instructions say.
+        const signup = await studentContext.newPage();
+        const email = `e2e-${code.toLowerCase()}-${crypto.randomUUID()}@example.test`;
+        const password = `synthetic-${crypto.randomUUID()}`;
+        await signup.goto("/signup");
+        await signup.getByLabel("이름", { exact: true }).fill(`가입 시험 학생 ${code}`);
+        await signup.getByLabel("이메일", { exact: true }).fill(email);
+        await signup.getByLabel("비밀번호 · 10자 이상", { exact: true }).fill(password);
+        await signup.getByRole("checkbox", { name: /만 14세 이상/ }).check();
+        await signup.getByRole("button", { name: "인증 메일 받고 가입하기", exact: true }).click();
+        await expect(signup.getByRole("alert")).toContainText("인증 안내가 등록된 이메일로 전송됩니다.");
+        const delivery = await studentContext.request.get(`/__e2e/email?email=${encodeURIComponent(email)}`);
+        expect(delivery.status()).toBe(200);
+        const message = await delivery.json() as { html: string };
+        const verification = message.html.match(/href="([^"]+)"/)![1]!;
+        expect(new URL(verification).origin).toBe(new URL(baseURL!).origin);
+        await signup.goto(verification);
+        await expect(signup.getByRole("heading", { name: "이메일 인증 완료", exact: true })).toBeVisible();
+        await signup.goto("/login?returnTo=%2Fstudent%2Fjoin");
+        await signup.getByLabel("이메일", { exact: true }).fill(email);
+        await signup.getByLabel("비밀번호", { exact: true }).fill(password);
+        await signup.getByRole("button", { name: "로그인", exact: true }).click();
+        await expect(signup).toHaveURL(`${baseURL}/student/join`);
+        await student.getByRole("button", { name: "로그인 상태 확인", exact: true }).click();
+        await expect(student.getByRole("heading", { name: `가입 시험 학생 ${code} 계정으로 참여`, exact: true })).toBeVisible();
         await student.getByRole("button", { name: "초대 수락하고 내 작업 열기" }).click();
         await expect(student.getByRole("heading", { name: `학생 ${code}의 작업`, exact: true })).toBeVisible();
         await expect(student.getByText("아직 배정된 작업이 없습니다.", { exact: false })).toBeVisible();

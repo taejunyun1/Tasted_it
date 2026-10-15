@@ -1,5 +1,7 @@
 # RSI 자검 — Cloudflare Worker 실행
 
+> 2026-10-15 보완: [결과 보존 결정](../../decisions/2026-10-15-rsi-result-evidence.md)을 포함한 PR 병합 후 정기 실행만 기존 운영 감사 테이블에 결과 1개를 기록한다. 아래 초기 읽기 전용 범위의 한정 예외이며, 점검 실패·origin 누락·감사 저장 실패는 Cron 실패로 전달한다. 온디맨드·kill switch false에는 D1 쓰기가 없다. 공개 경로·cron·외부 서비스는 늘리지 않는다.
+
 - **상태:** ACCEPTED — 이 Pull Request가 병합되면 적용
 - **추적:** [GitHub Issue #282](https://github.com/taejunyun1/Tasted_it/issues/282)
 - **선행:** [Issue #280](https://github.com/taejunyun1/Tasted_it/issues/280) / [PR #281](https://github.com/taejunyun1/Tasted_it/pull/281) `67c3e5e`

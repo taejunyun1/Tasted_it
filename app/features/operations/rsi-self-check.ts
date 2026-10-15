@@ -67,17 +67,22 @@ export async function runRsiPublicPathCheck(input: {
   const results = await Promise.all(
     RSI_PUBLIC_PATH_CHECKS.map(async (check) => {
       const url = new URL(check.path, `${input.origin}/`);
-      const response = await input.fetch(url, {
-        method: "GET",
-        redirect: "manual",
-        headers,
-        signal: AbortSignal.timeout(8_000),
-      });
-      const location = response.headers.get("location") ?? "";
-      const ok =
-        response.status === check.status &&
-        (!("locationIncludes" in check) || location.includes(check.locationIncludes));
-      return { path: check.path, status: response.status, location, ok };
+      try {
+        const response = await input.fetch(url, {
+          method: "GET",
+          redirect: "manual",
+          headers,
+          signal: AbortSignal.timeout(8_000),
+        });
+        const location = response.headers.get("location") ?? "";
+        const ok =
+          response.status === check.status &&
+          (!("locationIncludes" in check) || location.includes(check.locationIncludes));
+        return { path: check.path, status: response.status, location, ok };
+      } catch {
+        // Status 0 represents a network/timeout failure, without upstream details.
+        return { path: check.path, status: 0, location: "", ok: false };
+      }
     }),
   );
 
