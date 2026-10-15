@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
 import type { studentAdminData } from "../../features/students/admin.server";
 import { decisionLabels, kindLabels, parseSavedClassification, statusLabels, type TaskKind } from "../../features/students/policy";
@@ -9,6 +9,7 @@ type Feedback = { error?: string; message?: string; invite?: { url: string; expi
 function kst(date: string) { return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" }).format(new Date(date)); }
 export function StudentManagement({ result, feedback }: { result: Result; feedback?: Feedback }) {
   const [kind, setKind] = useState<TaskKind>("PLACE"); const [copied, setCopied] = useState(false);
+  useEffect(() => { setCopied(false); }, [feedback?.invite?.url]);
   const pending = useNavigation().state !== "idle";
   const eligibleSeats = result.seats.filter((s) => s.isActive && (kind === "PLACE" ? s.canClassifyPlaces : kind === "REVIEW" ? s.canClassifyReviews : s.canRecordQa));
   return <>

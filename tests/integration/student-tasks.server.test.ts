@@ -2,10 +2,11 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
-import { categories, placeReviewWorkItems, places, studentSeats, studentTasks, users } from "../../app/db/schema";
+import { categories, placeReviewWorkItems, places, reviewerVisitReviews, studentSeats, studentTaskRevisions, studentTasks, users } from "../../app/db/schema";
 import { newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
 import { confirmLocalDiningReview } from "../../app/features/places/local-dining-review.server";
 import { assignStudentTask, getStudentTask, listStudentTasks, reviewStudentTask, submitStudentTask } from "../../app/features/students/tasks.server";
+import { assignStudentQueueBatch, cancelStudentTask } from "../../app/features/students/admin.server";
 
 const db = createDb(env.DB); const now = "2026-10-15T01:00:00.000Z";
 const reason = "직접 방문하여 독립 식당의 홀 좌석과 영업 및 대표 메뉴를 확인했습니다.";
@@ -43,6 +44,9 @@ describe("student task ownership and registration attestation", () => {
     expect((await listStudentTasks(db, { userId: c, now })).tasks).toHaveLength(0);
     await expect(getStudentTask(db, { userId: c, taskId: f.taskId, now })).rejects.toThrow("STUDENT_TASK_NOT_FOUND");
     await expect(getStudentTask(db, { userId: await member(), taskId: f.taskId, now })).rejects.toThrow("STUDENT_ACCESS_DENIED");
+    const loaded = await getStudentTask(db, { userId: a, taskId: f.taskId, now });
+    for (const field of ["createdBy", "submittedBy", "checkedBy"]) expect(loaded.task).not.toHaveProperty(field);
+    expect(loaded.seat).not.toHaveProperty("userId");
   });
   it("saves classification and allows a different assigned student to attest only new registration", async () => {
     const f = await placeTask(); await submit(f);
@@ -89,5 +93,35 @@ describe("student task ownership and registration attestation", () => {
     await submitStudentTask(db, { userId: c, taskId: task.id, expectedVersion: 0, targetFingerprint: loaded.fingerprint, classification: { kind: "QA", decision: "FAIL", note: "없는 상호를 검색했으나 결과 없음 안내를 찾지 못했습니다.", evidenceUrl: "" }, now });
     await expect(reviewStudentTask(db, { userId: d, taskId: task.id, expectedVersion: 1, approveRegistration: true, reviewNote: reason, now })).rejects.toThrow("STUDENT_REGISTRATION_NOT_READY");
     expect((await reviewStudentTask(db, { userId: d, taskId: task.id, expectedVersion: 1, approveRegistration: false, reviewNote: reason, now })).status).toBe("VERIFIED");
+  });
+  it("keeps the author's negative assessment unchanged when students classify a review", async () => {
+    const f = await placeTask(); await db.update(places).set({ status: "PUBLISHED" }).where(eq(places.id, f.id));
+    const reviewId = crypto.randomUUID();
+    await db.insert(reviewerVisitReviews).values({ id: reviewId, placeId: f.id, reviewerUserId: b, categoryId: f.categoryId, evaluation: "NOT_RECOMMEND", badgesJson: "[]", photoCount: 0, version: 1, publishedAt: now, createdAt: now, updatedAt: now });
+    const original = await db.query.reviewerVisitReviews.findFirst({ where: eq(reviewerVisitReviews.id, reviewId) });
+    const task = await assignStudentTask(db, { actorUserId: admin, kind: "REVIEW", assignedSeat: "C", checkerSeat: "D", targetId: reviewId, title: "리뷰 근거 확인", now });
+    const loaded = await getStudentTask(db, { userId: c, taskId: task.id, now });
+    await submitStudentTask(db, { userId: c, taskId: task.id, expectedVersion: 0, targetFingerprint: loaded.fingerprint, classification: { kind: "REVIEW", decision: "NEEDS_INFO", note: reason, evidenceUrl: "" }, now });
+    await reviewStudentTask(db, { userId: d, taskId: task.id, expectedVersion: 1, approveRegistration: false, reviewNote: reason, now });
+    expect(await db.query.reviewerVisitReviews.findFirst({ where: eq(reviewerVisitReviews.id, reviewId) })).toEqual(original);
+  });
+  it("allows one concurrent submission for a version and preserves its immutable revision", async () => {
+    const f = await placeTask(); const loaded = await getStudentTask(db, { userId: a, taskId: f.taskId, now });
+    const input = { userId: a, taskId: f.taskId, expectedVersion: 0, targetFingerprint: loaded.fingerprint, classification: { kind: "PLACE", decision: "HOLD", note: reason, evidenceUrl: "" }, now };
+    const results = await Promise.allSettled([submitStudentTask(db, input), submitStudentTask(db, input)]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await db.select().from(studentTaskRevisions).where(eq(studentTaskRevisions.taskId, f.taskId))).toHaveLength(1);
+    expect((await getStudentTask(db, { userId: a, taskId: f.taskId, now })).task.version).toBe(1);
+  });
+  it("bounds queue assignment, skips existing assignments and preserves cancelled records", async () => {
+    const f = await placeTask(); const other = await placeTask(); await submit(f);
+    await db.delete(studentTasks).where(eq(studentTasks.id, other.taskId));
+    const input = { actorUserId: admin, assignedSeat: "A", checkerSeat: "B", now };
+    await expect(assignStudentQueueBatch(db, { ...input, targetIds: Array.from({ length: 26 }, () => crypto.randomUUID()) })).rejects.toThrow();
+    expect(await assignStudentQueueBatch(db, { ...input, targetIds: [f.workItemId, other.workItemId] })).toEqual({ assigned: 1, skipped: 1 });
+    await expect(cancelStudentTask(db, { actorUserId: a, taskId: f.taskId, now })).rejects.toThrow("STUDENT_ADMIN_REQUIRED");
+    await cancelStudentTask(db, { actorUserId: admin, taskId: f.taskId, now });
+    await expect(getStudentTask(db, { userId: a, taskId: f.taskId, now })).rejects.toThrow("STUDENT_TASK_NOT_FOUND");
+    expect(await db.select().from(studentTaskRevisions).where(eq(studentTaskRevisions.taskId, f.taskId))).toHaveLength(1);
   });
 });

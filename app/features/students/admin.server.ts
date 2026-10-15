@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AppDb } from "../../db/client.server";
 import { businessLicenses, places, placeReviewWorkItems, reviewerVisitReviews, studentInvitations, studentSeats, studentTasks } from "../../db/schema";
@@ -15,7 +15,7 @@ export async function studentAdminData(db: AppDb, actorUserId: string, url: URL)
     db.select().from(studentSeats),
     db.select({ seatCode: studentInvitations.seatCode, expiresAt: studentInvitations.expiresAt, consumedAt: studentInvitations.consumedAt, revokedAt: studentInvitations.revokedAt }).from(studentInvitations).orderBy(desc(studentInvitations.createdAt)).limit(20),
     listPlaceReviewWorkItems(db, query),
-    db.select({ id: reviewerVisitReviews.id, name: places.name }).from(reviewerVisitReviews).innerJoin(places, eq(places.id, reviewerVisitReviews.placeId)).where(eq(places.status, "PUBLISHED")).orderBy(desc(reviewerVisitReviews.publishedAt)).limit(50),
+    db.select({ id: reviewerVisitReviews.id, name: places.name }).from(reviewerVisitReviews).innerJoin(places, eq(places.id, reviewerVisitReviews.placeId)).where(and(eq(places.status, "PUBLISHED"), notExists(db.select({ id: studentTasks.id }).from(studentTasks).where(and(eq(studentTasks.kind, "REVIEW"), eq(studentTasks.targetId, reviewerVisitReviews.id), eq(studentTasks.isActive, true)))))).orderBy(desc(reviewerVisitReviews.publishedAt)).limit(50),
     db.select().from(studentTasks).orderBy(desc(studentTasks.updatedAt), desc(studentTasks.id)).limit(50).offset((taskPage - 1) * 50),
     db.select({ total: sql<number>`count(*)` }).from(studentTasks),
   ]);

@@ -54,7 +54,9 @@ export const classificationSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("QA"), decision: z.enum(["PASS", "FAIL", "NOT_RUN"]), ...common }).strict(),
 ]).refine((v) => v.kind !== "PLACE" || v.decision !== "ELIGIBLE" || Boolean(v.categoryId), "등록 적합에는 세부 업종이 필요합니다.");
 
-export const NO_STORE_HEADERS = { "Cache-Control": "no-store, private", "Referrer-Policy": "no-referrer" } as const;
+// Preserve same-origin form provenance (including before hydration), while
+// suppressing referrers to external sites. Invitation secrets only use fragments.
+export const NO_STORE_HEADERS = { "Cache-Control": "no-store, private", "Referrer-Policy": "same-origin" } as const;
 export const STUDENT_DENIED = "학생 작업 권한이 없거나 사용 기간이 끝났습니다.";
 export const STUDENT_CONFLICT = "자료나 배정 상태가 바뀌었습니다. 새로 확인한 뒤 다시 제출해 주세요.";
 export function parseSavedClassification(value: string | null) {

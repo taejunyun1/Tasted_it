@@ -63,7 +63,9 @@ export async function getStudentTask(db: AppDb, input: { userId: string; taskId:
     context.task.kind === "PLACE" ? studentCategoryChoices(db) : [],
     db.select({ version: studentTaskRevisions.version, actorSeat: studentTaskRevisions.actorSeat, eventType: studentTaskRevisions.eventType, createdAt: studentTaskRevisions.createdAt }).from(studentTaskRevisions).where(eq(studentTaskRevisions.taskId, context.task.id)).orderBy(desc(studentTaskRevisions.version)).limit(20),
   ]);
-  return { ...context, subject, categories, fingerprint: subject.fingerprint, sourceChanged: Boolean(context.task.targetFingerprint && context.task.targetFingerprint !== subject.fingerprint), history };
+  const { createdBy: _creator, submittedBy: _submitter, checkedBy: _checker, ...task } = context.task;
+  const seat = { code: context.seat.code, canApproveRegistration: context.seat.canApproveRegistration };
+  return { seat, task, subject, categories, fingerprint: subject.fingerprint, sourceChanged: Boolean(context.task.targetFingerprint && context.task.targetFingerprint !== subject.fingerprint), history };
 }
 
 function revision(db: AppDb, task: Task, userId: string, seat: Seat, eventType: "SUBMIT" | "CHECK" | "REGISTRATION_ATTEST", payload: unknown, now: string) {

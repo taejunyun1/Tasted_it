@@ -38,6 +38,6 @@ export default function StudentJoin({ loaderData, actionData }: Route.ComponentP
   return <StudentFrame title="개별 학생 초대" description="담당자가 보낸 초대를 본인 계정에 한 번 연결합니다.">
     <StudentNotice error={actionData?.error} />
     {!token ? <p className="student-notice" role="alert">담당자가 보낸 전체 초대 링크를 다시 열어 주세요. 초대는 발급 후 7일 동안 사용할 수 있습니다.</p> : loaderData.user ? <section className="student-section"><h2>{loaderData.user.displayName} 계정으로 참여</h2><p>이메일 인증을 마친 개인 회원 계정이 필요합니다. 공용 계정을 사용하지 마세요.</p><Form method="post" className="student-form"><input type="hidden" name="intent" value="accept" /><input type="hidden" name="token" value={token} /><button disabled={nav.state !== "idle"}>초대 수락하고 내 작업 열기</button></Form></section> : <section className="student-section"><h2>먼저 개인 계정으로 로그인해 주세요</h2><p>새 창에서 로그인하거나 회원가입과 이메일 인증을 마친 뒤 이 화면으로 돌아오세요.</p><div className="student-actions"><a href="/login?returnTo=%2Fstudent%2Fjoin" target="_blank" rel="noopener">로그인 새 창</a><a href="/signup" target="_blank" rel="noopener">회원가입 새 창</a></div><p><button className="student-button" onClick={() => revalidator.revalidate()} disabled={revalidator.state !== "idle"}>로그인 상태 확인</button></p></section>}
-    <p className="student-help">다른 사람에게 초대 링크를 전달하지 마세요. 이미 사용했거나 만료된 초대는 담당자에게 다시 요청하세요.</p>
+    <p className="student-help">작업공간에는 계정 연결, 업무 배정, 분류·확인·등록 인가 이력이 남으며 지정 운영 담당자가 확인합니다. 다른 사람에게 초대 링크를 전달하지 마세요. 이미 사용했거나 만료된 초대는 담당자에게 다시 요청하세요.</p>
   </StudentFrame>;
 }

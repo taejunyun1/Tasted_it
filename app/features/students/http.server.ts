@@ -42,7 +42,10 @@ export async function consumeStudentWriteLimit(db: AppDb, userId: string, now: D
 }
 
 export function studentFailure(error: unknown) {
-  if (error instanceof Response) return data({ error: error.status === 403 ? "현재 서비스에서 다시 요청해 주세요." : error.status === 413 ? "입력 내용이 너무 깁니다." : "요청 형식이나 횟수를 확인해 주세요." }, { status: error.status, headers: error.headers });
+  if (error instanceof Response) {
+    if (error.status === 403 || error.status === 429 || error.status >= 500) console.warn("STUDENT_WORKSPACE_FAILURE", { code: "HTTP", status: error.status });
+    return data({ error: error.status === 403 ? "현재 서비스에서 다시 요청해 주세요." : error.status === 413 ? "입력 내용이 너무 깁니다." : "요청 형식이나 횟수를 확인해 주세요." }, { status: error.status, headers: error.headers });
+  }
   if (error instanceof ZodError) return data({ error: "입력 항목과 허용된 분류 값을 확인해 주세요." }, { status: 400, headers: NO_STORE_HEADERS });
   const code = error instanceof Error ? error.message : "UNKNOWN";
   const messages: Record<string, [number, string]> = {
@@ -58,7 +61,9 @@ export function studentFailure(error: unknown) {
     STUDENT_TASK_DUPLICATE: [409, "이미 배정된 대상입니다. 기존 작업을 확인해 주세요."],
     STUDENT_INPUT_INVALID: [400, "입력한 분류와 세부 업종을 확인해 주세요."],
   };
-  const [status, message] = messages[code] ?? [500, "작업을 처리하지 못했습니다. 잠시 후 다시 확인해 주세요."];
+  const known = Object.hasOwn(messages, code) ? messages[code] : undefined;
+  const [status, message] = known ?? [500, "작업을 처리하지 못했습니다. 잠시 후 다시 확인해 주세요."];
+  if (status === 403 || status >= 500) console.warn("STUDENT_WORKSPACE_FAILURE", { code: known ? code : "UNEXPECTED", status });
   return data({ error: message }, { status, headers: NO_STORE_HEADERS });
 }
 

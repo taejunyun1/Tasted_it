@@ -20,7 +20,7 @@ export function StudentTaskForms({ detail }: { detail: Detail }) {
       </Form>
     </section>;
   }
-  if (task.status !== "SUBMITTED" || !saved) return <p className="student-empty">1차 담당자의 제출 후 교차 확인할 수 있습니다.</p>;
+  if (task.status !== "SUBMITTED" || !saved) return <p className="student-empty">{task.status === "APPROVED" || task.status === "VERIFIED" ? "이 작업의 교차 확인을 마쳤습니다." : "1차 담당자의 제출 후 교차 확인할 수 있습니다."}</p>;
   const canAttest = task.kind === "PLACE" && saved.kind === "PLACE" && saved.decision === "ELIGIBLE" && saved.categoryId === subject.categoryId && seat.canApproveRegistration && subject.registrationReady && !detail.sourceChanged;
   return <section className="student-section"><h2>다른 학생의 근거 확인</h2><p>확인이 어려우면 보완 요청을 남기세요. 신규 등록 인가는 최종 검수 조건을 갖춘 점포에만 가능합니다.</p>
     <Form method="post" className="student-form"><input type="hidden" name="version" value={task.version} /><label>교차 확인 근거 또는 보완할 내용<textarea name="reviewNote" minLength={10} maxLength={1500} required /></label>
