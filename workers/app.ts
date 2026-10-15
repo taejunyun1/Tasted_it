@@ -16,8 +16,8 @@ const requestHandler = createRequestHandler(
 export default {
   async fetch(request, env) {
     const rsi = await handleRsiOnDemandRequest(request, env);
-    if (rsi) return withSecurityHeaders(rsi);
-    return withSecurityHeaders(await requestHandler(request));
+    if (rsi) return withSecurityHeaders(rsi, request);
+    return withSecurityHeaders(await requestHandler(request), request);
   },
   async scheduled(controller, env, ctx) {
     if (isRsiCron(controller.cron)) {

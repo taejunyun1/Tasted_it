@@ -11,7 +11,7 @@
 	"triggers": { "crons": ["17 18 * * *", "47 */6 * * *"] },
 	"preview_urls": false,
 	"vars": {
-		"STUDENT_WORKSPACE_ENABLED": "false",
+		"STUDENT_WORKSPACE_ENABLED": "true",
 		"ONBOARDING_ENABLED": "true",
 		"NAVER_PLACE_GEOCODING_ENABLED": "true",
 		"NAVER_LOCAL_SEARCH_ENABLED": "true",
