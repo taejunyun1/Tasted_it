@@ -23,6 +23,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 export async function action({ request }: Route.ActionArgs) {
   const user = await admin(request);
+  if (request.method !== "POST") return new Response(null, { status: 405, headers: { ...headers, Allow: "POST" } });
   if (!isSameOriginMutation(request)) return new Response(null, { status: 403, headers });
   const form = await request.formData().catch(() => null);
   if (!form || !z.object({ intent: z.literal("run") }).strict().safeParse(Object.fromEntries(form)).success) {

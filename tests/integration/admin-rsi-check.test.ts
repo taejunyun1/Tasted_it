@@ -43,6 +43,7 @@ describe("ADMIN RSI operation", () => {
     expect((await action({ request: request(user.sid, "https://other.test") } as never)).status).toBe(403);
     expect((await action({ request: request(user.sid, undefined, "intent=run&origin=https://other.test") } as never)).status).toBe(400);
     expect((await loader({ request: request(user.sid, undefined, undefined, "GET") } as never)).status).toBe(405);
+    expect((await action({ request: request(user.sid, undefined, undefined, "PUT") } as never)).status).toBe(405);
     expect(fetch).not.toHaveBeenCalled(); expect(await audits()).toHaveLength(0);
   });
   it("uses the configured six paths and records ADMIN execution separately", async () => {
