@@ -9,7 +9,7 @@
 
 운영 Workers Logs는 호출의 10%를 저장한다. 2026-10-15 최근 24시간 `RSI_SELF_CHECK` 조회는 0건이며, Cron Events의 성공 상태만으로 경로별 성공을 입증할 수 없다. 기존 코드는 실패 결과·예외를 정상 반환하여 Cron 성공으로 표시될 수 있다. 한 경로의 네트워크 오류는 다른 다섯 경로의 결과까지 잃게 한다.
 
-정기 실행 결과를 기존 `admin_audit_logs`에 회당 1개 보존한다. actor는 NULL, action은 `RSI_SELF_CHECK`, target은 `OPERATIONS` / `rsi-scheduled`다. 고정 경로·HTTP 상태·성공 여부·호스트와 결과 시각만 저장하며 리디렉션 원문·요청 본문·쿠키·토큰·이메일·상호를 넣지 않는다. 이 변경은 기존 계획의 **정기 RSI D1 금지에 대한 한정 예외**다. 온디맨드 요청과 kill switch false는 D1을 변경하지 않는다.
+정기 실행 결과를 기존 `admin_audit_logs`에 회당 1개 보존한다. actor는 NULL, action은 `RSI_SELF_CHECK`, target은 `OPERATIONS` / `rsi-scheduled`다. 고정 경로·HTTP 상태·성공 여부·호스트와 결과 시각만 저장하며 리디렉션 원문·요청 본문·쿠키·토큰·이메일·상호를 넣지 않는다. 이 변경은 기존 계획의 **정기 RSI D1 금지에 대한 한정 예외**다. 기존 토큰 GET 온디맨드와 kill switch false는 D1을 변경하지 않는다. 별도 [관리 재검사 결정](./2026-10-15-rsi-public-fetch.md)은 기존 ADMIN 수동 실행에만 구분된 감사 1개를 허용한다.
 
 네트워크/timeout 실패는 해당 경로의 status 0으로 남기고 나머지 결과를 보존한다. 점검 실패, 활성 상태의 origin 누락, 감사 저장 실패는 scheduled `waitUntil`에 거부로 전달하여 Cron 실패 상태를 남긴다. on-demand는 기존 토큰 인증과 HTTP 200/503 계약을 유지한다.
 

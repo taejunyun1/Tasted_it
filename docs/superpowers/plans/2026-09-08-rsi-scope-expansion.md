@@ -1,5 +1,7 @@
 # RSI 주기와 범위 확장
 
+> 2026-10-15 추가 한정 보완: [공개 fetch와 관리 재검사 결정](../../decisions/2026-10-15-rsi-public-fetch.md)을 포함한 PR 병합 시 Stage 3 중 기존 ADMIN 세션·동일 origin POST를 통한 기존 익명 6경로 수동 재검사만 GO다. 정기와 수동 감사는 구분하며 새 토큰·cron·경로 확대는 없다. 나머지 Stage 3과 Stage 1·4는 HOLD다.
+
 > 2026-10-15 한정 보완: [결과 보존 결정](../../decisions/2026-10-15-rsi-result-evidence.md)과 해당 병합 PR은 Stage 2의 정기 결과 보존·실패 상태 전달만 GO로 전환한다. 기존 `admin_audit_logs`에 회당 결과 1개를 남기는 D1 예외이며 새 테이블·공급자·경로·cron은 없다. Stage 1·3·4는 HOLD를 유지한다. 아래 표의 초기 Stage 2 범위와 D1 금지는 이 한정 보완에 대해서만 대체된다.
 
 - **상태:** ACCEPTED — 이 Pull Request가 병합되면 주기·단계 표가 적용. 이후 단계 구현은 별도 PR

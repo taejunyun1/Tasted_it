@@ -7,17 +7,17 @@ import {
   type RsiSelfCheckResult,
 } from "./rsi-self-check";
 
-type RsiEnv = Env & {
+type RsiEnv = Pick<Env, "DB"> & {
   RSI_CLOUDFLARE_ENABLED?: string;
   RSI_CHECK_TOKEN?: string;
   APP_BASE_URL?: string;
 };
 
-function rsiEnv(env: Env): RsiEnv {
+function rsiEnv(env: RsiEnv): RsiEnv {
   return env as RsiEnv;
 }
 
-function configuredCheckToken(env: Env) {
+function configuredCheckToken(env: RsiEnv) {
   return rsiEnv(env).RSI_CHECK_TOKEN?.trim() ?? "";
 }
 
@@ -35,7 +35,7 @@ export function rsiTokensMatch(provided: string, expected: string) {
 }
 
 function logRsiSelfCheck(
-  trigger: "scheduled" | "on-demand",
+  trigger: "scheduled" | "on-demand" | "admin",
   outcome:
     | { skipped: true; reason: "disabled" | "missing_origin" }
     | ({ skipped?: false } & RsiSelfCheckResult),
@@ -54,24 +54,27 @@ function logRsiSelfCheck(
   });
 }
 
-async function finishScheduledCheck(
-  env: Env,
+type AuditedTrigger = { trigger: "scheduled"; actorUserId: null } | { trigger: "admin"; actorUserId: string };
+
+async function finishAuditedCheck(
+  env: RsiEnv,
   outcome: RsiSelfCheckResult | { skipped: true; reason: "missing_origin" },
+  context: AuditedTrigger,
 ) {
-  logRsiSelfCheck("scheduled", outcome);
+  logRsiSelfCheck(context.trigger, outcome);
   const payload = "skipped" in outcome
-    ? { trigger: "scheduled", skipped: true, reason: outcome.reason }
+    ? { trigger: context.trigger, skipped: true, reason: outcome.reason }
     : {
-      trigger: "scheduled", ok: outcome.ok, failed: outcome.failed, originHost: outcome.originHost,
+      trigger: context.trigger, ok: outcome.ok, failed: outcome.failed, originHost: outcome.originHost,
       paths: outcome.results.map(({ path, status, ok }) => ({ path, status, ok })),
     };
   try {
     const written = await env.DB.prepare(
-      "INSERT INTO admin_audit_logs (id, actor_user_id, action, target_type, target_id, after_state, created_at) VALUES (?, NULL, 'RSI_SELF_CHECK', 'OPERATIONS', 'rsi-scheduled', ?, ?)",
-    ).bind(crypto.randomUUID(), JSON.stringify(payload), new Date().toISOString()).run();
+      "INSERT INTO admin_audit_logs (id, actor_user_id, action, target_type, target_id, after_state, created_at) VALUES (?, ?, 'RSI_SELF_CHECK', 'OPERATIONS', ?, ?, ?)",
+    ).bind(crypto.randomUUID(), context.actorUserId, `rsi-${context.trigger}`, JSON.stringify(payload), new Date().toISOString()).run();
     if (!written.success) throw new Error("AUDIT_WRITE_FAILED");
   } catch {
-    console.error("RSI_SELF_CHECK_AUDIT_FAILED", { trigger: "scheduled" });
+    console.error("RSI_SELF_CHECK_AUDIT_FAILED", { trigger: context.trigger });
     throw new Error("RSI_SELF_CHECK_AUDIT_FAILED");
   }
   // The scheduled handler awaits this through waitUntil; reject on failure so
@@ -80,24 +83,32 @@ async function finishScheduledCheck(
   return outcome;
 }
 
-export async function runScheduledRsiSelfCheck(env: Env) {
+export async function runScheduledRsiSelfCheck(env: RsiEnv) {
+  return runAuditedRsiSelfCheck(env, { trigger: "scheduled", actorUserId: null });
+}
+
+export async function runAdminRsiSelfCheck(env: RsiEnv, actorUserId: string) {
+  return runAuditedRsiSelfCheck(env, { trigger: "admin", actorUserId });
+}
+
+async function runAuditedRsiSelfCheck(env: RsiEnv, context: AuditedTrigger) {
   if (!isRsiCloudflareEnabled(rsiEnv(env).RSI_CLOUDFLARE_ENABLED)) {
-    logRsiSelfCheck("scheduled", { skipped: true, reason: "disabled" });
+    logRsiSelfCheck(context.trigger, { skipped: true, reason: "disabled" });
     return { skipped: true as const, reason: "disabled" as const };
   }
   const origin = resolveRsiOrigin({ appBaseUrl: rsiEnv(env).APP_BASE_URL });
-  if (!origin) return finishScheduledCheck(env, { skipped: true, reason: "missing_origin" });
+  if (!origin) return finishAuditedCheck(env, { skipped: true, reason: "missing_origin" }, context);
   let result: RsiSelfCheckResult;
   try {
     result = await runRsiPublicPathCheck({ fetch, origin });
   } catch {
-    console.error("RSI_SELF_CHECK_UNCAUGHT", { trigger: "scheduled", message: "unexpected_error" });
+    console.error("RSI_SELF_CHECK_UNCAUGHT", { trigger: context.trigger, message: "unexpected_error" });
     result = { ok: false, failed: -1, originHost: "uncaught", results: [] };
   }
-  return finishScheduledCheck(env, result);
+  return finishAuditedCheck(env, result, context);
 }
 
-export async function handleRsiOnDemandRequest(request: Request, env: Env) {
+export async function handleRsiOnDemandRequest(request: Request, env: RsiEnv) {
   const url = new URL(request.url);
   if (url.pathname !== RSI_ON_DEMAND_PATH) return null;
 
