@@ -38,6 +38,7 @@ export function safeReturnTo(value: string | null | undefined): string {
       pathname === "/places" || pathname.startsWith("/places/")
       || pathname === "/admin" || pathname.startsWith("/admin/")
       || pathname === "/me" || pathname.startsWith("/me/")
+      || pathname === "/student" || pathname.startsWith("/student/")
       || pathname === "/courses" || pathname.startsWith("/courses/")
       || pathname === "/maps" || pathname.startsWith("/maps/")
       || pathname === "/onboarding" || pathname.startsWith("/onboarding/")

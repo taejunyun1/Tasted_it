@@ -1,0 +1,29 @@
+.student-page{max-width:1120px;margin:auto;padding:var(--space-12) var(--layout-gutter) var(--space-20);color:var(--color-ink)}
+.student-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-6);padding-bottom:var(--space-6);border-bottom:2px solid var(--color-ink);margin-bottom:var(--space-8)}
+.student-kicker{color:var(--color-accent);font-size:.875rem;font-weight:700;margin:0 0 var(--space-2)}
+.student-heading h1{font-size:clamp(1.6rem,4vw,2.25rem);line-height:1.3;margin:0}
+.student-heading p:last-child{max-width:680px;line-height:1.7;margin-bottom:0}
+.student-heading nav{display:flex;flex-wrap:wrap;gap:var(--space-4);white-space:nowrap;font-size:.9rem;padding-top:var(--space-2)}
+.student-heading nav a,.student-link{text-decoration:underline;text-underline-offset:4px}
+.student-section{margin:var(--space-8) 0}.student-section h2{font-size:1.2rem;line-height:1.4;margin:0 0 var(--space-4)}
+.student-section>p,.student-help{line-height:1.7;color:var(--muted)}
+.student-notice{padding:var(--space-4);border:1px solid var(--color-accent);background:var(--surface-soft);line-height:1.6}
+.student-notice--error{color:#8a2828;background:#fff4f2;border-color:#b96c61}
+.student-task-list{list-style:none;padding:0;margin:0;border-top:1px solid var(--color-line)}
+.student-task-list li{border-bottom:1px solid var(--color-line)}
+.student-task-list a{display:grid;grid-template-columns:1fr auto;gap:var(--space-4);padding:var(--space-5) 0;align-items:center}
+.student-task-list a:hover{background:var(--surface-soft)}.student-task-list strong{display:block;font-size:1.05rem;line-height:1.5}.student-task-list small{display:block;margin-top:var(--space-2);color:var(--muted)}
+.student-status{border:1px solid var(--color-line);padding:var(--space-2) var(--space-3);font-size:.85rem;white-space:nowrap;background:var(--surface-card)}
+.student-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);padding:var(--space-5);background:var(--surface-card);border:1px solid var(--color-line)}
+.student-facts p{margin:0;line-height:1.7;overflow-wrap:anywhere}.student-form{display:grid;gap:var(--space-5);max-width:760px}
+.student-form label{display:grid;gap:var(--space-2);font-weight:600}.student-form input,.student-form select,.student-form textarea{width:100%;min-height:44px;border:1px solid var(--color-line);border-radius:0;padding:var(--space-3);background:#fff;font:inherit;font-weight:400}
+.student-form textarea{min-height:130px;resize:vertical;line-height:1.7}.student-form :is(input,select,textarea,button):focus-visible{outline:3px solid var(--color-accent);outline-offset:3px}
+.student-form button,.student-button{min-height:44px;padding:var(--space-3) var(--space-5);border:1px solid var(--color-accent);background:var(--color-accent);color:white;font:inherit;font-weight:600;cursor:pointer}
+.student-form button:disabled{opacity:.6;cursor:wait}.student-form .student-button--secondary{background:#fff;color:var(--color-ink);border-color:var(--color-line)}
+.student-actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}.student-actions a{display:inline-flex;align-items:center;text-decoration:underline;min-height:44px}.student-empty{padding:var(--space-8) 0;line-height:1.7}
+.student-photo-list{display:flex;flex-wrap:wrap;gap:var(--space-3)}.student-photo-list img{width:150px;height:120px;object-fit:cover;border:1px solid var(--color-line)}
+.student-data{width:100%;border-collapse:collapse;margin-bottom:var(--space-4);background:#fff}.student-data :is(th,td){text-align:left;border:1px solid var(--color-line);padding:var(--space-3);line-height:1.6;overflow-wrap:anywhere}.student-data th{background:var(--surface-soft)}
+.student-data form{display:inline-flex;gap:var(--space-2);flex-wrap:wrap}.student-data button{min-height:40px;padding:var(--space-2) var(--space-3);border:1px solid var(--color-line);background:#fff;font:inherit;cursor:pointer}
+.student-invite{display:grid;gap:var(--space-3);max-width:800px;margin:var(--space-5) 0}.student-invite input{padding:var(--space-3);border:1px solid var(--color-line);width:100%;font:inherit}.student-record{white-space:pre-wrap;line-height:1.8;overflow-wrap:anywhere}
+.student-pagination{display:flex;gap:var(--space-5);align-items:center;margin:var(--space-6) 0}.student-pagination a{text-decoration:underline}
+@media(max-width:760px){.student-page{padding-top:var(--space-8)}.student-heading{display:block}.student-heading nav{margin-top:var(--space-4)}.student-facts{grid-template-columns:1fr}.student-task-list a{grid-template-columns:1fr}.student-status{justify-self:start}.student-data--responsive :is(thead){display:none}.student-data--responsive :is(tr,td){display:block}.student-data--responsive tr{margin-bottom:var(--space-4)}.student-data--responsive td{border-bottom:0}.student-data--responsive td:last-child{border-bottom:1px solid var(--color-line)}}

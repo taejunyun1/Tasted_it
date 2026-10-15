@@ -4,6 +4,7 @@
   "compatibility_date": "2026-08-05",
   "main": "./workers/app.ts",
   "vars": {
+    "STUDENT_WORKSPACE_ENABLED": "true",
     "ONBOARDING_ENABLED": "true",
     "NAVER_MAPS_CLIENT_ID": "e2e-naver-map-client",
     "NAVER_PLACE_GEOCODING_ENABLED": "true",
