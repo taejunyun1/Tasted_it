@@ -44,7 +44,8 @@ function logRsiSelfCheck(
     console.info("RSI_SELF_CHECK", { trigger, skipped: true, reason: outcome.reason });
     return;
   }
-  console.info("RSI_SELF_CHECK", {
+  const log = outcome.ok ? console.info : console.error;
+  log("RSI_SELF_CHECK", {
     trigger,
     ok: outcome.ok,
     failed: outcome.failed,
@@ -53,27 +54,47 @@ function logRsiSelfCheck(
   });
 }
 
-export async function runScheduledRsiSelfCheck(env: Env) {
+async function finishScheduledCheck(
+  env: Env,
+  outcome: RsiSelfCheckResult | { skipped: true; reason: "missing_origin" },
+) {
+  logRsiSelfCheck("scheduled", outcome);
+  const payload = "skipped" in outcome
+    ? { trigger: "scheduled", skipped: true, reason: outcome.reason }
+    : {
+      trigger: "scheduled", ok: outcome.ok, failed: outcome.failed, originHost: outcome.originHost,
+      paths: outcome.results.map(({ path, status, ok }) => ({ path, status, ok })),
+    };
   try {
-    if (!isRsiCloudflareEnabled(rsiEnv(env).RSI_CLOUDFLARE_ENABLED)) {
-      logRsiSelfCheck("scheduled", { skipped: true, reason: "disabled" });
-      return { skipped: true as const, reason: "disabled" as const };
-    }
-    const origin = resolveRsiOrigin({ appBaseUrl: rsiEnv(env).APP_BASE_URL });
-    if (!origin) {
-      logRsiSelfCheck("scheduled", { skipped: true, reason: "missing_origin" });
-      return { skipped: true as const, reason: "missing_origin" as const };
-    }
-    const result = await runRsiPublicPathCheck({ fetch, origin });
-    logRsiSelfCheck("scheduled", result);
-    return result;
-  } catch (error) {
-    console.error("RSI_SELF_CHECK_UNCAUGHT", {
-      trigger: "scheduled",
-      message: error instanceof Error ? error.message : "unknown",
-    });
-    return { ok: false, failed: -1, originHost: "uncaught", results: [] };
+    const written = await env.DB.prepare(
+      "INSERT INTO admin_audit_logs (id, actor_user_id, action, target_type, target_id, after_state, created_at) VALUES (?, NULL, 'RSI_SELF_CHECK', 'OPERATIONS', 'rsi-scheduled', ?, ?)",
+    ).bind(crypto.randomUUID(), JSON.stringify(payload), new Date().toISOString()).run();
+    if (!written.success) throw new Error("AUDIT_WRITE_FAILED");
+  } catch {
+    console.error("RSI_SELF_CHECK_AUDIT_FAILED", { trigger: "scheduled" });
+    throw new Error("RSI_SELF_CHECK_AUDIT_FAILED");
   }
+  // The scheduled handler awaits this through waitUntil; reject on failure so
+  // Cron Events cannot present a failed probe as a successful invocation.
+  if ("skipped" in outcome || !outcome.ok) throw new Error("RSI_SELF_CHECK_FAILED");
+  return outcome;
+}
+
+export async function runScheduledRsiSelfCheck(env: Env) {
+  if (!isRsiCloudflareEnabled(rsiEnv(env).RSI_CLOUDFLARE_ENABLED)) {
+    logRsiSelfCheck("scheduled", { skipped: true, reason: "disabled" });
+    return { skipped: true as const, reason: "disabled" as const };
+  }
+  const origin = resolveRsiOrigin({ appBaseUrl: rsiEnv(env).APP_BASE_URL });
+  if (!origin) return finishScheduledCheck(env, { skipped: true, reason: "missing_origin" });
+  let result: RsiSelfCheckResult;
+  try {
+    result = await runRsiPublicPathCheck({ fetch, origin });
+  } catch {
+    console.error("RSI_SELF_CHECK_UNCAUGHT", { trigger: "scheduled", message: "unexpected_error" });
+    result = { ok: false, failed: -1, originHost: "uncaught", results: [] };
+  }
+  return finishScheduledCheck(env, result);
 }
 
 export async function handleRsiOnDemandRequest(request: Request, env: Env) {

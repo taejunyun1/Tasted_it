@@ -9,7 +9,7 @@ const agents = readFileSync("AGENTS.md", "utf8");
 const server = readFileSync("app/features/operations/rsi-self-check.server.ts", "utf8");
 
 describe("cloudflare RSI self-check", () => {
-  it("runs on the Worker outside the maintenance Promise.all and never targets remote D1", () => {
+  it("runs outside maintenance and limits D1 effects to the scheduled operational audit", () => {
     expect(worker).toContain("runScheduledRsiSelfCheck(env)");
     expect(worker).toContain("handleRsiOnDemandRequest");
     expect(worker).toContain("isRsiCron(controller.cron)");
@@ -22,7 +22,9 @@ describe("cloudflare RSI self-check", () => {
     expect(wrangler.match(/"crons":/g)?.length).toBe(1);
     expect(server).not.toContain("--remote");
     expect(server).not.toContain("createDb");
-    expect(server).not.toContain("env.DB");
+    expect(server).toContain("INSERT INTO admin_audit_logs");
+    expect(server).not.toMatch(/(?:UPDATE|DELETE FROM|INSERT INTO)\s+(?:places|reviewer_visit_reviews|student_\w+)/);
+    expect(server.slice(server.indexOf("export async function handleRsiOnDemandRequest"))).not.toContain("env.DB");
   });
 
   it("keeps the laptop script as smoke only and points agents at Worker RSI", () => {

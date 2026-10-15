@@ -2,6 +2,15 @@
 
 ## 운영 대상 계정 (SSOT)
 
+2026-10-15 후속 인수: [RSI 결과 보존 결정](../decisions/2026-10-15-rsi-result-evidence.md)을 포함한 PR 병합 후 기존 정기 RSI는 `admin_audit_logs`에 결과 1개를 남긴다. 새 테이블·migration·binding·cron·토큰은 없다. 실패·origin 누락·감사 저장 실패는 Cron 실패로 전달한다. rollback은 사전 Worker `fa76558c-0e37-4ff2-89ba-9eb545459d5c`다. 배포 후 다음 기존 정기 실행의 Cron Events와 아래 읽기 쿼리로 같은 실행의 6경로를 확인한다. 원문 after_state에 비밀값이나 개인정보가 없어야 한다.
+
+```sql
+SELECT created_at, after_state FROM admin_audit_logs
+WHERE action = 'RSI_SELF_CHECK' AND target_type = 'OPERATIONS'
+  AND target_id = 'rsi-scheduled'
+ORDER BY created_at DESC LIMIT 4;
+```
+
 라이브 Worker/D1는 아래 계정만 사용한다. 운영자 OAuth와 owner 로그인은 같은 대상이다.
 
 | 항목 | 값 |

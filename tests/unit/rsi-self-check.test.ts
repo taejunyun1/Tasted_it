@@ -115,12 +115,14 @@ describe("rsi self-check", () => {
     const disabled = await runScheduledRsiSelfCheck({ RSI_CLOUDFLARE_ENABLED: "false" } as Env);
     expect(disabled).toEqual({ skipped: true, reason: "disabled" });
 
-    const missing = await runScheduledRsiSelfCheck({ RSI_CLOUDFLARE_ENABLED: "true" } as Env);
-    expect(missing).toEqual({ skipped: true, reason: "missing_origin" });
+    const audit = auditDb();
+    await expect(runScheduledRsiSelfCheck({ ...audit, RSI_CLOUDFLARE_ENABLED: "true" } as Env)).rejects.toThrow("RSI_SELF_CHECK_FAILED");
+    expect(audit.run).toHaveBeenCalledOnce();
 
     const fetchMock = mockPublicFetch();
     vi.stubGlobal("fetch", fetchMock);
     const ran = await runScheduledRsiSelfCheck({
+      ...audit,
       RSI_CLOUDFLARE_ENABLED: "true",
       APP_BASE_URL: RSI_LIVE_ORIGIN,
     } as Env);
