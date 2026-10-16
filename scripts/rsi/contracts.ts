@@ -95,9 +95,25 @@ export const RSI_HEALTHCHECK_PATHS = RSI_PUBLIC_PATH_CHECKS.map((check) => check
 ];
 export type RsiHealthcheckPath = (typeof RSI_HEALTHCHECK_PATHS)[number];
 
+const FIXED_PATH_CHECKS = new Map<string, (typeof RSI_PUBLIC_PATH_CHECKS)[number]>(
+  RSI_PUBLIC_PATH_CHECKS.map((check) => [check.path, check]),
+);
+
+// 생산자의 ok 플래그를 그대로 믿지 않는다. 고정 기대 상태와 모순되면 거절한다.
 export const PathResultSchema = z
   .object({ path: z.enum(RSI_HEALTHCHECK_PATHS), status: z.int().min(0).max(599), ok: z.boolean() })
-  .strict();
+  .strict()
+  .superRefine((result, ctx) => {
+    const check = FIXED_PATH_CHECKS.get(result.path)!;
+    const statusMatches = result.status === check.status;
+    if (result.ok && !statusMatches) {
+      ctx.addIssue({ code: "custom", message: `ok:true contradicts status ${result.status} (expected ${check.status})`, path: ["ok"] });
+    }
+    // 상태가 맞는데 ok:false인 경우는 리디렉션 대상 검사가 있는 경로에서만 가능하다.
+    if (!result.ok && statusMatches && !("locationIncludes" in check)) {
+      ctx.addIssue({ code: "custom", message: `ok:false contradicts matching status ${result.status}`, path: ["ok"] });
+    }
+  });
 
 const PathOutcomeSchema = z
   .object({ kind: z.literal("paths"), paths: z.array(PathResultSchema).length(RSI_HEALTHCHECK_PATHS.length) })
@@ -144,8 +160,6 @@ export const FAILURE_CLASSES = [
 ] as const;
 export type FailureClass = (typeof FAILURE_CLASSES)[number];
 
-const expectedStatus = new Map<string, number>(RSI_PUBLIC_PATH_CHECKS.map((check) => [check.path, check.status]));
-
 export function classifyObservation(observation: Observation): FailureClass {
   const { outcome } = observation;
   if (outcome.kind === "uncaught") return "UNCAUGHT";
@@ -155,7 +169,7 @@ export function classifyObservation(observation: Observation): FailureClass {
   for (const result of outcome.paths) {
     if (result.ok) continue;
     if (result.status === 0) classes.add("NETWORK_FAILURE");
-    else if (result.status === expectedStatus.get(result.path)) classes.add("REDIRECT_MISMATCH");
+    else if (result.status === FIXED_PATH_CHECKS.get(result.path)!.status) classes.add("REDIRECT_MISMATCH");
     else classes.add("STATUS_MISMATCH");
   }
   return FAILURE_CLASSES.find((failureClass) => classes.has(failureClass)) ?? "NONE";
@@ -358,7 +372,13 @@ export const LineageSchema = z
     controllerHash: DigestSchema,
     evaluatorHash: DigestSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((lineage, ctx) => {
+    // 자기 자신을 부모로 두면 계보가 즉시 순환한다.
+    if (lineage.parentRunId === lineage.runId) {
+      ctx.addIssue({ code: "custom", message: "parentRunId must not equal runId", path: ["parentRunId"] });
+    }
+  });
 export type Lineage = z.infer<typeof LineageSchema>;
 
 export function parseLineage(value: unknown): Lineage {

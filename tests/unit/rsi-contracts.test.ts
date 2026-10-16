@@ -85,6 +85,15 @@ describe("observation contract", () => {
     );
   });
 
+  it("rejects path results whose ok flag contradicts the fixed expectation", () => {
+    // ok:true with a wrong status would otherwise be classified NONE
+    expect(code(() => observation({ outcome: { kind: "paths", paths: paths({ "/places": { status: 500, ok: true } }) } }))).toBe("SCHEMA_VIOLATION");
+    expect(code(() => observation({ outcome: { kind: "paths", paths: paths({ "/admin": { status: 200, ok: true } }) } }))).toBe("SCHEMA_VIOLATION");
+    // ok:false with the expected status is only possible where a redirect target is checked
+    expect(code(() => observation({ outcome: { kind: "paths", paths: paths({ "/": { status: 200, ok: false } }) } }))).toBe("SCHEMA_VIOLATION");
+    expect(code(() => observation({ outcome: { kind: "paths", paths: paths({ "/admin": { status: 302, ok: false } }) } }))).toBe("NO_ERROR");
+  });
+
   it("rejects malformed git sha and schema version", () => {
     expect(code(() => observation({ sourceSha: "cf1f406" }))).toBe("SCHEMA_VIOLATION");
     expect(code(() => observation({ schemaVersion: 2 as never }))).toBe("SCHEMA_VIOLATION");
@@ -205,5 +214,10 @@ describe("lineage contract", () => {
     expect(code(() => parseLineage({ ...lineage, attempt: 0 }))).toBe("SCHEMA_VIOLATION");
     expect(code(() => parseLineage({ ...lineage, runId: "run-1" }))).toBe("SCHEMA_VIOLATION");
     expect(code(() => parseLineage({ ...lineage, apiToken: "x" }))).toBe("SENSITIVE_VALUE");
+  });
+
+  it("rejects a lineage whose parent is itself", () => {
+    expect(code(() => parseLineage({ ...lineage, parentRunId: runId }))).toBe("SCHEMA_VIOLATION");
+    expect(parseLineage({ ...lineage, parentRunId: "0f1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5c" }).parentRunId).not.toBe(runId);
   });
 });
