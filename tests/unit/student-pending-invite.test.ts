@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clearPendingInvite, recoverPendingInvite } from "../../app/features/students/pending-invite";
+import { clearPendingInvite, parseStudentInviteInput, recoverPendingInvite } from "../../app/features/students/pending-invite";
 
 function storage() {
   const values = new Map<string, string>();
@@ -26,5 +26,23 @@ describe("tab-scoped pending student invitation", () => {
     expect(recoverPendingInvite(blocked, `#${"B".repeat(43)}`, 1000)).toBe("B".repeat(43));
     expect(recoverPendingInvite(blocked, "", 2000)).toBe("");
     expect(() => clearPendingInvite(blocked)).not.toThrow();
+  });
+});
+
+describe("pasted invitation recovery", () => {
+  const token = "A".repeat(43);
+  const origin = "https://retaste.test";
+  it("recovers only the token from an existing same-origin invitation link or code", () => {
+    expect(parseStudentInviteInput(` ${origin}/student/join#${token} `, origin)).toBe(token);
+    expect(parseStudentInviteInput(`${origin}/student/join/?utm_source=message#${token}`, origin)).toBe(token);
+    expect(parseStudentInviteInput(token, origin)).toBe(token);
+  });
+  it.each([
+    "https://evil.test/student/join#TOKEN", "https://retaste.test.evil.test/student/join#TOKEN",
+    "https://user:password@retaste.test/student/join#TOKEN", "http://retaste.test/student/join#TOKEN",
+    "https://retaste.test/student#TOKEN", "https://retaste.test/login#TOKEN",
+    "https://retaste.test/student/join", "javascript:alert(1)", "bad", "",
+  ])("rejects unrelated, incomplete, or unsafe pasted text: %s", (input) => {
+    expect(parseStudentInviteInput(input.replace("TOKEN", token), origin)).toBe("");
   });
 });

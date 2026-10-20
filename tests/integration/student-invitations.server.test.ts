@@ -18,6 +18,31 @@ beforeEach(async () => {
 });
 
 describe("individual single-use student invitations", () => {
+  it("allows two retained links for one seat but only one concurrent claimant", async () => {
+    const admin = await user("ADMIN");
+    const old = await createStudentInvite(db, { seatCode: "B", actorUserId: admin, now });
+    const fresh = await createStudentInvite(db, { seatCode: "B", actorUserId: admin, now });
+    await env.DB.prepare("UPDATE student_invitations SET revoked_at=NULL WHERE seat_code='B'").run();
+    const outcomes = await Promise.allSettled([
+      acceptStudentInvite(db, { token: old.token, userId: await user(), now }),
+      acceptStudentInvite(db, { token: fresh.token, userId: await user(), now }),
+    ]);
+    expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((await db.select().from(studentSeats)).filter((s) => s.userId)).toHaveLength(1);
+    expect((await db.select().from(studentInvitations)).filter((i) => i.consumedAt)).toHaveLength(1);
+  });
+
+  it("keeps ordinary reissue revoking all older retained links", async () => {
+    const admin = await user("ADMIN");
+    await createStudentInvite(db, { seatCode: "B", actorUserId: admin, now });
+    await createStudentInvite(db, { seatCode: "B", actorUserId: admin, now });
+    await env.DB.prepare("UPDATE student_invitations SET revoked_at=NULL WHERE seat_code='B'").run();
+    await createStudentInvite(db, { seatCode: "B", actorUserId: admin, now });
+    const rows = await db.select().from(studentInvitations);
+    expect(rows).toHaveLength(3);
+    expect(rows.filter((i) => i.revokedAt === null)).toHaveLength(1);
+  });
+
   it("stores only a digest and attaches a verified ordinary account once", async () => {
     const admin = await user("ADMIN");
     const member = await user();

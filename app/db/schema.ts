@@ -1116,7 +1116,7 @@ export const studentInvitations = sqliteTable("student_invitations", {
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: text("created_at").notNull(),
 }, (t) => [
-  uniqueIndex("student_invitation_open_seat_idx").on(t.seatCode).where(sql`${t.consumedAt} is null and ${t.revokedAt} is null`),
+  index("student_invitation_active_seat_idx").on(t.seatCode).where(sql`${t.consumedAt} is null and ${t.revokedAt} is null`),
   index("student_invitation_expiry_idx").on(t.expiresAt),
 ]);
 
