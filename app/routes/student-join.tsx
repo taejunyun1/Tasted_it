@@ -6,6 +6,7 @@ import type { Route } from "./+types/student-join";
 import { createDb } from "../db/client.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { acceptStudentInvite, getStudentSeat } from "../features/students/invitations.server";
+import { recordStudentInviteFailure } from "../features/students/invite-attempts.server";
 import { consumeStudentWriteLimit, ensureStudentWorkspace, readStudentForm, studentFailure } from "../features/students/http.server";
 import { recoverPendingInvite } from "../features/students/pending-invite";
 import { inviteTokenSchema, NO_STORE_HEADERS } from "../features/students/policy";
@@ -24,13 +25,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   ensureStudentWorkspace(env.STUDENT_WORKSPACE_ENABLED);
   const user = await requireUser(request);
+  const db = createDb(env.DB); const now = new Date();
+  let diagnosticToken: string | null = null;
   try {
     const values = z.object({ intent: z.literal("accept"), token: inviteTokenSchema }).strict().parse(await readStudentForm(request));
-    const db = createDb(env.DB); const now = new Date();
     await consumeStudentWriteLimit(db, user.id, now, "JOIN");
+    diagnosticToken = values.token;
     await acceptStudentInvite(db, { token: values.token, userId: user.id, now: now.toISOString() });
     return redirect("/student", { headers: NO_STORE_HEADERS });
-  } catch (error) { return studentFailure(error); }
+  } catch (error) {
+    if (diagnosticToken) await recordStudentInviteFailure(db, { userId: user.id, token: diagnosticToken, error, now: now.toISOString() });
+    return studentFailure(error);
+  }
 }
 export default function StudentJoin({ loaderData, actionData }: Route.ComponentProps) {
   const [token, setToken] = useState(""); const nav = useNavigation(); const revalidator = useRevalidator(); const location = useLocation();
