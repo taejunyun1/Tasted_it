@@ -91,3 +91,18 @@ BASE_URL=https://<worker-url> pnpm test:e2e -- tests/e2e/release.spec.ts
 ## 2026년 10월 15일 RSI 재검사
 
 같은 Worker 공개 주소 점검에는 `global_fetch_strictly_public`을 유지한다. 배포 후 기존 ADMIN 세션에서 동일 origin의 `POST /admin/operations/rsi-check`에 `intent=run`을 보내 고정6경로를 검사할 수 있다. 새 토큰은 만들지 않는다. HTTP200과 `ok:true`·경로6개를 확인하고 운영 감사 `rsi-admin` 한 행을 대조한다. HTTP503 또는 감사 저장 실패는 PASS로 처리하지 않는다. 이는 수동 결과이며 기존 cron의 `rsi-scheduled` 결과를 대신하지 않는다. 실행 한도·복원·승인 범위는 [결정 문서](../decisions/2026-10-15-rsi-public-fetch.md)를 따른다.
+
+
+## 필요할 때 조회하는 Cloudflare 저장 로그
+
+2026-10-20 사용자 요청으로 로컬 실시간 수집과 정기 알림은 종료하고, 기존 Workers Logs의 수집률을 10%에서 100%로 변경한다. `wrangler.jsonc`에서 `observability.enabled=true`, `head_sampling_rate=1`, `logs.enabled=true`, `logs.invocation_logs=true`, `logs.persist=true`를 명시한다. Traces, Issues, 새 Tail Worker/Logpush/외부 저장소는 추가하지 않는다. 이 설정은 Codex나 노트북이 꺼져 있어도 Cloudflare가 새 Worker 실행 로그를 보관하도록 한다.
+
+조회: 지정 계정 → Workers 및 Pages → `retaste-beta` → 관찰 가능성 → 로그. 시간 범위를 고르고 `/student`, `/student/tasks/`, `/login`, `STUDENT_WORKSPACE_FAILURE`, `STUDENT_INVITE_FAILED` 등을 검색한다. URL/응답 상태와 감사/D1의 좌석 연결·제출 이력을 함께 대조한다. 계정 식별 정보 없는 요청은 특정 학생의 실제 접근으로 단정하지 않는다. 과거 10% 수집에서 누락된 기록은 소급 복원되지 않는다.
+
+2026-10-20 현재 지정 계정은 Workers Paid이며 [Workers Logs 문서](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)의 보관 기간은 7일이다. 월 2천만 이벤트가 포함되고 초과는 백만 건당 US$0.60이다. 영구 보관이 아니며 별도 요금제·구독·저장소는 구매하지 않는다. 2026-12-01부터 가격 체계 변경 공지가 있어 그 이후 장기 운영 시 문서를 다시 확인한다. 계정 일일 50억 이벤트 초과 시 1% 샘플링, 단일 로그 256KB 초과 시 잘림이라는 플랫폼 한도가 있어 무제한·무손실 보장을 뜻하지 않는다.
+
+기존 로그와 Cloudflare의 기본 민감정보 가림을 사용한다. 요청 body/쿠키/Authorization/초대값/계정 정보/원문 자료를 새로 출력하지 않으며 `getUnredacted()`도 사용하지 않는다. 추가 로그 필드는 이 변경에 없다. 기존 `STUDENT_INVITE_FAILED` 감사 보존은 유지한다.
+
+배포 검증: 필수 CI 후 병합 main에서 지정 프로필로 배포한다. 비민감 단발 확인 요청의 시각·경로·HTTP 상태만 기록하고, CLI tail을 켜지 않은 상태에서 Cloudflare 저장 로그 화면으로 해당 요청을 조회한다. 운영자 RSI 6경로 및 기존 초대·좌석·배정 digest를 대조한다. 대시보드에서 수집률100%·호출 로그·보관 활성 상태를 확인한다. 중지된 자동화나 로컬 collector는 재시작하지 않는다.
+
+복원: 문제 시 직전 Worker `50c274c7-33b9-47fc-991e-7f2b837a893d`로 rollback한다. 다음 배포에도 복원이 유지되도록 feature PR로 수집률을 기존0.1로 돌린다. 저장된 로그나 운영 데이터는 삭제하지 않는다.
