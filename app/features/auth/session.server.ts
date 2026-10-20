@@ -5,6 +5,7 @@ import { redirect } from "react-router";
 import { createDb } from "../../db/client.server";
 import { sessions, users } from "../../db/schema";
 import { assertRole, type UserRole } from "./guards.server";
+import { safeReturnTo } from "./login";
 import { isWithdrawnEmail } from "./withdraw";
 
 const SESSION_COOKIE = "retaste_session";
@@ -74,7 +75,7 @@ export async function requireUser(request: Request): Promise<SessionUser> {
   if (user) return user;
 
   const url = new URL(request.url);
-  const returnTo = `${url.pathname}${url.search}`;
+  const returnTo = safeReturnTo(`${url.pathname}${url.search}`);
   throw redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
 }
 

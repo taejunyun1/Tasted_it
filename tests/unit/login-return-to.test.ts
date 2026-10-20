@@ -14,6 +14,14 @@ describe("safeReturnTo", () => {
     expect(safeReturnTo(null)).toBe("/");
   });
 
+  it("returns data requests to their page instead of the internal transport endpoint", () => {
+    expect(safeReturnTo("/student/join.data?_routes=routes%2Fstudent-join")).toBe("/student/join");
+    expect(safeReturnTo("/student.data?page=2&_routes=routes%2Fstudent-index")).toBe("/student?page=2");
+    expect(safeReturnTo("/admin/students.data?step=1&_routes=routes%2Fadmin-students")).toBe("/admin/students?step=1");
+    expect(safeReturnTo("/student/../login.data")).toBe("/");
+    expect(safeReturnTo("//evil.test/student.data")).toBe("/");
+  });
+
   it("rejects protocol-relative and external URLs", () => {
     expect(safeReturnTo("//evil.example/path")).toBe("/");
     expect(safeReturnTo("https://evil.example/path")).toBe("/");

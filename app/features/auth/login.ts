@@ -34,6 +34,15 @@ export function safeReturnTo(value: string | null | undefined): string {
     const destination = new URL(value, base);
     const decodedDestination = new URL(decoded, base);
     if (decoded.includes("..") || value.includes("..")) return fallback;
+    // React Router forwards the original single-fetch request URL to loaders
+    // and actions. Authentication must return to the page, never its data stream.
+    const isDataRequest = destination.pathname.endsWith(".data");
+    for (const url of [destination, decodedDestination]) {
+      if (url.pathname.endsWith(".data")) {
+        url.pathname = url.pathname === "/_root.data" ? "/" : url.pathname.slice(0, -5);
+        url.searchParams.delete("_routes");
+      }
+    }
     const isAllowedPath = (pathname: string) =>
       pathname === "/places" || pathname.startsWith("/places/")
       || pathname === "/admin" || pathname.startsWith("/admin/")
@@ -49,7 +58,7 @@ export function safeReturnTo(value: string | null | undefined): string {
     if (destination.origin !== base.origin || decodedDestination.origin !== base.origin) return fallback;
     if (isDeniedPath(destination.pathname) || isDeniedPath(decodedDestination.pathname)) return fallback;
     if (!isAllowedPath(destination.pathname) || !isAllowedPath(decodedDestination.pathname)) return fallback;
-    return value;
+    return isDataRequest ? `${destination.pathname}${destination.search}${destination.hash}` : value;
   } catch {
     return fallback;
   }
