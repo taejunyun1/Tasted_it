@@ -30,7 +30,7 @@ test.describe("student workspace", () => {
       await expect(student.getByRole("heading", { name: "먼저 개인 계정으로 로그인해 주세요" })).toBeVisible();
       await student.reload();
       await expect(student.getByRole("heading", { name: "먼저 개인 계정으로 로그인해 주세요" })).toBeVisible();
-      await student.getByRole("link", { name: "로그인하고 초대 수락 계속하기", exact: true }).click();
+      await student.getByRole("button", { name: "로그인하고 초대 수락 계속하기", exact: true }).click();
       await expect(student).toHaveURL(`${baseURL}/login?returnTo=%2Fstudent%2Fjoin`);
       // Synthetic local authenticated session: no provider or live invitation is used.
       await studentContext.addCookies([{ name: "retaste_session", value: "qa-student-a-session", url: baseURL! }]);
