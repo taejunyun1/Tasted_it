@@ -4,6 +4,31 @@ import { hashPassword } from "../../app/features/auth/password.server";
 
 const password = "synthetic-student-session-test";
 
+for (const blockedStorage of [false, true]) {
+  test(`restores a missing invitation from the original link with storage blocked=${blockedStorage}`, async ({ page: admin, context, browser, baseURL }, info) => {
+    const invite = await invitation(admin, context, baseURL!);
+    const studentContext = await browser.newContext({ baseURL, viewport: info.project.name === "webkit" ? { width: 390, height: 844 } : { width: 1280, height: 800 } });
+    try {
+      if (blockedStorage) await studentContext.addInitScript(() => { Object.defineProperty(window, "sessionStorage", { get() { throw new Error("storage blocked"); } }); });
+      await studentContext.addCookies([{ name: "retaste_session", value: "qa-student-a-session", url: baseURL! }]);
+      const page = await studentContext.newPage();
+      await page.goto("/student/join");
+      await expect(page.getByRole("heading", { name: "로그인 완료 · 학생 초대 연결이 필요합니다", exact: true })).toBeVisible();
+      await page.screenshot({ path: info.outputPath("missing-invitation.png"), fullPage: true });
+      await expect(page.getByLabel("받은 개인별 초대 링크", { exact: true })).toBeVisible({ timeout: 2000 });
+      await page.getByLabel("받은 개인별 초대 링크", { exact: true }).fill(invite);
+      await page.getByRole("button", { name: "초대 링크 확인", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "시험 학생 A 계정으로 참여", exact: true })).toBeVisible();
+      expect(new URL(page.url()).hash).toBe("");
+      expect(new URL(page.url()).search).toBe("");
+      await expect(page.getByLabel("받은 개인별 초대 링크", { exact: true })).toHaveCount(0);
+      await page.screenshot({ path: info.outputPath("invitation-restored.png"), fullPage: true });
+      await page.getByRole("button", { name: "초대 수락하고 내 작업 열기", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "학생 A의 작업", exact: true })).toBeVisible();
+    } finally { await studentContext.close(); }
+  });
+}
+
 test.skip(Boolean(process.env.BASE_URL), "Only isolated local D1 is allowed.");
 test.beforeEach(async () => {
   execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--file", "scripts/seed-student-qa.sql"], { stdio: "pipe" });

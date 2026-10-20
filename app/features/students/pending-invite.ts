@@ -6,6 +6,20 @@ const TTL = 60 * 60 * 1000;
 type TabStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const pendingSchema = z.object({ token: inviteTokenSchema, expiresAt: z.number().int().positive() }).strict();
 
+// Read pasted text without navigating to it or copying the bearer into a query.
+export function parseStudentInviteInput(value: string, origin: string): string {
+  const text = value.trim();
+  const token = inviteTokenSchema.safeParse(text);
+  if (token.success) return token.data;
+  if (text.length > 2048) return "";
+  try {
+    const url = new URL(text);
+    if (url.origin !== origin || url.username || url.password || !["/student/join", "/student/join/"].includes(url.pathname)) return "";
+    const parsed = inviteTokenSchema.safeParse(url.hash.slice(1));
+    return parsed.success ? parsed.data : "";
+  } catch { return ""; }
+}
+
 export function clearPendingInvite(storage: TabStorage) {
   try { storage.removeItem(KEY); } catch { /* Private browsing may deny storage. */ }
 }
