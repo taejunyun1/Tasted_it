@@ -18,6 +18,7 @@ export default defineConfig({
 
         r2Buckets: ["REVIEW_PHOTOS"],
         bindings: {
+          STUDENT_INVITE_COOKIE_SECRET: "synthetic-integration-session-secret-not-production",
           STUDENT_WORKSPACE_ENABLED: "true",
           ADMIN_EMAIL: "admin@example.com",
           ONBOARDING_ENABLED: "true",
