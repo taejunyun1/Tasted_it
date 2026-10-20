@@ -22,6 +22,17 @@ export async function getStudentSeat(db: AppDb, input: { userId: string; now: st
   return row?.seat ?? null;
 }
 
+// Read-only validation before carrying an invitation through login. Never claims a seat.
+export async function inspectStudentInvite(db: AppDb, token: string, now: string) {
+  const valid = inviteTokenSchema.safeParse(token);
+  if (!valid.success) throw new Error("STUDENT_INVITE_INVALID");
+  const invitation = await db.query.studentInvitations.findFirst({ where: and(eq(studentInvitations.tokenHash, await digest(valid.data)), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt), gt(studentInvitations.expiresAt, now)) });
+  if (!invitation) throw new Error("STUDENT_INVITE_INVALID");
+  const seat = await db.query.studentSeats.findFirst({ where: and(eq(studentSeats.code, invitation.seatCode), isNull(studentSeats.userId), eq(studentSeats.isActive, true), gt(studentSeats.expiresAt, now)) });
+  if (!seat) throw new Error("STUDENT_SEAT_UNAVAILABLE");
+  return { token: valid.data, seatCode: invitation.seatCode, expiresAt: invitation.expiresAt };
+}
+
 export async function createStudentInvite(db: AppDb, input: { seatCode: SeatCode; actorUserId: string; now: string }) {
   await requireStudentAdmin(db, input.actorUserId);
   const code = seatCodeSchema.parse(input.seatCode);

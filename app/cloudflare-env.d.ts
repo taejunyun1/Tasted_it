@@ -1,5 +1,6 @@
 declare namespace Cloudflare {
   interface Env {
+    STUDENT_INVITE_COOKIE_SECRET: string;
     STUDENT_WORKSPACE_ENABLED: string;
     ADMIN_EMAIL: string;
     NAVER_MAPS_CLIENT_ID: string;

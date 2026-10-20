@@ -4,6 +4,7 @@
   "compatibility_date": "2026-08-05",
   "main": "./tests/e2e/local-email-worker.ts",
   "vars": {
+    "STUDENT_INVITE_COOKIE_SECRET": "synthetic-e2e-session-secret-not-production",
     "STUDENT_WORKSPACE_ENABLED": "true",
     "RESEND_API_KEY": "local-e2e-email-fake",
     "RESEND_FROM_EMAIL": "test@example.test",
