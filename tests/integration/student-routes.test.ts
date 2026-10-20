@@ -36,6 +36,17 @@ describe("student HTTP security boundaries", () => {
       await env.DB.prepare("UPDATE student_seats SET user_id = NULL, is_active = 1, expires_at = '2099-01-01T00:00:00.000Z' WHERE code = 'A'").run();
     }
   });
+  it.each(["missing", "expired"])("sends a %s data-request session back to the invitation page after login", async (state) => {
+    const sessionId = state === "expired" ? await session("USER") : null;
+    if (sessionId) await env.DB.prepare("UPDATE sessions SET expires_at = ? WHERE id = ?").bind("2020-01-01T00:00:00.000Z", sessionId).run();
+    const request = new Request("https://retaste.test/student/join.data?_routes=routes%2Fstudent-join", { method: "POST", body: new URLSearchParams({ intent: "accept", token: "A".repeat(43) }), headers: { Origin: "https://retaste.test", "Content-Type": "application/x-www-form-urlencoded", ...(sessionId ? { Cookie: `retaste_session=${sessionId}` } : {}) } });
+    let failure: unknown;
+    try { await joinStudent({ request } as never); } catch (response) { failure = response; }
+    expect(failure).toBeInstanceOf(Response);
+    expect((failure as Response).status).toBe(302);
+    expect((failure as Response).headers.get("Location")).toBe("/login?returnTo=%2Fstudent%2Fjoin");
+  });
+
   it("requires authentication before joining or writing a task", async () => {
     for (const [action, path] of [[joinStudent, "/student/join"], [changeTask, "/student/tasks/missing"]] as const) {
       await expect(action({ request: request(path, null, { token: "A".repeat(43) }), params: { taskId: "missing" } } as never)).rejects.toMatchObject({ status: 302 });
