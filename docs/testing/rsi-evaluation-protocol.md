@@ -76,7 +76,7 @@ pnpm audit
 
 ## Issue #329: 로컬 transport lifecycle 단일 진단
 
-[PR #330](https://github.com/taejunyun1/Tasted_it/pull/330)은 기존 Docker CLI의 bounded metadata 관측과 native UNKNOWN의 실패 frame 분류를 추가한다. 후보 ABI, oracle·판정, wrapper·runtime image·manifest, 실행 권한과 기존 격리는 그대로다. 이 진단은 로컬 연구 도구이며 운영 Worker 배포나 live RSI 검증이 아니다. 준비 checkpoint 현재 실제 측정은 **0회 / 내부 safety gate 대기**다.
+[PR #330](https://github.com/taejunyun1/Tasted_it/pull/330)은 기존 Docker CLI의 bounded metadata 관측과 native UNKNOWN의 실패 frame 분류를 추가한다. 후보 ABI, oracle·판정, wrapper·runtime image·manifest, 실행 권한과 기존 격리는 그대로다. 이 진단은 로컬 연구 도구이며 운영 Worker 배포나 live RSI 검증이 아니다. 2026-10-23 KST에 고정 checkpoint `e232f37`에서 승인된 단일 측정을 **1회 완료**했다. 결과는 아래에 기록하며 같은 측정을 재실행하지 않는다.
 
 기본 unit은 외부 작업 없이 유지한다. 별도 사례 이름은 `records one pinned transport lifecycle diagnostic without retry`, flag는 `RSI_NATIVE_TRANSPORT_DIAGNOSTIC=1`, selector는 `^records one pinned transport lifecycle diagnostic without retry$`다. flag와 정확 selector가 모두 맞아야 하며 기존 `RSI_NATIVE_PREPARE`, `RSI_NATIVE_PROBE`, `RSI_NATIVE_SHUTDOWN_CONTROL`, `RSI_NATIVE_CAUSE_COLLECTION`, `RSI_NATIVE_DIAGNOSIS`는 값이 `0`이어도 설정하지 않는다. PREPARE/PROBE suite, 기존 cause batch·공유 receipt·capability는 사용하지 않는다. image build/pull은 0회다.
 
@@ -108,3 +108,18 @@ observer는 동기 `void` 함수이며 자체 try/catch 안에서 ordinal별 최
 정상 실행의 control 기대값은 **NO_CHANGE / EXTERNAL_FAILURE**다. 실제 DOCKER_CLI, 요청 6회, dispatchAttempts/childSpawns 각 1, native log 유효성, stdout/stderr 자연 EOF, pipe error·premature close 0, deadlineExpired false, disposalConfirmed·backend cleanupConfirmed와 owner/name/ID 일치를 각각 확인한다. 이를 PASS/수리 효과로 바꾸지 않는다. 완성 EVALUATION frame이 있어도 START/cleanup 실패는 UNKNOWN이며 opt-in 시험도 실패로 끝난다. runner exit 0, native verdict, 진단 무결성, 과거 근본원인은 서로 별도 값이다. nativeReady/nativeDispatch 시각은 UNOBSERVED이며 host spawn/stdin finish/exit/close로 대신하지 않는다. host/daemon clock offset 미검증 상태에서 절대시각 인과 결합을 하지 않는다.
 
 단 한 번 control이 관측되어도 과거 START TIMEOUT과 독립 RM TIMEOUT의 원인·1480B frame 정체·과거 EOF/삭제 완료는 UNKNOWN이다. R4 HOLD를 유지하며 반복 안정성·모델 성능·R4 수용·운영 복구를 주장하지 않는다. 실패 artifact와 입력/code binding은 private로 보존하고 재실행하지 않는다. 복원은 #329 변경을 revert하는 것이며 원래 실패 원장·image·manifest를 고쳐 덮지 않는다. 별도 실제 container 정리는 이 측정의 권한에 포함하지 않는다.
+
+### 2026-10-23 단일 측정 결과
+
+독립 safety 재검토와 부모의 one-shot GO 뒤 `e232f37b198af98a3c852d2d6fd40af32a16de89`의 코드·시험·감독기를 고정해 실행했다. default verify 1회(기존 probes 2회)와 `AUTH_REDIRECT_FAILURE` evaluate 1회가 완료됐고 **NO_CHANGE / EXTERNAL_FAILURE, greenVerified=false**를 관측했다. 이는 합성 외부 auth 실패를 정직하게 보고한 정상 control이다.
+
+| 증거 | 이번 관측 |
+| --- | --- |
+| 실제 명령·container | ordinal 1–19 연속, CREATE/START/RM 각 3회, container 3개. admission 14명령의 두 probe trace 확인 뒤 evaluate 5명령 |
+| 감독·종료 | watchdog monotonic 1,841ms, runner exit 0·supervisor exit 0·외곽 exit 0, group 생성·child 상속 확인, control pipe drain 완료. TERM/KILL 요청 0회 |
+| native 실행 | DOCKER_CLI, 요청 6회, dispatchAttempts/childSpawns 각 1, redReproduced=false |
+| native custody | stdout/stderr 자연 EOF, pipe error·premature close 0, log valid·warning 1·rejected 0, deadlineExpired=false, disposalConfirmed=true |
+| cleanup | 세 RM의 CLI close code 0. 평가 container의 backend cleanupConfirmed=true, cleanup inspect 반환·owner/name/ID 일치·RM 호출/반환 모두 true |
+| 관측 무결성 | observerError/persistenceError=false, 모든 CLI의 exit/close code 0·두 pipe EOF, timer/kill 관측 0. source/compiled/manifest digest가 고정 pin과 일치 |
+
+nativeReady/nativeDispatch 시각, 별도 post-stop 부재, 과거 host/client identity와 과거 근본원인은 계속 UNOBSERVED/UNKNOWN이다. 이번 평가 START의 stdout 1,480B는 현재 정상 receipt로 검증됐지만, 과거 출력과 byte 수가 같다는 사실은 같은 frame·원인을 입증하지 않는다. 독립 watchdog의 control pipe drain과 native EOF는 별도 증거다. 정상 종료로 140/145초 signal 경로는 실제 시험하지 않았다. 재시도·post-stop Docker 조회·image build/pull·운영·모델 호출은 0회이며, 최종 변경은 결과 문서뿐이다. R4 HOLD를 유지하고 PR #330 완료 후 대기한다.
