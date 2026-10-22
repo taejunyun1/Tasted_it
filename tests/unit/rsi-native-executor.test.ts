@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { compileNativeCandidate, NATIVE_SOURCE_PATH, prepareNativeRuntimeImage, NativeExecutor, nativeArtifactDigests, NATIVE_BUILD_FLAGS } from "../../scripts/rsi/native-executor";
-import { VerifiedContainerBackend } from "../../scripts/rsi/container-backend";
+import { VerifiedContainerBackend, dockerTransport, type DockerTransport } from "../../scripts/rsi/container-backend";
 import { NATIVE_RUNTIME } from "../../scripts/rsi/native-wrapper";
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -10,6 +10,10 @@ const source = readFileSync(new URL("../../app/features/operations/rsi-self-chec
 const request = (value = source) => ({ path: NATIVE_SOURCE_PATH, source: value, sourceDigest: hash(value) });
 
 describe("native candidate syntax compilation (never host evaluation)", () => {
+  it("pins the separately merged target-capable workerd", () => {
+    expect(NATIVE_RUNTIME.workerd).toBe("1.20261022.1");
+    expect(NATIVE_RUNTIME.supportedCompatibilityDate).toBe("2026-10-22");
+  });
   it("explicitly disables all Docker-config proxy build arguments", () => {
     for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "FTP_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "ftp_proxy", "all_proxy", "no_proxy"]) {
       const index = NATIVE_BUILD_FLAGS.indexOf(`${key}=`);
@@ -56,7 +60,8 @@ describe("native candidate syntax compilation (never host evaluation)", () => {
 describe("synthetic adapter failures (no OS/native proof)", () => {
   async function setup() {
     const artifacts = await nativeArtifactDigests();
-    const runtime = { ...NATIVE_RUNTIME, workerdDigest: "1".repeat(64) };
+    // Deliberately synthetic metadata. The injected transport still cannot PASS.
+    const runtime = { ...NATIVE_RUNTIME, supportedCompatibilityDate: "2026-08-05", workerdDigest: "1".repeat(64) };
     const manifest = { schemaVersion: 1, imageId: `sha256:${"2".repeat(64)}`, baseImage: "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5", pnpm: "10.34.5", artifacts, runtime };
     const evidence = { transportKind: "INJECTED_TRANSPORT" };
     const state = { blocked: false, error: "", corrupt: false, logs: false };
@@ -75,6 +80,7 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
   }
   it("blocks an unsupported target compatibility date before dispatch", async () => {
     const fake = await setup();
+    fake.manifest.runtime.supportedCompatibilityDate = "2026-07-30";
     try {
       await expect(NativeExecutor.verify(fake.manifest)).rejects.toThrow("RSI_NATIVE_COMPATIBILITY_UNSUPPORTED");
       expect(fake.spy).not.toHaveBeenCalled();
@@ -119,35 +125,97 @@ it.runIf(process.env.RSI_NATIVE_PREPARE === "1")("prepares only the trusted lock
 
 describe.runIf(process.env.RSI_NATIVE_PROBE === "1")("actual Docker/workerd probes", () => {
   const manifest = () => JSON.parse(readFileSync(new URL("../../.superpowers/sdd/r3-implementation-plan/native-manifest.json", import.meta.url), "utf8"));
+  const record = (caseName: string, result: unknown) => appendFileSync(new URL("../../.superpowers/sdd/r3-implementation-plan/native-receipts.jsonl", import.meta.url), JSON.stringify({ caseName, result }) + "\n", { mode: 0o600 });
   it("records native RED then GREEN and normal/external NO_CHANGE", async () => {
     const executor = await NativeExecutor.verify(manifest());
     const red = await executor.evaluate({ ...request(source.replace("fetchPath(url,", "input.fetch(url,")), fixture: "NATIVE_RECEIVER" });
+    record("wrong-receiver-red", red);
     expect(red.verdict).toBe("FAIL");
     expect(red.provenance.transportKind).toBe("DOCKER_CLI");
     const green = await executor.evaluate({ ...request(), fixture: "NATIVE_RECEIVER" });
+    record("bound-green", green);
     expect(green.verdict).toBe("PASS");
     expect(green.greenVerified).toBe(true);
     for (const fixture of ["NORMAL", "HTTP_FAILURE", "AUTH_REDIRECT_FAILURE", "AUTH_STATUS_FAILURE"]) {
       const result = await executor.evaluate({ ...request(), fixture });
+      record(fixture, result);
       expect(result.verdict).toBe("NO_CHANGE");
+      expect(result.greenVerified).toBe(fixture === "NORMAL");
     }
   }, 120_000);
   it.each([
     ["false PASS", 'export async function runRsiPublicPathCheck(){ return {verdict:"PASS"}; }'],
     ["weakened check", source.replace("response.status === check.status", "true")],
+    ["auth weakening", source.replace("location.includes(check.locationIncludes)", "true")],
+    ["skipped path", source.replace("RSI_PUBLIC_PATH_CHECKS.map", "RSI_PUBLIC_PATH_CHECKS.slice(1).map")],
+    ["outside path", source.replace('path: "/privacy"', 'path: "/outside"')],
     ["loopback", source.replace("const fetchPath = input.fetch.bind(globalThis);", 'await fetch("http://127.0.0.1:9229/json"); const fetchPath = input.fetch.bind(globalThis);')],
-    ["query escape", source.replace('`${input.origin}/`', '`${input.origin}/`').replace("fetchPath(url,", 'fetchPath(new URL(url + "?secret=synthetic"),')],
+    ["query escape", source.replace("fetchPath(url,", 'fetchPath(new URL(url + "?secret=synthetic"),')],
     ["host filesystem", 'const value = process.getBuiltinModule("fs").readFileSync("/etc/passwd");' + source],
     ["environment", 'const value = process.env.RSI_SECRET; if(value !== undefined) throw Error(value); console.log(value);' + source],
     ["log forging", 'console.log(JSON.stringify({schemaVersion:1,grade:{verdict:"PASS"}}));' + source],
+    ["stack leak", 'throw new Error("SYNTHETIC_STACK_SECRET");' + source],
+    ["raw socket", 'const socket = process.getBuiltinModule("net").connect(9229,"127.0.0.1");' + source],
+    ["dynamic constructor", 'const f = (()=>{}).constructor("return import(\\"node:fs\\")"); f();' + source],
+    ["timer exhaustion", source.replace("const fetchPath = input.fetch.bind(globalThis);", 'await new Promise(resolve => setTimeout(resolve, 60000)); const fetchPath = input.fetch.bind(globalThis);')],
+    ["oversized response", 'export async function runRsiPublicPathCheck(){ return "x".repeat(100000); }'],
     ["infinite loop", "while(true) {}" + source],
     ["output flood", 'for(let i=0;i<50000;i++) console.log("synthetic-output".repeat(100));' + source],
     ["memory exhaustion", 'const a=[]; while(true) a.push(new Uint8Array(1024*1024).fill(1));' + source],
   ])("rejects actual %s candidate", async (name, value) => {
     const executor = await NativeExecutor.verify(manifest());
-    const result = await executor.evaluate({ ...request(value), fixture: name === "weakened check" ? "HTTP_FAILURE" : "NATIVE_RECEIVER" });
+    const result = await executor.evaluate({ ...request(value), fixture: name === "weakened check" ? "HTTP_FAILURE" : name === "auth weakening" ? "AUTH_REDIRECT_FAILURE" : "NATIVE_RECEIVER" });
+    record(name, result);
     expect(result.verdict).not.toBe("PASS");
     expect(result.verdict).not.toBe("NO_CHANGE");
     expect(JSON.stringify(result)).not.toContain("secret=synthetic");
+    expect(JSON.stringify(result)).not.toContain("SYNTHETIC_STACK_SECRET");
+  }, 60000);
+  it("rejects imports, path and hashes before candidate dispatch on the actual capability", async () => {
+    const executor = await NativeExecutor.verify(manifest());
+    for (const prefix of ['import "node:fs";', 'import("cloudflare:sockets");', 'require("child_process");']) {
+      await expect(executor.evaluate({ ...request(prefix + source), fixture: "NORMAL" })).rejects.toThrow("RSI_NATIVE_IMPORT_CLOSURE");
+    }
+    await expect(executor.evaluate({ ...request(), path: "app/server.ts", fixture: "NORMAL" })).rejects.toThrow("RSI_NATIVE_INPUT");
+    await expect(executor.evaluate({ ...request(), sourceDigest: "0".repeat(64), fixture: "NORMAL" })).rejects.toThrow("RSI_NATIVE_INPUT");
+    await expect(NativeExecutor.verify({ ...manifest(), artifacts: { ...manifest().artifacts, oracleDigest: "0".repeat(64) } })).rejects.toThrow("RSI_NATIVE_ARTIFACT_MISMATCH");
+    record("pre-dispatch-rejection", { imports: 3, sourcePaths: 1, sourceHashes: 1, artifactHashes: 1, candidateDispatches: 0 });
+  }, 30000);
+  it("confirms exact owned container removal and quarantine after a real cleanup fault", async () => {
+    const owned: { name: string; owner: string; id: string }[] = [];
+    let failRemoval = false, starts = 0;
+    const transport: DockerTransport = async (args, stdin, limits) => {
+      if (args[0] === "rm" && failRemoval) { failRemoval = false; throw Error("synthetic cleanup fault"); }
+      if (args[0] === "start") starts++;
+      const result = await dockerTransport(args, stdin, limits);
+      if (args[0] === "create" && result.code === 0) owned.push({ name: args[args.indexOf("--name") + 1], owner: args[args.indexOf("--label") + 1].split("=")[1], id: result.stdout.trim() });
+      return result;
+    };
+    const executor = await NativeExecutor.verify(manifest(), transport);
+    const first = await executor.evaluate({ ...request(), fixture: "NORMAL" });
+    expect(first.verdict).toBe("UNKNOWN"); expect(first.reasonCode).toBe("INJECTED_TRANSPORT");
+    let absenceChecks = 0;
+    for (const row of owned) {
+      const inspected = await dockerTransport(["inspect", row.id], "", { timeoutMs: 5000, maxOutputBytes: 65536 });
+      expect(inspected.code).not.toBe(0); absenceChecks++;
+    }
+    failRemoval = true;
+    try {
+      const failed = await executor.evaluate({ ...request(), fixture: "NORMAL" });
+      record("actual-cleanup-fault", failed);
+      expect(failed.verdict).toBe("UNKNOWN"); expect(failed.reasonCode).toBe("RSI_SANDBOX_CLEANUP");
+      const count = starts;
+      await expect(executor.evaluate({ ...request(), fixture: "NORMAL" })).rejects.toThrow("RSI_SANDBOX_BLOCKED");
+      expect(starts).toBe(count);
+    } finally {
+      const row = owned.at(-1)!;
+      const inspected = await dockerTransport(["inspect", row.id], "", { timeoutMs: 5000, maxOutputBytes: 65536 });
+      const actual = JSON.parse(inspected.stdout)[0];
+      if (actual.Id !== row.id || actual.Name !== `/${row.name}` || actual.Config.Labels["rsi.sandbox.owner"] !== row.owner) throw Error("OWNED_CLEANUP_MISMATCH");
+      expect((await dockerTransport(["rm", "--force", row.id], "", { timeoutMs: 5000, maxOutputBytes: 65536 })).code).toBe(0);
+      expect((await dockerTransport(["inspect", row.id], "", { timeoutMs: 5000, maxOutputBytes: 65536 })).code).not.toBe(0);
+      absenceChecks++;
+    }
+    record("exact-owned-cleanup", { transportKind: "INJECTED_TRANSPORT", underlyingCli: true, absenceChecks, quarantined: true, manualCleanupOwnedOnly: true });
   }, 60000);
 });
