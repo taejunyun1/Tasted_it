@@ -1,6 +1,6 @@
 # RSI 후보 소스의 로컬 네이티브 실행
 
-**상태: fix round1 검증 완료·독립 재검토 대기(2026-10-22).** EOF 보강 이미지의 전체 검사는 110 PASS/1 FAIL/4 skip였다. 한 실패는 모듈 초기화에서 타이머를 예약한 대조군의 ready 단계 EXIT88이며, 원래 영수증을 보존했다. 예약을 요청 처리 함수 본문으로 옮긴 수정 대조군 한 건은 같은 이미지에서 PASS(6호출·양 EOF·marker0·dispose/cleanup 확인)했다. 다른 통과 사례는 재실행하지 않았다. Task3 최종 승인과 I1/I2 해제는 독립 재검토로 판정한다.
+**상태: Task3 fix round1 한정 재검토 통과(2026-10-22, `5644efb`).** 독립 재검토에서 I1/I2를 ADDRESSED로 판정하고 현재 고정 이미지 `b035afe…`의 사례별 수용 blocker를 해제했다. EOF 보강 이미지의 최초 전체 명령은 host와 실제 실행 그룹이 섞인 **110 PASS/1 FAIL/4 skip**이며, 모든 native 후보가 PASS라는 뜻은 아니다. 한 실패는 모듈 초기화에서 타이머를 예약한 대조군의 ready 단계 EXIT88이며, 원래 영수증을 보존했다. 예약을 요청 처리 함수 본문으로 옮긴 수정 대조군은 같은 이미지에서 **별도 1 PASS/114 skip**(6호출·양 EOF·marker0·dispose/cleanup 확인)였다. 다른 통과 사례는 재실행하지 않았다. 이 판정은 Task3 한정이며, R3 전체 PR #326의 최종 리뷰 반영·필수 CI 확인·병합은 별도 남은 절차다.
 
 이전 이력: 종료 deadline 범위를 보완한 이미지411의 전체 실제 검사는 generator-constructor 사례의 `RM_TRANSPORT/TIMEOUT` 정리 UNKNOWN과 후속 capability 격리로 중단됐다. EOF 보강이 그 실패의 원인을 설명하거나 Docker 정리 문제를 해결했다는 주장은 없다. 기존 UNKNOWN/BLOCKED와 진단32건을 보존하며, 이후 성공이나 컨테이너 부재를 과거 정리 성공으로 소급하지 않는다.
 
@@ -47,7 +47,7 @@ RSI_NATIVE_PROBE=1 pnpm test tests/unit/rsi-native-executor.test.ts
 
 native 상한은 메모리 512 MiB, tmpfs 64 MiB, CPU 1개, PID 64개, wall 15초, 출력 32 KiB, 입력 100,000바이트다. Node wrapper heap은 공통 실행부의 64 MiB다. 이는 측정용 유한 상한이며 최적값이라는 주장은 없다. 기존 R2 Node profile의 한도는 변경하지 않는다.
 
-준비 완료 뒤 trusted Node wrapper가 dispatch 시도 수를 세며, 후보의 표식 수와 분리한다. `dispatchAttempts:1`은 외부 감독기가 dispatch를 시도했다는 뜻이다. 후보가 특정 API를 실행했다는 단독 증거는 아니다. 금지 API 검사는 준비 뒤 실행되는 후보와 잡힌 예외 변형의 고정 표식·원시 로그 거절·독립 trace·종료/정리를 함께 검사한다. 후보가 표식을 흉내 낸 경우도 FAIL이며 API 차단 증거로 세지 않는다. 무한 실행·타이머 대기는 내부 12초 deadline이 검증된 workerd child 하나만 종료하고 dispose 및 기존 컨테이너 정리를 수행한다. 이 타이머는 dispatch부터 dispose와 child stream close를 모두 기다리는 전체 finally까지 유지한다. 종료가 풀리지 않으면 외부 15초 watchdog에 의해 UNKNOWN으로 제한되며, 만료는 성공이 아니다. wrapper OOM/사망이나 영수증 부재는 UNKNOWN/dispatch 미확인이며 안전한 종료 차단과 해당 후보 API의 실행 입증을 구분한다. 현재 이미지의 후반 자원 검사는 정리 실패에 따른 격리로 도달하지 못했으므로 구현을 실제 수용 완료로 보지 않는다.
+준비 완료 뒤 trusted Node wrapper가 dispatch 시도 수를 세며, 후보의 표식 수와 분리한다. `dispatchAttempts:1`은 외부 감독기가 dispatch를 시도했다는 뜻이다. 후보가 특정 API를 실행했다는 단독 증거는 아니다. 금지 API 검사는 준비 뒤 실행되는 후보와 잡힌 예외 변형의 고정 표식·원시 로그 거절·독립 trace·종료/정리를 함께 검사한다. 후보가 표식을 흉내 낸 경우도 FAIL이며 API 차단 증거로 세지 않는다. 무한 실행·타이머 대기는 내부 12초 deadline이 검증된 workerd child 하나만 종료하고 dispose 및 기존 컨테이너 정리를 수행한다. 이 타이머는 dispatch부터 dispose와 child stream close를 모두 기다리는 전체 finally까지 유지한다. 종료가 풀리지 않으면 외부 15초 watchdog에 의해 UNKNOWN으로 제한되며, 만료는 성공이 아니다. wrapper OOM/사망이나 영수증 부재는 UNKNOWN/dispatch 미확인이며 안전한 종료 차단과 해당 후보 API의 실행 입증을 구분한다. 과거 image411 campaign에서는 정리 실패에 따른 격리로 후반 자원 검사에 도달하지 못했으며, 당시 수용 미완료 기록과 원래 정리 원인 UNKNOWN을 유지한다. 현재 고정 이미지 `b035afe…`에서는 timer exhaustion과 infinite loop가 RESOURCE_DEADLINE FAIL 및 양 EOF·dispose/cleanup으로, memory exhaustion이 RUNTIME_FAILURE FAIL 및 dispose/cleanup으로 기록돼 사례별 수용 근거를 갖췄다. 정확한 OOM 기전은 입증하지 않았다. output flood는 의도된 EXECUTION_EXIT_74 UNKNOWN이며 최종 dispatch/EOF/dispose 영수증이 없으므로 native PASS로 세지 않는다.
 
 `PASS`는 검증된 별도 이미지·런타임·실제 연결·oracle 조건을 모두 충족한 로컬 합성 실행에만 해당한다. 정상 또는 외부 장애 fixture의 일치 결과는 `NO_CHANGE`다. timeout, 불명확한 정리, 모의 연결, 영수증 불일치 또는 실행 오류는 `UNKNOWN` 또는 capability 거절이며 성공으로 승격하지 않는다. `redReproduced`는 항상 false다. 실제 RED→GREEN의 관계는 동일 supervisor가 각각의 소스·영수증을 연결해 별도로 입증해야 한다.
 
