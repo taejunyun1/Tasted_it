@@ -50,7 +50,11 @@ describe("trusted container backend", () => {
   it.each(["TIMEOUT", "OUTPUT_LIMIT"])("counts both CLI pipes without retaining partial output on %s", async failure => {
     vi.useFakeTimers();
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(),
-      kill: vi.fn(() => { queueMicrotask(() => child.emit("close", null)); return true; }) });
+      kill: vi.fn(() => { queueMicrotask(() => {
+        child.stdout.emit("error", Object.assign(Error("SYNTHETIC_PRIVATE"), { code: "ECONNRESET" }));
+        child.stderr.emit("error", Object.assign(Error("SYNTHETIC_PRIVATE"), { code: "ECONNRESET" }));
+        child.emit("close", null);
+      }); return true; }) });
     const spawn = vi.spyOn(childProcess, "spawn").mockReturnValue(child as unknown as ReturnType<typeof childProcess.spawn>);
     syncBuiltinESMExports();
     try {
@@ -62,6 +66,7 @@ describe("trusted container backend", () => {
       const error = await pending;
       expect(error.message).toBe(`RSI_SANDBOX_${failure}`);
       expect(error.cause).toMatchObject({ failure, stdoutBytes: 3, stderrBytes: 2, lifecycle: { command: "START", timeoutMs: 10 } });
+      expect(error.cause.lifecycle).toMatchObject({ stdout: { error: "ECONNRESET" }, stderr: { error: "ECONNRESET" } });
       expect(Object.isFrozen(error.cause)).toBe(true);
       expect(JSON.stringify(error.cause)).not.toContain("abc");
       expect(JSON.stringify(error.cause)).not.toContain("synthetic.sock");
@@ -129,14 +134,36 @@ describe("trusted container backend", () => {
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn() });
     const spawn = vi.spyOn(childProcess, "spawn").mockReturnValue(child as unknown as ReturnType<typeof childProcess.spawn>); syncBuiltinESMExports();
     try {
-      const pending = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" }, undefined, () => Promise.reject(Error("SYNTHETIC_PRIVATE")))(["start"], "", { timeoutMs: 5000, maxOutputBytes: 32 });
+      const pending = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" }, undefined, () => Promise.reject(Error("SYNTHETIC_PRIVATE")))(["start"], "", { timeoutMs: 5000, maxOutputBytes: 32 }).catch(error => error);
       await Promise.resolve(); await Promise.resolve();
       for (let i = 0; i < 100; i++) child.stdin.emit("drain");
       child.stdout.emit("error", Object.assign(Error("SYNTHETIC_PRIVATE"), { code: "ECONNRESET" })); child.stdout.emit("close"); await Promise.resolve(); child.emit("close", 0, null);
-      const result = await pending;
-      expect(result.lifecycle).toMatchObject({ observerError: true, stdin: { drainCount: 64 }, stdout: { error: "ECONNRESET", endMs: null } });
-      expect(result.lifecycle!.events).toHaveLength(64);
+      const error = await pending;
+      expect(error.message).toBe("RSI_SANDBOX_UNAVAILABLE");
+      expect(error.cause.lifecycle).toMatchObject({ observerError: true, stdin: { drainCount: 64 }, stdout: { error: "ECONNRESET", endMs: null } });
+      expect(error.cause.lifecycle.events).toHaveLength(64);
     } finally { spawn.mockRestore(); syncBuiltinESMExports(); }
+  });
+  it.each(["stdout", "stderr"] as const)("rejects a %s read-pipe error only at close even with exit code zero", async stream => {
+    vi.useFakeTimers();
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => true) });
+    const spawn = vi.spyOn(childProcess, "spawn").mockReturnValue(child as unknown as ReturnType<typeof childProcess.spawn>); syncBuiltinESMExports();
+    let settled = false;
+    try {
+      const pending = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" })(["start"], "", { timeoutMs: 10, maxOutputBytes: 32 })
+        .then(result => { settled = true; return result; }, error => { settled = true; return error; });
+      await vi.advanceTimersByTimeAsync(0);
+      child[stream].emit("error", Object.assign(Error("SYNTHETIC_PRIVATE_READ_ERROR"), { code: "ECONNRESET" }));
+      child.emit("exit", 0, null); await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false); expect(child.kill).not.toHaveBeenCalled();
+      // The existing timer still runs; its later failure must not replace the first read error.
+      await vi.advanceTimersByTimeAsync(10); expect(settled).toBe(false); expect(child.kill).toHaveBeenCalledOnce();
+      child.emit("close", 0, null);
+      const error = await pending;
+      expect(error.message).toBe("RSI_SANDBOX_UNAVAILABLE");
+      expect(error.cause).toMatchObject({ failure: "UNAVAILABLE", lifecycle: { [stream]: { error: "ECONNRESET", endMs: null }, close: { code: 0 }, timer: { firedMs: 10 } } });
+      expect(JSON.stringify(error)).not.toContain("SYNTHETIC_PRIVATE_READ_ERROR");
+    } finally { child.emit("close", 0, null); spawn.mockRestore(); syncBuiltinESMExports(); vi.useRealTimers(); }
   });
   it("rejects diagnostic proxies, accessors, prototypes, extra keys and oversized collections without executing them", () => {
     let touched = 0;

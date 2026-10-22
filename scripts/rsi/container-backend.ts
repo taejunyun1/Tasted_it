@@ -148,7 +148,7 @@ const runDockerCli: DockerCliRunner = (args, stdin, limits, environment, diagnos
   const processEvent = (exitCode: number | null, exitSignal: string | null | undefined) => ({ atMs: now(),
     code: Number.isInteger(exitCode) && exitCode! >= -2147483648 && exitCode! <= 2147483647 ? exitCode : null,
     signal: exitSignal == null ? null : signal.safeParse(exitSignal).success ? exitSignal as z.infer<typeof signal> : "OTHER" as const });
-  let outputBytes = 0, stdoutBytes = 0, stderrBytes = 0, stdout = "", stderr = "", stdoutTruncated = false, failure: string | undefined;
+  let outputBytes = 0, stdoutBytes = 0, stderrBytes = 0, stdout = "", stderr = "", stdoutTruncated = false, failure: "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE" | undefined;
   const rejectCommand = (reason: "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE") => {
     const error = new Error(`RSI_SANDBOX_${reason}`, { cause: freezeDiagnostic({ failure: reason, stdoutBytes, stderrBytes, lifecycle: snapshot() }) });
     if (kind === "START") failedOutput.set(error, { stdout, truncated: stdoutTruncated }); reject(error);
@@ -158,7 +158,7 @@ const runDockerCli: DockerCliRunner = (args, stdin, limits, environment, diagnos
   try { child = spawn("docker", [...args], { shell: false, env: environment, stdio: ["pipe", "pipe", "pipe"] }); }
   catch (error) { lifecycle.spawn.error = code(error); event("SPAWN_ERROR"); rejectCommand("UNAVAILABLE"); return; }
   const outDecoder = new StringDecoder("utf8"), errDecoder = new StringDecoder("utf8");
-  const stop = (reason: string) => {
+  const stop = (reason: "TIMEOUT" | "OUTPUT_LIMIT") => {
     failure ??= reason; lifecycle.kill.requestedMs = now(); event("KILL_REQUEST");
     try { lifecycle.kill.returned = child.kill("SIGKILL"); event("KILL_RETURN"); }
     catch (error) { lifecycle.kill.error = code(error); event("KILL_ERROR"); }
@@ -175,14 +175,14 @@ const runDockerCli: DockerCliRunner = (args, stdin, limits, environment, diagnos
     });
     child[stream].once("end", () => { lifecycle[stream].endMs = now(); event(stream === "stdout" ? "STDOUT_END" : "STDERR_END"); });
     child[stream].once("close", () => { lifecycle[stream].closeMs = now(); event(stream === "stdout" ? "STDOUT_CLOSE" : "STDERR_CLOSE"); });
-    child[stream].once("error", error => { lifecycle[stream].error = code(error); event(stream === "stdout" ? "STDOUT_ERROR" : "STDERR_ERROR"); });
+    child[stream].once("error", error => { failure ??= "UNAVAILABLE"; lifecycle[stream].error = code(error); event(stream === "stdout" ? "STDOUT_ERROR" : "STDERR_ERROR"); });
   }
   child.once("spawn", () => { lifecycle.spawn.observed = true; event("SPAWN"); });
   child.once("error", error => { clearTimeout(timer); lifecycle.spawn.error = code(error); event("SPAWN_ERROR"); rejectCommand("UNAVAILABLE"); });
   child.once("exit", (exitCode, exitSignal) => { lifecycle.exit = processEvent(exitCode, exitSignal); event("EXIT"); });
   child.once("close", (exitCode, exitSignal) => {
     clearTimeout(timer); lifecycle.close = processEvent(exitCode, exitSignal); event("CLOSE");
-    if (failure) rejectCommand(failure as "TIMEOUT" | "OUTPUT_LIMIT");
+    if (failure) rejectCommand(failure);
     else resolve({ code: exitCode ?? -1, stdout: stdout + outDecoder.end(), stderr: stderr + errDecoder.end(), lifecycle: snapshot() });
   });
   child.stdin.on("error", error => { lifecycle.stdin.error = code(error); event("STDIN_ERROR"); });

@@ -426,7 +426,8 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
     const runtime = { ...NATIVE_RUNTIME, supportedCompatibilityDate: "2026-08-05", workerdDigest: "1".repeat(64), publicCaDigest: "6".repeat(64), publicCaCount: 100 };
     const manifest = { schemaVersion: 1, imageId: `sha256:${"2".repeat(64)}`, baseImage: "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5", pnpm: "10.34.5", artifacts, runtime };
     const evidence = { transportKind: "INJECTED_TRANSPORT" };
-    const state = { blocked: false, error: "", corrupt: false, logs: false, custody: { ...completePipes }, cleanupCause: undefined as unknown, failureFactory: undefined as ((output: string) => Promise<never>) | undefined };
+    const state = { blocked: false, error: "", corrupt: false, logs: false, custody: { ...completePipes }, cleanupCause: undefined as unknown,
+      failureFactory: undefined as ((output: string) => Promise<{ code: number; stdout: string; stderr: string; evidence: typeof evidence }>) | undefined };
     const backend = { evidence, assertAvailable() { if (state.blocked) throw Error("RSI_SANDBOX_BLOCKED"); }, async run(stdin: string) {
       const input = JSON.parse(stdin);
       const output = input.operation === "probe" ? { schemaVersion: 1, runtime } : {
@@ -440,7 +441,7 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       return { code: 0, stdout: JSON.stringify(output) + "\n", stderr: state.logs ? "private candidate log" : "", evidence };
     } };
     const spy = vi.spyOn(VerifiedContainerBackend, "verify").mockResolvedValue(backend as unknown as VerifiedContainerBackend);
-    return { manifest, state, spy };
+    return { manifest, state, spy, evidence };
   }
   it("blocks an unsupported target compatibility date before dispatch", async () => {
     const fake = await setup();
@@ -517,6 +518,45 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       if ("startFailure" in result.provenance) expect(Object.isFrozen(result.provenance.startFailure)).toBe(true);
       expect(JSON.stringify(result)).not.toContain("private");
     } finally { fake.spy.mockRestore(); }
+  });
+  it.each([
+    ["stdout", false], ["stderr", false], ["stdout", true], ["stderr", true],
+  ] as const)("keeps a valid frame UNKNOWN after host %s read error with cleanup uncertainty %s", async (stream, cleanup) => {
+    const fake = await setup(); const spawned: EventEmitter[] = [];
+    const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn() });
+      spawned.push(child); return child as unknown as ReturnType<typeof childProcess.spawn>;
+    }); syncBuiltinESMExports();
+    let frameDigest = "";
+    try {
+      const executor = await NativeExecutor.verify(fake.manifest);
+      // Synthetic evidence only: permit the success branch so a missing CLI rejection cannot hide behind INJECTED_TRANSPORT.
+      fake.evidence.transportKind = "DOCKER_CLI";
+      fake.state.failureFactory = async output => {
+        frameDigest = hash(output);
+        const pending = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" })(["start"], "", { timeoutMs: 15000, maxOutputBytes: 32768 }).catch(error => {
+          // Preserve the real backend's START wrapper and existing cleanup-only quarantine boundary.
+          Object.defineProperty(error, "cause", { value: { ...(cleanup ? { stage: "RM_TRANSPORT", failure: "TIMEOUT" } : {}), startFailure: error.cause } });
+          if (cleanup) { Object.defineProperty(error, "message", { value: "RSI_SANDBOX_CLEANUP" }); fake.state.blocked = true; }
+          throw error;
+        });
+        await Promise.resolve(); await Promise.resolve();
+        const child = spawned.at(-1) as EventEmitter & { stdout: PassThrough; stderr: PassThrough; kill: ReturnType<typeof vi.fn> };
+        child.stdout.write(output);
+        child[stream].emit("error", Object.assign(Error("SYNTHETIC_PRIVATE_READ_ERROR"), { code: "ECONNRESET" }));
+        child.emit("close", 0, null);
+        expect(child.kill).not.toHaveBeenCalled();
+        return { ...await pending, evidence: fake.evidence };
+      };
+      const result = await executor.evaluate({ ...request(), fixture: "NORMAL" });
+      expect(result.verdict).toBe("UNKNOWN"); expect(result.greenVerified).toBe(false);
+      expect(result.reasonCode).toBe(cleanup ? "RSI_SANDBOX_CLEANUP" : "EXECUTION_UNVERIFIED");
+      expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "UNAVAILABLE", lifecycle: expect.objectContaining({ [stream]: expect.objectContaining({ error: "ECONNRESET" }), close: expect.objectContaining({ code: 0 }) }) }));
+      expect(result.provenance).toHaveProperty("failureFrame", { frameKind: "EVALUATION", digest: frameDigest, completeJSON: true, schemaMatch: true, bindingMatch: true });
+      expect(fake.state.blocked).toBe(cleanup);
+      if (cleanup) await expect(executor.evaluate({ ...request(), fixture: "NORMAL" })).rejects.toThrow("RSI_SANDBOX_BLOCKED");
+      expect(JSON.stringify(result)).not.toMatch(/SYNTHETIC_PRIVATE|SIX_PATHS_VERIFIED|"grade"/);
+    } finally { spawned.forEach(child => child.emit("close", 0, null)); spawn.mockRestore(); syncBuiltinESMExports(); fake.spy.mockRestore(); }
   });
   it.each(["EVALUATION", "MISMATCH", "PROBE", "DIAGNOSTIC", "INVALID", "INCOMPLETE", "PARTIAL", "NONE", "STDERR_ONLY_LIMIT", "TIMEOUT_THEN_STDOUT_LIMIT"])("classifies failed stdout as %s without authorizing PASS or retaining raw data", async shape => {
     const fake = await setup(); const spawned: EventEmitter[] = [];
