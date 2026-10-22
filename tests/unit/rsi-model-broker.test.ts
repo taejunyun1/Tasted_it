@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { LocalRsiLedger } from "../../scripts/rsi/ledger";
 import { deriveIncidentKey, deriveKst, deriveObservationFingerprint, RSI_PUBLIC_PATHS } from "../../scripts/rsi/contracts";
 import { LocalFakeModelBroker, MODEL_POLICY, type FakeScenario } from "../../scripts/rsi/model-broker";
+import { R4_POLICY_DIGEST, deriveSourceAgentHash } from "../../scripts/rsi/execution-contracts";
 
 const now = "2026-10-22T00:00:00.000Z", digest = "a".repeat(64), dirs: string[] = [];
 afterEach(async () => { vi.useRealTimers(); await Promise.all(dirs.splice(0).map(d => rm(d, { recursive: true, force: true }))); });
@@ -133,6 +134,91 @@ describe("trusted LOCAL_FAKE JSON replies", () => {
     await vi.advanceTimersByTimeAsync(30001); await rejected;
     expect((await broker.finish()).chargedUnits).toBe(73552);
     expect((await ledger.read()).runs[0].settlement?.kind).toBe("AMBIGUOUS");
+  });
+});
+
+async function setupImprovement(scenarios: FakeScenario[] = []) {
+  const prepared = await prepare(scenarios), { ledger, options } = prepared;
+  const modules = { "scripts/rsi/agent/diagnostic-policy.ts": { digest, byteLength: 100 }, "scripts/rsi/agent/repair-policy.ts": { digest, byteLength: 100 } };
+  await ledger.commitLabCatalog({ kind: "SEED", expectedCatalogRevision: -1, expectedCatalogHash: null,
+    source: { schemaVersion: 1, modules, agentHash: deriveSourceAgentHash(modules), compiledDigest: digest, artifactDigest: digest, compiledByteLength: 200, artifactByteLength: 1000 } }, now);
+  const catalog = (await ledger.readImprovement()).catalog[0], legacy = options.intent;
+  const improvementIntent = { schemaVersion: 1 as const, purpose: "R4_SELF_IMPROVE" as const, executionId: randomUUID(), requestId: randomUUID(), campaignId: (await ledger.read()).config.campaignId,
+    generation: 1 as const, parentExecutionId: null, expectedCatalogRevision: 0, expectedCatalogHash: catalog.hash, activeAgentHash: catalog.source.agentHash, activeCompiledDigest: digest, activeSourceArtifactDigest: digest,
+    observation: legacy.observation, incidentKey: legacy.lineage.incidentKey, incidentEpoch: 1, observationFingerprint: legacy.lineage.eventFingerprint, baseAppSha: legacy.lineage.baseAppSha,
+    controllerHash: digest, evaluatorHash: digest, memorySnapshotHash: digest, policyDigest: R4_POLICY_DIGEST, fakeFixtureDigest: digest };
+  const improvementOptions = { ...options, intent: improvementIntent, rootTiming: { startedMs: 0, deadlineMs: 120000 } };
+  const broker = await LocalFakeModelBroker.openImprovement(improvementOptions);
+  return { ...prepared, options: improvementOptions, broker, executionId: improvementIntent.executionId };
+}
+async function beginGeneration(value: Awaited<ReturnType<typeof setupImprovement>>) {
+  const phase = value.broker.phase("BASELINE_REPAIR");
+  await phase.request(1, message); await phase.request(2, message);
+  const input = value.options.intent;
+  await value.ledger.recordImprovementEvent({ executionId: value.executionId, event: { kind: "BASELINE_VALIDATED", binding: {
+    evidenceDigest: digest, controllerHash: digest, evaluatorHash: digest, memorySnapshotHash: digest, policyDigest: input.policyDigest, fakeFixtureDigest: digest } } }, now);
+  await value.ledger.recordImprovementEvent({ executionId: value.executionId, event: { kind: "GENERATING" } }, now);
+}
+
+describe("R4 broker shares one pool with trusted phase capabilities", () => {
+  it("uses one reservation and aggregate settlement, audits calls, and prevents generic-request bypass", async () => {
+    const value = await setupImprovement(), { broker, ledger, executionId, checkpointSink } = value;
+    await expect(broker.request(1, message)).rejects.toThrow("RSI_BROKER_PURPOSE");
+    await beginGeneration(value);
+    const generationMessage = JSON.stringify({ schemaVersion: 1, task: "improve-agent", message: "Synthetic generation" });
+    for (let sequence = 3; sequence <= 6; sequence++) await broker.phase("GENERATE_AGENT").request(sequence, generationMessage);
+    await expect(broker.phase("GENERATE_AGENT").request(7, generationMessage)).rejects.toThrow("RSI_BROKER_PHASE_LIMIT");
+    const settle = vi.spyOn(ledger, "settleImprovement"), result = await broker.finish(), state = await ledger.readImprovement();
+    expect(state.executions).toHaveLength(1); expect((await ledger.read()).runs).toHaveLength(0);
+    expect(state.executions[0].maximumCostUnits).toBe(73552); expect(state.executions[0].settlement?.kind).toBe("CONFIRMED");
+    expect(result.callCount).toBe(6); expect(settle).toHaveBeenCalledTimes(1);
+    expect(state.executions[0].events.filter(e => e.kind === "CALL_STARTED")).toHaveLength(6);
+    expect(state.executions[0].events.filter(e => e.kind === "CALL_RETURNED")).toHaveLength(6);
+    expect(checkpointSink).toHaveBeenCalledTimes(14); // reserve + two events per call + aggregate
+    await expect(LocalFakeModelBroker.openImprovement(value.options)).rejects.toThrow("RSI_BROKER_DUPLICATE");
+    expect((await ledger.readImprovement()).executions[0].intent.executionId).toBe(executionId);
+  });
+  it("counts malformed requests in the phase quota and rejects phase/task authority in IPC", async () => {
+    const { broker, ledger } = await setupImprovement(); const baseline = broker.phase("BASELINE_REPAIR");
+    await expect(baseline.request(1, "{")).rejects.toThrow("RSI_BROKER_INPUT");
+    await expect(baseline.request(2, JSON.stringify({ schemaVersion: 1, task: "repair", message: "x", phase: "GENERATE_AGENT" }))).rejects.toThrow("RSI_BROKER_INPUT");
+    await expect(baseline.request(3, message)).rejects.toThrow("RSI_BROKER_PHASE_LIMIT");
+    expect((await broker.finish()).callCount).toBe(2);
+    expect((await ledger.readImprovement()).executions[0].events.filter(e => e.kind === "CALL_REJECTED")).toHaveLength(2);
+  });
+  it.each(["ledger", "checkpoint"])("dispatches zero calls and closes permanently when STARTED %s persistence fails", async failure => {
+    const value = await setupImprovement([{ kind: "FAILURE" }]);
+    if (failure === "ledger") vi.spyOn(value.ledger, "recordImprovementEvent").mockRejectedValueOnce(new Error("disk"));
+    else value.checkpointSink.mockRejectedValueOnce(new Error("checkpoint"));
+    await expect(value.broker.phase("BASELINE_REPAIR").request(1, message)).rejects.toThrow("RSI_BROKER_ACCOUNTING");
+    await expect(value.broker.phase("BASELINE_REPAIR").request(2, message)).rejects.toThrow("RSI_BROKER_CLOSED");
+    expect((await value.ledger.readImprovement()).executions[0].events.some(e => e.kind === "CALL_RETURNED" || (e.kind === "CALL_REJECTED" && e.usage !== "REJECTED_INPUT"))).toBe(false);
+    await expect(LocalFakeModelBroker.openImprovement(value.options)).rejects.toThrow("RSI_BROKER_DUPLICATE");
+  });
+  it.each(["INVALID_USAGE", "LOST_RESPONSE", "FAILURE", "OVERSIZED_OUTPUT"] as const)("settles full-pool ambiguity for %s", async kind => {
+    const { broker, ledger } = await setupImprovement([{ kind }]);
+    await expect(broker.phase("BASELINE_REPAIR").request(1, message)).rejects.toThrow("RSI_BROKER_RESPONSE");
+    expect((await broker.finish()).chargedUnits).toBe(73552);
+    expect((await ledger.readImprovement()).executions[0].settlement?.kind).toBe("AMBIGUOUS");
+  });
+  it("records invalid JSON as rejected output with trusted confirmed cost", async () => {
+    const { broker, ledger } = await setupImprovement([{ kind: "INVALID_JSON" }]);
+    await expect(broker.phase("BASELINE_REPAIR").request(1, message)).rejects.toThrow("RSI_BROKER_RESPONSE");
+    const receipt = await broker.finish(), row = (await ledger.readImprovement()).executions[0];
+    expect(receipt.chargedUnits).toBeGreaterThan(0); expect(receipt.chargedUnits).toBeLessThan(9194);
+    expect(row.settlement?.kind).toBe("CONFIRMED");
+    expect(row.events.at(-1)).toMatchObject({ kind: "CALL_REJECTED", usage: "CONFIRMED", costUnits: receipt.chargedUnits });
+  });
+  it("shares the root deadline rather than restarting 120 seconds, and retains inflight-stop ambiguity", async () => {
+    const value = await setupImprovement(); value.state.time = 119999;
+    await value.broker.phase("BASELINE_REPAIR").request(1, message);
+    value.state.time = 120000;
+    await expect(value.broker.phase("BASELINE_REPAIR").request(2, message)).rejects.toThrow("RSI_BROKER_DEADLINE");
+    await value.broker.finish();
+    const stopped = await setupImprovement([{ kind: "SUCCESS", delayMs: 100 }]);
+    const pending = expect(stopped.broker.phase("BASELINE_REPAIR").request(1, message)).rejects.toThrow(/RSI_BROKER_(CLOSED|TIMEOUT)/);
+    stopped.broker.stop(); await pending;
+    expect((await stopped.broker.finish()).chargedUnits).toBe(73552);
   });
 });
 
