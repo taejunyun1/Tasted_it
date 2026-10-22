@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmod, link, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ImmutableAgentSourceStore, LabPromotionSession, initializeLabCatalog, loadLabActiveAgent, rollbackLabCatalog, validateAgentProposal } from "../../scripts/rsi/promotion";
+import { ImmutableAgentSourceStore, LabPromotionSession, initializeLabCatalog, loadLabActiveAgent, rollbackLabCatalog, validateAgentProposal, labGenerationScenarios } from "../../scripts/rsi/promotion";
 import { ControllerCheckpointStore } from "../../scripts/rsi/controller";
 import { LocalRsiLedger } from "../../scripts/rsi/ledger";
 import { LocalFakeModelBroker, type FakeScenario } from "../../scripts/rsi/model-broker";
@@ -154,6 +154,20 @@ describe("R4 immutable source data", () => {
     await expect(validateAgentProposal(new Proxy({}, { ownKeys: trap, getPrototypeOf: trap, get: trap }), hash("base"))).rejects.toThrow();
     expect(trap).not.toHaveBeenCalled();
   });
+  it("extracts only exact generation scenarios and rejects unsafe or noncanonical corpora", () => {
+    const fixture = { schemaVersion: 1, mode: "LOCAL_FAKE", generations: { "1": [{ kind: "SUCCESS" }], "2": [{ kind: "JSON_RESPONSE", response: { action: "NO_CHANGE", reason: "SYNTHETIC" } }] } };
+    expect(labGenerationScenarios(fixture, 1)).toEqual(fixture.generations[1]);
+    expect(labGenerationScenarios(fixture, 2)).toEqual(fixture.generations[2]);
+    expect(Object.isFrozen(labGenerationScenarios(fixture, 2))).toBe(true);
+    const invalid = [{ ...fixture, PASS: true }, { ...fixture, generations: { "1": [], "2": [], "3": [] } },
+      { ...fixture, generations: { "1": [{ kind: "SUCCESS", delayMs: 60001 }], "2": [] } },
+      { ...fixture, generations: { "1": [{ kind: "JSON_RESPONSE", response: { text: "x".repeat(2001) } }], "2": [] } }];
+    for (const raw of invalid) expect(() => labGenerationScenarios(raw, 1)).toThrow();
+    const trap = vi.fn(() => { throw new Error("TRAP"); });
+    expect(() => labGenerationScenarios(new Proxy({}, { get: trap, ownKeys: trap, getPrototypeOf: trap }), 1)).toThrow();
+    expect(trap).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("R4 promotion fixed supervisor (host boundary fixtures only)", () => {
@@ -168,6 +182,8 @@ describe("R4 promotion fixed supervisor (host boundary fixtures only)", () => {
     const s = await setup(), fixture = await hostFixture(), { opened, intent } = await session(s, fixture);
     const generated = await opened.generateProposal();
     expect(fixture.execute).toHaveBeenCalledTimes(3);
+    const payload = fixture.execute.mock.calls.at(-1)![0].input.payload;
+    expect(Object.keys(payload)).not.toContain("generations"); expect(Object.keys(payload)).not.toContain("fakeFixture"); expect(Object.keys(payload)).not.toContain("scenarios");
     await expect(opened.generateProposal()).rejects.toThrow();
     const result = await opened.promote(generated);
     expect(result.status).toBe("PROMOTED");

@@ -6,12 +6,12 @@ import { dirname, isAbsolute, join, parse as parsePath, resolve } from "node:pat
 import { types } from "node:util";
 import { ControllerCheckpointStore } from "./controller";
 import { LocalRsiLedger, type R4CatalogVersion, type R4LedgerExecution, type RsiLedgerCheckpoint } from "./ledger";
-import { LocalFakeModelBroker } from "./model-broker";
+import { LocalFakeModelBroker, type FakeScenario } from "./model-broker";
 import { retrieveApprovedMemory, type RsiApprovedSnapshot } from "./memory";
 import { parseImprovementIntent, parseSourceArtifactReference, type R4ExecutionIntent, type R4ImprovementEvent, type R4SourceArtifactReference, type R4ValidationBinding } from "./execution-contracts";
 import { AGENT_PATHS, compileAgentSources, createRepairRootGate, loadSeedAgentSources, measureFixedClosure, runActualAgentStep, runActualRepairCore,
   type AgentSources, type ActualRepairResult, type CompiledAgent, type FixedRepairClosure, type RepairRootGate } from "./repair-core";
-import { SANDBOX_POLICY, SANDBOX_POLICY_DIGEST } from "./sandbox";
+import { parseBoundedJsonObject, SANDBOX_POLICY, SANDBOX_POLICY_DIGEST } from "./sandbox";
 
 const hash = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 const jhash = (v: unknown) => hash(JSON.stringify(v));
@@ -191,6 +191,44 @@ export async function initializeLabCatalog(options: LabAccessOptions) {
 /** A reference is read/compiled again; it grants no generation/promotion rights. */
 export async function loadLabActiveAgent(options: LabAccessOptions) { return activeAgent(options, rootGate(options)); }
 
+export interface R4FakeFixture {
+  schemaVersion: 1; mode: "LOCAL_FAKE";
+  generations: { "1": FakeScenario[]; "2": FakeScenario[] };
+}
+function checkedFixture(raw: unknown): R4FakeFixture {
+  const fixture = exactObject(passive(raw), ["schemaVersion", "mode", "generations"]);
+  if (fixture.schemaVersion !== 1 || fixture.mode !== "LOCAL_FAKE") fail("FIXTURE_CUSTODY");
+  const generations = exactObject(fixture.generations, ["1", "2"]);
+  for (const generation of ["1", "2"]) {
+    const scenarios = generations[generation];
+    if (!Array.isArray(scenarios) || scenarios.length > 8) fail("FIXTURE_CUSTODY");
+    for (const scenario of scenarios) {
+      if (!scenario || typeof scenario !== "object" || Array.isArray(scenario)) fail("FIXTURE_CUSTODY");
+      const keys = ["kind", ...(Object.hasOwn(scenario, "delayMs") ? ["delayMs"] : []), ...(scenario.kind === "JSON_RESPONSE" ? ["response"] : [])];
+      exactObject(scenario, keys);
+      if (!["SUCCESS", "INVALID_JSON", "INVALID_USAGE", "FAILURE", "LOST_RESPONSE", "OVERSIZED_OUTPUT", "FORGED_USAGE", "JSON_RESPONSE"].includes(scenario.kind)
+        || Object.hasOwn(scenario, "delayMs") && (!Number.isSafeInteger(scenario.delayMs) || scenario.delayMs < 0 || scenario.delayMs > 60000)) fail("FIXTURE_CUSTODY");
+      if (scenario.kind === "JSON_RESPONSE" && Buffer.byteLength(JSON.stringify(parseBoundedJsonObject(scenario.response))) > 2000) fail("FIXTURE_CUSTODY");
+    }
+  }
+  return frozen(fixture as unknown as R4FakeFixture);
+}
+/** Trusted supervisor extracts exactly this generation's broker scenarios. The
+ * corpus (including future replies) is never delivered to candidate publicInput. */
+export function labGenerationScenarios(fixture: unknown, generation: 1 | 2): FakeScenario[] {
+  if (generation !== 1 && generation !== 2) fail("FIXTURE_CUSTODY");
+  return checkedFixture(fixture).generations[generation];
+}
+function fixtureOutputDigest(scenario: FakeScenario | undefined) {
+  const kind = scenario?.kind ?? "SUCCESS";
+  const text = kind === "JSON_RESPONSE" ? JSON.stringify(parseBoundedJsonObject((scenario as Extract<FakeScenario, { kind: "JSON_RESPONSE" }>).response))
+    : kind === "FORGED_USAGE" ? '{"usage":{"inputTokens":0,"outputTokens":0},"chargedUnits":0}'
+    : kind === "SUCCESS" ? '{"action":"NO_CHANGE","reason":"LOCAL_FAKE"}' : fail("FIXTURE_CUSTODY");
+  // Preserve the broker convention: hash JSON.stringify(raw model text), not
+  // raw text bytes or the actual agent's transformed canonical output bytes.
+  return jhash(text);
+}
+
 export interface LabPromotionOptions extends LabAccessOptions {
   broker: LocalFakeModelBroker; intent: unknown; baseSource: string; fakeFixture: unknown;
   memory: { snapshot: RsiApprovedSnapshot; approvals: unknown };
@@ -243,6 +281,7 @@ export class LabPromotionSession {
   private busy = false; private terminal = false; private prepared = false; private generated = false; private sequence = 0; private finishAttempted = false;
   private active!: Awaited<ReturnType<typeof activeAgent>>; private closure!: FixedRepairClosure; private memoryEvidence!: LabMemoryEvidence;
   private lessons: { lessonId: string; policy: string }[] = [];
+  private scenarios: FakeScenario[] = [];
   private constructor(private readonly options: LabPromotionOptions, readonly intent: R4ExecutionIntent, private readonly gate: RepairRootGate) {}
   static async open(options: LabPromotionOptions) {
     const intent = parseImprovementIntent(options.intent);
@@ -253,7 +292,9 @@ export class LabPromotionSession {
     const session = new LabPromotionSession({ ...options, baseSource: options.baseSource }, frozen(intent), rootGate(options));
     try {
       session.gate.check();
-      if (typeof options.baseSource !== "string" || Buffer.byteLength(options.baseSource) > 65536 || jhash(passive(options.fakeFixture)) !== intent.fakeFixtureDigest) fail("INPUT");
+      const fixture = checkedFixture(options.fakeFixture);
+      session.scenarios = labGenerationScenarios(fixture, intent.generation);
+      if (typeof options.baseSource !== "string" || Buffer.byteLength(options.baseSource) > 65536 || jhash(fixture) !== intent.fakeFixtureDigest) fail("INPUT");
       session.active = await activeAgent(options, session.gate);
       if (session.active.catalog.revision !== intent.expectedCatalogRevision || session.active.catalog.hash !== intent.expectedCatalogHash || session.active.source.agentHash !== intent.activeAgentHash
         || session.active.source.compiledDigest !== intent.activeCompiledDigest || session.active.source.artifactDigest !== intent.activeSourceArtifactDigest) fail("CATALOG_STALE");
@@ -289,6 +330,7 @@ export class LabPromotionSession {
     const call = run.calls.find(c => c.sequence === sequence);
     if (metadata.mode !== "LOCAL_FAKE" || metadata.sequence !== sequence || !call || call.phase !== phase || call.callId !== metadata.callId || call.requestDigest !== metadata.requestDigest
       || call.outcome?.kind !== "CALL_RETURNED" || call.outcome.receiptDigest !== metadata.receiptDigest || call.outcome.outputDigest !== metadata.outputDigest) fail("GENERATION_CUSTODY");
+    if (call.outcome.outputDigest !== fixtureOutputDigest(this.scenarios[sequence - 1])) fail("FIXTURE_CUSTODY");
     return call;
   }
   private async repair(agent: CompiledAgent, source: R4SourceArtifactReference, phase: "BASELINE_REPAIR" | "PROMOTION_REPAIR") {
