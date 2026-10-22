@@ -114,6 +114,8 @@ describe("fixed two-generation self-improvement supervisor (injected orchestrati
       const p = join(s.options.storage.sourceDirectory, `${active.source.artifactDigest}.source.json`); await chmod(p, 0o600); await writeFile(p, "{}"); await chmod(p, 0o400); return ledger;
     });
     const r = await runSelfImprovement(s.options); expect(r.completedGenerations).toBe(1); expect(r.reasonCode).toBe("SOURCE_UNAVAILABLE"); expect((await readState(s, r.checkpoint)).executions).toHaveLength(1);
+    const failure = r.receiptPaths.find(p => p.endsWith("supervisor-1.failure.json")); expect(failure).toBeDefined();
+    expect(JSON.parse(await readFile(failure!, "utf8"))).toMatchObject({ reasonCode: "SOURCE_UNAVAILABLE", completedGenerations: 1 });
   });
   it("keeps durable promotion when outcome receipt is unavailable, and blocks follow-up", async () => {
     const s = await setup(); await injected(); const persist = ControllerCheckpointStore.prototype.persist;
