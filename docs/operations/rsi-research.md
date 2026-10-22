@@ -65,18 +65,22 @@ R3 Task 4는 [Issue #323](https://github.com/taejunyun1/Tasted_it/issues/323)의
 
 수정 가능한 서비스 영역은 `app/features/operations/rsi-self-check.ts`의 `fetchPath` 초기화식뿐이다. 제안은 `{action:"PATCH",path,baseSourceDigest,find,replace}`로 받는다. `find`가 원본의 해당 식 안에서 정확히 한 번 일치해야 하며, 대체한 식 바깥의 모든 바이트를 유지한다. 허용식은 `input`·`globalThis`와 비계산형 `fetch`·`bind` 접근, 단일 수신자 인자를 받는 `bind` 호출뿐이다. 상태/리다이렉트 판정 약화, callback·대입·새 객체·동적 접근, 다른 파일, `.server.ts`, auth·workflow·감독기·평가기 변경은 거절한다. 감독기가 올바른 교체 바이트를 고르거나 삽입하지 않는다. 이 경계는 일반 앱 수리기가 아니며 새로운 원인과 패치 영역은 별도 승인 대상이다.
 
+수리 전 원인 확인에는 별도의 `NATIVE_FETCH_INPUT_RECEIVER_V1` 계약을 적용한다. 승인된 merged-main `741e919aedabdeadd6d46619a35a0105bafdce66` 서비스 소스에서 초기화식 바깥 bytes의 SHA-256을 `365fba0ded44c6d6e6a07dafbe271be6d2ff72314d32e62bc8a5a565a079f2fb`로 고정하고, 초기화식 AST는 단일 direct `input.fetch.bind(input)` 호출이어야 한다. 바깥 source/callsite·shadowing·alias 변경, bare `input`/`globalThis`, 중첩 bind 및 다른 fault family는 native `FAIL/0`만으로 이 원인에 편입하지 않고 `REPRODUCTION_FAILED`로 보존한다. 제안의 bare 비함수 식도 거절한다. 승인된 원본의 초기화식이나 기대 replacement는 후보 입력에 별도로 제공하지 않으며, 이 계약은 정답 생성기가 아니다. 원인 확인 근거에 anchor/context/contract/initializer digest를 남긴다.
+
 진단 출력은 `action:"DIAGNOSE"`, 서로 다른 원인 가설 최소 두 개, `PUBLIC_SIX_PATHS` 재현 선택과 관련 회귀 목록을 포함한다. 각 가설의 supporting/refuting evidence ID는 관측에 존재하거나 `UNKNOWN`이어야 한다. 확신 점수나 `PASS` 주장은 받지 않는다. 고정 필수 회귀는 정상, 일반 HTTP 실패, 인증 리다이렉트 실패, 인증 상태 실패다. 외부 장애를 정확하게 보고한 `NO_CHANGE/EXTERNAL_FAILURE`와 `greenVerified:false`는 정상 회귀 결과다. 외부 HTTP를 200으로 바꾸는 수정은 허용하지 않는다.
 
 기본 fake 응답 `{action:"NO_CHANGE",reason:"LOCAL_FAKE"}`를 존중한다. 정상/외부 실패의 무수정 결과는 native 근거가 있을 때 `NO_CHANGE`로 끝난다. 실패가 남은 상태의 무수정 답은 `INCONCLUSIVE/NO_CHANGE_UNCONFIRMED`로 남기고 패치를 대신 만들지 않는다. 두 후보가 실패하면 `INCONCLUSIVE/CANDIDATE_LIMIT`, 재현 실패는 `INCONCLUSIVE/REPRODUCTION_FAILED`, 격리 backend/이미지 미검증은 `BLOCKED`다. 전체 상한은 두 후보·120초·모델 8요청이며 기존 broker가 73,552 MICRO_USD 최악 비용을 한 번 예약한다. 미확인 사용량은 전액을 소비하고 실패 이력을 초기화하지 않는다.
 
-새 외부 실행 전에는 남은 시간이 해당 고정 실행과 cleanup 상한을 모두 덮어야 한다. 컨테이너 한 번의 create/inspect/final-inspect/rm은 각 5초이고 start는 agent 3초/native 15초이므로 합계는 23초/35초다. agent 검증에는 info/image 각 5초와 최초 local endpoint 조회 5초를 더해 38초, native 검증에는 info/두 image 조회 15초와 isolation/runtime probe 각 35초를 합쳐 85초를 확보한다. 모델 요청 전에는 30초를 확보한다. 각 await 뒤와 상태 승격 전후에도 동일한 전체 monotonic deadline과 kill switch를 재검사한다. 로컬 파일·문법 처리·내구 기록의 OS 정지는 별도의 실시간 보장이 아니며, 그 작업이 시간을 넘기면 후속 후보 실행이나 성공 승격을 허용하지 않는다. 실행 중인 컨테이너는 기존 3초/15초와 cleanup 경계로 끝내며 새 capability로 대체하지 않는다.
+terminal `NO_CHANGE`에는 `DURABLE_TERMINAL_WINS`를 적용한다. 기록 직전 kill/clock gate를 통과해야 하며 원장과 외부 checkpoint persist가 모두 성공한 뒤에는 같은 `NO_CHANGE`와 NORMAL/EXTERNAL_FAILURE를 반환한다. 그 완료 순간 도착한 stop/clock 변화로 불법인 `NO_CHANGE→BLOCKED` 보상 전이를 만들지 않는다. 완료 뒤 새 외부/후보 작업도 없다. checkpoint persist가 실제로 불확실하면 `ACCOUNTING_UNCERTAIN`을 유지하고 자동 복구하지 않는다. 완료 전 정산 경계에서 감지된 stop/기한 초과는 기존 BLOCKED로 남긴다.
+
+새 외부 실행 전에는 남은 시간이 해당 고정 실행과 cleanup 상한을 모두 덮어야 한다. 컨테이너 한 번의 create/inspect/final-inspect/rm은 각 5초이고 start는 agent 3초/native 15초이므로 합계는 23초/35초다. agent 검증에는 info/image 각 5초와 최초 local endpoint 조회 5초를 더해 38초, native 검증에는 info/두 image 조회 15초와 isolation/runtime probe 각 35초를 합쳐 85초를 확보한다. 모델 요청 전에는 30초를 확보한다. 각 외부 실행 await 뒤와 활성 상태 승격 전후에도 동일한 전체 monotonic deadline과 kill switch를 재검사한다. terminal NO_CHANGE는 위의 durable commit 정책을 따른다. 로컬 파일·문법 처리·내구 기록의 OS 정지는 별도의 실시간 보장이 아니며, 그 작업이 시간을 넘기면 후속 후보 실행이나 성공 승격을 허용하지 않는다. 실행 중인 컨테이너는 기존 3초/15초와 cleanup 경계로 끝내며 새 capability로 대체하지 않는다.
 
 ### 신뢰된 호출자의 순서
 
 1. 전용 합성 디렉터리에서 `LocalRsiLedger.create`를 최초 한 번 호출한다. 원장 밖의 별도 0700 감독기 디렉터리에 `ControllerCheckpointStore.create(path,ledger.checkpoint)`를 저장한다. 이후 재개는 외부에 보관한 동일 기준값으로 `LocalRsiLedger.open`과 `ControllerCheckpointStore.open`을 사용한다. 디스크 최신 head를 자동 채택하지 않는다.
 2. `loadSeedAgentSources()`는 두 전략 파일을 문자열로 읽는다. `compileAgentSources(sources)`는 정확한 두 경로의 닫힌 문법 bundle을 만들고 `agentHash`, 모듈 digest와 `compiledDigest`를 반환한다. 호스트에서 전략 module을 import·eval·실행하지 않는다. 변경된 전략의 유일한 import는 repair→`./diagnostic-policy`다.
 3. `recoverSyntheticIncident({ledger,checkpointStore,observation,baseSource,agentSources,killSwitch,...})`를 호출한다. 입력은 감독기 소유이며 후보 JSON을 options로 넘기지 않는다. `scenarios`는 고정 fake 진단/패치 자료만 받는다. 진단·패치 결정은 같은 활성 전략 bundle을 실제 컨테이너에서 실행해 얻는다. 후보에게는 공개 소스·익명 합성 관측·허용 편집 영역·선택된 승인 lesson 정책만 전달하며 fixture·oracle·기대 정답·manifest는 전달하지 않는다.
-4. native manifest는 고정 경로와 정규화 SHA-256 `605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae`로 고정한다. 별도 격리 capability의 실제 `DOCKER_CLI` 실행을 사용한다. 소스/입력 hash, 로그 두 pipe의 EOF·오류 0, disposal·cleanup·실행 trace/응답 binding을 확인한다. 후보 JSON이나 주입 transport의 그럴듯한 영수증은 실행 권한이나 복구 근거가 아니다.
+4. native manifest는 고정 경로와 정규화 SHA-256 `605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae`로 고정한다. 파일 부재·JSON parse 실패·pin 불일치는 경로나 원문을 노출하지 않고 `BLOCKED/MANIFEST_UNVERIFIED`로 정제하며 예약·후보 실행 전에 멈춘다. 별도 격리 capability의 실제 `DOCKER_CLI` 실행을 사용한다. 소스/입력 hash, 로그 두 pipe의 EOF·오류 0, disposal·cleanup·실행 trace/응답 binding을 확인한다. 후보 JSON이나 주입 transport의 그럴듯한 영수증은 실행 권한이나 복구 근거가 아니다.
 5. 모든 원장 mutation 뒤 checkpoint를 `pending` 독점 생성→fsync→rename→디렉터리 fsync로 보존한다. 오래된 기준값, 남은 pending, 불명확한 쓰기는 `BLOCKED/ACCOUNTING_UNCERTAIN`이다. 삭제·재생성·새 pool·새 capability로 실패를 우회하지 않는다. 불완전 native 결과는 `UNKNOWN` 근거와 실제로 도달한 단계까지 보존한다.
 
 반환값에는 상태·계보·candidate 수·정산·외부 실행 근거의 immutable snapshot만 남는다. 원문 소스와 실제 Docker endpoint/home 경로를 기록하지 않는다. `actualRecovery`는 항상 `false`다. 네 CI 영수증은 `LOCAL_SYNTHETIC_CI`이며 네 native 회귀에 연결한 로컬 계약 자료다. 실제 unit/integration/build/Playwright CI를 실행했다는 주장이 아니다.
@@ -98,5 +102,7 @@ pnpm audit
 ```
 
 기본 시험은 호스트의 순수 계약·거절 분기와 주입 자료 시험이다. opt-in은 변경하지 않은 기존 검증 이미지에서 실제 전체 흐름, 정상/외부 실패 무수정, 무수정 거절·금지 패치·두 후보 중단, improve-agent ABI를 확인하고 `.superpowers/sdd/r3-implementation-plan/controller-receipts.jsonl`에 추가 기록한다. 최초 불완전 실행 뒤 남은 campaign은 중단한다. backend가 없으면 `BLOCKED`이며 skip을 실제 통과로 세지 않는다. native artifact 변경이나 불명확한 cleanup이 발견되면 자동 rebuild·manifest 갱신·재시도 대신 원래 증거를 보존하고 별도 범위를 보고한다.
+
+기본 단위 시험은 fresh checkout에서도 ignored manifest 파일에 의존하지 않도록 시험 파일 안의 4 KiB 미만 비실행 JSON snapshot을 사용한다. 이는 이미지·capability·실제 근거를 공급하지 않는 host 계약 fixture다. live 파일 읽기를 금지한 집중 시험으로 이 경계를 확인한다. `RSI_CONTROLLER_PROBE=1`은 그 snapshot을 우회하고 실제 고정 파일을 읽으며 실제 시험은 `unitReads=0/liveReads>0`도 확인한다. 이 시험용 mock은 production 감독기의 manifest 공급·자동 채택 경로가 아니다.
 
 이번 변경은 운영 앱 파일·provider·학생 자료·credential·Cloudflare binding·cron·workflow·의존성을 바꾸지 않는다. 제거는 해당 구현 PR의 범위 revert로 처리하며 합성 기록을 운영 기록으로 승격하거나 기존 운영 데이터를 복원하지 않는다.

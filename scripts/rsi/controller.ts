@@ -97,6 +97,25 @@ function initializer(source: string) {
   if (matches.length !== 1 || !matches[0] || !Number.isInteger(matches[0].start) || !Number.isInteger(matches[0].end)) fail("PATCH");
   return matches[0] as Record<string, unknown> & { start: number; end: number };
 }
+const approvedReceiverFamily = Object.freeze({ schemaVersion: 1, family: "NATIVE_FETCH_INPUT_RECEIVER_V1",
+  anchorAppSha: "741e919aedabdeadd6d46619a35a0105bafdce66",
+  protectedContextDigest: "365fba0ded44c6d6e6a07dafbe271be6d2ff72314d32e62bc8a5a565a079f2fb" });
+function identifier(node: unknown, name: string) { const value = node as { type?: string; name?: string } | null; return value?.type === "Identifier" && value.name === name; }
+function member(node: Record<string, unknown>, property: string) { return node?.type === "MemberExpression" && !node.computed && !node.optional && identifier(node.property, property); }
+/** Independent source-family contract, not an oracle or replacement generator.
+ * The approved context binds the input/native fetch provenance and callsites;
+ * FAIL/0 alone cannot distinguish a receiver fault from another TypeError. */
+function receiverFamilyProof(source: string) {
+  try {
+    const init = initializer(source), callee = init.callee as Record<string, unknown>, args = init.arguments as unknown[];
+    const fetch = callee?.object as Record<string, unknown>;
+    if (init.type !== "CallExpression" || init.optional || init.typeParameters || init.typeArguments || !member(callee, "bind")
+      || !member(fetch, "fetch") || !identifier(fetch.object, "input") || !Array.isArray(args) || args.length !== 1 || !identifier(args[0], "input")) fail("REPRODUCTION_FAILED");
+    const protectedContextDigest = hash(source.slice(0, init.start) + "<rsi-receiver-initializer-v1>" + source.slice(init.end));
+    if (protectedContextDigest !== approvedReceiverFamily.protectedContextDigest) fail("REPRODUCTION_FAILED");
+    return snapshot({ ...approvedReceiverFamily, contractDigest: jsonHash(approvedReceiverFamily), initializerDigest: hash(source.slice(init.start, init.end)) });
+  } catch { return fail("REPRODUCTION_FAILED"); }
+}
 // Deliberately receiver-only: no statements, assignment, computed access, new
 // objects, callbacks, network overrides or changes to the six-path contract.
 function receiverExpression(node: Record<string, unknown>): boolean {
@@ -114,11 +133,12 @@ function receiverExpression(node: Record<string, unknown>): boolean {
 export async function validateReceiverPatch(baseSource: string, raw: unknown) {
   try {
     const patch = patchSchema.parse(parseBoundedJsonObject(raw));
+    receiverFamilyProof(baseSource);
     if (patch.baseSourceDigest !== hash(baseSource) || patch.find === patch.replace || baseSource.split(patch.find).length !== 2) fail("PATCH");
     const before = initializer(baseSource), offset = baseSource.indexOf(patch.find);
     if (offset < before.start || offset + patch.find.length > before.end) fail("PATCH");
     const source = baseSource.slice(0, offset) + patch.replace + baseSource.slice(offset + patch.find.length), after = initializer(source);
-    if (!receiverExpression(after) || baseSource.slice(0, before.start) !== source.slice(0, after.start) || baseSource.slice(before.end) !== source.slice(after.end)) fail("PATCH");
+    if (after.type === "Identifier" || !receiverExpression(after) || baseSource.slice(0, before.start) !== source.slice(0, after.start) || baseSource.slice(before.end) !== source.slice(after.end)) fail("PATCH");
     return snapshot({ path: NATIVE_SOURCE_PATH, source, sourceDigest: hash(source), diffDigest: jsonHash(patch) });
   } catch { return fail("PATCH"); }
 }
@@ -191,9 +211,12 @@ const trustedNativeManifestDigest = "605ad858ec0c49edda87c5b733d06bf04c954388bb6
 const admissionMs = Object.freeze({ agentVerify: 38000, nativeVerify: 85000, agentRun: 23000, nativeRun: 35000 });
 async function fileDigests(paths: string[]) { return Object.fromEntries(await Promise.all([...paths].sort().map(async path => [path, hash(await readFile(join(root, path)))]))); }
 async function fixedClosure() {
-  const manifest = JSON.parse(await readFile(join(root, ".superpowers/sdd/r3-implementation-plan/native-manifest.json"), "utf8"));
-  if (jsonHash(manifest) !== trustedNativeManifestDigest) fail("MANIFEST");
-  const controller = { schemaVersion: 1, scope: "LOCAL_SYNTHETIC_RECEIVER_ONLY", files: await fileDigests(controllerFiles), modelPolicy: MODEL_POLICY, admissionMs, sandboxPolicyDigest: SANDBOX_POLICY_DIGEST, hostNode: process.versions.node };
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(await readFile(join(root, ".superpowers/sdd/r3-implementation-plan/native-manifest.json"), "utf8"));
+    if (jsonHash(manifest) !== trustedNativeManifestDigest) fail("MANIFEST_UNVERIFIED");
+  } catch { return fail("MANIFEST_UNVERIFIED"); }
+  const controller = { schemaVersion: 1, scope: "LOCAL_SYNTHETIC_RECEIVER_ONLY", files: await fileDigests(controllerFiles), modelPolicy: MODEL_POLICY, admissionMs, receiverFamily: approvedReceiverFamily, sandboxPolicyDigest: SANDBOX_POLICY_DIGEST, hostNode: process.versions.node };
   const evaluator = { schemaVersion: 1, files: await fileDigests(evaluatorFiles), manifestDigest: jsonHash(manifest), nativeLimits: NATIVE_LIMITS };
   return snapshot({ controller, evaluator, controllerHash: jsonHash(controller), evaluatorHash: jsonHash(evaluator), manifest });
 }
@@ -250,7 +273,10 @@ export async function recoverSyntheticIncident(options: SyntheticRecoveryOptions
     if (advancing) gate();
     await options.ledger.transition({ runId: lineage.runId, transition: { schemaVersion: 1, from: status, to, evidence: rows, reasonCode: code } }, nowUtc());
     await persist(options.ledger.checkpoint); status = to;
-    if (advancing) gate();
+    // NO_CHANGE is terminal: a successful ledger+checkpoint commit wins over
+    // a later stop/deadline. No external/candidate work follows this commit.
+    // Failed persistence still throws before status is accepted as committed.
+    if (advancing && to !== "NO_CHANGE") gate();
   }
   async function finish() {
     if (broker && !finishing) { finishing = true; brokerReceipt = await broker.finish(); }
@@ -309,14 +335,14 @@ export async function recoverSyntheticIncident(options: SyntheticRecoveryOptions
       const external = ["HTTP_FAILURE", "AUTH_REDIRECT_FAILURE", "AUTH_STATUS_FAILURE"].includes(fixture) && red.value.reasonCode === "EXTERNAL_FAILURE" && !red.value.greenVerified && red.value.provenance.callCount === 6;
       if (!normal && !external) fail("NATIVE_UNKNOWN");
       await finish(); gate(); const disposition = normal ? "NORMAL" : "EXTERNAL_FAILURE"; reasonCode = disposition;
-      await transition("NO_CHANGE", [record("NO_CHANGE", "PASS", { nativeDigest: red.reference.digest, disposition })], disposition); return result();
+      await transition("NO_CHANGE", [record("NO_CHANGE", "PASS", { nativeDigest: red.reference.digest, disposition, commitPolicy: "DURABLE_TERMINAL_WINS" })], disposition); return result();
     }
     if (noChange.success) fail("NO_CHANGE_UNCONFIRMED");
     const receiver = diagnosis!.hypotheses.find(h => h.cause === "NATIVE_FETCH_RECEIVER");
-    const init = initializer(options.baseSource);
+    const receiverFamily = receiverFamilyProof(options.baseSource);
     if (fixture !== "NATIVE_RECEIVER" || observation.verdict !== "FAIL" || observation.incident.failedPaths.length !== 6 || !receiver || receiver.supportingEvidenceIds === "UNKNOWN"
-      || red.value.verdict !== "FAIL" || red.value.reason !== "ORACLE_RESULT" || red.value.provenance.callCount !== 0 || !receiverExpression(init)) fail("REPRODUCTION_FAILED");
-    await transition("REPRODUCED", [red.reference, record("REPRODUCTION", "PASS", { observationFingerprint: lineage.eventFingerprint, hypothesisDigest: jsonHash(receiver), sourceDigest: hash(options.baseSource), nativeDigest: red.reference.digest })]);
+      || red.value.verdict !== "FAIL" || red.value.reason !== "ORACLE_RESULT" || red.value.provenance.callCount !== 0) fail("REPRODUCTION_FAILED");
+    await transition("REPRODUCED", [red.reference, record("REPRODUCTION", "PASS", { observationFingerprint: lineage.eventFingerprint, hypothesisDigest: jsonHash(receiver), sourceDigest: hash(options.baseSource), nativeDigest: red.reference.digest, receiverFamily })]);
     let green: Awaited<ReturnType<typeof evaluate>> | undefined, candidate: Awaited<ReturnType<typeof validateReceiverPatch>> | undefined;
     for (; candidateCount < 2;) {
       const proposal = await agentStep("PATCH");
@@ -344,13 +370,14 @@ export async function recoverSyntheticIncident(options: SyntheticRecoveryOptions
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     reasonCode = message === "RSI_BROKER_DUPLICATE" ? "DUPLICATE" : message === "RSI_LEDGER_BUDGET" ? "BUDGET_UNAVAILABLE"
+      : message === "RSI_CONTROLLER_MANIFEST_UNVERIFIED" ? "MANIFEST_UNVERIFIED"
       : /(?:KILLED|OPERATOR_STOP)$/.test(message) ? "OPERATOR_STOP" : /(?:DEADLINE|CLOCK)$/.test(message) ? "DEADLINE_OR_CLOCK"
       : /(?:SANDBOX_BLOCKED|NATIVE_BLOCKED|ARTIFACT_MISMATCH|COMPATIBILITY_UNSUPPORTED)$/.test(message) ? "BACKEND_UNAVAILABLE"
       : message === "RSI_CONTROLLER_PATCH" ? "POLICY_REJECTED" : message === "RSI_CONTROLLER_REPRODUCTION_FAILED" ? "REPRODUCTION_FAILED"
       : message === "RSI_CONTROLLER_REGRESSION" ? "REGRESSION_FAILED" : message === "RSI_CONTROLLER_CANDIDATE_LIMIT" ? "CANDIDATE_LIMIT"
       : message === "RSI_CONTROLLER_NO_CHANGE_UNCONFIRMED" ? "NO_CHANGE_UNCONFIRMED" : /(?:CHECKPOINT|ACCOUNTING)$/.test(message) ? "ACCOUNTING_UNCERTAIN" : "EVIDENCE_UNKNOWN";
     try { await finish(); } catch { checkpointBroken = true; reasonCode = "ACCOUNTING_UNCERTAIN"; }
-    const target = reasonCode === "POLICY_REJECTED" ? "REJECTED" : ["BACKEND_UNAVAILABLE", "DUPLICATE", "BUDGET_UNAVAILABLE", "OPERATOR_STOP", "DEADLINE_OR_CLOCK", "ACCOUNTING_UNCERTAIN"].includes(reasonCode) ? "BLOCKED" : "INCONCLUSIVE";
+    const target = reasonCode === "POLICY_REJECTED" ? "REJECTED" : ["MANIFEST_UNVERIFIED", "BACKEND_UNAVAILABLE", "DUPLICATE", "BUDGET_UNAVAILABLE", "OPERATOR_STOP", "DEADLINE_OR_CLOCK", "ACCOUNTING_UNCERTAIN"].includes(reasonCode) ? "BLOCKED" : "INCONCLUSIVE";
     if (broker && !checkpointBroken && lineage) {
       try { await transition(target, [record("OUTCOME", "UNKNOWN", { reasonCode, failureCode: /^RSI_(?:CONTROLLER|BROKER|NATIVE|SANDBOX|LEDGER)_[A-Z0-9_]+$/.test(message) ? message : "UNVERIFIED", actualRecovery: false })], reasonCode === "POLICY_REJECTED" ? "POLICY_REJECTED" : reasonCode === "OPERATOR_STOP" ? "OPERATOR_STOP" : reasonCode === "REPRODUCTION_FAILED" ? "REPRODUCTION_FAILED" : "EVIDENCE_UNKNOWN"); }
       catch { reasonCode = "ACCOUNTING_UNCERTAIN"; status = "BLOCKED"; }
