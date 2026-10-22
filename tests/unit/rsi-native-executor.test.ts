@@ -3,13 +3,24 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { compileNativeCandidate, NATIVE_SOURCE_PATH, prepareNativeRuntimeImage, NativeExecutor, nativeArtifactDigests, NATIVE_BUILD_FLAGS } from "../../scripts/rsi/native-executor";
 import { VerifiedContainerBackend, dockerTransport, type DockerTransport } from "../../scripts/rsi/container-backend";
-import { NATIVE_RUNTIME } from "../../scripts/rsi/native-wrapper";
+import { NATIVE_RUNTIME, classifyNativeStartupError } from "../../scripts/rsi/native-wrapper";
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const source = readFileSync(new URL("../../app/features/operations/rsi-self-check.ts", import.meta.url), "utf8");
 const request = (value = source) => ({ path: NATIVE_SOURCE_PATH, source: value, sourceDigest: hash(value) });
 
 describe("native candidate syntax compilation (never host evaluation)", () => {
+  it.each([
+    ["Too many open files", "FD_LIMIT"], ["Read-only file system", "READ_ONLY"],
+    ["No space left on device", "TEMP_SPACE"], ["pthread_create failed", "THREAD_LIMIT"],
+    ["Unknown field in configuration", "CONFIG_PROTOCOL"], ["private-secret", "OTHER"],
+  ])("keeps startup diagnostics bounded: %s", (message, category) => {
+    const value = classifyNativeStartupError(new Error(message));
+    expect(value.category).toBe(category);
+    expect(value.digest).toMatch(/^[a-f0-9]{64}$/);
+    expect(value.bytes).toBe(Buffer.byteLength(message));
+    expect(JSON.stringify(value)).not.toContain(message);
+  });
   it("pins the separately merged target-capable workerd", () => {
     expect(NATIVE_RUNTIME.workerd).toBe("1.20261022.1");
     expect(NATIVE_RUNTIME.supportedCompatibilityDate).toBe("2026-10-22");
