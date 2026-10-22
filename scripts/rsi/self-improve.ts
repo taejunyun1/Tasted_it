@@ -181,7 +181,18 @@ export async function runSelfImprovement(options: SelfImprovementOptions): Promi
       receiptDirectory: options.storage.receiptDirectory, trustedCheckpoint: progress.checkpoint! };
     await generation(options, fresh, 2, fixed, progress, root2);
     return result(progress, "COMPLETED", "TWO_GENERATIONS_PROMOTED");
-  } catch (error) { return result(progress, progress.receiptUncertain && progress.completed > 0 ? "PARTIAL" : "BLOCKED", reason(error)); }
+  } catch (error) {
+    // Preparation (including fresh open and its root gate) may fail before a
+    // generation owns an intent. Preserve that failure without modifying any
+    // completed publication or claiming a new reservation/settlement.
+    if (progress.checkpoint && !progress.receiptUncertain) {
+      try { progress.receiptPaths.push(await appendReceipt(options.storage.receiptDirectory, `supervisor-${progress.completed}.failure.json`, {
+        schemaVersion: 1, mode: "LOCAL_SYNTHETIC", actualRecovery: false, status: "BLOCKED", reasonCode: reason(error),
+        completedGenerations: progress.completed, lastPublished: progress.published, lastTrustedCheckpoint: progress.checkpoint,
+      })); } catch { progress.receiptUncertain = true; }
+    }
+    return result(progress, progress.receiptUncertain && progress.completed > 0 ? "PARTIAL" : "BLOCKED", reason(error));
+  }
 }
 /** Fresh operator action; target selection is exclusively the fixed Task3 CAS
  * rollback. The previous actual-validated artifact is reread and recompiled. */
