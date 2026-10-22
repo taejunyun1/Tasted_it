@@ -1,5 +1,7 @@
 # 에이전트 자검 루프 — Cloudflare 우선
 
+> 2026-10-22 명칭·진행 보완: 이 문서는 에이전트 작업의 라이브 재확인 절차이며, Worker에서 자동 자기 수정을 구현했다는 뜻이 아니다. [에이전트 절차 수준 RSI 결정](../../decisions/2026-10-15-rsi-agent-improvement.md)과 [구현·효과 평가 계획](./2026-10-15-rsi-agent-improvement.md)은 PR #305 병합 시 채택되는 설계다. R1만 #320에서 구현됐으며 후속 단계는 각각 한정 GO와 실제 검증을 따른다. 기존 Cloudflare 관측 원칙과 실행 제한은 유지한다.
+
 - **상태:** ACCEPTED — 이 Pull Request가 병합되면 적용
 - **추적:** [GitHub Issue #280](https://github.com/taejunyun1/Tasted_it/issues/280)
 - **런타임 SSOT:** 라이브 Worker `https://retaste-beta.retaste-beta.workers.dev`
