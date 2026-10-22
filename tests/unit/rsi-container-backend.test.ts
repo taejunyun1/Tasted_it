@@ -53,6 +53,11 @@ describe("trusted container backend", () => {
     expect(result.evidence.isolation).toEqual(isolation);
     expect(fake.calls.filter(c => c.args[0] === "create").every(c => !c.args.includes("candidate data"))).toBe(true);
   });
+  it("does not grant a capability by bypassing the TypeScript private constructor", () => {
+    const fake = fakeDocker();
+    expect(() => Reflect.construct(VerifiedContainerBackend, [profile(), fake.transport])).toThrow("RSI_SANDBOX_BLOCKED");
+    expect(fake.calls).toHaveLength(0);
+  });
   it("snapshots and freezes the profile before any asynchronous verification", async () => {
     const trusted = profile(), fake = fakeDocker();
     const pending = VerifiedContainerBackend.verify(trusted, fake.transport);
