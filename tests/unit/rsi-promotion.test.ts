@@ -42,7 +42,7 @@ function patch(baseSource: string) { return { action: "PATCH", path: "app/featur
 // These monkeypatches exercise supervisor wiring only. They do not prove actual
 // Docker/native execution, transport provenance or model improvement.
 async function hostFixture() {
-  const closure = await core.measureFixedClosure("R3");
+  const closure = structuredClone(await core.measureFixedClosure("R3"));
   closure.controller.scope = "LOCAL_SYNTHETIC_R4_SELF_IMPROVE";
   closure.controllerHash = jhash(closure.controller);
   vi.spyOn(core, "measureFixedClosure").mockResolvedValue(closure);
@@ -73,7 +73,7 @@ async function setup() {
   const common = { ledger, sourceStore, checkpointStore, nowUtc: () => now, monotonicMs: () => clock.value, killSwitch: () => stopped.value, rootTiming: { startedMs: 0, deadlineMs: 120000 } };
   const active = await initializeLabCatalog(common);
   const memory = { snapshot: createApprovedSnapshot([], [], now), approvals: [] };
-  const baseSource = await readFile(new URL("../../app/features/operations/rsi-self-check.ts", import.meta.url), "utf8");
+  const baseSource = (await readFile(new URL("../../app/features/operations/rsi-self-check.ts", import.meta.url), "utf8")).replace("input.fetch.bind(globalThis)", "input.fetch.bind(input)");
   const obs = observation();
   return { dir, ledgerPath, campaignId, common, active, memory, baseSource, obs, clock, stopped };
 }
