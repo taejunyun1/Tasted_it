@@ -7,7 +7,7 @@ import { ImmutableAgentSourceStore, LabPromotionSession, initializeLabCatalog, l
 import { ControllerCheckpointStore } from "../../scripts/rsi/controller";
 import { LocalRsiLedger } from "../../scripts/rsi/ledger";
 import { LocalFakeModelBroker, type FakeScenario } from "../../scripts/rsi/model-broker";
-import { createApprovedSnapshot } from "../../scripts/rsi/memory";
+import { createApprovedSnapshot, lessonDigest } from "../../scripts/rsi/memory";
 import { R4_POLICY_DIGEST, type R4ExecutionIntent } from "../../scripts/rsi/execution-contracts";
 import { deriveIncidentKey, deriveKst, deriveObservationFingerprint, RSI_PUBLIC_PATHS } from "../../scripts/rsi/contracts";
 import * as core from "../../scripts/rsi/repair-core";
@@ -77,9 +77,9 @@ async function setup() {
   const obs = observation();
   return { dir, ledgerPath, campaignId, common, active, memory, baseSource, obs, clock, stopped };
 }
-async function session(s: Awaited<ReturnType<typeof setup>>, fixture: Awaited<ReturnType<typeof hostFixture>>, generation: 1 | 2 = 1, response?: unknown) {
+async function session(s: Awaited<ReturnType<typeof setup>>, fixture: Awaited<ReturnType<typeof hostFixture>>, generation: 1 | 2 = 1, response?: unknown, overrides?: { defer?: boolean; broker?: LocalFakeModelBroker; scenarios?: FakeScenario[] }) {
   const active = await loadLabActiveAgent(s.common);
-  const scenarios: FakeScenario[] = [
+  const scenarios: FakeScenario[] = overrides?.scenarios ?? [
     ...(generation === 1 ? [{ kind: "JSON_RESPONSE" as const, response: diagnosis(s.obs) }, { kind: "JSON_RESPONSE" as const, response: patch(s.baseSource) }] : []),
     { kind: "JSON_RESPONSE", response: response ?? proposal(active.source.agentHash, generation) },
     { kind: "JSON_RESPONSE", response: diagnosis(s.obs) }, { kind: "JSON_RESPONSE", response: patch(s.baseSource) },
@@ -98,8 +98,9 @@ async function session(s: Awaited<ReturnType<typeof setup>>, fixture: Awaited<Re
   const descriptor = generation === 1 ? fakeFixture : JSON.parse(await readFile(join(s.dir, "fake-fixture.json"), "utf8"));
   if (generation === 1) await writeFile(join(s.dir, "fake-fixture.json"), JSON.stringify(fakeFixture));
   const broker = await LocalFakeModelBroker.openImprovement({ ...s.common, intent, scenarios, checkpointSink: c => s.common.checkpointStore.persist(c) });
-  const opened = await LabPromotionSession.open({ ...s.common, broker, intent, fakeFixture: descriptor, memory: s.memory, baseSource: s.baseSource });
-  return { opened, broker, intent };
+  const openOptions = { ...s.common, broker: overrides?.broker ?? broker, intent, fakeFixture: descriptor, memory: s.memory, baseSource: s.baseSource };
+  const opened = overrides?.defer ? undefined! : await LabPromotionSession.open(openOptions);
+  return { opened, broker, intent, openOptions };
 }
 
 describe("R4 immutable source data", () => {
@@ -253,4 +254,93 @@ describe("R4 promotion fixed supervisor (host boundary fixtures only)", () => {
     expect(after.executions).toEqual(before.executions); expect(fixture.execute).toHaveBeenCalledTimes(calls);
     await expect(rollbackLabCatalog(s.common)).rejects.toThrow();
   });
+  it.each(["callId", "sequence", "requestDigest", "receiptDigest", "outputDigest", "mode", "baseline-replay"])("rejects generation %s metadata reuse against the same execution journal", async fault => {
+    const s = await setup(), fixture = await hostFixture(), { opened } = await session(s, fixture);
+    const original = core.runActualAgentStep;
+    vi.spyOn(core, "runActualAgentStep").mockImplementation(async options => {
+      const value = structuredClone(await original(options));
+      if (fault === "baseline-replay") {
+        const old = (await s.common.ledger.readImprovement()).executions[0].calls[0];
+        value.brokerMetadata = { mode: "LOCAL_FAKE", sequence: old.sequence, callId: old.callId, requestDigest: old.requestDigest,
+          receiptDigest: old.outcome!.receiptDigest, outputDigest: old.outcome!.outputDigest! };
+      } else Object.assign(value.brokerMetadata, { [fault]: fault === "sequence" ? 1 : fault === "callId" ? randomUUID() : fault === "mode" ? "FORGED" : hash("foreign-call") });
+      return value;
+    });
+    await expect(opened.generateProposal()).rejects.toThrow("GENERATION_CUSTODY");
+    const state = await s.common.ledger.readImprovement();
+    expect(state.executions[0].proposal).toBeNull(); expect(state.executions[0].settlement?.kind).toBe("CONFIRMED");
+    expect(state.executions[0].calls).toHaveLength(3); expect(state.catalog).toHaveLength(1);
+  });
+  it("does not mint rights from another ledger/execution's actual returned calls", async () => {
+    const s = await setup(), other = await setup(), fixture = await hostFixture();
+    const foreign = await session(other, fixture, 1, undefined, { defer: true });
+    const { opened } = await session(s, fixture, 1, undefined, { broker: foreign.broker });
+    await expect(opened.generateProposal()).rejects.toThrow();
+    const state = await s.common.ledger.readImprovement(), foreignState = await other.common.ledger.readImprovement();
+    expect(state.executions[0].calls).toHaveLength(0); expect(state.executions[0].proposal).toBeNull(); expect(state.catalog).toHaveLength(1);
+    expect(foreignState.executions[0].calls).toHaveLength(1); expect(foreignState.executions[0].settlement).not.toBeNull();
+  });
+  it("preserves lost-call full-pool AMBIGUOUS accounting and an unverified genesis", async () => {
+    const s = await setup(), fixture = await hostFixture();
+    const { opened } = await session(s, fixture, 1, undefined, { scenarios: [{ kind: "LOST_RESPONSE" }] });
+    await expect(opened.generateProposal()).rejects.toThrow();
+    const state = await s.common.ledger.readImprovement(), run = state.executions[0];
+    expect(run.settlement?.kind).toBe("AMBIGUOUS"); expect(run.settlement?.consumedUnits).toBe(73552);
+    expect(run.calls[0].outcome?.kind).toBe("CALL_REJECTED"); expect(run.baseline).toBeNull(); expect(state.catalog).toHaveLength(1);
+    await expect(rollbackLabCatalog(s.common)).rejects.toThrow();
+  });
+  it.each(["malformed", "same-source", "no-change"])("settles %s generation without a probe or replacement search", async fault => {
+    const s = await setup(), fixture = await hostFixture();
+    const response = fault === "malformed" ? { action: "PROPOSE_AGENT", PASS: true } : fault === "no-change" ? { action: "NO_CHANGE", reason: "LOCAL_FAKE" }
+      : { schemaVersion: 1, action: "PROPOSE_AGENT", baseAgentHash: s.active.source.agentHash, modules: await core.loadSeedAgentSources() };
+    const { opened } = await session(s, fixture, 1, response);
+    await expect(opened.generateProposal()).rejects.toThrow();
+    await expect(opened.generateProposal()).rejects.toThrow();
+    const state = await s.common.ledger.readImprovement();
+    expect(state.executions[0].calls).toHaveLength(3); expect(state.executions[0].settlement?.kind).toBe("CONFIRMED");
+    expect(state.executions[0].proposal).toBeNull(); expect(state.catalog).toHaveLength(1); expect(fixture.execute).toHaveBeenCalledTimes(3);
+    if (fault === "no-change") expect(state.executions[0].events.at(-1)).toEqual({ kind: "REJECTED", reasonCode: "NO_AGENT_CHANGE" });
+  });
+  it("retains g1 and both generations' costs when g2 generation is rejected", async () => {
+    const s = await setup(), fixture = await hostFixture(), first = await session(s, fixture), g1 = await first.opened.generateProposal();
+    await first.opened.promote(g1);
+    s.common.ledger = await LocalRsiLedger.open(s.ledgerPath, s.common.ledger.checkpoint);
+    const second = await session(s, fixture, 2, { action: "NO_CHANGE", reason: "LOCAL_FAKE" });
+    await expect(second.opened.generateProposal()).rejects.toThrow();
+    const state = await s.common.ledger.readImprovement();
+    expect(state.catalog.at(-1)?.source).toEqual(g1.source); expect(state.catalog).toHaveLength(2);
+    expect(state.executions.map(r => r.calls.length)).toEqual([5, 1]); expect(state.executions.every(r => r.settlement?.kind === "CONFIRMED")).toBe(true);
+    const rolled = await rollbackLabCatalog(s.common); expect(rolled.active.source).toEqual(s.active.source);
+    expect((await s.common.ledger.readImprovement()).executions).toEqual(state.executions);
+  });
+  it("records selected/rejected lesson reasons and delivery without claiming USED", async () => {
+    const s = await setup(), fixture = await hostFixture();
+    const lessons = ["UNEXPECTED_ERROR", "HTTP_STATUS"].map((errorCode, index) => ({ schemaVersion: 1, lessonId: randomUUID(), status: "APPROVED", createdAtUtc: "2026-10-01T00:00:00.000Z", expiresAtUtc: "2026-11-01T00:00:00.000Z",
+      selector: { errorCode, runtime: "WORKER_SYNTHETIC", conditions: [index === 0 ? "UNKNOWN_EVIDENCE" : "STATUS_FAILURE"] }, policy: "REPRODUCE_FIRST", evidenceDigest: hash(`lesson-${index}`), approval: { prNumber: 327, mergeSha: "a".repeat(40) } }));
+    const approvals = lessons.map(l => ({ ...l.approval, lessonId: l.lessonId, lessonDigest: lessonDigest(l) }));
+    s.memory = { snapshot: createApprovedSnapshot(lessons, approvals, now), approvals };
+    const { opened } = await session(s, fixture), generated = await opened.generateProposal(), result = await opened.promote(generated);
+    expect(result.memoryEvidence.retrieval.decisions.map(d => d.outcome).sort()).toEqual(["REJECTED", "SELECTED"]);
+    expect(result.memoryEvidence.deliveredLessonIds).toEqual([lessons[0].lessonId]); expect(result.memoryEvidence.usage).toBe("UNCONFIRMED");
+    const doc = JSON.parse(await readFile(join(s.common.sourceStore.directory, `${(await s.common.ledger.readImprovement()).executions[0].validation!.evidenceDigest}.evidence.json`), "utf8"));
+    expect(doc.memory).toEqual(result.memoryEvidence);
+    expect(JSON.stringify(doc.memory)).not.toContain('"USED"');
+  });
+  it("refuses missing historical validation on rollback and preserves all rows", async () => {
+    const s = await setup(), fixture = await hostFixture(), first = await session(s, fixture), g1 = await first.opened.generateProposal();
+    await first.opened.promote(g1);
+    const before = await s.common.ledger.readImprovement();
+    await rm(join(s.common.sourceStore.directory, `${before.executions[0].baseline!.evidenceDigest}.evidence.json`));
+    await expect(rollbackLabCatalog(s.common)).rejects.toThrow("EVIDENCE_UNKNOWN");
+    expect(await s.common.ledger.readImprovement()).toEqual(before);
+  });
+  it("blocks a stop immediately after CONFIRMED settlement before catalog append", async () => {
+    const s = await setup(), fixture = await hostFixture(), { opened } = await session(s, fixture), generated = await opened.generateProposal();
+    const finish = LocalFakeModelBroker.prototype.finish;
+    vi.spyOn(LocalFakeModelBroker.prototype, "finish").mockImplementation(async function () { const result = await finish.call(this); s.stopped.value = true; return result; });
+    await expect(opened.promote(generated)).rejects.toThrow("OPERATOR_STOP");
+    const state = await s.common.ledger.readImprovement(); expect(state.catalog).toHaveLength(1); expect(state.executions[0].settlement?.kind).toBe("CONFIRMED");
+    expect(state.executions[0].status).toBe("BLOCKED");
+  });
+
 });
