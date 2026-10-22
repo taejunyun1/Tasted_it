@@ -14,13 +14,127 @@ function intent() {
   return { requestId: randomUUID(), observation, lineage: { schemaVersion: 1, runId: randomUUID(), parentRunId: null, attempt: 1, incidentKey: deriveIncidentKey(observation.incident), incidentEpoch: 1, parentIncidentId: null, eventFingerprint: deriveObservationFingerprint(observation), baseAppSha: observation.incident.baseAppSha, parentAgentHash: digest, candidateAgentHash: digest, controllerHash: digest, evaluatorHash: digest, memorySnapshotHash: digest } };
 }
 const message = JSON.stringify({ schemaVersion: 1, task: "repair", message: "Synthetic repair only" });
-async function setup(scenarios: FakeScenario[] = []) {
+async function prepare(scenarios: FakeScenario[] = []) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), "rsi-broker-"))); dirs.push(dir);
   const ledger = await LocalRsiLedger.create(join(dir, "ledger"), { schemaVersion: 1, environment: "LOCAL_SYNTHETIC", campaignId: randomUUID(), currencyUnit: "MICRO_USD", limits: { incident: 100000, campaign: 100000, day: 100000, month: 100000 } }, now);
   const checkpointSink = vi.fn(async () => {}), state = { time: 0, killed: false };
   const options = { ledger, intent: intent(), checkpointSink, nowUtc: () => now, monotonicMs: () => state.time, killSwitch: () => state.killed, scenarios };
-  return { dir, ledger, state, options, checkpointSink, broker: await LocalFakeModelBroker.open(options) };
+  return { dir, ledger, state, options, checkpointSink };
 }
+
+async function setup(scenarios: FakeScenario[] = []) {
+  const prepared = await prepare(scenarios);
+  return { ...prepared, broker: await LocalFakeModelBroker.open(prepared.options) };
+}
+
+// Trusted fixture selection is never decoded from candidate IPC.
+const fixture = (response: unknown, delayMs?: number) => ({ kind: "JSON_RESPONSE", response, ...(delayMs === undefined ? {} : { delayMs }) }) as FakeScenario;
+
+describe("trusted LOCAL_FAKE JSON replies", () => {
+  it("returns sequenced hypothesis and patch objects with the ordinary metadata envelope", async () => {
+    const hypothesis = { action: "HYPOTHESIS", hypothesis: "Synthetic route repair", evidence: ["fixture"] };
+    const patch = { action: "PATCH", files: [{ path: "agent.ts", content: "export default () => ({fixed:true})" }] };
+    const { broker, ledger } = await setup([fixture(hypothesis), fixture(patch)]);
+    const first = await broker.request(1, message), second = await broker.request(2, message);
+    expect(first.untrustedOutput).toEqual(hypothesis);
+    expect(second.untrustedOutput).toEqual(patch);
+    expect(first.metadata).toMatchObject({ mode: "LOCAL_FAKE", sequence: 1 });
+    expect(second.metadata).toMatchObject({ mode: "LOCAL_FAKE", sequence: 2 });
+    expect((await broker.request(3, message)).untrustedOutput).toEqual({ action: "NO_CHANGE", reason: "LOCAL_FAKE" });
+    expect((await broker.finish()).callCount).toBe(3);
+    expect((await ledger.read()).runs[0].settlement?.kind).toBe("CONFIRMED");
+  });
+  it("snapshots nested data, scenario selection and returned objects independently at open", async () => {
+    const response = { nested: { values: ["before"] } }, scenario = fixture(response);
+    const scenarios = [scenario, fixture(response)];
+    const { broker } = await setup(scenarios);
+    response.nested.values[0] = "after";
+    Object.assign(scenario, { response: { replaced: true } });
+    scenarios[1] = { kind: "FAILURE" };
+    const first = await broker.request(1, message);
+    expect(first.untrustedOutput).toEqual({ nested: { values: ["before"] } });
+    (first.untrustedOutput.nested as { values: string[] }).values[0] = "caller changed";
+    expect((await broker.request(2, message)).untrustedOutput).toEqual({ nested: { values: ["before"] } });
+    await broker.finish();
+  });
+  it("accepts exactly 2000 serialized UTF8 bytes and charges actual envelope and output bytes", async () => {
+    const response = { text: "가".repeat(663) }; // 11 framing bytes + 1989 UTF8 bytes
+    expect(Buffer.byteLength(JSON.stringify(response))).toBe(2000);
+    const { broker, ledger } = await setup([fixture(response)]);
+    expect((await broker.request(1, message)).untrustedOutput).toEqual(response);
+    const envelope = JSON.stringify({ model: MODEL_POLICY.model, max_tokens: 2000, messages: [{ role: "user", content: "Synthetic repair only" }], task: "repair" });
+    const expected = Math.ceil(((Buffer.byteLength(envelope) + 256) * 293 + 2000 * 2253) / 1000);
+    expect((await broker.finish()).chargedUnits).toBe(expected);
+    expect((await ledger.read()).runs[0].settlement?.consumedUnits).toBe(expected);
+  });
+  it("keeps forged usage, cost and PASS claims as untrusted data", async () => {
+    const response = { action: "PASS", usage: { inputTokens: 0, outputTokens: 0 }, chargedUnits: 0, authorized: true };
+    const { broker, ledger } = await setup([fixture(response)]);
+    const result = await broker.request(1, message);
+    expect(result).toEqual({ untrustedOutput: response, metadata: { mode: "LOCAL_FAKE", callId: expect.any(String), sequence: 1, receiptDigest: expect.stringMatching(/^[a-f0-9]{64}$/) } });
+    expect((await broker.finish()).chargedUnits).toBeGreaterThan(0);
+    expect((await ledger.read()).runs[0].status).toBe("OBSERVED");
+  });
+  const invalidFixtures: [string, () => unknown][] = [
+    ["UTF8 overflow", () => ({ text: "가".repeat(663) + "a" })],
+    ["array root", () => []], ["null root", () => null], ["string root", () => "{}"],
+    ["undefined", () => ({ value: undefined })], ["nonfinite", () => ({ value: Infinity })],
+    ["BigInt", () => ({ value: 1n })], ["function", () => ({ value: () => ({}) })],
+    ["prototype", () => ({ value: new Date() })], ["null prototype", () => Object.create(null)],
+    ["cycle", () => { const value: { self?: unknown } = {}; value.self = value; return value; }],
+    ["depth", () => { let value: unknown = {}; for (let i = 0; i < 13; i++) value = { child: value }; return value; }],
+    ["nodes", () => ({ values: Array.from({ length: 2048 }, () => null) })],
+    ["symbol key", () => ({ [Symbol("hidden")]: "value" })],
+    ["sparse array", () => ({ value: new Array(1) })],
+    ["hidden property", () => Object.defineProperty({}, "hidden", { value: 1 })],
+    ["toJSON", () => ({ toJSON: () => ({ allowed: true }) })],
+    ["dangerous key", () => JSON.parse('{"__proto__":{"polluted":true}}')],
+  ];
+  it.each(invalidFixtures)("rejects %s before reservation", async (_label, makeResponse) => {
+    const { options, ledger, checkpointSink } = await prepare([fixture(makeResponse())]);
+    const reserve = vi.spyOn(ledger, "reserve");
+    await expect(LocalFakeModelBroker.open(options)).rejects.toThrow();
+    expect(reserve).not.toHaveBeenCalled(); expect(checkpointSink).not.toHaveBeenCalled();
+    expect((await ledger.read()).runs).toHaveLength(0);
+  });
+  it.each(["response", "scenario", "scenarios"])("rejects %s accessors and proxies without executing them", async boundary => {
+    for (const proxy of [false, true]) {
+      const executed = vi.fn(() => { throw new Error("must not execute"); });
+      const wrap = (value: object) => proxy ? new Proxy(value, { get: executed, getPrototypeOf: executed, ownKeys: executed }) : Object.defineProperty(value, "trap", { enumerable: true, get: executed });
+      const response = boundary === "response" ? { nested: wrap({}) } : {};
+      const scenario = boundary === "scenario" ? wrap(fixture(response)) : fixture(response);
+      const scenarios = boundary === "scenarios" ? wrap([scenario]) : [scenario];
+      const { options, ledger } = await prepare(scenarios as FakeScenario[]);
+      const reserve = vi.spyOn(ledger, "reserve");
+      await expect(LocalFakeModelBroker.open(options)).rejects.toThrow();
+      expect(executed).not.toHaveBeenCalled(); expect(reserve).not.toHaveBeenCalled();
+    }
+  });
+  it.each([
+    { kind: "JSON_RESPONSE", response: {}, usage: { inputTokens: 0 } },
+    { kind: "JSON_RESPONSE", response: {}, endpoint: "https://example.invalid" },
+    { kind: "SUCCESS", response: {} }, { kind: "JSON_RESPONSE" },
+  ])("rejects invalid variant authority before reserving: %j", async scenario => {
+    const { options, ledger } = await prepare([scenario as FakeScenario]);
+    const reserve = vi.spyOn(ledger, "reserve");
+    await expect(LocalFakeModelBroker.open(options)).rejects.toThrow();
+    expect(reserve).not.toHaveBeenCalled();
+  });
+  it("does not grant fixture or scenario selection through candidate IPC", async () => {
+    const { broker } = await setup([fixture({ action: "HYPOTHESIS" })]);
+    for (const [index, extra] of [{ response: {} }, { scenarios: [] }, { kind: "JSON_RESPONSE" }].entries()) {
+      await expect(broker.request(index + 1, JSON.stringify({ schemaVersion: 1, task: "repair", message: "x", ...extra }))).rejects.toThrow("RSI_BROKER_INPUT");
+    }
+    expect((await broker.finish()).chargedUnits).toBe(0);
+  });
+  it("retains full-pool ambiguity for a delayed fixture timeout", async () => {
+    const { broker, ledger } = await setup([fixture({ action: "PATCH" }, 31000)]); vi.useFakeTimers();
+    const rejected = expect(broker.request(1, message)).rejects.toThrow("RSI_BROKER_TIMEOUT");
+    await vi.advanceTimersByTimeAsync(30001); await rejected;
+    expect((await broker.finish()).chargedUnits).toBe(73552);
+    expect((await ledger.read()).runs[0].settlement?.kind).toBe("AMBIGUOUS");
+  });
+});
 
 describe("LOCAL_FAKE attempt budget pool", () => {
   it("reserves the entire 8-call pool before issuing a capability and settles one aggregate", async () => {
