@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
-import { chmod, link, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ImmutableAgentSourceStore, LabPromotionSession, initializeLabCatalog, loadLabActiveAgent, rollbackLabCatalog, validateAgentProposal, labGenerationScenarios } from "../../scripts/rsi/promotion";
@@ -123,6 +123,23 @@ async function session(s: Awaited<ReturnType<typeof setup>>, fixture: Awaited<Re
   const opened = overrides?.defer ? undefined! : await LabPromotionSession.open(openOptions);
   return { opened, broker, intent, openOptions };
 }
+
+describe("R4 failed repair telemetry", () => {
+  it("durably preserves bounded UNKNOWN native evidence before failing the actual repair gate", async () => {
+    const s = await setup(), f = await hostFixture(), { opened } = await session(s, f);
+    f.evaluate.mockImplementationOnce(async (request) => ({ verdict: "UNKNOWN", reasonCode: "EXECUTION_EXIT_137", greenVerified: false,
+      provenance: { transportKind: "DOCKER_CLI", sourceDigest: request.sourceDigest, fixture: request.fixture, manifestDigest: f.closure.evaluator.manifestDigest,
+        cleanupConfirmed: true, startFailure: { failure: "TIMEOUT", stdoutBytes: 0, stderrBytes: 0 } },
+      rawSource: "sensitive must not persist", stack: "sensitive stack must not persist" } as never));
+    await expect(opened.generateProposal()).rejects.toThrow("NATIVE_UNKNOWN");
+    const docs = await Promise.all((await readdir(s.common.sourceStore.directory)).filter(p => p.endsWith(".evidence.json")).map(async p => JSON.parse(await readFile(join(s.common.sourceStore.directory, p), "utf8"))));
+    const steps = docs.filter(d => d.kind === "ACTUAL_REPAIR_TELEMETRY").sort((a,b) => a.ordinal-b.ordinal);
+    expect(steps).toHaveLength(2); expect(steps.map(d => d.ordinal)).toEqual([1,2]);
+    expect(steps[1]).toMatchObject({ executionId: (await s.common.ledger.readImprovement()).executions[0].intent.executionId, phase: "BASELINE_REPAIR", evidence: { verdict: "UNKNOWN", native: { reasonCode: "EXECUTION_EXIT_137", fixture: "NATIVE_RECEIVER", cleanupConfirmed: true, startFailure: { failure: "TIMEOUT" } } } });
+    expect(JSON.stringify(steps)).not.toContain("sensitive"); expect(JSON.stringify(steps)).not.toContain("export function");
+    const run = (await s.common.ledger.readImprovement()).executions[0]; expect(run.status).toBe("BLOCKED"); expect(run.baseline).toBeNull(); expect(run.settlement?.kind).toBe("CONFIRMED");
+  });
+});
 
 describe("R4 immutable source data", () => {
   it("stores canonical exact modules immutably and recompiles every read", async () => {

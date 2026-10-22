@@ -94,6 +94,12 @@ describe("fixed two-generation self-improvement supervisor (injected orchestrati
     expect(r.status).toBe("BLOCKED"); expect(r.reasonCode).toBe("RESTART_FORBIDDEN");
     const after = await readState(s, first.checkpoint); expect(after).toEqual(before); expect(after.executions).toHaveLength(1); expect(after.executions[0].settlement?.consumedUnits).toBe(73552);
   });
+  it("preserves only allowlisted root failure codes without raw error details", async () => {
+    const s = await setup(); await injected(); vi.spyOn(core, "measureFixedClosure").mockRejectedValue(new Error("RSI_CONTROLLER_NATIVE_UNKNOWN"));
+    const r = await runSelfImprovement(s.options); expect(r.failureCode).toBe("RSI_CONTROLLER_NATIVE_UNKNOWN");
+    const other = await setup(); vi.spyOn(core, "measureFixedClosure").mockRejectedValue(new Error("secret/private/path source stack"));
+    const unknown = await runSelfImprovement(other.options); expect(unknown.failureCode).toBe("UNKNOWN_ERROR"); expect(JSON.stringify(unknown)).not.toContain("secret/private");
+  });
   it("keeps lower configured budgets rather than raising them to fit a pool", async () => {
     const s = await setup(), f = await injected(); if (s.options.storage.mode === "CREATE") s.options.storage.config.limits.incident = 73551;
     const r = await runSelfImprovement(s.options); expect(r.reasonCode).toBe("BUDGET_UNAVAILABLE"); expect(f.execute).not.toHaveBeenCalled(); expect((await readState(s, r.checkpoint)).executions).toHaveLength(0);
