@@ -98,10 +98,58 @@ describe("local RSI ledger", () => {
     next.lineage.incidentEpoch = 2; next.lineage.parentIncidentId = deriveIncidentId({ incidentKey: input.lineage.incidentKey, incidentEpoch: 1 }) as never;
     await expect(ledger.reserve(next, later)).rejects.toThrow("RSI_LEDGER");
     await finish(ledger, input.lineage.runId);
-    await ledger.closeIncident({ incidentKey: input.lineage.incidentKey, incidentEpoch: 1, evidence: { evidenceId: randomUUID(), kind: "LIVE_PROBE", digest, verdict: "PASS", commandId: null } }, now);
+    await ledger.closeIncident({ kind: "RECOVERY_CONFIRMED", incidentKey: input.lineage.incidentKey, incidentEpoch: 1, evidence: { evidenceId: randomUUID(), kind: "LIVE_PROBE", digest, verdict: "PASS", commandId: null } }, now);
     await expect(ledger.reserve(next, later)).rejects.toThrow("RSI_LEDGER_BUDGET");
     next.maximumCostUnits = 40; expect((await ledger.reserve(next, later)).authorized).toBe(true);
     expect((await ledger.read()).closures).toHaveLength(1);
+  });
+
+  it("persists operator closure without recovery evidence and preserves caps for later linked recurrence", async () => {
+    const p = await path(), ledger = await create(p), first = intent(60); await ledger.reserve(first, now);
+    const close = { kind: "OPERATOR_CLOSED", incidentKey: first.lineage.incidentKey, incidentEpoch: 1,
+      authorization: { ...evidence(), kind: "AUTHORIZATION", verdict: "PASS" },
+      evidence: { ...evidence(), kind: "OUTCOME", verdict: "PASS" } };
+    await expect(ledger.closeIncident(close, now)).rejects.toThrow("RSI_LEDGER");
+    await ledger.transition({ runId: first.lineage.runId, transition: { ...terminal(), reasonCode: "OPERATOR_STOP" } }, now);
+    await expect(ledger.closeIncident(close, now)).rejects.toThrow("RSI_LEDGER");
+    await ledger.settle({ runId: first.lineage.runId, receiptId: randomUUID(), kind: "AMBIGUOUS", chargedUnits: null, receiptDigest: digest }, now);
+    await ledger.closeIncident(close, now);
+    const reopened = await LocalRsiLedger.open(p, ledger.checkpoint), head = reopened.checkpoint;
+    await reopened.closeIncident(close, now); expect(reopened.checkpoint).toEqual(head);
+    await expect(reopened.closeIncident({ ...close, authorization: { ...close.authorization, evidenceId: randomUUID() } }, now)).rejects.toThrow("RSI_LEDGER");
+    const state = await reopened.read(); expect(state.closures[0].kind).toBe("OPERATOR_CLOSED");
+    expect(state.runs[0].status).toBe("INCONCLUSIVE");
+    expect(state.runs[0].transitions[0].reasonCode).toBe("OPERATOR_STOP");
+    expect(state.runs[0].transitions.flatMap((t) => t.evidence).every((e) => e.kind !== "LIVE_PROBE")).toBe(true);
+    const later = "2026-10-22T15:01:00.000Z", next = intent(50, observation(later));
+    next.lineage.incidentEpoch = 2; next.lineage.parentIncidentId = deriveIncidentId({ incidentKey: first.lineage.incidentKey, incidentEpoch: 1 }) as never;
+    await expect(reopened.reserve({ ...next, lineage: { ...next.lineage, parentIncidentId: digest } }, later)).rejects.toThrow("RSI_LEDGER");
+    const staleObservation = intent(1, first.observation);
+    staleObservation.lineage.incidentEpoch = 2; staleObservation.lineage.parentIncidentId = next.lineage.parentIncidentId;
+    await expect(reopened.reserve(staleObservation, later)).rejects.toThrow("RSI_LEDGER");
+    await expect(reopened.reserve(next, later)).rejects.toThrow("RSI_LEDGER_BUDGET");
+    next.maximumCostUnits = 40; expect((await reopened.reserve(next, later)).authorized).toBe(true);
+    expect((await reopened.read()).runs).toHaveLength(2);
+    expect((await reopened.read()).config.limits).toEqual(limits);
+  });
+
+  it("requires distinct valid operator authorization and closure receipts", async () => {
+    const ledger = await create(await path()), first = intent(); await ledger.reserve(first, now); await finish(ledger, first.lineage.runId);
+    const close = { kind: "OPERATOR_CLOSED", incidentKey: first.lineage.incidentKey, incidentEpoch: 1,
+      authorization: { ...evidence(), kind: "AUTHORIZATION", verdict: "PASS" }, evidence: { ...evidence(), kind: "OUTCOME", verdict: "PASS" } };
+    const { authorization, ...missing } = close;
+    for (const invalid of [missing,
+      { ...close, authorization: { ...authorization, kind: "OBSERVATION" } },
+      { ...close, authorization: { ...authorization, verdict: "UNKNOWN" } },
+      { ...close, authorization: { ...authorization, verdict: "FAIL" } },
+      { ...close, authorization: { ...authorization, evidenceId: close.evidence.evidenceId } },
+      { ...close, evidence: { ...close.evidence, verdict: "UNKNOWN" } },
+      { ...close, evidence: { ...close.evidence, kind: "LIVE_PROBE" } },
+      { ...close, operatorName: "private-value" },
+      { ...close, kind: "RECOVERY_CONFIRMED" },
+    ]) await expect(ledger.closeIncident(invalid, now)).rejects.toThrow("RSI_LEDGER");
+    expect((await ledger.read()).closures).toEqual([]);
+    await ledger.closeIncident(close, now); expect((await ledger.read()).closures).toHaveLength(1);
   });
 
   it("counts pending reservations on the new KST day/month until settled", async () => {
@@ -159,7 +207,7 @@ describe("local RSI ledger", () => {
 
   it("requires terminal settlement to close an epoch and preserves rejected evidence", async () => {
     const ledger = await create(await path()); const first = intent(); await ledger.reserve(first, now);
-    const close = { incidentKey: first.lineage.incidentKey, incidentEpoch: 1, evidence: { ...evidence(), kind: "LIVE_PROBE", verdict: "PASS" } };
+    const close = { kind: "RECOVERY_CONFIRMED", incidentKey: first.lineage.incidentKey, incidentEpoch: 1, evidence: { ...evidence(), kind: "LIVE_PROBE", verdict: "PASS" } };
     await expect(ledger.closeIncident(close, now)).rejects.toThrow("RSI_LEDGER");
     await ledger.transition({ runId: first.lineage.runId, transition: { ...terminal(), to: "REJECTED", reasonCode: "POLICY_REJECTED" } }, now);
     await expect(ledger.closeIncident(close, now)).rejects.toThrow("RSI_LEDGER");

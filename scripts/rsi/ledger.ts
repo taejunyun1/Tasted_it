@@ -32,10 +32,24 @@ const receiptSchema = z.strictObject({
   chargedUnits: units.nullable(), receiptDigest: digest,
 }).refine((v) => v.kind === "AMBIGUOUS" ? v.chargedUnits === null : v.chargedUnits !== null);
 const transitionSchema = z.strictObject({ runId: id, transition: z.unknown().transform(assertTransition) });
-const closureSchema = z.strictObject({
+const closureIdentity = {
   incidentKey: digest, incidentEpoch: z.number().int().min(1).max(1_000_000),
-  evidence: z.unknown().transform(parseEvidenceReference),
-}).refine((v) => v.evidence.kind === "LIVE_PROBE" && v.evidence.verdict === "PASS");
+};
+const closureSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    ...closureIdentity, kind: z.literal("RECOVERY_CONFIRMED"),
+    evidence: z.unknown().transform(parseEvidenceReference),
+  }).refine((v) => v.evidence.kind === "LIVE_PROBE" && v.evidence.verdict === "PASS"),
+  z.strictObject({
+    ...closureIdentity, kind: z.literal("OPERATOR_CLOSED"),
+    authorization: z.unknown().transform(parseEvidenceReference),
+    evidence: z.unknown().transform(parseEvidenceReference),
+  }).refine((v) => v.authorization.kind === "AUTHORIZATION" && v.authorization.verdict === "PASS"
+    && v.evidence.kind === "OUTCOME" && v.evidence.verdict === "PASS"
+    && v.authorization.evidenceId !== v.evidence.evidenceId),
+]);
+// OPERATOR_CLOSED receipts attest to the authorized closure action, not recovery.
+// As with other evidence, their provenance must be supplied by the trusted caller.
 const eventSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("CREATE"), atUtc: utc, data: configSchema }),
   z.strictObject({ type: z.literal("RESERVE"), atUtc: utc, data: reserveSchema }),
@@ -184,8 +198,11 @@ function apply(state: RsiLedgerState, event: Exclude<Event, { type: "CREATE" }>)
       const runs = state.runs.filter((r) => r.lineage.incidentKey === data.incidentKey && r.lineage.incidentEpoch === data.incidentEpoch);
       if (!runs.length || runs.some((r) => !terminalStatuses.includes(r.status) || !r.settlement)) fail();
       const previous = state.closures.find((c) => c.incidentKey === data.incidentKey && c.incidentEpoch === data.incidentEpoch);
-      if (previous) { if (!same(previous.evidence, data.evidence)) fail(); changed = false; }
-      else state.closures.push({ ...data, atUtc: event.atUtc });
+      if (previous) {
+        const { atUtc: _closedAt, ...original } = previous;
+        if (!same(original, data)) fail();
+        changed = false;
+      } else state.closures.push({ ...data, atUtc: event.atUtc });
       break;
     }
   }
