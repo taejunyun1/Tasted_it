@@ -2,8 +2,8 @@
 
 - 담당: Jay/Codex
 - 추적: [Issue #319](https://github.com/taejunyun1/Tasted_it/issues/319), [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320), [설계 PR #305](https://github.com/taejunyun1/Tasted_it/pull/305)
-- 범위: R1/T1 사건·계보 계약, R1/T2 로컬 합성 원장·승인 기록 조회
-- 상태: R1 로컬 합성 구현. [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320)의 병합 범위에만 한정 GO이며, R2–R6은 별도 단계다.
+- 범위: R1 사건·계보·원장·기억, R2 고정 평가, R3 로컬 합성 격리·broker·수신자 오류 한 건의 복구 감독기
+- 상태: R1의 승인 기준은 [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320)의 병합 범위다. R3 로컬 합성 구현은 아래 별도 절에 기록하며 운영 GO나 자기개선 효과로 승격하지 않는다. 각 후속 단계의 승인 기준은 해당 병합 PR이다.
 
 ## 이번 단계에서 만드는 것
 
@@ -34,7 +34,7 @@
 - 로컬 POSIX 파일시스템의 mkdir·rename·fsync를 전제로 한다. partial file·남은 lock·경합은 합성 시험했지만 실제 전원 장애, Windows, 네트워크 파일시스템은 검증하지 않았다. 파일·symlink 검사는 같은 UID의 악성 프로세스를 격리하는 sandbox가 아니다. 원장 상위 디렉터리, 기준값, 시각과 영수증은 신뢰된 호출자가 보호해야 한다.
 - 회당 파일은 최대 256 KiB, revision은 최대 10,000개다. 상한에서 중단하며 자동 압축·삭제는 없다. unsigned SHA256은 외부 기준값에 대한 변경 검출이며 작성자 인증이 아니다.
 - 자유 서술 원문 대신 고정 분류, 식별자와 digest를 사용한다. 이 구조는 데이터 최소화이며 모든 비밀값을 탐지한다는 보장은 아니다. 실제 운영 증거를 입력하는 수집기는 별도 검토가 필요하다.
-- 코드가 자신의 전략을 바꾸거나, 모델을 호출하거나, 실제 장애를 복구하는 단계는 아직 구현하지 않는다. R1 검증을 자기개선 효과의 증거로 발표하지 않는다.
+- R1은 코드의 전략 수정·모델 호출·실제 장애 복구를 구현하지 않는다. 아래 R3도 고정 fake를 사용하는 한정 합성 실험이며 자기개선 효과나 운영 복구의 증거가 아니다.
 - 기존 Worker 헬스체크, 두 cron, 학생 초대·좌석·배정과 중지된 알림은 이 구현과 독립적으로 유지한다.
 
 ## 로컬 검증
@@ -58,3 +58,45 @@ pnpm run build
 R2는 고정 재현·평가기, R3는 격리·broker와 한 사건 복구, R4는 전략 자기 수정, R5는 효과 시험, R6는 통제된 운영 연결이다. 각 단계의 소유 파일, 비용·개인정보·권한, 검증과 rollback은 후속 PR에서 정한다. 새 모델 호출, workflow dispatch, 운영 데이터 연결을 R1의 승인으로 수행하지 않는다.
 
 R1을 제거할 때는 구현 PR을 revert한다. 로컬 합성 기록을 운영 증거나 예산 원장으로 승격하지 않는다. 실제 운영 서비스와 기존 감사·학생 기록에는 복원 작업이 필요하지 않다.
+
+## R3: 합성 수신자 오류 한 건의 감독기
+
+R3 Task 4는 [Issue #323](https://github.com/taejunyun1/Tasted_it/issues/323)의 Jay/Codex 소유 범위다. `LOCAL_SYNTHETIC`에서 관측→두 가설→실제 native RED→제안 바이트 검증→독립 native GREEN→네 회귀→합성 `PR_READY`를 기록한다. `PR_READY`는 열린 사건으로 유지한다. 실제 GitHub PR·CI·병합·배포·라이브 확인·사건 종료는 실행하지 않는다. R3의 병합·승인 상태는 해당 구현 PR이 기준이며 이 문서의 구현 설명만으로 운영 권한이 생기지 않는다.
+
+수정 가능한 서비스 영역은 `app/features/operations/rsi-self-check.ts`의 `fetchPath` 초기화식뿐이다. 제안은 `{action:"PATCH",path,baseSourceDigest,find,replace}`로 받는다. `find`가 원본의 해당 식 안에서 정확히 한 번 일치해야 하며, 대체한 식 바깥의 모든 바이트를 유지한다. 허용식은 `input`·`globalThis`와 비계산형 `fetch`·`bind` 접근, 단일 수신자 인자를 받는 `bind` 호출뿐이다. 상태/리다이렉트 판정 약화, callback·대입·새 객체·동적 접근, 다른 파일, `.server.ts`, auth·workflow·감독기·평가기 변경은 거절한다. 감독기가 올바른 교체 바이트를 고르거나 삽입하지 않는다. 이 경계는 일반 앱 수리기가 아니며 새로운 원인과 패치 영역은 별도 승인 대상이다.
+
+진단 출력은 `action:"DIAGNOSE"`, 서로 다른 원인 가설 최소 두 개, `PUBLIC_SIX_PATHS` 재현 선택과 관련 회귀 목록을 포함한다. 각 가설의 supporting/refuting evidence ID는 관측에 존재하거나 `UNKNOWN`이어야 한다. 확신 점수나 `PASS` 주장은 받지 않는다. 고정 필수 회귀는 정상, 일반 HTTP 실패, 인증 리다이렉트 실패, 인증 상태 실패다. 외부 장애를 정확하게 보고한 `NO_CHANGE/EXTERNAL_FAILURE`와 `greenVerified:false`는 정상 회귀 결과다. 외부 HTTP를 200으로 바꾸는 수정은 허용하지 않는다.
+
+기본 fake 응답 `{action:"NO_CHANGE",reason:"LOCAL_FAKE"}`를 존중한다. 정상/외부 실패의 무수정 결과는 native 근거가 있을 때 `NO_CHANGE`로 끝난다. 실패가 남은 상태의 무수정 답은 `INCONCLUSIVE/NO_CHANGE_UNCONFIRMED`로 남기고 패치를 대신 만들지 않는다. 두 후보가 실패하면 `INCONCLUSIVE/CANDIDATE_LIMIT`, 재현 실패는 `INCONCLUSIVE/REPRODUCTION_FAILED`, 격리 backend/이미지 미검증은 `BLOCKED`다. 전체 상한은 두 후보·120초·모델 8요청이며 기존 broker가 73,552 MICRO_USD 최악 비용을 한 번 예약한다. 미확인 사용량은 전액을 소비하고 실패 이력을 초기화하지 않는다.
+
+새 외부 실행 전에는 남은 시간이 해당 고정 실행과 cleanup 상한을 모두 덮어야 한다. 컨테이너 한 번의 create/inspect/final-inspect/rm은 각 5초이고 start는 agent 3초/native 15초이므로 합계는 23초/35초다. agent 검증에는 info/image 각 5초와 최초 local endpoint 조회 5초를 더해 38초, native 검증에는 info/두 image 조회 15초와 isolation/runtime probe 각 35초를 합쳐 85초를 확보한다. 모델 요청 전에는 30초를 확보한다. 각 await 뒤와 상태 승격 전후에도 동일한 전체 monotonic deadline과 kill switch를 재검사한다. 로컬 파일·문법 처리·내구 기록의 OS 정지는 별도의 실시간 보장이 아니며, 그 작업이 시간을 넘기면 후속 후보 실행이나 성공 승격을 허용하지 않는다. 실행 중인 컨테이너는 기존 3초/15초와 cleanup 경계로 끝내며 새 capability로 대체하지 않는다.
+
+### 신뢰된 호출자의 순서
+
+1. 전용 합성 디렉터리에서 `LocalRsiLedger.create`를 최초 한 번 호출한다. 원장 밖의 별도 0700 감독기 디렉터리에 `ControllerCheckpointStore.create(path,ledger.checkpoint)`를 저장한다. 이후 재개는 외부에 보관한 동일 기준값으로 `LocalRsiLedger.open`과 `ControllerCheckpointStore.open`을 사용한다. 디스크 최신 head를 자동 채택하지 않는다.
+2. `loadSeedAgentSources()`는 두 전략 파일을 문자열로 읽는다. `compileAgentSources(sources)`는 정확한 두 경로의 닫힌 문법 bundle을 만들고 `agentHash`, 모듈 digest와 `compiledDigest`를 반환한다. 호스트에서 전략 module을 import·eval·실행하지 않는다. 변경된 전략의 유일한 import는 repair→`./diagnostic-policy`다.
+3. `recoverSyntheticIncident({ledger,checkpointStore,observation,baseSource,agentSources,killSwitch,...})`를 호출한다. 입력은 감독기 소유이며 후보 JSON을 options로 넘기지 않는다. `scenarios`는 고정 fake 진단/패치 자료만 받는다. 진단·패치 결정은 같은 활성 전략 bundle을 실제 컨테이너에서 실행해 얻는다. 후보에게는 공개 소스·익명 합성 관측·허용 편집 영역·선택된 승인 lesson 정책만 전달하며 fixture·oracle·기대 정답·manifest는 전달하지 않는다.
+4. native manifest는 고정 경로와 정규화 SHA-256 `605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae`로 고정한다. 별도 격리 capability의 실제 `DOCKER_CLI` 실행을 사용한다. 소스/입력 hash, 로그 두 pipe의 EOF·오류 0, disposal·cleanup·실행 trace/응답 binding을 확인한다. 후보 JSON이나 주입 transport의 그럴듯한 영수증은 실행 권한이나 복구 근거가 아니다.
+5. 모든 원장 mutation 뒤 checkpoint를 `pending` 독점 생성→fsync→rename→디렉터리 fsync로 보존한다. 오래된 기준값, 남은 pending, 불명확한 쓰기는 `BLOCKED/ACCOUNTING_UNCERTAIN`이다. 삭제·재생성·새 pool·새 capability로 실패를 우회하지 않는다. 불완전 native 결과는 `UNKNOWN` 근거와 실제로 도달한 단계까지 보존한다.
+
+반환값에는 상태·계보·candidate 수·정산·외부 실행 근거의 immutable snapshot만 남는다. 원문 소스와 실제 Docker endpoint/home 경로를 기록하지 않는다. `actualRecovery`는 항상 `false`다. 네 CI 영수증은 `LOCAL_SYNTHETIC_CI`이며 네 native 회귀에 연결한 로컬 계약 자료다. 실제 unit/integration/build/Playwright CI를 실행했다는 주장이 아니다.
+
+`lineage.controllerHash`는 고정 감독기·broker·원장·기억·sandbox·공통 backend·정책·package/lock bytes를 묶는다. `lineage.evaluatorHash`는 기존 R2 hash를 대체하지 않고 상위 closure로서 R2 evaluator/contracts/oracle, native executor/wrapper/guard/harness, 공통 backend, 두 평가 manifest·runtime/image·고정 한도를 포함한다. 변경 가능한 두 agent module은 별도 `candidateAgentHash`와 compiled digest에 묶는다.
+
+### R4 연결과 검증
+
+`compileAgentSources(g1Sources)`의 실제 `source`를 `DockerSandbox.verify().execute({schemaVersion:1,source,input:{schemaVersion:1,taskKind:"improve-agent",payload}})`에 전달하면 repair와 동일한 활성 hash/격리 ABI로 g1을 실행할 수 있다. 출력은 끝까지 untrusted data다. R4는 새로 생성된 정확한 두 module 바이트를 별도 검증·bundle하고, 새 세션의 repair 실행에 `agentSources:g2Sources,parentAgentHash:g1.agentHash`를 제공해야 한다. 세대 숫자만 올리는 것을 인정하지 않는다. 이 seed는 LOCAL_FAKE 응답을 전달하는 순수 전략이며 실제 모델 기여·자가수정·개선 효과를 증명하지 않는다.
+
+```sh
+pnpm exec vitest run tests/unit/rsi-controller.test.ts
+RSI_CONTROLLER_PROBE=1 pnpm exec vitest run tests/unit/rsi-controller.test.ts
+pnpm run typecheck
+pnpm test
+pnpm run build
+pnpm audit --prod
+pnpm audit
+```
+
+기본 시험은 호스트의 순수 계약·거절 분기와 주입 자료 시험이다. opt-in은 변경하지 않은 기존 검증 이미지에서 실제 전체 흐름, 정상/외부 실패 무수정, 무수정 거절·금지 패치·두 후보 중단, improve-agent ABI를 확인하고 `.superpowers/sdd/r3-implementation-plan/controller-receipts.jsonl`에 추가 기록한다. 최초 불완전 실행 뒤 남은 campaign은 중단한다. backend가 없으면 `BLOCKED`이며 skip을 실제 통과로 세지 않는다. native artifact 변경이나 불명확한 cleanup이 발견되면 자동 rebuild·manifest 갱신·재시도 대신 원래 증거를 보존하고 별도 범위를 보고한다.
+
+이번 변경은 운영 앱 파일·provider·학생 자료·credential·Cloudflare binding·cron·workflow·의존성을 바꾸지 않는다. 제거는 해당 구현 PR의 범위 revert로 처리하며 합성 기록을 운영 기록으로 승격하거나 기존 운영 데이터를 복원하지 않는다.
