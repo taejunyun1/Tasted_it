@@ -245,6 +245,14 @@ function transportDiagnosticSelected(environment: NodeJS.ProcessEnv, pattern: un
     && Object.getOwnPropertyDescriptor(RegExp.prototype, "source")!.get!.call(pattern) === transportDiagnosticPattern
     && Object.getOwnPropertyDescriptor(RegExp.prototype, "flags")!.get!.call(pattern) === "";
 }
+function transportDiagnosticTraceComplete(commands: readonly DockerCommandLifecycle[], containers: 2 | 3) {
+  const ordered = [...commands].sort((a, b) => a.ordinal - b.ordinal);
+  const minimum = 3 + containers * 5;
+  return ordered.length >= minimum && ordered.length <= minimum + 1 && ordered.every((item, index) => item.ordinal === index + 1
+    && item.close.atMs !== null && item.close.code === 0 && item.timer.firedMs === null && item.kill.requestedMs === null && !item.observerError
+    && item.stdout.endMs !== null && item.stderr.endMs !== null && item.stdout.error === null && item.stderr.error === null && item.stdin.error === null)
+    && ordered.filter(item => item.command === "CREATE").length === containers && ordered.filter(item => item.command === "START").length === containers && ordered.filter(item => item.command === "RM").length === containers;
+}
 
 describe("one-shot transport diagnostic admission", () => {
   const pattern = "^records one pinned transport lifecycle diagnostic without retry$";
@@ -266,6 +274,21 @@ describe("one-shot transport diagnostic admission", () => {
       expect(pattern instanceof RegExp).toBe(true);
       expect(Object.getOwnPropertyDescriptor(RegExp.prototype, "source")!.get!.call(pattern)).toBe(expected);
     }
+  });
+  it("requires complete admission custody before a third container can be selected", () => {
+    const pipe = { bytes: 0, chunks: 0, firstMs: null, lastMs: null, endMs: 1, closeMs: 1, error: null };
+    const commands = ["CONTEXT", "INFO", "IMAGE_INSPECT", "IMAGE_INSPECT", "CREATE", "INSPECT", "START", "INSPECT", "RM", "CREATE", "INSPECT", "START", "INSPECT", "RM"] as const;
+    const admission = commands.map((command, index) => dockerCommandLifecycleSchema.parse({ schemaVersion: 1, command, ordinal: index + 1, phase: "OTHER", timeoutMs: 5000, elapsedMs: 1,
+      spawn: { invoked: true, observed: true, error: null }, stdin: { endInvoked: true, callback: true, finish: true, drainCount: 0, error: null }, stdout: pipe, stderr: pipe,
+      exit: { atMs: 1, code: 0, signal: null }, close: { atMs: 1, code: 0, signal: null }, timer: { firedMs: null }, kill: { requestedMs: null, returned: null, error: null },
+      nativeReady: "UNOBSERVED", nativeDispatch: "UNOBSERVED", observerError: false, events: [] }));
+    expect(transportDiagnosticTraceComplete(admission, 2)).toBe(true);
+    expect(transportDiagnosticTraceComplete(admission.slice(1).map((item, index) => ({ ...item, ordinal: index + 1 })), 2)).toBe(true);
+    const missingCommand = admission.filter(item => item.ordinal !== 7);
+    const missingTerminal = admission.map(item => item.ordinal === 7 ? { ...item, close: { ...item.close, atMs: null } } : item);
+    const missingEof = admission.map(item => item.ordinal === 7 ? { ...item, stdout: { ...item.stdout, endMs: null } } : item);
+    const missingProbe = admission.map(item => item.ordinal === 12 ? { ...item, command: "INFO" as const } : item);
+    for (const incomplete of [[], missingCommand, missingTerminal, missingEof, missingProbe]) expect(transportDiagnosticTraceComplete(incomplete, 2)).toBe(false);
   });
 });
 
@@ -349,6 +372,7 @@ it.runIf(process.env.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1")(transportDiagnosti
     release = observeDockerLifecycle(observer); flush();
     const executor = await NativeExecutor.verify(manifest);
     if (observerError || persistenceError) { record.stopReason = "OBSERVER_INTEGRITY"; throw Error("DIAGNOSTIC_OBSERVER"); }
+    if (!transportDiagnosticTraceComplete([...snapshots.values()], 2)) { record.stopReason = "ADMISSION_TRACE_UNVERIFIED"; throw Error("DIAGNOSTIC_ADMISSION_TRACE"); }
     phase = "EVALUATE"; flush();
     const result = await executor.evaluate({ path: NATIVE_SOURCE_PATH, source: candidate, sourceDigest: plan.sourceDigest, fixture: "AUTH_REDIRECT_FAILURE" });
     const provenance = result.provenance;
@@ -369,11 +393,7 @@ it.runIf(process.env.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1")(transportDiagnosti
       deadlineExpired: known.deadlineExpired, disposalConfirmed: known.disposalConfirmed, cleanupConfirmed: known.cleanupConfirmed,
       logs: known.logs ? { valid: known.logs.valid, warningCount: known.logs.warningCount, rejectedCount: known.logs.rejectedCount, ...known.logs.custody } : undefined });
     const reasonCode = z.enum(["NORMAL", "EXTERNAL_FAILURE", "SIX_PATHS_VERIFIED", "ORACLE_MISMATCH", "RSI_SANDBOX_CLEANUP", "RSI_SANDBOX_TIMEOUT", "RSI_SANDBOX_OUTPUT_LIMIT", "RSI_SANDBOX_BLOCKED", "EXECUTION_UNVERIFIED", "EXECUTION_STDERR", "RECEIPT_MISMATCH", "RAW_LOG_CUSTODY_UNVERIFIED", "RUNTIME_DISPOSAL_UNVERIFIED", "INJECTED_TRANSPORT"]).safeParse(result.reasonCode);
-    const ordered = [...snapshots.values()].sort((a, b) => a.ordinal - b.ordinal);
-    const completeTrace = ordered.length >= 18 && ordered.length <= 19 && ordered.every((item, index) => item.ordinal === index + 1
-      && item.close.atMs !== null && item.close.code === 0 && item.timer.firedMs === null && item.kill.requestedMs === null && !item.observerError
-      && item.stdout.endMs !== null && item.stderr.endMs !== null && item.stdout.error === null && item.stderr.error === null && item.stdin.error === null)
-      && ordered.filter(item => item.command === "CREATE").length === 3 && ordered.filter(item => item.command === "START").length === 3 && ordered.filter(item => item.command === "RM").length === 3;
+    const completeTrace = transportDiagnosticTraceComplete([...snapshots.values()], 3);
     normalControl = result.verdict === "NO_CHANGE" && result.reasonCode === "EXTERNAL_FAILURE" && provenance.transportKind === "DOCKER_CLI"
       && evidenceDigests.success && evidenceDigests.data.sourceDigest === plan.sourceDigest && evidenceDigests.data.compiledDigest === plan.compiledDigest && evidenceDigests.data.manifestDigest === plan.manifestCanonicalDigest
       && receipt.success && receipt.data.callCount === 6 && receipt.data.dispatchAttempts === 1 && !receipt.data.deadlineExpired && receipt.data.disposalConfirmed && receipt.data.cleanupConfirmed
