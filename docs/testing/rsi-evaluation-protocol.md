@@ -73,3 +73,38 @@ pnpm audit
 첫 명령은 순수 oracle의 네 필드/trace 경계·조작 거절과 기존 workerd RED/GREEN·NO_CHANGE·timeout을 검증한다. 새 oracle 테스트는 변경 가능한 app/candidate source를 호스트에서 import하거나 실행하지 않고 고정 합성 자료만 비교한다. 나머지는 저장소 회귀와 빌드 검증이다. 합성 PASS는 실제 장애 복구, 자기개선 성능, CI 성공, 배포 또는 라이브 운영 성공과 별개다. 기존 개발 의존성 audit 결과는 별도 기록하며 prod 0만으로 전체 audit 통과라고 쓰지 않는다.
 
 이번 추출의 복원은 공통 oracle·R2 어댑터·추가 테스트·문서 변경을 함께 revert하는 것이다. R2 전체 복원은 평가 코드·fixture·테스트·문서를 revert한다. app·migration·binding·cron·운영 설정은 바뀌지 않아 원격 복원 명령이 없다.
+
+## Issue #329: 로컬 transport lifecycle 단일 진단
+
+[PR #330](https://github.com/taejunyun1/Tasted_it/pull/330)은 기존 Docker CLI의 bounded metadata 관측과 native UNKNOWN의 실패 frame 분류를 추가한다. 후보 ABI, oracle·판정, wrapper·runtime image·manifest, 실행 권한과 기존 격리는 그대로다. 이 진단은 로컬 연구 도구이며 운영 Worker 배포나 live RSI 검증이 아니다. 준비 checkpoint 현재 실제 측정은 **0회 / 내부 safety gate 대기**다.
+
+기본 unit은 외부 작업 없이 유지한다. 별도 사례 이름은 `records one pinned transport lifecycle diagnostic without retry`, flag는 `RSI_NATIVE_TRANSPORT_DIAGNOSTIC=1`, selector는 `^records one pinned transport lifecycle diagnostic without retry$`다. flag와 정확 selector가 모두 맞아야 하며 기존 `RSI_NATIVE_PREPARE`, `RSI_NATIVE_PROBE`, `RSI_NATIVE_SHUTDOWN_CONTROL`, `RSI_NATIVE_CAUSE_COLLECTION`, `RSI_NATIVE_DIAGNOSIS`는 값이 `0`이어도 설정하지 않는다. PREPARE/PROBE suite, 기존 cause batch·공유 receipt·capability는 사용하지 않는다. image build/pull은 0회다.
+
+실행 전 전용 `.superpowers/operations/rsi-transport-20261023-diagnostic/`를 새로 만들고 디렉터리 0700, 입력과 실행 artifact 0600을 확인한다. 원본 manifest exact bytes와 추적 main source를 사본으로 보존하며 원본·다른 workspace·R4 WIP·원장은 변경하지 않는다. symlink, 기존 측정 경로 재사용, pin 불일치나 dirty code는 실행 전에 차단한다. source/compiled 사본은 이 private 경로에만 두고 커밋·PR·위키·일반 로그에 올리지 않는다.
+
+| 고정 입력 | SHA-256 |
+| --- | --- |
+| source | `286873f23839d8587d91ddf9650ec46e8b9b6be0f7e2a7b18e63a4cdeaa85561` |
+| compiled | `8988dcc713e76fed9e0684b41a71e09c612dbd4c85c73d1ccc1f7f6c985b2d60` |
+| manifest canonical | `605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae` |
+| image ID | `sha256:b035afe75a5453408f0e878a9405d9f621203acad47763b82372f01d4c958d4b` |
+
+`input-digests.json`에는 manifest 원본/사본 raw digest·byte 수와 source/compiled digest를 기록한다. `run-plan.json`에는 위 pin, 실제 diagnostic/main commit, 저장소 내부 import closure·시험·설정·문서의 개별 digest, private supervisor/watchdog와 입력 metadata digest, 현 host Node/Python/client binary digest, 정확 flag/name/selector와 상한을 실행 전에 고정한다. 이는 전체 설치 dependency나 OS의 attestation이 아니다. 과거 host Node·Docker client identity는 UNKNOWN이며 image 내부 Node와 Docker server profile로 대체하지 않는다. 현재 client version도 별도 Docker 조회 없이 UNOBSERVED로 남긴다.
+
+부모의 내부 safety gate가 one-shot GO를 전달한 뒤, 고정한 private watchdog을 저장소 루트에서 한 번 실행한다.
+
+```sh
+python3 .superpowers/operations/rsi-transport-20261023-diagnostic/watchdog.py
+```
+
+watchdog은 그룹 밖의 독립 Python 프로세스다. `Popen(start_new_session=True)`로 새 supervisor session/group을 직접 만들고 메모리에서 생성·상속을 확인한 뒤 Vitest를 시작한다. Vitest는 `--pool=threads --maxWorkers=1 --no-file-parallelism --retry=0 --bail=1`과 위 정확 selector를 사용한다. 기존 CLI spawn의 group 상속은 유지하고 transport를 감싸거나 default singleton을 교체하지 않는다. PID/group ID, argv, endpoint/env 값은 출력·저장하지 않는다. supervisor/Vitest stdout·stderr는 `/dev/null`로 보내며 예외·stack·source excerpt를 보존하지 않는다.
+
+단일 monotonic 기준은 supervisor 생성 전부터 시작한다. 140초에 소유 group에 TERM, 145초에 KILL을 요청하고, signal·고정 grace·증거 drain을 포함해 150초에 관측을 끝낸다. 조기 supervisor 오류는 같은 group에 TERM을 요청하고 기존 145/150초 경계 안에서 종료한다. 이름 검색·전역 kill/prune·추가 rm·post-stop Docker 조회는 0회다. OS 스케줄링, kill 성공, close 도착이나 container 삭제의 hard real-time 완료를 보장하지 않는다. 관측 종료 뒤 삭제 부재는 항상 UNOBSERVED이며 내부 quarantine 확인과 외곽 재사용 금지 기록을 구분한다.
+
+호출은 default `NativeExecutor.verify()` **1회(기존 2 probes)**를 await하고, 성공과 진단 무결성이 확인된 경우에만 무수정 source로 `AUTH_REDIRECT_FAILURE` evaluate **1회**를 await한다. 최초 실패·UNKNOWN 뒤 retry·재verify·다른 fixture·추가 후보는 0회다. 고정 호출 그래프의 최대치는 endpoint 선택 cache 1 + 공통 admission 3 + container lifecycle 3×5 = **19 Docker commands / 3 containers**다. 각 lifecycle의 create→inspect→START→cleanup inspect→RM 순서와 START 15초·inspect/RM 5초·native wrapper 12초를 유지한다. observer ordinal/count는 이번 관측의 증거이며 실행 상한이나 차단 권한이 아니다. trace 누락 시 정적 최대치를 실제 실행 count로 쓰지 않는다.
+
+observer는 동기 `void` 함수이며 자체 try/catch 안에서 ordinal별 최신 닫힌 schema snapshot만 보존하고 finally에서 등록을 해제한다. 명령별 event 최대 64개, 출력 chunk는 first/last/count/bytes 집계만 남긴다. observer/저장 오류·누락은 진단 UNKNOWN이다. metadata/result에는 검증한 enum·digest·boolean·bounded count만 기록하며 raw stdout/stderr·원문 source·예외·secret은 넣지 않는다. 특수 Promise의 getter/rejection까지 격리한다는 보장은 없고 이 observer는 Promise/thenable을 반환하지 않는다.
+
+정상 실행의 control 기대값은 **NO_CHANGE / EXTERNAL_FAILURE**다. 실제 DOCKER_CLI, 요청 6회, dispatchAttempts/childSpawns 각 1, native log 유효성, stdout/stderr 자연 EOF, pipe error·premature close 0, deadlineExpired false, disposalConfirmed·backend cleanupConfirmed와 owner/name/ID 일치를 각각 확인한다. 이를 PASS/수리 효과로 바꾸지 않는다. 완성 EVALUATION frame이 있어도 START/cleanup 실패는 UNKNOWN이며 opt-in 시험도 실패로 끝난다. runner exit 0, native verdict, 진단 무결성, 과거 근본원인은 서로 별도 값이다. nativeReady/nativeDispatch 시각은 UNOBSERVED이며 host spawn/stdin finish/exit/close로 대신하지 않는다. host/daemon clock offset 미검증 상태에서 절대시각 인과 결합을 하지 않는다.
+
+단 한 번 control이 관측되어도 과거 START TIMEOUT과 독립 RM TIMEOUT의 원인·1480B frame 정체·과거 EOF/삭제 완료는 UNKNOWN이다. R4 HOLD를 유지하며 반복 안정성·모델 성능·R4 수용·운영 복구를 주장하지 않는다. 실패 artifact와 입력/code binding은 private로 보존하고 재실행하지 않는다. 복원은 #329 변경을 revert하는 것이며 원래 실패 원장·image·manifest를 고쳐 덮지 않는다. 별도 실제 container 정리는 이 측정의 권한에 포함하지 않는다.

@@ -1,4 +1,4 @@
-import { appendFileSync, readFileSync, readSync } from "node:fs";
+import { appendFileSync, readFileSync, readSync, lstatSync, realpathSync, writeFileSync, renameSync, openSync, closeSync } from "node:fs";
 import { spawn } from "node:child_process";
 import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
@@ -6,9 +6,12 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
 import { rootCertificates } from "node:tls";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import { compileNativeCandidate, NATIVE_SOURCE_PATH, prepareNativeRuntimeImage, NativeExecutor, nativeArtifactDigests, NATIVE_BUILD_FLAGS } from "../../scripts/rsi/native-executor";
-import { VerifiedContainerBackend, dockerTransport, createLocalDockerTransport, dockerCommandLifecycleSchema, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
+import { VerifiedContainerBackend, dockerTransport, createLocalDockerTransport, observeDockerLifecycle, decodeContainerDiagnostic, containerFailureDiagnosticSchema, containerTransportDiagnosticSchema, containerFailureFrameSchema, dockerCommandLifecycleSchema, type DockerCommandLifecycle, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
 import { NATIVE_RUNTIME, classifyNativeStartupError, verifyNativePublicCa, createNativeLogGate, withNativeWorkerdDeadline, observeNativeWorkerdPipes } from "../../scripts/rsi/native-wrapper";
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -224,6 +227,159 @@ describe("native candidate syntax compilation (never host evaluation)", () => {
     await expect(compileNativeCandidate(request(" ".repeat(65537)))).rejects.toThrow("RSI_NATIVE_INPUT");
   });
 });
+
+const transportDiagnosticName = "records one pinned transport lifecycle diagnostic without retry";
+const transportDiagnosticPattern = `^${transportDiagnosticName}$`;
+function transportDiagnosticSelected(environment: NodeJS.ProcessEnv, argv: readonly string[]) {
+  const selectors = argv.flatMap((value, index) => value === "-t" || value === "--testNamePattern" ? [argv[index + 1]] : value.startsWith("--testNamePattern=") ? [value.slice(18)] : []);
+  return environment.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1"
+    && Object.keys(environment).filter(key => key.startsWith("RSI_NATIVE_")).every(key => key === "RSI_NATIVE_TRANSPORT_DIAGNOSTIC")
+    && selectors.length === 1 && selectors[0] === transportDiagnosticPattern;
+}
+
+describe("one-shot transport diagnostic admission", () => {
+  const pattern = "^records one pinned transport lifecycle diagnostic without retry$";
+  it("requires the independent flag and exact selector with every legacy flag absent", () => {
+    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, ["-t", pattern])).toBe(true);
+    for (const environment of [{}, { RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "0" },
+      ...["PREPARE", "PROBE", "SHUTDOWN_CONTROL", "CAUSE_COLLECTION", "DIAGNOSIS"].map(flag => ({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1", [`RSI_NATIVE_${flag}`]: "0" }))]) {
+      expect(transportDiagnosticSelected(environment, ["-t", pattern])).toBe(false);
+    }
+    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, [])).toBe(false);
+    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, ["-t", ".*"])).toBe(false);
+    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, ["-t", pattern, "-t", ".*"])).toBe(false);
+  });
+});
+
+// Independent of the legacy PREPARE/PROBE suite. Registration performs no I/O.
+// Only the private outer watchdog starts this case; it suppresses raw test output.
+it.runIf(process.env.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1")(transportDiagnosticName, async () => {
+  const root = realpathSync(fileURLToPath(new URL("../../", import.meta.url)));
+  const directory = join(root, ".superpowers/operations/rsi-transport-20261023-diagnostic");
+  const digest = z.string().regex(/^[a-f0-9]{64}$/);
+  const closurePaths = ["package.json", "pnpm-lock.yaml", "vitest.config.ts", "scripts/rsi/container-backend.ts", "scripts/rsi/native-executor.ts", "scripts/rsi/native-wrapper.ts", "scripts/rsi/oracle.ts", "scripts/rsi/contracts.ts", "scripts/rsi/fixtures/native-runtime.Dockerfile", "tests/unit/rsi-native-executor.test.ts", "docs/testing/rsi-evaluation-protocol.md", "docs/main-change-history.md"] as const;
+  const privatePaths = ["supervisor.py", "watchdog.py", "prepare-inputs.mjs", "input-digests.json"] as const;
+  const planSchema = z.strictObject({ schemaVersion: z.literal(1), measurementId: z.literal("transport-20261023-one-shot"),
+    task1Commit: z.literal("7109495122d2ab1f5eeb9249736543201bf5c814"), diagnosticCommit: z.string().regex(/^[a-f0-9]{40}$/), mainCommit: z.string().regex(/^[a-f0-9]{40}$/),
+    sourceDigest: z.literal("286873f23839d8587d91ddf9650ec46e8b9b6be0f7e2a7b18e63a4cdeaa85561"), compiledDigest: z.literal("8988dcc713e76fed9e0684b41a71e09c612dbd4c85c73d1ccc1f7f6c985b2d60"),
+    manifestCanonicalDigest: z.literal("605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae"), manifestRawDigest: digest,
+    imageId: z.literal("sha256:b035afe75a5453408f0e878a9405d9f621203acad47763b82372f01d4c958d4b"), nodeDigest: digest, pythonDigest: digest, dockerClientDigest: digest, hostNodeVersion: z.string().regex(/^v[0-9]+\.[0-9]+\.[0-9]+$/),
+    fixture: z.literal("AUTH_REDIRECT_FAILURE"), flag: z.literal("RSI_NATIVE_TRANSPORT_DIAGNOSTIC=1"), testName: z.literal(transportDiagnosticName), selector: z.literal(transportDiagnosticPattern),
+    maxContainers: z.literal(3), maxCommands: z.literal(19), postStopDockerQueries: z.literal(0), verifyCalls: z.literal(1), evaluateCalls: z.literal(1),
+    outer: z.strictObject({ termMs: z.literal(140000), killMs: z.literal(145000), drainMs: z.literal(150000) }),
+    closure: z.array(z.strictObject({ path: z.enum(closurePaths), digest })).length(closurePaths.length),
+    privateArtifacts: z.array(z.strictObject({ path: z.enum(privatePaths), digest })).length(privatePaths.length) });
+  const fileHash = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
+  const privateRead = (name: string) => {
+    const path = join(directory, name), stat = lstatSync(path);
+    if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.size > 131072 || realpathSync(path) !== path) throw Error("DIAGNOSTIC_INPUT");
+    return readFileSync(path, "utf8");
+  };
+  let plan: z.infer<typeof planSchema>;
+  let candidate: string;
+  let manifest: unknown;
+  try {
+    if (!transportDiagnosticSelected(process.env, process.argv) || process.env.RSI_TRANSPORT_SUPERVISED !== "GROUP_BOUND") throw Error("DIAGNOSTIC_GUARD");
+    const stat = lstatSync(directory);
+    if (stat.isSymbolicLink() || !stat.isDirectory() || (stat.mode & 0o777) !== 0o700 || realpathSync(directory) !== directory) throw Error("DIAGNOSTIC_DIRECTORY");
+    plan = planSchema.parse(JSON.parse(privateRead("run-plan.json")));
+    const git = (...args: string[]) => childProcess.execFileSync("git", args, { cwd: root, stdio: ["ignore", "pipe", "ignore"], maxBuffer: 131072 });
+    if (git("rev-parse", "HEAD").toString().trim() !== plan.diagnosticCommit || git("status", "--porcelain", "--untracked-files=no").length) throw Error("DIAGNOSTIC_CODE");
+    for (const [paths, values, base] of [[closurePaths, plan.closure, root], [privatePaths, plan.privateArtifacts, directory]] as const) {
+      if (new Set(values.map(item => item.path)).size !== paths.length) throw Error("DIAGNOSTIC_CLOSURE");
+      for (const item of values) if (lstatSync(join(base, item.path)).isSymbolicLink() || fileHash(join(base, item.path)) !== item.digest) throw Error("DIAGNOSTIC_CLOSURE");
+    }
+    if (fileHash(process.execPath) !== plan.nodeDigest || process.version !== plan.hostNodeVersion) throw Error("DIAGNOSTIC_RUNTIME");
+    candidate = privateRead("source.ts");
+    const compiled = await compileNativeCandidate({ path: NATIVE_SOURCE_PATH, source: candidate, sourceDigest: plan.sourceDigest });
+    if (hash(candidate) !== plan.sourceDigest || hash(privateRead("compiled.mjs")) !== plan.compiledDigest || compiled.compiledDigest !== plan.compiledDigest || compiled.script !== privateRead("compiled.mjs")
+      || createHash("sha256").update(git("show", `${plan.mainCommit}:${NATIVE_SOURCE_PATH}`)).digest("hex") !== plan.sourceDigest) throw Error("DIAGNOSTIC_BINDING");
+    const raw = privateRead("manifest.json"); manifest = JSON.parse(raw);
+    if (hash(raw) !== plan.manifestRawDigest || hash(JSON.stringify(manifest)) !== plan.manifestCanonicalDigest || (manifest as { imageId?: unknown }).imageId !== plan.imageId) throw Error("DIAGNOSTIC_MANIFEST");
+    // NativeExecutor.verify performs the unchanged strict manifest/artifact/runtime admission.
+    closeSync(openSync(join(directory, "case-started.lock"), "wx", 0o600));
+  } catch { throw Error("RSI_TRANSPORT_PREACTUAL_BLOCKED"); }
+
+  const bindings = { measurementId: plan.measurementId, diagnosticCommit: plan.diagnosticCommit, mainCommit: plan.mainCommit,
+    closureDigest: hash(JSON.stringify(plan.closure)), privateArtifactsDigest: hash(JSON.stringify(plan.privateArtifacts)), sourceDigest: plan.sourceDigest,
+    compiledDigest: plan.compiledDigest, manifestRawDigest: plan.manifestRawDigest, manifestCanonicalDigest: plan.manifestCanonicalDigest, imageId: plan.imageId,
+    hostNodeVersion: process.version, nodeDigest: plan.nodeDigest, pythonDigest: plan.pythonDigest, dockerClientDigest: plan.dockerClientDigest, dockerClientVersion: "UNOBSERVED" };
+  const snapshots = new Map<number, DockerCommandLifecycle>();
+  let observerError = false, persistenceError = false;
+  let phase: "VERIFY" | "EVALUATE" | "STOPPED" = "VERIFY";
+  const persist = (name: "metadata.json" | "result.json", value: unknown): void => {
+    const path = join(directory, name), temporary = `${path}.tmp`;
+    // The private directory was created exclusively for this attempt; no append or shared ledger.
+    const data = JSON.stringify(value);
+    if (Buffer.byteLength(data) > 262144) throw Error("DIAGNOSTIC_METADATA_LIMIT");
+    writeFileSync(temporary, data + "\n", { mode: 0o600, flag: "wx" }); renameSync(temporary, path);
+  };
+  const flush = (): void => persist("metadata.json", { schemaVersion: 1, bindings, phase, observerError, persistenceError,
+    commands: [...snapshots.values()].sort((a, b) => a.ordinal - b.ordinal), postStopAbsence: "UNOBSERVED", nativeReady: "UNOBSERVED", nativeDispatch: "UNOBSERVED" });
+  const observer = (raw: Readonly<DockerCommandLifecycle>): void => {
+    try {
+      const snapshot = decodeContainerDiagnostic(dockerCommandLifecycleSchema, raw) as DockerCommandLifecycle | undefined;
+      if (!snapshot || snapshot.ordinal > 19 || snapshot.observerError || (!snapshots.has(snapshot.ordinal) && snapshots.size >= 19)) { observerError = true; return; }
+      snapshots.set(snapshot.ordinal, snapshot); flush();
+    } catch { observerError = true; persistenceError = true; }
+  };
+  let release: (() => void) | undefined;
+  let normalControl = false;
+  let record: Record<string, unknown> = { schemaVersion: 1, bindings, status: "UNKNOWN", rootCause: "UNKNOWN", controlVerdict: null,
+    stopReason: "ADMISSION_FAILED", postStopAbsence: "UNOBSERVED", quarantineRequired: true, backendQuarantineConfirmed: null };
+  try {
+    release = observeDockerLifecycle(observer); flush();
+    const executor = await NativeExecutor.verify(manifest);
+    if (observerError || persistenceError) { record.stopReason = "OBSERVER_INTEGRITY"; throw Error("DIAGNOSTIC_OBSERVER"); }
+    phase = "EVALUATE"; flush();
+    const result = await executor.evaluate({ path: NATIVE_SOURCE_PATH, source: candidate, sourceDigest: plan.sourceDigest, fixture: "AUTH_REDIRECT_FAILURE" });
+    const provenance = result.provenance;
+    const transport = decodeContainerDiagnostic(containerTransportDiagnosticSchema, Object.getOwnPropertyDescriptor(provenance, "transport")?.value);
+    const failureFrame = decodeContainerDiagnostic(containerFailureFrameSchema, Object.getOwnPropertyDescriptor(provenance, "failureFrame")?.value);
+    const cleanupFailure = decodeContainerDiagnostic(containerFailureDiagnosticSchema, Object.getOwnPropertyDescriptor(provenance, "cleanupFailure")?.value);
+    const startFailure = decodeContainerDiagnostic(containerFailureDiagnosticSchema, { startFailure: Object.getOwnPropertyDescriptor(provenance, "startFailure")?.value });
+    const receiptSchema = z.strictObject({ callCount: z.number().int().min(0).max(6), childSpawns: z.literal(1), dispatchAttempts: z.literal(1), deadlineExpired: z.boolean(), disposalConfirmed: z.boolean(), cleanupConfirmed: z.boolean(),
+      logs: z.strictObject({ valid: z.boolean(), warningCount: z.number().int().min(0).max(32768), rejectedCount: z.number().int().min(0).max(32768),
+        stdoutEof: z.boolean(), stderrEof: z.boolean(), errorCount: z.number().int().min(0).max(2), prematureCloseCount: z.number().int().min(0).max(2) }) });
+    const known = provenance as typeof provenance & { callCount?: number; childSpawns?: number; dispatchAttempts?: number; deadlineExpired?: boolean; disposalConfirmed?: boolean; cleanupConfirmed?: boolean;
+      receiptDigest?: string; traceDigest?: string; responseDigest?: string;
+      logs?: { valid: boolean; warningCount: number; rejectedCount: number; custody: { stdoutEof: boolean; stderrEof: boolean; errorCount: number; prematureCloseCount: number } } };
+    const evidenceDigests = z.strictObject({ receiptDigest: digest, traceDigest: digest, responseDigest: digest, sourceDigest: digest, compiledDigest: digest, manifestDigest: digest }).safeParse({
+      receiptDigest: known.receiptDigest, traceDigest: known.traceDigest, responseDigest: known.responseDigest,
+      sourceDigest: known.sourceDigest, compiledDigest: known.compiledDigest, manifestDigest: known.manifestDigest });
+    const receipt = receiptSchema.safeParse({ callCount: known.callCount, childSpawns: known.childSpawns, dispatchAttempts: known.dispatchAttempts,
+      deadlineExpired: known.deadlineExpired, disposalConfirmed: known.disposalConfirmed, cleanupConfirmed: known.cleanupConfirmed,
+      logs: known.logs ? { valid: known.logs.valid, warningCount: known.logs.warningCount, rejectedCount: known.logs.rejectedCount, ...known.logs.custody } : undefined });
+    const reasonCode = z.enum(["NORMAL", "EXTERNAL_FAILURE", "SIX_PATHS_VERIFIED", "ORACLE_MISMATCH", "RSI_SANDBOX_CLEANUP", "RSI_SANDBOX_TIMEOUT", "RSI_SANDBOX_OUTPUT_LIMIT", "RSI_SANDBOX_BLOCKED", "EXECUTION_UNVERIFIED", "EXECUTION_STDERR", "RECEIPT_MISMATCH", "RAW_LOG_CUSTODY_UNVERIFIED", "RUNTIME_DISPOSAL_UNVERIFIED", "INJECTED_TRANSPORT"]).safeParse(result.reasonCode);
+    const ordered = [...snapshots.values()].sort((a, b) => a.ordinal - b.ordinal);
+    const completeTrace = ordered.length >= 18 && ordered.length <= 19 && ordered.every((item, index) => item.ordinal === index + 1
+      && item.close.atMs !== null && item.close.code === 0 && item.timer.firedMs === null && item.kill.requestedMs === null && !item.observerError
+      && item.stdout.endMs !== null && item.stderr.endMs !== null && item.stdout.error === null && item.stderr.error === null && item.stdin.error === null)
+      && ordered.filter(item => item.command === "CREATE").length === 3 && ordered.filter(item => item.command === "START").length === 3 && ordered.filter(item => item.command === "RM").length === 3;
+    normalControl = result.verdict === "NO_CHANGE" && result.reasonCode === "EXTERNAL_FAILURE" && provenance.transportKind === "DOCKER_CLI"
+      && evidenceDigests.success && evidenceDigests.data.sourceDigest === plan.sourceDigest && evidenceDigests.data.compiledDigest === plan.compiledDigest && evidenceDigests.data.manifestDigest === plan.manifestCanonicalDigest
+      && receipt.success && receipt.data.callCount === 6 && receipt.data.dispatchAttempts === 1 && !receipt.data.deadlineExpired && receipt.data.disposalConfirmed && receipt.data.cleanupConfirmed
+      && receipt.data.logs.valid && receipt.data.logs.warningCount === 1 && receipt.data.logs.rejectedCount === 0 && receipt.data.logs.stdoutEof && receipt.data.logs.stderrEof && !receipt.data.logs.errorCount && !receipt.data.logs.prematureCloseCount
+      && !!transport && transport.cleanup.inspectReturned === true && transport.cleanup.nameMatch === true && transport.cleanup.ownerMatch === true && transport.cleanup.idMatch === true && transport.cleanup.rmInvoked && transport.cleanup.rmReturned === true
+      && completeTrace && !observerError && !persistenceError;
+    record = { ...record, status: normalControl ? "CONTROL_OBSERVED" : "UNKNOWN", stopReason: normalControl ? "COMPLETED_ONCE" : "FIRST_UNVERIFIED_EXECUTION",
+      controlVerdict: result.verdict, reasonCode: reasonCode.success ? reasonCode.data : "OPAQUE", transportKind: provenance.transportKind === "DOCKER_CLI" ? "DOCKER_CLI" : "UNVERIFIED",
+      redReproduced: result.redReproduced, greenVerified: result.greenVerified,
+      ...(evidenceDigests.success ? { evidenceDigests: evidenceDigests.data } : {}), ...(receipt.success ? { receipt: receipt.data } : {}), ...(transport ? { transport } : {}), ...(failureFrame ? { failureFrame } : {}),
+      ...(cleanupFailure ? { cleanupFailure } : {}), ...(startFailure?.startFailure ? { startFailure: startFailure.startFailure } : {}),
+      quarantineRequired: !normalControl, backendQuarantineConfirmed: cleanupFailure ? true : null };
+  } catch (error) {
+    const diagnostic = decodeContainerDiagnostic(containerFailureDiagnosticSchema, error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined);
+    record = { ...record, ...(diagnostic ? { admissionDiagnostic: diagnostic } : {}) };
+  } finally {
+    release?.(); phase = "STOPPED";
+    try { flush(); persist("result.json", { ...record, observerError, persistenceError, commandCountObserved: snapshots.size,
+      containersObserved: [...snapshots.values()].filter(item => item.command === "CREATE").length }); }
+    catch { persistenceError = true; normalControl = false; }
+  }
+  // A terminal UNKNOWN is retained and fails this opt-in case; exit 0 is separate evidence.
+  expect(normalControl && !observerError && !persistenceError).toBe(true);
+}, 150000);
 
 describe("synthetic adapter failures (no OS/native proof)", () => {
   async function setup() {
