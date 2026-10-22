@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { action as manageStudents } from "../../app/routes/admin-students";
+import { loader as loadStudent } from "../../app/routes/student-index";
+import { loader as loadLogin } from "../../app/routes/login";
 import { action as joinStudent } from "../../app/routes/student-join";
 import { action as changeTask } from "../../app/routes/student-task";
 
@@ -14,6 +16,37 @@ function request(path: string, sessionId: string | null, fields: Record<string, 
   return new Request(`https://retaste.test${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: origin, ...(sessionId ? { Cookie: `retaste_session=${sessionId}` } : {}) }, body: new URLSearchParams(fields) });
 }
 describe("student HTTP security boundaries", () => {
+  it("sends an authenticated, unconnected member to invitation recovery instead of an access error", async () => {
+    const id = await session("USER");
+    const response = await loadStudent({ request: new Request("https://retaste.test/student", { headers: { Cookie: `retaste_session=${id}` } }) } as never);
+    expect(response).toBeInstanceOf(Response);
+    expect((response as Response).headers.get("Location")).toBe("/student/join?from=workspace");
+  });
+  it("honors a safe return path for a member who is already signed in", async () => {
+    const id = await session("USER");
+    const response = await loadLogin({ request: new Request("https://retaste.test/login?returnTo=%2Fstudent%2Fjoin", { headers: { Cookie: `retaste_session=${id}` } }) } as never);
+    expect((response as Response).headers.get("Location")).toBe("/student/join");
+  });
+  it("keeps suspended and expired seats denied rather than redirecting them to join", async () => {
+    for (const [active, expiry] of [[0, "2099-01-01T00:00:00.000Z"], [1, "2020-01-01T00:00:00.000Z"]] as const) {
+      const id = await session("USER");
+      const row = await env.DB.prepare("SELECT user_id FROM sessions WHERE id = ?").bind(id).first<{ user_id: string }>();
+      await env.DB.prepare("UPDATE student_seats SET user_id = ?, is_active = ?, expires_at = ? WHERE code = 'A'").bind(row!.user_id, active, expiry).run();
+      await expect(loadStudent({ request: new Request("https://retaste.test/student", { headers: { Cookie: `retaste_session=${id}` } }) } as never)).rejects.toMatchObject({ status: 403 });
+      await env.DB.prepare("UPDATE student_seats SET user_id = NULL, is_active = 1, expires_at = '2099-01-01T00:00:00.000Z' WHERE code = 'A'").run();
+    }
+  });
+  it.each(["missing", "expired"])("sends a %s data-request session back to the invitation page after login", async (state) => {
+    const sessionId = state === "expired" ? await session("USER") : null;
+    if (sessionId) await env.DB.prepare("UPDATE sessions SET expires_at = ? WHERE id = ?").bind("2020-01-01T00:00:00.000Z", sessionId).run();
+    const request = new Request("https://retaste.test/student/join.data?_routes=routes%2Fstudent-join", { method: "POST", body: new URLSearchParams({ intent: "accept", token: "A".repeat(43) }), headers: { Origin: "https://retaste.test", "Content-Type": "application/x-www-form-urlencoded", ...(sessionId ? { Cookie: `retaste_session=${sessionId}` } : {}) } });
+    let failure: unknown;
+    try { await joinStudent({ request } as never); } catch (response) { failure = response; }
+    expect(failure).toBeInstanceOf(Response);
+    expect((failure as Response).status).toBe(302);
+    expect((failure as Response).headers.get("Location")).toBe("/login?returnTo=%2Fstudent%2Fjoin");
+  });
+
   it("requires authentication before joining or writing a task", async () => {
     for (const [action, path] of [[joinStudent, "/student/join"], [changeTask, "/student/tasks/missing"]] as const) {
       await expect(action({ request: request(path, null, { token: "A".repeat(43) }), params: { taskId: "missing" } } as never)).rejects.toMatchObject({ status: 302 });

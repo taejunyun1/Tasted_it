@@ -1,11 +1,12 @@
 # 제한된 RSI 구현과 자기개선 효과 검증 계획
 
-- 상태: PROPOSED / R1–R6 구현 HOLD
+- 상태: ACCEPTED — PR #305 병합 시 설계 채택. R1은 [PR #320](https://github.com/taejunyun1/Tasted_it/pull/320)으로 구현·병합됐으며 R2–R6은 단계별 구현 PR에서 한정 GO를 정한다.
 - 담당: Jay/Codex. 단계별 구현 담당·독립 평가 담당·배포 담당은 각 PR에 지정한다.
 - 추적: [Issue #304](https://github.com/taejunyun1/Tasted_it/issues/304)
 - 결정: [에이전트 절차 수준 RSI](../../decisions/2026-10-15-rsi-agent-improvement.md)
 - 기준: `origin/main@cf1f406`, Node 22·pnpm 10.34.5·기존 Vitest/Workers pool/Playwright·필수 CI 네 잡
-- 이번 결과물: 계획·결정·기존 문서 안내만. 구현·실험·배포 완료를 뜻하지 않는다.
+- 이번 결과물: 계획·결정·기존 문서 안내만. 이 PR 자체는 구현·실험·배포 완료를 뜻하지 않는다.
+- 2026-10-22 진행: R1 사건·계보/로컬 원장·기억 기반은 `b489b66`에 병합됐다. 신규129·전체1106·PR CI4잡을 통과했다. 사용자의 연속 진행 요청에 따라 R2부터 구현·검증·병합을 이어가며 실모델·격리·운영 성공의 증거는 각각 따로 확인한다.
 
 ## 1. 완료하려는 동작
 
@@ -165,12 +166,12 @@ F2에서는 이전 채택 세대 `g1`도 같은 K/예산으로 함께 평가해 
 
 ## 8. 구현 순서와 작업별 검증
 
-일정은 담당 개발자1명과 별도 평가/검토 담당을 가정한 순수 작업량 추정이다. 계정/보안 심사·CI 대기·실모델 실행 시간은 별도다. 학생 A~D의 비개발 업무나 기존 일정·권한을 바꾸지 않는다. 각 작업은 별도 구현 PR이 파일 소유·한정 GO를 선언한 뒤 시작한다. 아래 파일명은 생성 예정이며 이번 PR에는 만들지 않는다. 약식 파일명의 기준은 실행 코드 `scripts/rsi/`, 테스트 `tests/unit/`다. 고정 manifest·숨긴 사례는 후보 코드 저장 위치와 분리한다.
+일정은 담당 개발자1명과 별도 평가/검토 담당을 가정한 순수 작업량 추정이다. 계정/보안 심사·CI 대기·실모델 실행 시간은 별도다. 학생 A~D의 비개발 업무나 기존 일정·권한을 바꾸지 않는다. 각 작업은 별도 구현 PR이 파일 소유·한정 GO를 선언한 뒤 시작한다. R1 파일은 #320에 이미 병합됐고 나머지 파일명은 생성 예정이다. 이번 설계 문서 PR에는 실행 파일을 추가하지 않는다. 약식 파일명의 기준은 실행 코드 `scripts/rsi/`, 테스트 `tests/unit/`다. 고정 manifest·숨긴 사례는 후보 코드 저장 위치와 분리한다.
 
 | 단계·작업 | 담당·예상 파일(최대5개) | 수용 기준(모두 필요) | 검증·의존·추정 |
 | --- | --- | --- | --- |
-| R1/T1 사건/계보 계약 | 개발: `scripts/rsi/contracts.ts`, `tests/unit/rsi-contracts.test.ts` | schema·trigger·SHA·status 전이 강제; UNKNOWN/FAIL/PASS 분리; 숨긴 정답/민감값 거부 | Vitest 계약/경계 사례. 선행 없음. 0.5–1일 |
-| R1/T2 기록과 조회 | 개발: `scripts/rsi/ledger.ts`, `memory.ts`, `tests/unit/rsi-ledger.test.ts`, `rsi-memory.test.ts` | 성공·거절 이력과 digest 보존; 동일 사건 중복 차단·재개 시 예산 유지; 승인 K와 lesson 조회 추적 | 중복/동시성/부분 파일/재시작 시험, 합성 자료만. T1. 1–2일 |
+| R1/T1 사건/계보 계약 — #320 완료 | 개발: `scripts/rsi/contracts.ts`, `tests/unit/rsi-contracts.test.ts` | schema·trigger·SHA·status 전이 강제; UNKNOWN/FAIL/PASS 분리; 숨긴 정답/민감값 거부 | Vitest 계약/경계 사례. 선행 없음. 0.5–1일 |
+| R1/T2 기록과 조회 — #320 완료 | 개발: `scripts/rsi/ledger.ts`, `memory.ts`, `tests/unit/rsi-ledger.test.ts`, `rsi-memory.test.ts` | 성공·거절 이력과 digest 보존; 동일 사건 중복 차단·재개 시 예산 유지; 승인 K와 lesson 조회 추적 | 중복/동시성/부분 파일/재시작 시험, 합성 자료만. T1. 1–2일 |
 | R2/T3 고정 재현·평가기 | 평가 담당: `scripts/rsi/evaluator.ts`, `tests/unit/rsi-evaluator.test.ts`, 개발 manifest, `docs/testing/rsi-evaluation-protocol.md` | 기준 버전 RED 재현; 외부 oracle·native workerd로 판정; split 계열/누수 검증 | 과거 fetch 사례+새 합성 실패/무수정 사례, test 조작/거짓 PASS 거부. T1. 1–2일 |
 | R3/T4 격리/broker 경계 | 개발·Security: `scripts/rsi/sandbox.ts`, `model-broker.ts`, `tests/unit/rsi-sandbox.test.ts`, `rsi-model-broker.test.ts`, `sandbox-policy.json` | token/host FS/DB/GitHub 접근 차단; IPC·네트워크·CPU/시간·최악 비용 강제; 고정 모델 오류 fake | 탈출/SSRF/경로 우회/출력 injection/예산 replay 시험. T1–T3. 2–3일 |
 | R3/T5 한 사건 복구 | 개발: `scripts/rsi/controller.ts`, `agent/diagnostic-policy.ts`, `agent/repair-policy.ts`, `tests/unit/rsi-controller.test.ts`, 운영 런북 | 근거 있는 분석→RED→허용 패치→GREEN; 기존 네 CI·NO_CHANGE/중단 분기; PR_READY와 LIVE_VERIFIED 분리 | 격리 fixture 전체 흐름, 학생/메일/운영 D1 호출0. T2–T4. 1–2일 |

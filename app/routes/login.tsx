@@ -18,8 +18,8 @@ import { consumeLoginRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/secu
 const schema = z.object({ email: z.email(), password: z.string().min(1), returnTo: z.string().optional() });
 export function meta() { return [{ title: "로그인 — Re:Taste" }]; }
 export async function loader({ request }: Route.LoaderArgs) {
-  if (await getOptionalUser(request)) return redirect("/");
   const url = new URL(request.url);
+  if (await getOptionalUser(request)) return redirect(safeReturnTo(url.searchParams.get("returnTo")));
   return {
     returnTo: safeReturnTo(url.searchParams.get("returnTo")),
     oauthError:
@@ -73,7 +73,7 @@ export default function Login({ actionData, loaderData }: Route.ComponentProps) 
       <AuthInput label="비밀번호" name="password" type="password" autoComplete="current-password" />
       {actionData?.error && <p className="text-sm font-normal text-red-700">{actionData.error}</p>}
       <button className="rounded-full bg-neutral-950 px-5 py-3 font-semibold text-white">로그인</button>
-    </Form><div className="mt-5 flex justify-between text-sm font-normal"><Link className="underline" to="/signup">회원가입</Link><Link className="underline" to="/forgot-password">비밀번호 재설정</Link></div>
+    </Form><div className="mt-5 flex justify-between text-sm font-normal"><Link className="underline" to={loaderData.returnTo === "/" ? "/signup" : `/signup?returnTo=${encodeURIComponent(loaderData.returnTo)}`}>회원가입</Link><Link className="underline" to="/forgot-password">비밀번호 재설정</Link></div>
   </AuthPage>;
 }
 export function AuthPage({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: React.ReactNode }) {

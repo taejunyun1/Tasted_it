@@ -18,6 +18,33 @@ test.describe("student workspace", () => {
     } finally { await context.close(); }
   });
 
+  test("recovers an invitation after reload and sign-in in the same tab", async ({ page, context, browser, baseURL }, info) => {
+    await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: baseURL! }]);
+    await page.goto("/admin/students");
+    await page.getByRole("button", { name: "학생 A 초대 발급", exact: true }).click();
+    const invite = await page.getByLabel("학생에게 전달할 초대 링크").inputValue();
+    const studentContext = await browser.newContext({ baseURL, viewport: page.viewportSize() });
+    try {
+      const student = await studentContext.newPage();
+      await student.goto(invite);
+      await expect(student.getByRole("heading", { name: "먼저 개인 계정으로 로그인해 주세요" })).toBeVisible();
+      await student.reload();
+      await expect(student.getByRole("heading", { name: "먼저 개인 계정으로 로그인해 주세요" })).toBeVisible();
+      await student.getByRole("button", { name: "로그인하고 초대 수락 계속하기", exact: true }).click();
+      await expect(student).toHaveURL(`${baseURL}/login?returnTo=%2Fstudent%2Fjoin`);
+      // Synthetic local authenticated session: no provider or live invitation is used.
+      await studentContext.addCookies([{ name: "retaste_session", value: "qa-student-a-session", url: baseURL! }]);
+      await student.goto("/login?returnTo=%2Fstudent%2Fjoin");
+      await expect(student.getByRole("heading", { name: "시험 학생 A 계정으로 참여", exact: true })).toBeVisible();
+      await student.screenshot({ path: info.outputPath("recovered-invitation.png"), fullPage: true });
+      await student.getByRole("button", { name: "초대 수락하고 내 작업 열기" }).click();
+      await expect(student.getByRole("heading", { name: "학생 A의 작업", exact: true })).toBeVisible();
+      // The accepted invitation must no longer be restored on a later visit.
+      await student.goto("/student/join");
+      await expect(student).toHaveURL(`${baseURL}/student`);
+    } finally { await studentContext.close(); }
+  });
+
   test("four personal invitations, assigned classification, independent checks and revocation", async ({ page: admin, context, browser, baseURL }, info) => {
     test.setTimeout(120_000);
     await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: baseURL! }]);
