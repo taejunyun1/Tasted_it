@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { LocalRsiLedger } from "../../scripts/rsi/ledger";
 import { deriveIncidentId, deriveIncidentKey, deriveKst, deriveObservationFingerprint, RSI_PUBLIC_PATHS } from "../../scripts/rsi/contracts";
-import { R4_POLICY_DIGEST, deriveSourceAgentHash, parseImprovementIntent } from "../../scripts/rsi/execution-contracts";
+import { R4_POLICY_DIGEST, deriveSourceAgentHash, parseImprovementIntent, parseSourceArtifactReference } from "../../scripts/rsi/execution-contracts";
 
 const digest = "a".repeat(64);
 const now = "2026-10-22T14:59:00.000Z";
@@ -412,6 +412,7 @@ describe("R4 execution contracts on the same ledger", () => {
     await ledger.commitLabCatalog(rollback, now);
     const state = await ledger.readImprovement(); expect(state.catalog.at(-1)?.source).toEqual(artifact());
     expect(state.catalog.map(c => c.kind)).toEqual(["SEED", "PROMOTE", "ROLLBACK"]);
+    expect(state.catalog.at(-1)?.commit).toEqual(rollback);
     expect(state.executions[0].settlement?.consumedUnits).toBe(5);
   });
   it("rejects extra proposals, unchanged source, unbound generation receipts and closure swaps", async () => {
@@ -421,6 +422,55 @@ describe("R4 execution contracts on the same ledger", () => {
       await expect(ledger.recordImprovementEvent({ executionId: input.executionId, event: bad }, now)).rejects.toThrow("RSI_LEDGER");
     }
     await settleImprovement(ledger, input.executionId, "AMBIGUOUS"); await expect(promote(ledger, input)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("directly rejects unchanged/aliased artifacts, generation receipt swaps and validation closure swaps", async () => {
+    const { ledger, input } = await createImprovement(), executionId = input.executionId;
+    await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await call(ledger, executionId, 1, "BASELINE_REPAIR"); await call(ledger, executionId, 2, "BASELINE_REPAIR");
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "BASELINE_VALIDATED", binding: validation(input) } }, now);
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "GENERATING" } }, now);
+    const callId = await call(ledger, executionId, 3, "GENERATE_AGENT");
+    const event = { kind: "PROPOSED", source: artifact("b"), generationBinding: {
+      executionId, activeAgentHash: input.activeAgentHash, activeCompiledDigest: input.activeCompiledDigest, sequence: 3, callId,
+      brokerRequestDigest: digest, brokerReceiptDigest: digest, brokerOutputDigest: digest,
+      actualInputDigest: digest, actualOutputDigest: digest, generationEvidenceDigest: digest } };
+    for (const bad of [{ ...event, source: artifact() }, { ...event, source: { ...event.source, artifactDigest: artifact().artifactDigest } },
+      ...["executionId", "activeAgentHash", "activeCompiledDigest", "brokerRequestDigest", "brokerReceiptDigest", "brokerOutputDigest"].map(key => ({ ...event, generationBinding: { ...event.generationBinding, [key]: key === "executionId" ? randomUUID() : "c".repeat(64) } })),
+      { ...event, rawResponse: "private" }]) {
+      await expect(ledger.recordImprovementEvent({ executionId, event: bad }, now)).rejects.toThrow("RSI_LEDGER");
+    }
+    await ledger.recordImprovementEvent({ executionId, event }, now);
+    await expect(call(ledger, executionId, 4, "GENERATE_AGENT")).rejects.toThrow("RSI_LEDGER");
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "PROBING" } }, now);
+    await call(ledger, executionId, 4, "PROMOTION_REPAIR"); await call(ledger, executionId, 5, "PROMOTION_REPAIR");
+    await expect(ledger.recordImprovementEvent({ executionId, event: { kind: "VALIDATED", binding: { ...validation(input), memorySnapshotHash: "c".repeat(64) } } }, now)).rejects.toThrow("RSI_LEDGER");
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "VALIDATED", binding: validation(input) } }, now);
+  });
+  it("retains failed generation slots, idempotent receipts and full exposure for unresolved calls", async () => {
+    const { ledger, input } = await createImprovement();
+    await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await ledger.recordImprovementEvent({ executionId: input.executionId, event: { kind: "CALL_STARTED", sequence: 1, phase: "BASELINE_REPAIR", callId: randomUUID(), requestDigest: digest } }, now);
+    await expect(settleImprovement(ledger, input.executionId, "CONFIRMED", 0)).rejects.toThrow("RSI_LEDGER");
+    const receiptId = randomUUID(); await settleImprovement(ledger, input.executionId, "AMBIGUOUS", 0, now, receiptId);
+    const head = ledger.checkpoint; await settleImprovement(ledger, input.executionId, "AMBIGUOUS", 0, now, receiptId);
+    expect(ledger.checkpoint).toEqual(head);
+    await expect(settleImprovement(ledger, input.executionId, "CONFIRMED", 0, now, receiptId)).rejects.toThrow("RSI_LEDGER");
+    await expect(ledger.reserveImprovement({ intent: { ...input, executionId: randomUUID(), requestId: randomUUID() }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+    expect((await ledger.readImprovement()).executions[0].settlement?.consumedUnits).toBe(73552);
+    const rejected = await createImprovement(); await rejected.ledger.reserveImprovement({ intent: rejected.input, maximumCostUnits: 73552 }, now);
+    await rejected.ledger.recordImprovementEvent({ executionId: rejected.input.executionId, event: { kind: "REJECTED", reasonCode: "BASELINE_FAILED" } }, now);
+    await settleImprovement(rejected.ledger, rejected.input.executionId, "CONFIRMED", 0);
+    await expect(rejected.ledger.reserveImprovement({ intent: { ...rejected.input, executionId: randomUUID(), requestId: randomUUID() }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("bounds source references to exactly two raw digests and stores no raw source or arbitrary reason", async () => {
+    const source = artifact();
+    for (const invalid of [{ ...source, modules: { ...source.modules, "extra.ts": source.modules["scripts/rsi/agent/repair-policy.ts"] } },
+      { ...source, agentHash: digest }, { ...source, compiledByteLength: 65537 }, { ...source, artifactByteLength: 262145 }, { ...source, rawSource: "private" }]) {
+      expect(() => parseSourceArtifactReference(invalid)).toThrow("RSI_INVALID_EXECUTION_CONTRACT");
+    }
+    const { ledger, input } = await createImprovement(); await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await expect(ledger.recordImprovementEvent({ executionId: input.executionId, event: { kind: "BLOCKED", reasonCode: "PRIVATE_VALUE" } }, now)).rejects.toThrow("RSI_LEDGER");
+    await expect(ledger.reserveImprovement({ intent: { ...input, incidentEpoch: 2 }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
   });
   it("fails closed on R4 writer races, stale heads and partial writes without rewriting events", async () => {
     const { p, ledger, input } = await createImprovement(), other = await LocalRsiLedger.open(p, ledger.checkpoint);
