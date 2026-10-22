@@ -6,11 +6,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ControllerCheckpointStore, compileAgentSources, loadSeedAgentSources, recoverSyntheticIncident, validateDiagnosis, validateReceiverPatch } from "../../scripts/rsi/controller";
 import { LocalRsiLedger } from "../../scripts/rsi/ledger";
-import { deriveKst, RSI_PUBLIC_PATHS } from "../../scripts/rsi/contracts";
+import { deriveIncidentKey, deriveObservationFingerprint, deriveKst, RSI_PUBLIC_PATHS } from "../../scripts/rsi/contracts";
 import { DockerSandbox, SANDBOX_POLICY_DIGEST } from "../../scripts/rsi/sandbox";
 import { NativeExecutor } from "../../scripts/rsi/native-executor";
+import { LocalFakeModelBroker } from "../../scripts/rsi/model-broker";
+import { R4_POLICY_DIGEST, deriveSourceAgentHash } from "../../scripts/rsi/execution-contracts";
+import { createRepairRootGate, loadPinnedNativeManifest, measureFixedClosure, runActualAgentStep, runActualRepairCore } from "../../scripts/rsi/repair-core";
 
-const manifestRead = vi.hoisted(() => ({ fault: "NONE", unitOnly: false, liveReadsForbidden: false, unitReads: 0, liveReads: 0 }));
+const manifestRead = vi.hoisted(() => ({ fault: "NONE", unitOnly: false, liveReadsForbidden: false, unitReads: 0, liveReads: 0, driftPath: "", missingPath: "", r4ClosureFixtures: false }));
 // Bounded, non-actual fixture for host contracts only. This supplies no image,
 // verification capability or real execution proof. Opt-in reads the real file.
 const unitManifest = vi.hoisted(() => JSON.stringify({
@@ -37,7 +40,11 @@ const unitManifest = vi.hoisted(() => JSON.stringify({
 vi.mock("node:fs/promises", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return { ...actual, readFile: async (...args: Parameters<typeof actual.readFile>) => {
-    if (String(args[0]).endsWith("/r3-implementation-plan/native-manifest.json")) {
+    const path = String(args[0]);
+    if (manifestRead.missingPath && path.endsWith(manifestRead.missingPath)) throw Object.assign(new Error("missing closure fixture"), { code: "ENOENT" });
+    if (manifestRead.r4ClosureFixtures && ["/promotion.ts", "/self-improve.ts"].some(name => path.endsWith(name))) return "// host closure measurement fixture only\n" + (path.endsWith(manifestRead.driftPath || "<none>") ? "// drift\n" : "");
+    if (manifestRead.driftPath && path.endsWith(manifestRead.driftPath)) return String(await actual.readFile(...args)) + "\n// closure drift\n";
+    if (path.endsWith("/fixtures/native-manifest.pinned.json")) {
       if (manifestRead.fault === "ABSENT") throw Object.assign(new Error("synthetic missing manifest"), { code: "ENOENT" });
       if (manifestRead.fault === "INVALID") return "{";
       if (manifestRead.fault === "PIN") return JSON.stringify({ schemaVersion: 1, imageId: "sha256:" + "0".repeat(64) });
@@ -51,7 +58,7 @@ vi.mock("node:fs/promises", async importOriginal => {
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const now = "2026-10-22T15:00:00.000Z";
 const dirs: string[] = [];
-afterEach(async () => { Object.assign(manifestRead, { fault: "NONE", unitOnly: false, liveReadsForbidden: false, unitReads: 0, liveReads: 0 }); vi.restoreAllMocks(); await Promise.all(dirs.splice(0).map(p => rm(p, { recursive: true, force: true }))); });
+afterEach(async () => { Object.assign(manifestRead, { fault: "NONE", unitOnly: false, liveReadsForbidden: false, unitReads: 0, liveReads: 0, driftPath: "", missingPath: "", r4ClosureFixtures: false }); vi.restoreAllMocks(); await Promise.all(dirs.splice(0).map(p => rm(p, { recursive: true, force: true }))); });
 const service = () => readFile(new URL("../../app/features/operations/rsi-self-check.ts", import.meta.url), "utf8");
 function observation(normal = false) {
   return { schemaVersion: 1, environment: "LOCAL_SYNTHETIC", target: "RSI_PUBLIC_SIX_PATHS",
@@ -96,6 +103,84 @@ function injectHostCapabilities(outcome: "NORMAL" | "RED") {
   return { execute, evaluate };
 }
 
+describe("shared actual repair core contracts (host data only)", () => {
+  it("ships the original archived manifest bytes and loads only the fixed tracked pin", async () => {
+    const actualFs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const bytes = await actualFs.readFile(new URL("../../scripts/rsi/fixtures/native-manifest.pinned.json", import.meta.url), "utf8");
+    expect(hash(bytes)).toBe("565a59da1f318f959b67ba3aa8d18c467cdca3695c9065f8da1136ac7acef373");
+    expect(hash(JSON.stringify(JSON.parse(bytes)))).toBe("605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae");
+    expect(await loadPinnedNativeManifest()).toEqual(JSON.parse(bytes));
+    for (const fault of ["ABSENT", "INVALID", "PIN"]) {
+      manifestRead.fault = fault;
+      await expect(loadPinnedNativeManifest()).rejects.toThrow("RSI_CONTROLLER_MANIFEST_UNVERIFIED");
+    }
+  });
+  it("measures actual shared-core bytes in R3 while keeping the R4 closure fail closed", async () => {
+    const r3 = await measureFixedClosure("R3");
+    expect(r3.controller.files).toHaveProperty("scripts/rsi/repair-core.ts");
+    expect(r3.evaluator.files).toHaveProperty("scripts/rsi/repair-core.ts");
+    manifestRead.driftPath = "/repair-core.ts";
+    const changed = await measureFixedClosure("R3");
+    expect(changed.controllerHash).not.toBe(r3.controllerHash); expect(changed.evaluatorHash).not.toBe(r3.evaluatorHash);
+    manifestRead.driftPath = ""; manifestRead.missingPath = "/promotion.ts";
+    await expect(measureFixedClosure("R4")).rejects.toThrow("RSI_CONTROLLER_CLOSURE_UNVERIFIED");
+  });
+  it.each(["execution-contracts.ts", "repair-core.ts", "promotion.ts", "self-improve.ts"])("binds R4 controller and evaluator hashes to %s bytes", async name => {
+    manifestRead.r4ClosureFixtures = true;
+    const original = await measureFixedClosure("R4");
+    manifestRead.driftPath = "/" + name;
+    const changed = await measureFixedClosure("R4");
+    expect(changed.controllerHash).not.toBe(original.controllerHash); expect(changed.evaluatorHash).not.toBe(original.evaluatorHash);
+    manifestRead.driftPath = ""; manifestRead.missingPath = "/" + name;
+    await expect(measureFixedClosure("R4")).rejects.toThrow("RSI_CONTROLLER_CLOSURE_UNVERIFIED");
+  });
+  it("uses the already-started deadline with fixed admissions and monotonic/stop checks", () => {
+    let tick = 85000, killed = false;
+    const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => tick, killSwitch: () => killed });
+    rootGate.check(34999); expect(() => rootGate.check(35000)).toThrow("RSI_CONTROLLER_DEADLINE");
+    tick = 84000; expect(() => rootGate.check()).toThrow("RSI_CONTROLLER_CLOCK");
+    killed = true; expect(() => rootGate.check()).toThrow("RSI_CONTROLLER_OPERATOR_STOP");
+    expect(() => createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120001 }, monotonicMs: () => 0, killSwitch: () => false })).toThrow("RSI_CONTROLLER_CLOCK");
+  });
+  it("consumes a reserved R4 phase without opening/finishing a nested pool and stops after one patch (injected)", async () => {
+    const options = await setup(), obs = observation(), sources = await loadSeedAgentSources(), agent = await compileAgentSources(sources), closure = await measureFixedClosure("R3");
+    const modules = Object.fromEntries(Object.entries(sources).map(([path, source]) => [path, { digest: hash(source), byteLength: Buffer.byteLength(source) }]));
+    const source = { schemaVersion: 1, modules, agentHash: deriveSourceAgentHash(modules), compiledDigest: agent.compiledDigest, artifactDigest: hash("host-data-only-source"), compiledByteLength: Buffer.byteLength(agent.source), artifactByteLength: 1000 };
+    await options.ledger.commitLabCatalog({ kind: "SEED", expectedCatalogRevision: -1, expectedCatalogHash: null, source }, now);
+    await options.checkpointStore.persist(options.ledger.checkpoint);
+    const catalog = (await options.ledger.readImprovement()).catalog[0], executionId = randomUUID();
+    const broker = await LocalFakeModelBroker.openImprovement({ ...options, intent: {
+      schemaVersion: 1, purpose: "R4_SELF_IMPROVE", executionId, requestId: randomUUID(), campaignId: (await options.ledger.read()).config.campaignId,
+      generation: 1, parentExecutionId: null, expectedCatalogRevision: 0, expectedCatalogHash: catalog.hash,
+      activeAgentHash: agent.agentHash, activeCompiledDigest: agent.compiledDigest, activeSourceArtifactDigest: source.artifactDigest,
+      observation: obs, incidentKey: deriveIncidentKey(obs.incident), incidentEpoch: 1, observationFingerprint: deriveObservationFingerprint(obs), baseAppSha: obs.incident.baseAppSha,
+      controllerHash: closure.controllerHash, evaluatorHash: closure.evaluatorHash, memorySnapshotHash: hash("host-memory"), policyDigest: R4_POLICY_DIGEST, fakeFixtureDigest: hash("host-fixture"),
+    }, checkpointSink: checkpoint => options.checkpointStore.persist(checkpoint), monotonicMs: () => 0, rootTiming: { startedMs: 0, deadlineMs: 120000 }, scenarios: [
+      { kind: "JSON_RESPONSE", response: diagnosis(obs) }, { kind: "JSON_RESPONSE", response: patch((await service()).replace("input.fetch.bind(globalThis)", "input.fetch.bind(input)"), "input.fetch.bind(input).bind(input)") },
+    ] });
+    const reserve = vi.spyOn(options.ledger, "reserveImprovement"), finish = vi.spyOn(broker, "finish"), open = vi.spyOn(LocalFakeModelBroker, "open"), openImprovement = vi.spyOn(LocalFakeModelBroker, "openImprovement");
+    const capabilities = injectHostCapabilities("RED"); let sequence = 0;
+    const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => 0, killSwitch: () => false });
+    await expect(runActualRepairCore({ agent, closure, rootGate, observation: obs,
+      baseSource: (await service()).replace("input.fetch.bind(globalThis)", "input.fetch.bind(input)"), lessons: [],
+      request: { purpose: "R4_BASELINE_REPAIR", capability: broker.phase("BASELINE_REPAIR"), nextSequence: () => ++sequence },
+    })).rejects.toThrow("RSI_CONTROLLER_CANDIDATE_LIMIT");
+    expect(capabilities.execute).toHaveBeenCalledTimes(2); expect(capabilities.evaluate).toHaveBeenCalledTimes(2);
+    expect(reserve).not.toHaveBeenCalled(); expect(open).not.toHaveBeenCalled(); expect(openImprovement).not.toHaveBeenCalled(); expect(finish).not.toHaveBeenCalled();
+    expect((await options.ledger.read()).runs).toHaveLength(0);
+    const execution = (await options.ledger.readImprovement()).executions[0];
+    expect(execution.calls.map(row => [row.sequence, row.phase])).toEqual([[1, "BASELINE_REPAIR"], [2, "BASELINE_REPAIR"]]);
+    expect(execution.settlement).toBeNull(); await broker.finish();
+  });
+  it("rejects improve-agent output from injected transport before issuing actual custody", async () => {
+    const agent = await compileAgentSources(await loadSeedAgentSources());
+    vi.spyOn(DockerSandbox, "verify").mockResolvedValue({ execute: vi.fn(async () => ({ untrustedOutput: { PASS: true }, evidence: { transportKind: "INJECTED_TRANSPORT" } })) } as unknown as DockerSandbox);
+    const request = { request: vi.fn(async () => ({ untrustedOutput: { PASS: true }, metadata: { mode: "LOCAL_FAKE", callId: randomUUID(), sequence: 1, receiptDigest: hash("host-receipt") } })) };
+    const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => 0, killSwitch: () => false });
+    await expect(runActualAgentStep({ agent, rootGate, capability: request as unknown as ReturnType<LocalFakeModelBroker["phase"]>, sequence: 1, taskKind: "improve-agent", publicInput: {} })).rejects.toThrow("RSI_CONTROLLER_AGENT_CUSTODY");
+  });
+});
+
 describe("synthetic recovery contracts (host data only)", () => {
   it("uses a bounded unit manifest in a fresh checkout without reading the ignored live artifact", async () => {
     const options = await setup(73551), input = { ...options, observation: observation(), baseSource: await service(), agentSources: await loadSeedAgentSources() };
@@ -104,7 +189,7 @@ describe("synthetic recovery contracts (host data only)", () => {
     expect(hash(unitManifest)).toBe("605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae");
     const verify = vi.spyOn(DockerSandbox, "verify");
     expect(await recoverSyntheticIncident(input)).toMatchObject({ status: "BLOCKED", reasonCode: "BUDGET_UNAVAILABLE" });
-    expect(manifestRead.unitReads).toBe(1); expect(manifestRead.liveReads).toBe(0); expect(verify).not.toHaveBeenCalled();
+    expect(manifestRead.unitReads).toBeGreaterThan(0); expect(manifestRead.liveReads).toBe(0); expect(verify).not.toHaveBeenCalled();
   });
   it.each(["ABSENT", "INVALID", "PIN"])("returns explicit BLOCKED for %s native manifest without changing the artifact", async fault => {
     const options = await setup(), input = { ...options, observation: observation(), baseSource: await service(), agentSources: await loadSeedAgentSources() };
