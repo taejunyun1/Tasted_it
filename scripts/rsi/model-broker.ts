@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
+import { types } from "node:util";
 import { z } from "zod";
 import { LocalRsiLedger, type RsiLedgerCheckpoint } from "./ledger";
 import { parseLineage, parseObservation } from "./contracts";
-import { parseBoundedJsonObject } from "./sandbox";
+import { parseBoundedJsonObject, SANDBOX_POLICY } from "./sandbox";
 
 export const MODEL_POLICY = Object.freeze({ mode: "LOCAL_FAKE" as const,
   model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", inputTokens: 16000, outputTokens: 2000,
@@ -10,8 +11,50 @@ export const MODEL_POLICY = Object.freeze({ mode: "LOCAL_FAKE" as const,
   maxCalls: 8, poolCostUnits: 73552, callTimeoutMs: 30000, recoveryTimeoutMs: 120000 });
 const ipcSchema = z.strictObject({ schemaVersion: z.literal(1), task: z.enum(["repair", "improve-agent"]), message: z.string().min(1).max(16000) });
 const intentSchema = z.strictObject({ requestId: z.uuid(), observation: z.unknown().transform(parseObservation), lineage: z.unknown().transform(parseLineage) });
-const scenarioSchema = z.strictObject({ kind: z.enum(["SUCCESS", "INVALID_JSON", "INVALID_USAGE", "FAILURE", "LOST_RESPONSE", "OVERSIZED_OUTPUT", "FORGED_USAGE"]), delayMs: z.number().int().min(0).max(60000).optional() });
+const delayMsSchema = z.number().int().min(0).max(60000).optional();
+const scenarioSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.enum(["SUCCESS", "INVALID_JSON", "INVALID_USAGE", "FAILURE", "LOST_RESPONSE", "OVERSIZED_OUTPUT", "FORGED_USAGE"]), delayMs: delayMsSchema }),
+  z.strictObject({ kind: z.literal("JSON_RESPONSE"), response: z.unknown(), delayMs: delayMsSchema }),
+]);
 export type FakeScenario = z.infer<typeof scenarioSchema>;
+type PreparedScenario = Exclude<FakeScenario, { kind: "JSON_RESPONSE" }> | { kind: "JSON_RESPONSE"; text: string; delayMs?: number };
+
+// Inspect descriptors before Zod or the shared JSON parser can read properties.
+// Proxy detection must come first: even introspection can execute proxy traps.
+function assertPassiveScenarios(value: unknown) {
+  let nodes = 0;
+  const ancestors = new Set<object>();
+  function visit(item: unknown, depth: number) {
+    // Allow the array/scenario wrappers; each response gets its exact JSON limits below.
+    if (++nodes > 1 + MODEL_POLICY.maxCalls * (SANDBOX_POLICY.maxJsonNodes + 3)
+      || depth > SANDBOX_POLICY.maxJsonDepth + 2) fail("SCENARIO");
+    if (typeof item !== "object" || item === null) return;
+    if (types.isProxy(item) || ancestors.has(item)) fail("SCENARIO");
+    const array = Array.isArray(item);
+    if (Object.getPrototypeOf(item) !== (array ? Array.prototype : Object.prototype)) fail("SCENARIO");
+    ancestors.add(item);
+    const descriptors = Object.getOwnPropertyDescriptors(item);
+    for (const key of Reflect.ownKeys(descriptors)) {
+      if (typeof key !== "string") fail("SCENARIO");
+      if (array && key === "length") continue;
+      const descriptor = descriptors[key];
+      if (!descriptor.enumerable || !("value" in descriptor)) fail("SCENARIO");
+      visit(descriptor.value, depth + 1);
+    }
+    ancestors.delete(item);
+  }
+  visit(value, 0);
+}
+function prepareScenarios(value: unknown): readonly PreparedScenario[] {
+  assertPassiveScenarios(value);
+  return Object.freeze(z.array(scenarioSchema).max(MODEL_POLICY.maxCalls).parse(value).map(scenario => {
+    if (scenario.kind !== "JSON_RESPONSE") return Object.freeze(scenario);
+    // Serialize only the parser's plain data snapshot, never the caller's object.
+    const text = JSON.stringify(parseBoundedJsonObject(scenario.response));
+    if (Buffer.byteLength(text) > MODEL_POLICY.outputTokens) fail("SCENARIO");
+    return Object.freeze({ kind: scenario.kind, text, delayMs: scenario.delayMs });
+  }));
+}
 const receiptSchema = z.strictObject({ callId: z.uuid(), requestDigest: z.string().regex(/^[a-f0-9]{64}$/), receiptId: z.uuid(),
   model: z.literal(MODEL_POLICY.model), inputTokens: z.number().int().min(0).max(16000), outputTokens: z.number().int().min(0).max(2000),
   text: z.string().max(16000) });
@@ -33,7 +76,7 @@ interface CallRecord { sequence: number; callId: string; requestDigest: string; 
 
 // Fixed, local-only fake. No URL/credentials/provider callback and no fetch path.
 // Failure scenarios are selected by the trusted test supervisor, never candidate JSON.
-async function fakeResponse(scenario: FakeScenario, callId: string, requestDigest: string, inputTokens: number, signal: AbortSignal) {
+async function fakeResponse(scenario: PreparedScenario, callId: string, requestDigest: string, inputTokens: number, signal: AbortSignal) {
   if (signal.aborted) fail("TIMEOUT");
   if (scenario.delayMs) await new Promise<void>((resolve, reject) => {
     const cancel = () => { clearTimeout(timer); reject(new Error("RSI_BROKER_TIMEOUT")); };
@@ -42,7 +85,7 @@ async function fakeResponse(scenario: FakeScenario, callId: string, requestDiges
   });
   if (signal.aborted) fail("TIMEOUT");
   if (scenario.kind === "FAILURE" || scenario.kind === "LOST_RESPONSE") fail("RESPONSE");
-  const text = scenario.kind === "INVALID_JSON" ? "{" : scenario.kind === "OVERSIZED_OUTPUT" ? "x".repeat(2001)
+  const text = scenario.kind === "JSON_RESPONSE" ? scenario.text : scenario.kind === "INVALID_JSON" ? "{" : scenario.kind === "OVERSIZED_OUTPUT" ? "x".repeat(2001)
     : scenario.kind === "FORGED_USAGE" ? '{"usage":{"inputTokens":0,"outputTokens":0},"chargedUnits":0}'
     : '{"action":"NO_CHANGE","reason":"LOCAL_FAKE"}';
   return { callId, requestDigest, receiptId: randomUUID(), model: MODEL_POLICY.model,
@@ -61,13 +104,13 @@ export class LocalFakeModelBroker {
   private readonly nowUtc: () => string;
   private readonly clock: () => number;
   private constructor(private readonly options: LocalFakeBrokerOptions, private readonly runId: string,
-    private readonly started: number, private readonly scenarios: FakeScenario[]) {
+    private readonly started: number, private readonly scenarios: readonly PreparedScenario[]) {
     this.lastTime = started; this.clock = options.monotonicMs ?? (() => performance.now());
     this.nowUtc = options.nowUtc ?? (() => new Date().toISOString());
   }
   static async open(options: LocalFakeBrokerOptions): Promise<LocalFakeModelBroker> {
     const intent = intentSchema.parse(options.intent);
-    const scenarios = z.array(scenarioSchema).max(MODEL_POLICY.maxCalls).parse(options.scenarios ?? []);
+    const scenarios = prepareScenarios(options.scenarios ?? []);
     const clock = options.monotonicMs ?? (() => performance.now()), started = clock();
     if (!Number.isFinite(started) || started < 0) fail("CLOCK");
     if (options.killSwitch()) fail("KILLED");
