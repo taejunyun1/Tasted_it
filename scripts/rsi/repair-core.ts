@@ -234,9 +234,12 @@ function checkedAgent(agent: CompiledAgent) {
   if (hash(agent.source) !== agent.compiledDigest || jsonHash({ schemaVersion: 1, modules: agent.moduleDigests }) !== agent.agentHash) fail("AGENT_CUSTODY");
   return snapshot(agent);
 }
-async function executeAgentStep(options: ActualAgentStepOptions, sandbox: DockerSandbox) {
+async function executeAgentStep(options: ActualAgentStepOptions, sandbox: DockerSandbox, inputKind: "BOUNDED" | "CONSTRUCTED_R1" = "BOUNDED") {
   const { rootGate, sequence, taskKind, capability } = options, agent = checkedAgent(options.agent);
-  const publicInput = snapshot(parseBoundedJsonObject(options.publicInput)); rootGate.check(MODEL_POLICY.callTimeoutMs);
+  // The fixed R1 repair input must reach its broker's canonical byte guard so
+  // a rejected request still consumes its original ordinal. The public helper
+  // and R4 inputs retain the bounded passive guard before requesting a model.
+  const publicInput = snapshot(inputKind === "CONSTRUCTED_R1" ? options.publicInput : parseBoundedJsonObject(options.publicInput)); rootGate.check(MODEL_POLICY.callTimeoutMs);
   const reply = await capability.request(sequence, JSON.stringify({ schemaVersion: 1, task: taskKind, message: JSON.stringify(publicInput) })); rootGate.check();
   const input = { schemaVersion: 1, taskKind, payload: { ...publicInput, modelReply: reply.untrustedOutput } };
   rootGate.check(admissionMs.agentRun);
@@ -276,7 +279,7 @@ export async function runActualRepairCore(options: ActualRepairOptions): Promise
     const publicInput = { phase, source: options.baseSource, sourceDigest: hash(options.baseSource), observation,
       allowedEdit: { path: NATIVE_SOURCE_PATH, region: "fetchPath initializer only", maxCandidates }, lessons: options.lessons };
     const returned = await executeAgentStep({ agent, rootGate: options.rootGate, capability: options.request.capability,
-      sequence: options.request.nextSequence(), taskKind: "repair", publicInput }, sandbox);
+      sequence: options.request.nextSequence(), taskKind: "repair", publicInput }, sandbox, options.request.purpose === "R1_RECOVERY" ? "CONSTRUCTED_R1" : "BOUNDED");
     await record("INPUT_MATCH", "PASS", { ...returned.evidence, brokerMetadata: returned.brokerMetadata, activeAgentHash: agent.agentHash }, "ACTUAL_AGENT_CONTAINER");
     return returned.untrustedOutput;
   }
