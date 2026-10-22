@@ -104,7 +104,19 @@ async function assertStore(store: ImmutableAgentSourceStore) {
   const expected = stores.get(store), stat = await safeDirectory(store.directory);
   if (!expected || stat.dev !== expected.dev || stat.ino !== expected.ino) fail("SOURCE_UNAVAILABLE");
 }
-async function readBlob(store: ImmutableAgentSourceStore, digest: string, kind: "source" | "evidence", length?: number) {
+async function syncStoreDirectory(store: ImmutableAgentSourceStore) {
+  await assertStore(store);
+  const identity = stores.get(store)!, handle = await open(store.directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    const before = await handle.stat();
+    if (!before.isDirectory() || before.dev !== identity.dev || before.ino !== identity.ino || (before.mode & 0o777) !== 0o700
+      || typeof process.getuid === "function" && before.uid !== process.getuid()) fail("SOURCE_UNAVAILABLE");
+    await handle.sync();
+    const after = await handle.stat(); await assertStore(store);
+    if (after.dev !== before.dev || after.ino !== before.ino || after.mode !== before.mode || after.uid !== before.uid) fail("SOURCE_UNAVAILABLE");
+  } finally { await handle.close(); }
+}
+async function readBlob(store: ImmutableAgentSourceStore, digest: string, kind: "source" | "evidence", length?: number, durable = false) {
   if (!/^[a-f0-9]{64}$/.test(digest)) fail("SOURCE_UNAVAILABLE");
   await assertStore(store); const path = join(store.directory, `${digest}.${kind}.json`);
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -116,7 +128,16 @@ async function readBlob(store: ImmutableAgentSourceStore, digest: string, kind: 
     await assertStore(store);
     if (!equalFile(before, after) || !equalFile(after, entry) || bytes.length !== before.size || hash(bytes) !== digest) fail("SOURCE_UNAVAILABLE");
     const text = bytes.toString("utf8"), value = passive(JSON.parse(text));
-    if (JSON.stringify(value) !== text) fail("SOURCE_UNAVAILABLE"); return value;
+    if (JSON.stringify(value) !== text) fail("SOURCE_UNAVAILABLE");
+    if (durable) {
+      // EEXIST may be a complete write whose earlier fsync failed. Exact bytes
+      // alone do not establish durability. Sync this verified descriptor and
+      // the verified store directory, then recheck both identities before use.
+      await handle.sync(); await syncStoreDirectory(store);
+      const synced = await handle.stat(), current = await lstat(path); await assertStore(store);
+      if (!equalFile(after, synced) || !equalFile(synced, current)) fail("SOURCE_UNAVAILABLE");
+    }
+    return value;
   } finally { await handle.close(); }
 }
 async function writeBlob(store: ImmutableAgentSourceStore, value: unknown, kind: "source" | "evidence") {
@@ -125,8 +146,10 @@ async function writeBlob(store: ImmutableAgentSourceStore, value: unknown, kind:
   let handle;
   try { handle = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o400); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
-  if (handle) { try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); } await syncDirectory(store.directory); }
-  if (!same(await readBlob(store, digest, kind, bytes.length), value)) fail("SOURCE_UNAVAILABLE");
+  if (handle) { try { await handle.writeFile(bytes); } finally { await handle.close(); } }
+  // New and pre-existing blobs have the same verified file+directory fsync
+  // boundary. Damaged/partial blobs fail validation and are never overwritten.
+  if (!same(await readBlob(store, digest, kind, bytes.length, true), value)) fail("SOURCE_UNAVAILABLE");
   return { digest, length: bytes.length };
 }
 /** Content-addressed data only. No file path, import capability or verdict is
