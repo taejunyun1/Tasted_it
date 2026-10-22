@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { VerifiedContainerBackend, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
 import { createLocalDockerTransport as legacyLocal, dockerTransport as legacyTransport } from "../../scripts/rsi/sandbox";
 import { createLocalDockerTransport, dockerTransport } from "../../scripts/rsi/container-backend";
@@ -42,6 +46,26 @@ function fakeDocker(p = profile()) {
 }
 
 describe("trusted container backend", () => {
+  it.each(["TIMEOUT", "OUTPUT_LIMIT"])("counts both CLI pipes without retaining partial output on %s", async failure => {
+    vi.useFakeTimers();
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(),
+      kill: vi.fn(() => { queueMicrotask(() => child.emit("close", null)); return true; }) });
+    const spawn = vi.spyOn(childProcess, "spawn").mockReturnValue(child as unknown as ReturnType<typeof childProcess.spawn>);
+    syncBuiltinESMExports();
+    try {
+      const transport = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" });
+      const pending = transport(["start", "synthetic"], "", { timeoutMs: 10, maxOutputBytes: failure === "OUTPUT_LIMIT" ? 4 : 32 }).catch(error => error);
+      await vi.advanceTimersByTimeAsync(0);
+      child.stdout.write(Buffer.from("abc")); child.stderr.write(Buffer.from("de"));
+      await vi.advanceTimersByTimeAsync(10);
+      const error = await pending;
+      expect(error.message).toBe(`RSI_SANDBOX_${failure}`);
+      expect(error.cause).toEqual({ failure, stdoutBytes: 3, stderrBytes: 2 });
+      expect(Object.isFrozen(error.cause)).toBe(true);
+      expect(JSON.stringify(error.cause)).not.toContain("abc");
+      expect(JSON.stringify(error.cause)).not.toContain("synthetic.sock");
+    } finally { spawn.mockRestore(); syncBuiltinESMExports(); vi.useRealTimers(); }
+  });
   it("preserves transport imports and returns bounded untrusted local evidence", async () => {
     expect(legacyLocal).toBe(createLocalDockerTransport); expect(legacyTransport).toBe(dockerTransport);
     const fake = fakeDocker(); const backend = await VerifiedContainerBackend.verify(profile(), fake.transport);
@@ -174,6 +198,35 @@ describe("trusted container backend", () => {
     expect(error.message).toBe("RSI_SANDBOX_BLOCKED");
     expect(error.cause).toEqual({ stage: "RM_TRANSPORT", failure: "OTHER" });
     expect(JSON.stringify(error.cause)).not.toContain("private");
+  });
+  it.each([false, true])("preserves failed START byte counts when cleanup also fails: %s", async cleanupFails => {
+    const fake = fakeDocker(); let enabled = false;
+    const transport: DockerTransport = async (args, stdin, limits) => {
+      if (enabled && args[0] === "start") throw new Error("RSI_SANDBOX_TIMEOUT", { cause: { failure: "TIMEOUT", stdoutBytes: 103, stderrBytes: 0 } });
+      if (enabled && cleanupFails && args[0] === "rm") throw new Error("RSI_SANDBOX_TIMEOUT", { cause: { failure: "TIMEOUT", stdoutBytes: 0, stderrBytes: 0 } });
+      return fake.transport(args, stdin, limits);
+    };
+    const backend = await VerifiedContainerBackend.verify(profile(), transport); enabled = true;
+    const error = await backend.run("data").catch(error => error);
+    expect(error.message).toBe(cleanupFails ? "RSI_SANDBOX_CLEANUP" : "RSI_SANDBOX_TIMEOUT");
+    expect(error.cause.startFailure).toEqual({ failure: "TIMEOUT", stdoutBytes: 103, stderrBytes: 0 });
+    if (cleanupFails) {
+      expect(error.cause).toMatchObject({ stage: "RM_TRANSPORT", failure: "TIMEOUT", command: { failure: "TIMEOUT", stdoutBytes: 0, stderrBytes: 0 } });
+      await expect(backend.run("queued")).rejects.toThrow("RSI_SANDBOX_BLOCKED");
+    }
+    expect(JSON.stringify(error.cause)).not.toContain("data");
+  });
+  it("rejects raw or out-of-bounds command diagnostics", async () => {
+    const fake = fakeDocker(); let enabled = false;
+    const transport: DockerTransport = async (args, stdin, limits) => {
+      if (enabled && args[0] === "start") throw new Error("RSI_SANDBOX_TIMEOUT", { cause: { failure: "TIMEOUT", stdoutBytes: 100000, stderrBytes: 0, raw: "SYNTHETIC_PRIVATE_DAEMON" } });
+      return fake.transport(args, stdin, limits);
+    };
+    const backend = await VerifiedContainerBackend.verify(profile(), transport); enabled = true;
+    const error = await backend.run("data").catch(error => error);
+    expect(error.message).toBe("RSI_SANDBOX_TIMEOUT");
+    expect(error.cause).toEqual({ startFailure: { failure: "TIMEOUT" } });
+    expect(JSON.stringify(error.cause)).not.toContain("SYNTHETIC_PRIVATE_DAEMON");
   });
   it("supports only a pinned local native image and protected fixed file, as injected evidence only", async () => {
     const p = profile(); p.image = nativeId; p.imageId = nativeId;

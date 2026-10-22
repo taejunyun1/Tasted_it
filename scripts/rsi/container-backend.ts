@@ -6,16 +6,23 @@ import { z } from "zod";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 function fail(code: string): never { throw new Error(`RSI_SANDBOX_${code}`); }
+export const containerCommandFailureSchema = z.strictObject({ failure: z.enum(["TIMEOUT", "OUTPUT_LIMIT", "UNAVAILABLE", "EXIT", "OTHER"]),
+  stdoutBytes: z.number().int().min(0).max(65537).optional(), stderrBytes: z.number().int().min(0).max(65537).optional() });
 export const containerCleanupFailureSchema = z.strictObject({
   stage: z.enum(["INSPECT_TRANSPORT", "INSPECT_EXIT", "INSPECT_JSON", "INSPECT_OWNERSHIP", "RM_TRANSPORT", "RM_EXIT"]),
   failure: z.enum(["TIMEOUT", "OUTPUT_LIMIT", "UNAVAILABLE", "EXIT", "INVALID_JSON", "OWNERSHIP", "OTHER"]),
+  command: containerCommandFailureSchema.optional(), startFailure: containerCommandFailureSchema.optional(),
 });
+export const containerFailureDiagnosticSchema = z.union([containerCleanupFailureSchema, z.strictObject({ startFailure: containerCommandFailureSchema })]);
 type CleanupStage = z.infer<typeof containerCleanupFailureSchema>["stage"];
 type CleanupFailure = z.infer<typeof containerCleanupFailureSchema>["failure"];
 const knownCleanupCauses = new WeakSet<object>();
-function cleanupError(stage: CleanupStage, failure: CleanupFailure) {
-  const cause = Object.freeze({ stage, failure }); knownCleanupCauses.add(cause);
-  return new Error("RSI_SANDBOX_CLEANUP", { cause });
+function diagnosedError(message: string, detail: z.infer<typeof containerFailureDiagnosticSchema>) {
+  const cause = Object.freeze(detail); knownCleanupCauses.add(cause);
+  return new Error(message, { cause });
+}
+function cleanupError(stage: CleanupStage, failure: CleanupFailure, command?: z.infer<typeof containerCommandFailureSchema>) {
+  return diagnosedError("RSI_SANDBOX_CLEANUP", { stage, failure, ...(command ? { command } : {}) });
 }
 function cleanupCause(error: unknown) {
   if (!(error instanceof Error)) return undefined;
@@ -27,6 +34,16 @@ function transportFailure(error: unknown): CleanupFailure {
   return message === "RSI_SANDBOX_TIMEOUT" ? "TIMEOUT" : message === "RSI_SANDBOX_OUTPUT_LIMIT" ? "OUTPUT_LIMIT"
     : message === "RSI_SANDBOX_UNAVAILABLE" ? "UNAVAILABLE" : "OTHER";
 }
+function commandFailure(error: unknown): z.infer<typeof containerCommandFailureSchema> {
+  const failure = transportFailure(error) as "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE" | "OTHER";
+  const cause: unknown = error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined;
+  if (cause && typeof cause === "object" && Object.getPrototypeOf(cause) === Object.prototype
+    && Reflect.ownKeys(cause).every(key => typeof key === "string" && "value" in Object.getOwnPropertyDescriptor(cause, key)!)) {
+    const parsed = containerCommandFailureSchema.safeParse(cause);
+    if (parsed.success && parsed.data.failure === failure) return Object.freeze(parsed.data);
+  }
+  return Object.freeze({ failure });
+}
 
 export interface DockerCommandLimits { timeoutMs: number; maxOutputBytes: number }
 export type DockerTransport = (args: readonly string[], stdin: string, limits: DockerCommandLimits) => Promise<{ code: number; stdout: string; stderr: string }>;
@@ -35,14 +52,15 @@ export type DockerTransport = (args: readonly string[], stdin: string, limits: D
 type DockerCliRunner = (args: readonly string[], stdin: string, limits: DockerCommandLimits, environment: NodeJS.ProcessEnv) => ReturnType<DockerTransport>;
 const runDockerCli: DockerCliRunner = (args, stdin, limits, environment) => new Promise((resolve, reject) => {
   const child = spawn("docker", [...args], { shell: false, env: environment, stdio: ["pipe", "pipe", "pipe"] });
-  let outputBytes = 0, stdout = "", stderr = "", failure: string | undefined;
+  let outputBytes = 0, stdoutBytes = 0, stderrBytes = 0, stdout = "", stderr = "", failure: string | undefined;
   const outDecoder = new StringDecoder("utf8"), errDecoder = new StringDecoder("utf8");
   const stop = (code: string) => { failure ??= code; child.kill("SIGKILL"); };
   const timer = setTimeout(() => stop("TIMEOUT"), limits.timeoutMs);
-  child.stdout.on("data", (chunk: Buffer) => { outputBytes += chunk.length; if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else stdout += outDecoder.write(chunk); });
-  child.stderr.on("data", (chunk: Buffer) => { outputBytes += chunk.length; if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else stderr += errDecoder.write(chunk); });
-  child.once("error", () => { clearTimeout(timer); reject(new Error("RSI_SANDBOX_UNAVAILABLE")); });
-  child.once("close", code => { clearTimeout(timer); if (failure) reject(new Error(`RSI_SANDBOX_${failure}`)); else resolve({ code: code ?? -1, stdout: stdout + outDecoder.end(), stderr: stderr + errDecoder.end() }); });
+  child.stdout.on("data", (chunk: Buffer) => { stdoutBytes = Math.min(limits.maxOutputBytes + 1, stdoutBytes + chunk.length); outputBytes += chunk.length; if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else stdout += outDecoder.write(chunk); });
+  child.stderr.on("data", (chunk: Buffer) => { stderrBytes = Math.min(limits.maxOutputBytes + 1, stderrBytes + chunk.length); outputBytes += chunk.length; if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else stderr += errDecoder.write(chunk); });
+  const rejectCommand = (reason: "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE") => reject(new Error(`RSI_SANDBOX_${reason}`, { cause: Object.freeze({ failure: reason, stdoutBytes, stderrBytes }) }));
+  child.once("error", () => { clearTimeout(timer); rejectCommand("UNAVAILABLE"); });
+  child.once("close", code => { clearTimeout(timer); if (failure) rejectCommand(failure as "TIMEOUT" | "OUTPUT_LIMIT"); else resolve({ code: code ?? -1, stdout: stdout + outDecoder.end(), stderr: stderr + errDecoder.end() }); });
   child.stdin.on("error", () => {}); child.stdin.end(stdin);
 });
 
@@ -222,7 +240,7 @@ export class VerifiedContainerBackend {
   async #container(stdin: string, probe = false) {
     this.assertAvailable();
     const owner = randomUUID(), name = `rsi-${owner}`, p = this.#profile;
-    let createdId: string | undefined;
+    let createdId: string | undefined, startFailure: z.infer<typeof containerCommandFailureSchema> | undefined;
     const nodeArgs = probe
       ? ["--permission", ...[...probePermissions, ...(p.entrypoint.kind === "native-file" ? ["/opt/rsi/native-wrapper.mjs"] : [])].map(path => `--allow-fs-read=${path}`), "--max-old-space-size=64", "--input-type=module", "-e", runtimeProbe(p)]
       : p.entrypoint.kind === "inline-node"
@@ -238,7 +256,7 @@ export class VerifiedContainerBackend {
     const inspectOwned = async () => {
       let inspection: Awaited<ReturnType<DockerTransport>>;
       try { inspection = await this.#transport(["inspect", name], "", commandLimits); }
-      catch (error) { throw cleanupError("INSPECT_TRANSPORT", transportFailure(error)); }
+      catch (error) { const command = commandFailure(error); throw cleanupError("INSPECT_TRANSPORT", transportFailure(error), command.stdoutBytes !== undefined ? command : undefined); }
       if (inspection.code !== 0) throw cleanupError("INSPECT_EXIT", "EXIT");
       let rows: unknown;
       try { rows = JSON.parse(inspection.stdout); } catch { throw cleanupError("INSPECT_JSON", "INVALID_JSON"); }
@@ -253,8 +271,14 @@ export class VerifiedContainerBackend {
       createdId = creation.stdout.trim();
       const row = await inspectOwned();
       if (!Array.isArray(row.Mounts) || row.Mounts.length !== 0) fail("BLOCKED");
-      const result = await this.#transport(["start", "--attach", "--interactive", name], stdin, { timeoutMs: p.wallTimeMs, maxOutputBytes: p.maxOutputBytes });
+      let result: Awaited<ReturnType<DockerTransport>>;
+      try { result = await this.#transport(["start", "--attach", "--interactive", name], stdin, { timeoutMs: p.wallTimeMs, maxOutputBytes: p.maxOutputBytes }); }
+      catch (error) {
+        startFailure = commandFailure(error);
+        throw diagnosedError(error instanceof Error ? error.message : "RSI_SANDBOX_UNAVAILABLE", { startFailure });
+      }
       if (typeof result.stdout !== "string" || typeof result.stderr !== "string" || !Number.isInteger(result.code)) fail("IPC");
+      if (result.code !== 0) startFailure = Object.freeze({ failure: "EXIT", stdoutBytes: Math.min(65537, Buffer.byteLength(result.stdout)), stderrBytes: Math.min(65537, Buffer.byteLength(result.stderr)) });
       // Real CLI overflow is OUTPUT_LIMIT; a transport returning an oversized
       // completed response violates IPC (the existing Node adapter contract).
       if (Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr) > p.maxOutputBytes) fail("IPC");
@@ -266,12 +290,12 @@ export class VerifiedContainerBackend {
         const row = await inspectOwned();
         let removed: Awaited<ReturnType<DockerTransport>>;
         try { removed = await this.#transport(["rm", "--force", row.Id], "", commandLimits); }
-        catch (error) { throw cleanupError("RM_TRANSPORT", transportFailure(error)); }
+        catch (error) { const command = commandFailure(error); throw cleanupError("RM_TRANSPORT", transportFailure(error), command.stdoutBytes !== undefined ? command : undefined); }
         if (removed.code !== 0) throw cleanupError("RM_EXIT", "EXIT");
       } catch (error) {
         this.#blocked = true;
         const cause = cleanupCause(error);
-        if (cause) throw new Error("RSI_SANDBOX_CLEANUP", { cause });
+        if (cause) throw diagnosedError("RSI_SANDBOX_CLEANUP", { ...cause as z.infer<typeof containerCleanupFailureSchema>, ...(startFailure ? { startFailure } : {}) });
         throw cleanupError("INSPECT_OWNERSHIP", "OTHER");
       }
     }

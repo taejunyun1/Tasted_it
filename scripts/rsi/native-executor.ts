@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { VerifiedContainerBackend, dockerTransport, containerCleanupFailureSchema, type DockerTransport, type TrustedContainerProfile } from "./container-backend";
+import { VerifiedContainerBackend, dockerTransport, containerFailureDiagnosticSchema, type DockerTransport, type TrustedContainerProfile } from "./container-backend";
 import { rsiFixtureSchema } from "./oracle";
 import { NATIVE_RUNTIME, NATIVE_HARNESS, NATIVE_GUARD } from "./native-wrapper";
 
@@ -24,11 +24,23 @@ const candidateSchema = z.strictObject({ path: z.literal(NATIVE_SOURCE_PATH), so
 function fail(code: string, cause?: unknown): never { throw new Error(`RSI_NATIVE_${code}`, cause ? { cause } : undefined); }
 function nativeCleanupCause(error: unknown) {
   const raw = error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined;
-  if (!raw || typeof raw !== "object" || Object.getPrototypeOf(raw) !== Object.prototype || Reflect.ownKeys(raw).length !== 2) return undefined;
-  const stage = Object.getOwnPropertyDescriptor(raw, "stage"), failure = Object.getOwnPropertyDescriptor(raw, "failure");
-  if (!stage || !failure || !("value" in stage) || !("value" in failure)) return undefined;
-  const parsed = containerCleanupFailureSchema.safeParse({ stage: stage.value, failure: failure.value });
-  return parsed.success ? Object.freeze(parsed.data) : undefined;
+  function data(value: unknown, depth = 0): unknown {
+    if (typeof value === "string" || typeof value === "number") return value;
+    if (!value || typeof value !== "object" || depth > 1 || Object.getPrototypeOf(value) !== Object.prototype || Reflect.ownKeys(value).length > 4) return undefined;
+    const output: Record<string, unknown> = {};
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== "string") return undefined;
+      const item = Object.getOwnPropertyDescriptor(value, key)!;
+      if (!("value" in item)) return undefined;
+      output[key] = data(item.value, depth + 1);
+    }
+    return output;
+  }
+  const parsed = containerFailureDiagnosticSchema.safeParse(data(raw));
+  if (!parsed.success) return undefined;
+  if (parsed.data.startFailure) Object.freeze(parsed.data.startFailure);
+  if ("command" in parsed.data && parsed.data.command) Object.freeze(parsed.data.command);
+  return Object.freeze(parsed.data);
 }
 function plainRequest(raw: unknown) {
   if (!raw || typeof raw !== "object" || Object.getPrototypeOf(raw) !== Object.prototype) fail("INPUT");
@@ -212,7 +224,9 @@ export class NativeExecutor {
       const message = error instanceof Error ? error.message : "";
       const result = unknown(["RSI_SANDBOX_CLEANUP", "RSI_SANDBOX_TIMEOUT", "RSI_SANDBOX_OUTPUT_LIMIT", "RSI_SANDBOX_BLOCKED"].includes(message) ? message : "EXECUTION_UNVERIFIED");
       const cleanupFailure = nativeCleanupCause(error);
-      return cleanupFailure ? { ...result, provenance: { ...result.provenance, cleanupFailure } } : result;
+      return cleanupFailure ? { ...result, provenance: { ...result.provenance,
+        ...("stage" in cleanupFailure ? { cleanupFailure } : {}),
+        ...(cleanupFailure.startFailure ? { startFailure: cleanupFailure.startFailure } : {}) } } : result;
     }
   }
 }

@@ -57,4 +57,8 @@ native 상한은 메모리 512 MiB, tmpfs 64 MiB, CPU 1개, PID 64개, wall 15�
 
 공통 backend의 `RSI_SANDBOX_CLEANUP` 메시지·한도·격리 동작은 유지한다. 추가 진단 cause는 INSPECT_TRANSPORT/INSPECT_EXIT/INSPECT_JSON/INSPECT_OWNERSHIP/RM_TRANSPORT/RM_EXIT 단계와 고정 failure enum만 제공하고 native 경계에서 다시 검증한다. 인자·ID·원문 출력·daemon 오류·소켓·환경값은 진단에 넣지 않는다. 관측 보강 전 실제 정리 UNKNOWN 두 건과 준비 BLOCKED 두 건은 과거 불확실 기록으로 남긴다. 별도 주입 경로의 고정 NORMAL 여덟 회(명령 53개, 소유 컨테이너 열 개 부재 확인)는 원인을 재현하지 못했으며 원래 실패의 해결 증거가 아니다. 기본 경로의 실제 영수증과 주입한 CLI 진단을 구분한다.
 
+실행과 제거가 모두 실패하면 `startFailure`와 cleanup 단계를 함께 보존한다. Docker CLI 실패의 고정 사유와 수신한 stdout/stderr 바이트 수만 남기며 각 수는 해당 출력 상한+1로 제한한다. 공통 진단 schema의 최대값은 65,537이고 native 경계에서 객체·접근자·enum·수 범위를 재검증한다. 부분 출력은 파싱하거나 PASS 영수증으로 복원하지 않는다. 실패한 START의 출력 바이트가 0인지 아닌지는 종료 전후의 단서일 뿐 성공 증거가 아니다.
+
+2026-10-22 승인된 원인 수집 배치는 고정 이미지에서 정상/기존 generator 실패형을 32건, 20.647초 실행하고 횟수 상한에서 종료했다. 정상16건은 NO_CHANGE, 실패형16건은 CANDIDATE_LOG FAIL이었고 해당 배치의 timeout은 없었다. 이 배치는 전체 수용 검사와 목적이 다르며 과거 반복 실패의 원인을 재현하지 못했다. 전체 수용 BLOCKED는 유지한다. 원인 수집 재실행에는 별도 범위 확인이 필요하며 일반 평가 API가 retry하는 구조는 아니다.
+
 후보 소스나 원문 출력은 manifest·보고서에 저장하지 않는다. 기존 의존성 감사는 35건(critical 1, high 9, moderate 21, low 4)을 보고했다. 의존성은 이 작업에서 변경하지 않았으며 고정 이미지가 이를 해소했다고 주장하지 않는다. 이것은 운영 배포, 실제 provider·학생 데이터·서비스 복구 또는 자기개선 효과의 증거가 아니다.

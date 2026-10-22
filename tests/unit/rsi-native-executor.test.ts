@@ -216,6 +216,19 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       expect(invoked).toBe(false); expect(JSON.stringify(result)).not.toContain("SYNTHETIC_PRIVATE_DAEMON");
     } finally { fake.spy.mockRestore(); }
   });
+  it.each([false, true])("keeps START failure metadata separate from cleanup: %s", async cleanup => {
+    const fake = await setup();
+    try {
+      const executor = await NativeExecutor.verify(fake.manifest);
+      fake.state.error = cleanup ? "RSI_SANDBOX_CLEANUP" : "RSI_SANDBOX_TIMEOUT";
+      fake.state.cleanupCause = { ...(cleanup ? { stage: "RM_TRANSPORT", failure: "TIMEOUT" } : {}), startFailure: { failure: "TIMEOUT", stdoutBytes: 103, stderrBytes: 0 } };
+      const result = await executor.evaluate({ ...request(), fixture: "NORMAL" });
+      expect(result.verdict).toBe("UNKNOWN");
+      expect(result.provenance).toHaveProperty("startFailure", { failure: "TIMEOUT", stdoutBytes: 103, stderrBytes: 0 });
+      if ("startFailure" in result.provenance) expect(Object.isFrozen(result.provenance.startFailure)).toBe(true);
+      expect(JSON.stringify(result)).not.toContain("private");
+    } finally { fake.spy.mockRestore(); }
+  });
 });
 
 it.runIf(process.env.RSI_NATIVE_PREPARE === "1")("prepares only the trusted locked native image", async () => {
@@ -241,6 +254,33 @@ describe.runIf(process.env.RSI_NATIVE_PROBE === "1")("actual Docker/workerd prob
     expect(skipped.verdict).toBe("FAIL"); expect(skipped.reason).toBe("ORACLE_RESULT");
     expect(skipped.provenance).toMatchObject({ callCount: 5, dispatchAttempts: 1, deadlineExpired: false, disposalConfirmed: true, cleanupConfirmed: true });
   }, 45000);
+  it.runIf(process.env.RSI_NATIVE_CAUSE_COLLECTION === "1")("collects one bounded cause batch without retrying a failed lifecycle", async () => {
+    const started = Date.now(), end = started + 120000;
+    const results: { index: number; fixture: string; result: unknown }[] = [];
+    let stopped = "COUNT_BOUND", admission: { reason: string; diagnostic?: unknown } | undefined;
+    try {
+      const executor = await NativeExecutor.verify(manifest());
+      for (let index = 0; index < 32; index++) {
+        // Reserve the unchanged worst-case create/inspect/start/inspect/rm bounds.
+        if (end - Date.now() < 35000) { stopped = "WALL_BOUND"; break; }
+        const fixture = index % 2 === 0 ? "NORMAL" : "NATIVE_RECEIVER";
+        const value = index % 2 === 0 ? source : 'try { (function*(){})["constr"+"uctor"]("yield import(\\"node:fs\\")")(); } catch {}' + source;
+        const result = await executor.evaluate({ ...request(value), fixture });
+        results.push({ index, fixture, result });
+        if (result.verdict === "UNKNOWN") { stopped = "FIRST_UNVERIFIED_EXECUTION"; break; }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const cause = error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined;
+      admission = { reason: /^RSI_(NATIVE|SANDBOX)_[A-Z_0-9]+$/.test(message) ? message : "OPAQUE", diagnostic: cause };
+      stopped = "ADMISSION_FAILED";
+    }
+    record("bounded-cause-collection-only", { purpose: "CAUSE_COLLECTION_ONLY", transportKind: "DOCKER_CLI", imageId: manifest().imageId,
+      startedUtc: new Date(started).toISOString(), endedUtc: new Date().toISOString(), elapsedMs: Date.now() - started,
+      maxCandidates: 32, totalBudgetMs: 120000, stopped, admission, results });
+    expect(results.length).toBeLessThanOrEqual(32);
+    expect(Date.now() - started).toBeLessThanOrEqual(120000);
+  }, 125000);
   it("independently matches public roots from the pinned base Node binary", async () => {
     const policy = JSON.parse(readFileSync(new URL("../../scripts/rsi/sandbox-policy.json", import.meta.url), "utf8"));
     const fixedSource = 'import {rootCertificates} from "node:tls"; import {createHash} from "node:crypto"; const bundle=rootCertificates.join("\\n")+"\\n"; console.log(JSON.stringify({publicCaDigest:createHash("sha256").update(bundle).digest("hex"),publicCaCount:rootCertificates.length}));';
