@@ -125,6 +125,19 @@ describe("shared actual repair core contracts (host data only)", () => {
     manifestRead.driftPath = ""; manifestRead.missingPath = "/promotion.ts";
     await expect(measureFixedClosure("R4")).rejects.toThrow("RSI_CONTROLLER_CLOSURE_UNVERIFIED");
   });
+  it("binds R3 to its transitive execution contracts without requiring R4-only files", async () => {
+    const original = await measureFixedClosure("R3");
+    manifestRead.driftPath = "/execution-contracts.ts";
+    const changed = await measureFixedClosure("R3");
+    expect(changed.controllerHash).not.toBe(original.controllerHash);
+    expect(original.controller.files).toHaveProperty("scripts/rsi/execution-contracts.ts");
+    manifestRead.driftPath = ""; manifestRead.missingPath = "/execution-contracts.ts";
+    await expect(measureFixedClosure("R3")).rejects.toThrow("RSI_CONTROLLER_CLOSURE_UNVERIFIED");
+    for (const missing of ["/promotion.ts", "/self-improve.ts"]) {
+      manifestRead.missingPath = missing;
+      await expect(measureFixedClosure("R3")).resolves.toMatchObject({ controllerHash: original.controllerHash });
+    }
+  });
   it.each(["execution-contracts.ts", "repair-core.ts", "promotion.ts", "self-improve.ts"])("binds R4 controller and evaluator hashes to %s bytes", async name => {
     manifestRead.r4ClosureFixtures = true;
     const original = await measureFixedClosure("R4");
