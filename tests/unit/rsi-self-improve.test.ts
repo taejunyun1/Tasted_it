@@ -125,6 +125,16 @@ describe("fixed two-generation self-improvement supervisor (injected orchestrati
     expect((await readState(s, r.checkpoint)).executions[0].status).toBe("PROMOTED"); expect(r.lastPublished?.source.agentHash).toBe(s.g1.agentHash);
     await chmod(s.options.storage.receiptDirectory, 0o700);
   });
+  it("treats post-promotion metadata read failure as receipt partial, never accounting rollback", async () => {
+    const s = await setup(); await injected(); const original = LocalRsiLedger.prototype.readImprovement; let publishedReads = 0;
+    vi.spyOn(LocalRsiLedger.prototype, "readImprovement").mockImplementation(async function() {
+      const state = await original.call(this);
+      if (state.executions[0]?.status === "PROMOTED" && ++publishedReads === 2) throw new Error("injected metadata read failure");
+      return state;
+    });
+    const r = await runSelfImprovement(s.options); expect(r.status).toBe("PARTIAL"); expect(r.reasonCode).toBe("RECEIPT_UNCERTAIN"); expect(r.completedGenerations).toBe(1);
+    expect((await readState(s, r.checkpoint)).executions[0].status).toBe("PROMOTED");
+  });
   it("preserves completed g1 on late stop and refuses generation two", async () => {
     const s = await setup(); await injected(); const persist = ControllerCheckpointStore.prototype.persist;
     vi.spyOn(ControllerCheckpointStore.prototype, "persist").mockImplementation(async function(c) { await persist.call(this, c);
