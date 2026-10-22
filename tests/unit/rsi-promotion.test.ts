@@ -77,14 +77,15 @@ async function setup() {
   const obs = observation();
   return { dir, ledgerPath, campaignId, common, active, memory, baseSource, obs, clock, stopped };
 }
-async function session(s: Awaited<ReturnType<typeof setup>>, fixture: Awaited<ReturnType<typeof hostFixture>>, generation: 1 | 2 = 1, response?: unknown, overrides?: { defer?: boolean; broker?: LocalFakeModelBroker; scenarios?: FakeScenario[] }) {
+async function session(s: Awaited<ReturnType<typeof setup>>, fixture: Awaited<ReturnType<typeof hostFixture>>, generation: 1 | 2 = 1, response?: unknown, overrides?: { defer?: boolean; broker?: LocalFakeModelBroker; scenarios?: FakeScenario[]; futureResponse?: unknown; fixtureResponse?: unknown }) {
   const active = await loadLabActiveAgent(s.common);
   const scenarios: FakeScenario[] = overrides?.scenarios ?? [
     ...(generation === 1 ? [{ kind: "JSON_RESPONSE" as const, response: diagnosis(s.obs) }, { kind: "JSON_RESPONSE" as const, response: patch(s.baseSource) }] : []),
     { kind: "JSON_RESPONSE", response: response ?? proposal(active.source.agentHash, generation) },
     { kind: "JSON_RESPONSE", response: diagnosis(s.obs) }, { kind: "JSON_RESPONSE", response: patch(s.baseSource) },
   ];
-  const fakeFixture = { schemaVersion: 1, mode: "LOCAL_FAKE", scenarios };
+  const fakeFixture = { schemaVersion: 1, mode: "LOCAL_FAKE", generations: { "1": scenarios.map((scenario, index) => index === 2 && overrides?.fixtureResponse !== undefined ? { kind: "JSON_RESPONSE", response: overrides.fixtureResponse } : scenario),
+    "2": [{ kind: "JSON_RESPONSE", response: overrides?.futureResponse ?? proposal((await core.compileAgentSources(modules(1))).agentHash, 2) }, { kind: "JSON_RESPONSE", response: diagnosis(s.obs) }, { kind: "JSON_RESPONSE", response: patch(s.baseSource) }] } };
   const prior = (await s.common.ledger.readImprovement()).executions[0];
   const intent: R4ExecutionIntent = { schemaVersion: 1, purpose: "R4_SELF_IMPROVE", executionId: randomUUID(), requestId: randomUUID(), campaignId: s.campaignId,
     generation, parentExecutionId: generation === 1 ? null : prior.intent.executionId,
@@ -302,7 +303,7 @@ describe("R4 promotion fixed supervisor (host boundary fixtures only)", () => {
     if (fault === "no-change") expect(state.executions[0].events.at(-1)).toEqual({ kind: "REJECTED", reasonCode: "NO_AGENT_CHANGE" });
   });
   it("retains g1 and both generations' costs when g2 generation is rejected", async () => {
-    const s = await setup(), fixture = await hostFixture(), first = await session(s, fixture), g1 = await first.opened.generateProposal();
+    const s = await setup(), fixture = await hostFixture(), first = await session(s, fixture, 1, undefined, { futureResponse: { action: "NO_CHANGE", reason: "LOCAL_FAKE" } }), g1 = await first.opened.generateProposal();
     await first.opened.promote(g1);
     s.common.ledger = await LocalRsiLedger.open(s.ledgerPath, s.common.ledger.checkpoint);
     const second = await session(s, fixture, 2, { action: "NO_CHANGE", reason: "LOCAL_FAKE" });
@@ -341,6 +342,15 @@ describe("R4 promotion fixed supervisor (host boundary fixtures only)", () => {
     await expect(opened.promote(generated)).rejects.toThrow("OPERATOR_STOP");
     const state = await s.common.ledger.readImprovement(); expect(state.catalog).toHaveLength(1); expect(state.executions[0].settlement?.kind).toBe("CONFIRMED");
     expect(state.executions[0].status).toBe("BLOCKED");
+  });
+
+  it("rejects returned bytes from a different generation fixture despite valid actual call metadata", async () => {
+    const s = await setup(), fixture = await hostFixture();
+    const { opened } = await session(s, fixture, 1, undefined, { fixtureResponse: proposal(s.active.source.agentHash, 99) });
+    await expect(opened.generateProposal()).rejects.toThrow("FIXTURE_CUSTODY");
+    const state = await s.common.ledger.readImprovement();
+    expect(state.executions[0].calls).toHaveLength(3); expect(state.executions[0].proposal).toBeNull(); expect(state.catalog).toHaveLength(1);
+    expect(state.executions[0].settlement?.kind).toBe("CONFIRMED");
   });
 
 });
