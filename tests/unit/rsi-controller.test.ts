@@ -88,7 +88,7 @@ async function setup(limit = 200000) {
 function injectHostCapabilities(outcome: "NORMAL" | "RED") {
   const execute = vi.fn(async (request: { source: string; input: { payload: { modelReply: unknown } } }) => ({
     untrustedOutput: request.input.payload.modelReply,
-    evidence: { transportKind: "DOCKER_CLI", sourceDigest: hash(request.source), inputDigest: hash(JSON.stringify(request.input)), policyDigest: SANDBOX_POLICY_DIGEST },
+    evidence: { transportKind: "DOCKER_CLI", sourceDigest: hash(request.source), inputDigest: hash(JSON.stringify(request.input)), outputDigest: hash(JSON.stringify({ schemaVersion: 1, output: request.input.payload.modelReply })), policyDigest: SANDBOX_POLICY_DIGEST },
   }));
   const evaluate = vi.fn(async (request: { sourceDigest: string; fixture: string }) => ({
     verdict: outcome === "NORMAL" ? "PASS" : "FAIL", reason: "ORACLE_RESULT", reasonCode: outcome === "NORMAL" ? "SIX_PATHS_VERIFIED" : "ORACLE_MISMATCH", redReproduced: false, greenVerified: outcome === "NORMAL",
@@ -179,9 +179,49 @@ describe("shared actual repair core contracts (host data only)", () => {
     const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => 0, killSwitch: () => false });
     await expect(runActualAgentStep({ agent, rootGate, capability: request as unknown as ReturnType<LocalFakeModelBroker["phase"]>, sequence: 1, taskKind: "improve-agent", publicInput: {} })).rejects.toThrow("RSI_CONTROLLER_AGENT_CUSTODY");
   });
+  it("awaits evidence recording in order without overlapping a supervisor sink (injected)", async () => {
+    const agent = await compileAgentSources(await loadSeedAgentSources()), closure = await measureFixedClosure("R3"), obs = observation();
+    injectHostCapabilities("RED");
+    const capability = { request: vi.fn(async () => ({ untrustedOutput: diagnosis(obs), metadata: {} })) };
+    const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => 0, killSwitch: () => false });
+    const recorded: string[] = []; let pending = 0, maximumPending = 0;
+    await expect(runActualRepairCore({ agent, closure, rootGate, observation: obs, baseSource: await service(), lessons: [],
+      request: { purpose: "R1_RECOVERY", capability: capability as unknown as LocalFakeModelBroker, nextSequence: () => 1 },
+      onEvent: async event => {
+        if (event.kind === "STAGE") throw new Error("HOST_RECORDING_BOUNDARY");
+        if (event.kind !== "EVIDENCE") return;
+        maximumPending = Math.max(maximumPending, ++pending);
+        await new Promise<void>(resolve => setImmediate(resolve));
+        recorded.push(event.evidence.reference.kind); pending--;
+      },
+    })).rejects.toThrow("HOST_RECORDING_BOUNDARY");
+    expect(recorded).toEqual(["INPUT_MATCH", "HYPOTHESIS", "HYPOTHESIS"]);
+    expect(maximumPending).toBe(1);
+  });
+  it.each(["KILL", "CLOCK"])("checks %s after awaited evidence recording before further work (injected)", async boundary => {
+    const agent = await compileAgentSources(await loadSeedAgentSources()), closure = await measureFixedClosure("R3"), obs = observation();
+    const capabilities = injectHostCapabilities("RED"), recorded: string[] = []; let killed = false, tick = 0;
+    const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => tick, killSwitch: () => killed });
+    const capability = { request: vi.fn(async () => ({ untrustedOutput: diagnosis(obs), metadata: {} })) };
+    await expect(runActualRepairCore({ agent, closure, rootGate, observation: obs, baseSource: await service(), lessons: [],
+      request: { purpose: "R1_RECOVERY", capability: capability as unknown as LocalFakeModelBroker, nextSequence: () => 1 },
+      onEvent: async event => {
+        if (event.kind !== "EVIDENCE") return;
+        recorded.push(event.evidence.reference.kind);
+        await Promise.resolve(); if (boundary === "KILL") killed = true; else tick = 120000;
+      },
+    })).rejects.toThrow(boundary === "KILL" ? "RSI_CONTROLLER_OPERATOR_STOP" : "RSI_CONTROLLER_DEADLINE");
+    expect(recorded).toEqual(["INPUT_MATCH"]); expect(capabilities.evaluate).not.toHaveBeenCalled();
+  });
 });
 
 describe("synthetic recovery contracts (host data only)", () => {
+  it.each([NaN, -1, Infinity])("returns BLOCKED for initial clock %s without reservation or execution", async initial => {
+    const options = await setup(), verify = vi.spyOn(DockerSandbox, "verify");
+    await expect(recoverSyntheticIncident({ ...options, monotonicMs: () => initial, observation: observation(), baseSource: await service(), agentSources: await loadSeedAgentSources() }))
+      .resolves.toMatchObject({ status: "BLOCKED", reasonCode: "DEADLINE_OR_CLOCK", lineage: null });
+    expect((await options.ledger.read()).runs).toHaveLength(0); expect(verify).not.toHaveBeenCalled();
+  });
   it("uses a bounded unit manifest in a fresh checkout without reading the ignored live artifact", async () => {
     const options = await setup(73551), input = { ...options, observation: observation(), baseSource: await service(), agentSources: await loadSeedAgentSources() };
     manifestRead.unitOnly = true; manifestRead.liveReadsForbidden = true;
