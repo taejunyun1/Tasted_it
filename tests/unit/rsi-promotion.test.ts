@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
-import { chmod, link, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ImmutableAgentSourceStore, LabPromotionSession, initializeLabCatalog, loadLabActiveAgent, rollbackLabCatalog, validateAgentProposal, labGenerationScenarios } from "../../scripts/rsi/promotion";
@@ -14,11 +14,31 @@ import * as core from "../../scripts/rsi/repair-core";
 import { DockerSandbox, SANDBOX_POLICY, SANDBOX_POLICY_DIGEST } from "../../scripts/rsi/sandbox";
 import { NativeExecutor } from "../../scripts/rsi/native-executor";
 
+// Local IO fault injection only: a complete blob remains after a failed fsync.
+// No container/runtime capability or production filesystem is substituted.
+const durabilityFault = vi.hoisted(() => ({ directory: "", stage: "" as "" | "FILE" | "DIRECTORY", trace: [] as string[], onSync: undefined as undefined | ((stage: "FILE" | "DIRECTORY") => Promise<void>) }));
+vi.mock("node:fs/promises", async importOriginal => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, open: async (...args: Parameters<typeof actual.open>) => {
+    const handle = await actual.open(...args), path = String(args[0]);
+    const stage = path === durabilityFault.directory ? "DIRECTORY" : path.startsWith(durabilityFault.directory + "/") && path.endsWith(".source.json") ? "FILE" : null;
+    if (durabilityFault.directory && stage) {
+      const sync = handle.sync.bind(handle);
+      handle.sync = async () => {
+        durabilityFault.trace.push(stage);
+        if (durabilityFault.stage === stage) throw new Error("SYNTHETIC_FSYNC_FAILURE");
+        await sync(); await durabilityFault.onSync?.(stage);
+      };
+    }
+    return handle;
+  } };
+});
+
 const hash = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 const jhash = (v: unknown) => hash(JSON.stringify(v));
 const now = "2026-10-22T15:30:00.000Z";
 const dirs: string[] = [];
-afterEach(async () => { vi.restoreAllMocks(); await Promise.all(dirs.splice(0).map(p => rm(p, { recursive: true, force: true }))); });
+afterEach(async () => { Object.assign(durabilityFault, { directory: "", stage: "", trace: [], onSync: undefined }); vi.restoreAllMocks(); await Promise.all(dirs.splice(0).map(p => rm(p, { recursive: true, force: true }))); });
 async function directory() { const p = await realpath(await mkdtemp(join(tmpdir(), "rsi-promotion-"))); dirs.push(p); return p; }
 const modules = (generation = 1) => ({
   "scripts/rsi/agent/diagnostic-policy.ts": "export function diagnose(p) { return p.modelReply; }\n",
@@ -114,6 +134,37 @@ describe("R4 immutable source data", () => {
     expect(await store.put(modules())).toEqual(source);
     expect(await ImmutableAgentSourceStore.open(store.directory).then(s => s.read(source))).toEqual(read);
     await expect(store.read({ ...source, compiledDigest: hash("forged") })).rejects.toThrow("RSI_PROMOTION_SOURCE_UNAVAILABLE");
+  });
+  it.each(["FILE", "DIRECTORY"] as const)("requires both syncs before reaccepting a complete blob left by %s fsync failure", async stage => {
+    const dir = await directory(), store = await ImmutableAgentSourceStore.create(join(dir, "source"));
+    const text = JSON.stringify({ schemaVersion: 1, modules: modules() }), path = join(store.directory, `${hash(text)}.source.json`);
+    durabilityFault.directory = store.directory; durabilityFault.stage = stage;
+    await expect(store.put(modules())).rejects.toThrow("SOURCE_UNAVAILABLE");
+    expect(await readFile(path, "utf8")).toBe(text);
+    const before = await lstat(path);
+    durabilityFault.trace = [];
+    await expect(store.put(modules())).rejects.toThrow("SOURCE_UNAVAILABLE");
+    expect(durabilityFault.trace).toEqual(stage === "FILE" ? ["FILE"] : ["FILE", "DIRECTORY"]);
+    expect(await readFile(path, "utf8")).toBe(text);
+    durabilityFault.stage = ""; durabilityFault.trace = [];
+    const accepted = await store.put(modules());
+    expect(accepted.artifactDigest).toBe(hash(text));
+    expect(durabilityFault.trace).toEqual(["FILE", "DIRECTORY"]);
+    const after = await lstat(path);
+    expect({ dev: after.dev, ino: after.ino, size: after.size, mode: after.mode }).toEqual({ dev: before.dev, ino: before.ino, size: before.size, mode: before.mode });
+  });
+  it.each(["FILE", "DIRECTORY"] as const)("rejects identity replacement during existing blob %s resync", async stage => {
+    const dir = await directory(), store = await ImmutableAgentSourceStore.create(join(dir, "source")), source = await store.put(modules());
+    const path = join(store.directory, `${source.artifactDigest}.source.json`), bytes = await readFile(path);
+    durabilityFault.directory = store.directory;
+    durabilityFault.onSync = async actualStage => {
+      if (stage !== actualStage) return;
+      durabilityFault.onSync = undefined;
+      if (stage === "FILE") { await rename(path, join(dir, "original-blob")); await writeFile(path, bytes, { mode: 0o400 }); }
+      else { await rename(store.directory, join(dir, "original-store")); await mkdir(store.directory, { mode: 0o700 }); }
+    };
+    await expect(store.put(modules())).rejects.toThrow("SOURCE_UNAVAILABLE");
+    expect(durabilityFault.trace).toContain(stage);
   });
   it.each(["partial", "replacement", "mode", "symlink", "hardlink", "missing"])("rejects %s source without repair or fallback", async fault => {
     const dir = await directory(), store = await ImmutableAgentSourceStore.create(join(dir, "source")), source = await store.put(modules());
