@@ -6,7 +6,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { VerifiedContainerBackend, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
 import { createLocalDockerTransport as legacyLocal, dockerTransport as legacyTransport } from "../../scripts/rsi/sandbox";
-import { createLocalDockerTransport, dockerTransport, containerFailureDiagnosticSchema } from "../../scripts/rsi/container-backend";
+import { createLocalDockerTransport, dockerTransport, observeDockerLifecycle, containerFailureDiagnosticSchema, decodeContainerDiagnostic, classifyContainerFailure, type DockerCommandLifecycle } from "../../scripts/rsi/container-backend";
 
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 const baseId = "sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5";
@@ -70,7 +70,7 @@ describe("trusted container backend", () => {
     vi.useFakeTimers();
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => true) });
     const spawn = vi.spyOn(childProcess, "spawn").mockReturnValue(child as unknown as ReturnType<typeof childProcess.spawn>); syncBuiltinESMExports();
-    const snapshots: any[] = [];
+    const snapshots: Readonly<DockerCommandLifecycle>[] = [];
     try {
       const transport = createLocalDockerTransport({ DOCKER_HOST: "unix:///SYNTHETIC_PRIVATE.sock", SECRET: "SYNTHETIC_SECRET" }, undefined, snapshot => { snapshots.push(snapshot); });
       let settled = false;
@@ -78,7 +78,7 @@ describe("trusted container backend", () => {
       await vi.advanceTimersByTimeAsync(0); child.emit("spawn");
       child.stdout.write("abc"); await vi.advanceTimersByTimeAsync(7); child.stdout.write("def"); child.stderr.write("x");
       child.emit("exit", 0, null); await vi.advanceTimersByTimeAsync(3);
-      expect(settled).toBe(false); expect(snapshots.at(-1).exit.atMs).toBe(7); expect(snapshots.at(-1).close.atMs).toBeNull();
+      expect(settled).toBe(false); expect(snapshots.at(-1)!.exit.atMs).toBe(7); expect(snapshots.at(-1)!.close.atMs).toBeNull();
       child.stdout.end(); child.stderr.end(); await vi.advanceTimersByTimeAsync(0); child.emit("close", 0, null);
       const result = await pending;
       expect(result.lifecycle).toMatchObject({ schemaVersion: 1, command: "START", ordinal: 1, timeoutMs: 15000, elapsedMs: 10,
@@ -86,6 +86,10 @@ describe("trusted container backend", () => {
         stdout: { bytes: 6, chunks: 2, firstMs: 0, lastMs: 7, endMs: 10 }, stderr: { bytes: 1 },
         exit: { code: 0, signal: null, atMs: 7 }, close: { code: 0, signal: null, atMs: 10 }, nativeReady: "UNOBSERVED", nativeDispatch: "UNOBSERVED" });
       expect(result.lifecycle!.events.length).toBeLessThanOrEqual(64); expect(Object.isFrozen(snapshots[0])).toBe(true);
+      const events = result.lifecycle!.events.map(event => event.kind);
+      expect(events.indexOf("EXIT")).toBeLessThan(events.indexOf("STDOUT_END"));
+      expect(events.indexOf("STDOUT_END")).toBeLessThan(events.indexOf("STDOUT_CLOSE"));
+      expect(events.indexOf("STDERR_CLOSE")).toBeLessThan(events.indexOf("CLOSE"));
       expect(JSON.stringify(snapshots)).not.toMatch(/SYNTHETIC_PRIVATE|SYNTHETIC_SOURCE|SYNTHETIC_SECRET|abc|def/);
     } finally { spawn.mockRestore(); syncBuiltinESMExports(); vi.useRealTimers(); }
   });
@@ -94,7 +98,7 @@ describe("trusted container backend", () => {
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(),
       kill: vi.fn(() => { if (mode === "throw") throw Object.assign(Error("SYNTHETIC_PRIVATE"), { code: "EPERM" }); return false; }) });
     const spawn = vi.spyOn(childProcess, "spawn").mockReturnValue(child as unknown as ReturnType<typeof childProcess.spawn>); syncBuiltinESMExports();
-    const snapshots: any[] = [];
+    const snapshots: Readonly<DockerCommandLifecycle>[] = [];
     try {
       const transport = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" }, undefined, snapshot => { snapshots.push(snapshot); throw Error("SYNTHETIC_OBSERVER"); });
       let settled = false;
@@ -105,6 +109,124 @@ describe("trusted container backend", () => {
       child.emit("close", null, "SIGKILL");
       expect((await pending).cause.lifecycle.observerError).toBe(true);
     } finally { child.emit("close", null); spawn.mockRestore(); syncBuiltinESMExports(); vi.useRealTimers(); }
+  });
+  it.each(["sync", "event"])("redacts %s spawn failure and leaves absent spawn/exit observations null", async mode => {
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn() });
+    const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+      const error = Object.assign(Error("SYNTHETIC_SECRET_STACK"), { code: "ENOENT" });
+      if (mode === "sync") throw error;
+      queueMicrotask(() => child.emit("error", error)); return child as unknown as ReturnType<typeof childProcess.spawn>;
+    }); syncBuiltinESMExports();
+    try {
+      const error = await createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" })(["start"], "", { timeoutMs: 5000, maxOutputBytes: 32 }).catch(error => error);
+      expect(error.message).toBe("RSI_SANDBOX_UNAVAILABLE");
+      expect(error.cause.lifecycle).toMatchObject({ spawn: { invoked: true, observed: null, error: "ENOENT" }, exit: { atMs: null }, close: { atMs: null } });
+      expect(JSON.stringify(error)).not.toContain("SYNTHETIC_SECRET_STACK");
+    } finally { child.emit("close", null); spawn.mockRestore(); syncBuiltinESMExports(); }
+  });
+  it("caps event history and ignores rejected observer promises", async () => {
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn() });
+    const spawn = vi.spyOn(childProcess, "spawn").mockReturnValue(child as unknown as ReturnType<typeof childProcess.spawn>); syncBuiltinESMExports();
+    try {
+      const pending = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" }, undefined, () => Promise.reject(Error("SYNTHETIC_PRIVATE")))(["start"], "", { timeoutMs: 5000, maxOutputBytes: 32 });
+      await Promise.resolve(); await Promise.resolve();
+      for (let i = 0; i < 100; i++) child.stdin.emit("drain");
+      child.stdout.emit("error", Object.assign(Error("SYNTHETIC_PRIVATE"), { code: "ECONNRESET" })); child.stdout.emit("close"); await Promise.resolve(); child.emit("close", 0, null);
+      const result = await pending;
+      expect(result.lifecycle).toMatchObject({ observerError: true, stdin: { drainCount: 64 }, stdout: { error: "ECONNRESET", endMs: null } });
+      expect(result.lifecycle!.events).toHaveLength(64);
+    } finally { spawn.mockRestore(); syncBuiltinESMExports(); }
+  });
+  it("rejects diagnostic proxies, accessors, prototypes, extra keys and oversized collections without executing them", () => {
+    let touched = 0;
+    const valid = { startFailure: { failure: "TIMEOUT", stdoutBytes: 2, stderrBytes: 0 } };
+    expect(decodeContainerDiagnostic(containerFailureDiagnosticSchema, valid)).toEqual(valid);
+    const proxy = new Proxy(valid, { getPrototypeOf() { touched++; throw Error(); }, ownKeys() { touched++; throw Error(); } });
+    const accessor = { startFailure: { get failure() { touched++; return "TIMEOUT"; } } };
+    for (const value of [proxy, accessor, Object.assign(Object.create(valid), valid), { ...valid, raw: "SYNTHETIC_PRIVATE" }, { ...valid, transport: { commands: Array(66).fill({}), cleanup: {} } }]) {
+      expect(decodeContainerDiagnostic(containerFailureDiagnosticSchema, value)).toBeUndefined();
+    }
+    expect(touched).toBe(0);
+  });
+  it("observes the default CLI adapter without changing its identity or allowing a second observer", async () => {
+    const fake = fakeDocker(), snapshots: Readonly<DockerCommandLifecycle>[] = [];
+    let currentChild: { stdin: EventEmitter } | undefined, observed = 0;
+    const spawn = vi.spyOn(childProcess, "spawn").mockImplementation((_file, args) => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn() });
+      currentChild = child;
+      const command = args![0] === "--host" ? args!.slice(2) : args!;
+      void (command[0] === "context" ? Promise.resolve({ code: 0, stdout: JSON.stringify([{ Endpoints: { docker: { Host: "unix:///SYNTHETIC_PRIVATE.sock" } } }]), stderr: "" }) : fake.transport(command, "", { timeoutMs: 5000, maxOutputBytes: 65536 })).then(result => {
+        child.stdout.write(result.stdout); child.stderr.write(result.stderr); child.emit("close", result.code, null);
+      });
+      return child as unknown as ReturnType<typeof childProcess.spawn>;
+    }); syncBuiltinESMExports();
+    let detach: (() => void) | undefined;
+    try {
+      detach = observeDockerLifecycle(snapshot => {
+        snapshots.push(snapshot);
+        if (snapshot.stdin.endInvoked && snapshot.close.atMs === null) currentChild?.stdin.emit("drain");
+        if (++observed % 3 === 0) throw Error("SYNTHETIC_PRIVATE_OBSERVER");
+        if (observed % 3 === 1) return Promise.reject(Error("SYNTHETIC_PRIVATE_OBSERVER"));
+        return { verdict: "PASS" };
+      });
+      expect(() => observeDockerLifecycle(() => {})).toThrow("RSI_SANDBOX_BLOCKED");
+      const backend = await VerifiedContainerBackend.verify(profile());
+      const result = await backend.run("synthetic");
+      expect(result.evidence.transportKind).toBe("DOCKER_CLI");
+      expect(result.evidence.transport!.commands.map(command => command.command)).toEqual(["CREATE", "INSPECT", "START", "INSPECT", "RM"]);
+      expect(result.evidence.transport!.commands.map(command => command.phase)).toEqual(["CREATE", "INSPECT", "START", "CLEANUP_INSPECT", "CLEANUP_RM"]);
+      expect(result.evidence.transport!.cleanup).toEqual({ inspectReturned: true, nameMatch: true, ownerMatch: true, idMatch: true, rmInvoked: true, rmReturned: true });
+      expect(result.evidence.transport!.commands.every(command => command.observerError)).toBe(true);
+      expect(JSON.stringify(snapshots)).not.toContain("SYNTHETIC_PRIVATE");
+      const staleDetach = detach; detach(); detach = undefined; const count = snapshots.length; await backend.run("synthetic"); expect(snapshots).toHaveLength(count);
+      const next: Readonly<DockerCommandLifecycle>[] = []; detach = observeDockerLifecycle(snapshot => { next.push(snapshot); });
+      staleDetach(); await backend.run("synthetic"); expect(next.length).toBeGreaterThan(0);
+      // Mocked spawn remains synthetic evidence, regardless of the fixed identity tag.
+    } finally { detach?.(); spawn.mockRestore(); syncBuiltinESMExports(); }
+  });
+  it("binds completed START output to cleanup failure only through the internal one-use seam", async () => {
+    const fake = fakeDocker(); let enabled = false;
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn() });
+    const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+      queueMicrotask(() => { child.stdout.write("SYNTHETIC_PRIVATE_FRAME"); child.emit("close", 0, null); });
+      return child as unknown as ReturnType<typeof childProcess.spawn>;
+    }); syncBuiltinESMExports();
+    try {
+      const cli = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" });
+      const transport: DockerTransport = async (args, stdin, limits) => enabled && args[0] === "start" ? cli(args, stdin, limits) : fake.transport(args, stdin, limits);
+      const backend = await VerifiedContainerBackend.verify(profile(), transport); enabled = true; fake.state.cleanupError = true;
+      const error = await backend.run("data").catch(error => error);
+      expect(error.message).toBe("RSI_SANDBOX_CLEANUP"); expect(JSON.stringify(error)).not.toContain("SYNTHETIC_PRIVATE_FRAME");
+      expect(error.cause.transport).toMatchObject({ commands: [{ command: "START" }], cleanup: { inspectReturned: true, ownerMatch: true, nameMatch: true, idMatch: true, rmInvoked: true, rmReturned: null } });
+      const classify = vi.fn((stdout: string) => ({ frameKind: "INVALID", digest: digest(stdout), completeJSON: false, schemaMatch: false, bindingMatch: null }));
+      expect(classifyContainerFailure(error, classify)).toMatchObject({ frameKind: "INVALID", digest: digest("SYNTHETIC_PRIVATE_FRAME") });
+      expect(classify).toHaveBeenCalledOnce(); expect(classifyContainerFailure(error, classify)).toBeUndefined();
+    } finally { spawn.mockRestore(); syncBuiltinESMExports(); }
+  });
+  it("starts an independent 5s RM timer after the unchanged 15s START timeout", async () => {
+    vi.useFakeTimers();
+    const children: Array<EventEmitter & { stdin: EventEmitter; kill: ReturnType<typeof vi.fn> }> = [];
+    const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => { queueMicrotask(() => child.emit("close", null, "SIGKILL")); return true; }) });
+      children.push(child); return child as unknown as ReturnType<typeof childProcess.spawn>;
+    }); syncBuiltinESMExports();
+    try {
+      const p = profile(); p.wallTimeMs = 15000; const fake = fakeDocker(p); let enabled = false;
+      const cli = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" }, undefined, () => {
+        children.at(-1)?.stdin.emit("drain"); // Reentrant event cannot recurse into the observer.
+        return Promise.reject(Error("SYNTHETIC_OBSERVER"));
+      });
+      const transport: DockerTransport = (args, stdin, limits) => enabled && ["start", "rm"].includes(args[0]) ? cli(args, stdin, limits) : fake.transport(args, stdin, limits);
+      const backend = await VerifiedContainerBackend.verify(p, transport); enabled = true;
+      const pending = backend.run("data").catch(error => error);
+      await vi.advanceTimersByTimeAsync(14999); expect(children).toHaveLength(1); expect(children[0].kill).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1); expect(children[0].kill).toHaveBeenCalledOnce(); expect(children).toHaveLength(2); expect(children[1].kill).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(4999); expect(children[1].kill).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1); const error = await pending;
+      expect(error.cause).toMatchObject({ stage: "RM_TRANSPORT", failure: "TIMEOUT", command: { lifecycle: { command: "RM", phase: "CLEANUP_RM", timeoutMs: 5000, timer: { firedMs: 5000 } } }, startFailure: { lifecycle: { command: "START", timeoutMs: 15000, timer: { firedMs: 15000 } } } });
+      expect(error.cause.transport.commands.map((entry: DockerCommandLifecycle) => entry.ordinal)).toEqual([1, 2]);
+      expect(error.cause.command.lifecycle.observerError).toBe(true); expect(children[1].kill).toHaveBeenCalledOnce();
+    } finally { children.forEach(child => child.emit("close", null)); spawn.mockRestore(); syncBuiltinESMExports(); vi.useRealTimers(); }
   });
   it.each(["before", "after"])("records stdin EPIPE %s finish without converting it to completion", async timing => {
     const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new EventEmitter() as EventEmitter & { end: ReturnType<typeof vi.fn> }, kill: vi.fn(() => true) });

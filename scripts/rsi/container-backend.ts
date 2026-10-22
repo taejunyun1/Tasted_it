@@ -2,75 +2,202 @@ import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { isAbsolute, normalize } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { types } from "node:util";
 import { z } from "zod";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 function fail(code: string): never { throw new Error(`RSI_SANDBOX_${code}`); }
+const boundedInt = z.number().int().min(0).max(86400000), time = boundedInt.nullable();
+const errorCode = z.enum(["EPIPE", "ENOENT", "EACCES", "EPERM", "ECONNRESET", "ABORT_ERR", "OTHER"]);
+const signal = z.enum(["SIGKILL", "SIGTERM", "SIGINT", "SIGABRT", "SIGSEGV", "SIGPIPE", "SIGSYS", "SIGHUP", "SIGQUIT", "OTHER"]).nullable();
+const phase = z.enum(["SELECT", "VERIFY", "CREATE", "INSPECT", "START", "CLEANUP_INSPECT", "CLEANUP_RM", "OTHER"]);
+const pipeSchema = z.strictObject({ bytes: z.number().int().min(0).max(65537), chunks: boundedInt, firstMs: time, lastMs: time, endMs: time, closeMs: time, error: errorCode.nullable() });
+const processEventSchema = z.strictObject({ atMs: time, code: z.number().int().min(-2147483648).max(2147483647).nullable(), signal });
+export const dockerCommandLifecycleSchema = z.strictObject({
+  schemaVersion: z.literal(1), command: z.enum(["CONTEXT", "INFO", "IMAGE_INSPECT", "CREATE", "INSPECT", "START", "RM", "BUILD", "OTHER"]),
+  ordinal: z.number().int().min(1).max(1000000), phase, timeoutMs: z.number().int().min(1).max(600000), elapsedMs: boundedInt,
+  spawn: z.strictObject({ invoked: z.literal(true), observed: z.boolean().nullable(), error: errorCode.nullable() }),
+  stdin: z.strictObject({ endInvoked: z.boolean(), callback: z.boolean().nullable(), finish: z.boolean().nullable(), drainCount: z.number().int().min(0).max(64), error: errorCode.nullable() }),
+  stdout: pipeSchema, stderr: pipeSchema, exit: processEventSchema, close: processEventSchema,
+  timer: z.strictObject({ firedMs: time }), kill: z.strictObject({ requestedMs: time, returned: z.boolean().nullable(), error: errorCode.nullable() }),
+  nativeReady: z.literal("UNOBSERVED"), nativeDispatch: z.literal("UNOBSERVED"), observerError: z.boolean(),
+  events: z.array(z.strictObject({ kind: z.enum(["SPAWN_INVOKED", "SPAWN", "SPAWN_ERROR", "STDIN_END", "STDIN_CALLBACK", "STDIN_FINISH", "STDIN_DRAIN", "STDIN_ERROR", "STDOUT_END", "STDOUT_ERROR", "STDOUT_CLOSE", "STDERR_END", "STDERR_ERROR", "STDERR_CLOSE", "EXIT", "CLOSE", "TIMER", "KILL_REQUEST", "KILL_RETURN", "KILL_ERROR"]), atMs: boundedInt })).max(64),
+});
+export type DockerCommandLifecycle = z.infer<typeof dockerCommandLifecycleSchema>;
+export type DockerLifecycleObserver = (snapshot: Readonly<DockerCommandLifecycle>) => unknown;
+export const containerFailureFrameSchema = z.strictObject({ frameKind: z.enum(["NONE", "PARTIAL", "INVALID", "PROBE", "DIAGNOSTIC", "EVALUATION"]),
+  digest: z.string().regex(/^[a-f0-9]{64}$/).nullable(), completeJSON: z.boolean().nullable(), schemaMatch: z.boolean().nullable(), bindingMatch: z.boolean().nullable() });
+export const containerTransportDiagnosticSchema = z.strictObject({ commands: z.array(dockerCommandLifecycleSchema).max(5),
+  cleanup: z.strictObject({ inspectReturned: z.boolean().nullable(), nameMatch: z.boolean().nullable(), ownerMatch: z.boolean().nullable(), idMatch: z.boolean().nullable(), rmInvoked: z.boolean(), rmReturned: z.boolean().nullable() }) });
+// Descriptor-only snapshot: never execute a proxy trap, accessor, toJSON or coercion.
+export function decodeContainerDiagnostic<Schema extends z.ZodType>(schema: Schema, raw: unknown): z.output<Schema> | undefined {
+  let budget = 4096;
+  function copy(value: unknown, depth = 0): unknown {
+    if (--budget < 0 || depth > 9) throw Error();
+    if (value === null || typeof value === "boolean" || typeof value === "number") return value;
+    if (typeof value === "string" && value.length <= 64) return value;
+    if (!value || typeof value !== "object" || types.isProxy(value)) throw Error();
+    const array = Array.isArray(value);
+    if (Object.getPrototypeOf(value) !== (array ? Array.prototype : Object.prototype)) throw Error();
+    const keys = Reflect.ownKeys(value);
+    if (keys.length > (array ? 65 : 24)) throw Error();
+    const result: Record<string, unknown> | unknown[] = array ? [] : {};
+    for (const key of keys) {
+      if (array && key === "length") continue;
+      if (typeof key !== "string" || ["__proto__", "constructor", "prototype"].includes(key) || (array && !/^(0|[1-9][0-9]*)$/.test(key))) throw Error();
+      const item = Object.getOwnPropertyDescriptor(value, key)!;
+      if (!item.enumerable || !("value" in item)) throw Error();
+      Object.defineProperty(result, key, { value: copy(item.value, depth + 1), enumerable: true, configurable: true, writable: true });
+    }
+    if (array && (value as unknown[]).length !== (result as unknown[]).length) throw Error();
+    return result;
+  }
+  try { return freezeDiagnostic(schema.parse(copy(raw))); } catch { return undefined; }
+}
+function freezeDiagnostic<T>(value: T): T {
+  if (value && typeof value === "object") { for (const item of Object.values(value)) freezeDiagnostic(item); Object.freeze(value); }
+  return value;
+}
+const failedOutput = new WeakMap<Error, { stdout: string; truncated: boolean }>();
+/** @internal Fixed native adapter only. Raw custody is consumed once, never an Error property. */
+export function classifyContainerFailure(error: unknown, classifier: (stdout: string, truncated: boolean) => unknown) {
+  if (!error || typeof error !== "object" || types.isProxy(error) || !(error instanceof Error)) return undefined;
+  const output = failedOutput.get(error); failedOutput.delete(error);
+  if (!output) return undefined;
+  try { const parsed = decodeContainerDiagnostic(containerFailureFrameSchema, classifier(output.stdout, output.truncated)); return parsed ? freezeDiagnostic(parsed) as z.infer<typeof containerFailureFrameSchema> : undefined; }
+  catch { return undefined; }
+}
+function transferOutput(from: unknown, to: Error) {
+  if (from && typeof from === "object" && !types.isProxy(from) && from instanceof Error) { const output = failedOutput.get(from); if (output) { failedOutput.delete(from); failedOutput.set(to, output); } }
+  return to;
+}
 export const containerCommandFailureSchema = z.strictObject({ failure: z.enum(["TIMEOUT", "OUTPUT_LIMIT", "UNAVAILABLE", "EXIT", "OTHER"]),
-  stdoutBytes: z.number().int().min(0).max(65537).optional(), stderrBytes: z.number().int().min(0).max(65537).optional() });
+  stdoutBytes: z.number().int().min(0).max(65537).optional(), stderrBytes: z.number().int().min(0).max(65537).optional(), lifecycle: dockerCommandLifecycleSchema.optional() });
 export const containerCleanupFailureSchema = z.strictObject({
   stage: z.enum(["INSPECT_TRANSPORT", "INSPECT_EXIT", "INSPECT_JSON", "INSPECT_OWNERSHIP", "RM_TRANSPORT", "RM_EXIT"]),
   failure: z.enum(["TIMEOUT", "OUTPUT_LIMIT", "UNAVAILABLE", "EXIT", "INVALID_JSON", "OWNERSHIP", "OTHER"]),
-  command: containerCommandFailureSchema.optional(), startFailure: containerCommandFailureSchema.optional(),
+  command: containerCommandFailureSchema.optional(), startFailure: containerCommandFailureSchema.optional(), transport: containerTransportDiagnosticSchema.optional(),
 });
-export const containerFailureDiagnosticSchema = z.union([containerCleanupFailureSchema, z.strictObject({ startFailure: containerCommandFailureSchema })]);
+export const containerFailureDiagnosticSchema = z.union([containerCleanupFailureSchema, z.strictObject({ startFailure: containerCommandFailureSchema, transport: containerTransportDiagnosticSchema.optional() })]);
 type CleanupStage = z.infer<typeof containerCleanupFailureSchema>["stage"];
 type CleanupFailure = z.infer<typeof containerCleanupFailureSchema>["failure"];
 const knownCleanupCauses = new WeakSet<object>();
 function diagnosedError(message: string, detail: z.infer<typeof containerFailureDiagnosticSchema>) {
-  const cause = Object.freeze(detail); knownCleanupCauses.add(cause);
+  const cause = freezeDiagnostic(detail); knownCleanupCauses.add(cause);
   return new Error(message, { cause });
 }
 function cleanupError(stage: CleanupStage, failure: CleanupFailure, command?: z.infer<typeof containerCommandFailureSchema>) {
   return diagnosedError("RSI_SANDBOX_CLEANUP", { stage, failure, ...(command ? { command } : {}) });
 }
 function cleanupCause(error: unknown) {
-  if (!(error instanceof Error)) return undefined;
+  if (!error || typeof error !== "object" || types.isProxy(error) || !(error instanceof Error)) return undefined;
   const cause: unknown = Object.getOwnPropertyDescriptor(error, "cause")?.value;
   return cause && typeof cause === "object" && knownCleanupCauses.has(cause) ? cause : undefined;
 }
 function transportFailure(error: unknown): CleanupFailure {
-  const message = error instanceof Error ? error.message : "";
+  const message = error && typeof error === "object" && !types.isProxy(error) && error instanceof Error ? Object.getOwnPropertyDescriptor(error, "message")?.value : "";
   return message === "RSI_SANDBOX_TIMEOUT" ? "TIMEOUT" : message === "RSI_SANDBOX_OUTPUT_LIMIT" ? "OUTPUT_LIMIT"
     : message === "RSI_SANDBOX_UNAVAILABLE" ? "UNAVAILABLE" : "OTHER";
 }
+function safeSandboxMessage(error: unknown) {
+  const message = error && typeof error === "object" && !types.isProxy(error) && error instanceof Error ? Object.getOwnPropertyDescriptor(error, "message")?.value : undefined;
+  return ["RSI_SANDBOX_TIMEOUT", "RSI_SANDBOX_OUTPUT_LIMIT", "RSI_SANDBOX_UNAVAILABLE", "RSI_SANDBOX_BLOCKED", "RSI_SANDBOX_IPC", "RSI_SANDBOX_CLEANUP"].includes(message) ? message as string : "RSI_SANDBOX_UNAVAILABLE";
+}
 function commandFailure(error: unknown): z.infer<typeof containerCommandFailureSchema> {
   const failure = transportFailure(error) as "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE" | "OTHER";
-  const cause: unknown = error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined;
-  if (cause && typeof cause === "object" && Object.getPrototypeOf(cause) === Object.prototype
-    && Reflect.ownKeys(cause).every(key => typeof key === "string" && "value" in Object.getOwnPropertyDescriptor(cause, key)!)) {
-    const parsed = containerCommandFailureSchema.safeParse(cause);
-    if (parsed.success && parsed.data.failure === failure) return Object.freeze(parsed.data);
-  }
+  const cause: unknown = error && typeof error === "object" && !types.isProxy(error) && error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined;
+  const parsed = decodeContainerDiagnostic(containerCommandFailureSchema, cause) as z.infer<typeof containerCommandFailureSchema> | undefined;
+  if (parsed?.failure === failure) return freezeDiagnostic(parsed);
   return Object.freeze({ failure });
 }
 
-export interface DockerCommandLimits { timeoutMs: number; maxOutputBytes: number }
-export type DockerTransport = (args: readonly string[], stdin: string, limits: DockerCommandLimits) => Promise<{ code: number; stdout: string; stderr: string }>;
+export interface DockerCommandLimits { timeoutMs: number; maxOutputBytes: number; diagnosticPhase?: z.infer<typeof phase> }
+export type DockerTransport = (args: readonly string[], stdin: string, limits: DockerCommandLimits) => Promise<{ code: number; stdout: string; stderr: string; lifecycle?: DockerCommandLifecycle }>;
 
 /** Trusted Docker CLI only. Candidate bytes are stdin, never a shell or argv. */
-type DockerCliRunner = (args: readonly string[], stdin: string, limits: DockerCommandLimits, environment: NodeJS.ProcessEnv) => ReturnType<DockerTransport>;
-const runDockerCli: DockerCliRunner = (args, stdin, limits, environment) => new Promise((resolve, reject) => {
-  const child = spawn("docker", [...args], { shell: false, env: environment, stdio: ["pipe", "pipe", "pipe"] });
+type DockerCliRunner = (args: readonly string[], stdin: string, limits: DockerCommandLimits, environment: NodeJS.ProcessEnv, diagnostic?: { ordinal: number; observer?: DockerLifecycleObserver }) => ReturnType<DockerTransport>;
+const runDockerCli: DockerCliRunner = (args, stdin, limits, environment, diagnostic) => new Promise((resolve, reject) => {
+  const started = performance.now(), now = () => Math.min(86400000, Math.max(0, Math.floor(performance.now() - started)));
+  const command = args[0] === "--host" ? args.slice(2) : args;
+  const kind = command[0] === "context" ? "CONTEXT" : command[0] === "image" && command[1] === "inspect" ? "IMAGE_INSPECT"
+    : ({ info: "INFO", create: "CREATE", inspect: "INSPECT", start: "START", rm: "RM", build: "BUILD" } as const)[command[0] as "info" | "create" | "inspect" | "start" | "rm" | "build"] ?? "OTHER";
+  const pipe = () => ({ bytes: 0, chunks: 0, firstMs: null, lastMs: null, endMs: null, closeMs: null, error: null });
+  const lifecycle: DockerCommandLifecycle = { schemaVersion: 1, command: kind, ordinal: diagnostic?.ordinal ?? 1,
+    phase: limits.diagnosticPhase ?? ({ CONTEXT: "SELECT", INFO: "VERIFY", IMAGE_INSPECT: "VERIFY", CREATE: "CREATE", INSPECT: "INSPECT", START: "START", RM: "CLEANUP_RM", BUILD: "OTHER", OTHER: "OTHER" } as const)[kind],
+    timeoutMs: limits.timeoutMs, elapsedMs: 0, spawn: { invoked: true, observed: null, error: null },
+    stdin: { endInvoked: false, callback: null, finish: null, drainCount: 0, error: null }, stdout: pipe(), stderr: pipe(),
+    exit: { atMs: null, code: null, signal: null }, close: { atMs: null, code: null, signal: null }, timer: { firedMs: null },
+    kill: { requestedMs: null, returned: null, error: null }, nativeReady: "UNOBSERVED", nativeDispatch: "UNOBSERVED", observerError: false, events: [] };
+  const snapshot = () => { lifecycle.elapsedMs = now(); return freezeDiagnostic(dockerCommandLifecycleSchema.parse(lifecycle)); };
+  let notifying = false;
+  const observe = () => {
+    if (!diagnostic?.observer || notifying) return;
+    notifying = true;
+    try {
+      const returned = diagnostic.observer(snapshot());
+      if (types.isPromise(returned)) void Promise.prototype.then.call(returned, undefined, () => { lifecycle.observerError = true; });
+    } catch { lifecycle.observerError = true; } finally { notifying = false; }
+  };
+  const event = (kind: DockerCommandLifecycle["events"][number]["kind"]) => { if (lifecycle.events.length < 64) lifecycle.events.push({ kind, atMs: now() }); observe(); };
+  const code = (error: unknown): z.infer<typeof errorCode> => {
+    const value = error && typeof error === "object" && !types.isProxy(error) ? Object.getOwnPropertyDescriptor(error, "code")?.value : undefined;
+    return errorCode.safeParse(value).success ? value : "OTHER";
+  };
+  const processEvent = (exitCode: number | null, exitSignal: string | null | undefined) => ({ atMs: now(),
+    code: Number.isInteger(exitCode) && exitCode! >= -2147483648 && exitCode! <= 2147483647 ? exitCode : null,
+    signal: exitSignal == null ? null : signal.safeParse(exitSignal).success ? exitSignal as z.infer<typeof signal> : "OTHER" as const });
   let outputBytes = 0, stdoutBytes = 0, stderrBytes = 0, stdout = "", stderr = "", failure: string | undefined;
+  const rejectCommand = (reason: "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE") => {
+    const error = new Error(`RSI_SANDBOX_${reason}`, { cause: freezeDiagnostic({ failure: reason, stdoutBytes, stderrBytes, lifecycle: snapshot() }) });
+    if (kind === "START") failedOutput.set(error, { stdout, truncated: reason === "OUTPUT_LIMIT" }); reject(error);
+  };
+  event("SPAWN_INVOKED");
+  let child: ReturnType<typeof spawn> & { stdin: NonNullable<ReturnType<typeof spawn>["stdin"]>; stdout: NonNullable<ReturnType<typeof spawn>["stdout"]>; stderr: NonNullable<ReturnType<typeof spawn>["stderr"]> };
+  try { child = spawn("docker", [...args], { shell: false, env: environment, stdio: ["pipe", "pipe", "pipe"] }); }
+  catch (error) { lifecycle.spawn.error = code(error); event("SPAWN_ERROR"); rejectCommand("UNAVAILABLE"); return; }
   const outDecoder = new StringDecoder("utf8"), errDecoder = new StringDecoder("utf8");
-  const stop = (code: string) => { failure ??= code; child.kill("SIGKILL"); };
-  const timer = setTimeout(() => stop("TIMEOUT"), limits.timeoutMs);
-  child.stdout.on("data", (chunk: Buffer) => { stdoutBytes = Math.min(limits.maxOutputBytes + 1, stdoutBytes + chunk.length); outputBytes += chunk.length; if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else stdout += outDecoder.write(chunk); });
-  child.stderr.on("data", (chunk: Buffer) => { stderrBytes = Math.min(limits.maxOutputBytes + 1, stderrBytes + chunk.length); outputBytes += chunk.length; if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else stderr += errDecoder.write(chunk); });
-  const rejectCommand = (reason: "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE") => reject(new Error(`RSI_SANDBOX_${reason}`, { cause: Object.freeze({ failure: reason, stdoutBytes, stderrBytes }) }));
-  child.once("error", () => { clearTimeout(timer); rejectCommand("UNAVAILABLE"); });
-  child.once("close", code => { clearTimeout(timer); if (failure) rejectCommand(failure as "TIMEOUT" | "OUTPUT_LIMIT"); else resolve({ code: code ?? -1, stdout: stdout + outDecoder.end(), stderr: stderr + errDecoder.end() }); });
-  child.stdin.on("error", () => {}); child.stdin.end(stdin);
+  const stop = (reason: string) => {
+    failure ??= reason; lifecycle.kill.requestedMs = now(); event("KILL_REQUEST");
+    try { lifecycle.kill.returned = child.kill("SIGKILL"); event("KILL_RETURN"); }
+    catch (error) { lifecycle.kill.error = code(error); event("KILL_ERROR"); }
+  };
+  const timer = setTimeout(() => { lifecycle.timer.firedMs = now(); event("TIMER"); stop("TIMEOUT"); }, limits.timeoutMs);
+  for (const stream of ["stdout", "stderr"] as const) {
+    child[stream].on("data", (chunk: Buffer) => {
+      const state = lifecycle[stream]; state.bytes = Math.min(65537, state.bytes + chunk.length); state.chunks = Math.min(86400000, state.chunks + 1); state.firstMs ??= now(); state.lastMs = now();
+      if (stream === "stdout") stdoutBytes = Math.min(limits.maxOutputBytes + 1, stdoutBytes + chunk.length); else stderrBytes = Math.min(limits.maxOutputBytes + 1, stderrBytes + chunk.length);
+      outputBytes += chunk.length;
+      if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else if (stream === "stdout") stdout += outDecoder.write(chunk); else stderr += errDecoder.write(chunk);
+      observe();
+    });
+    child[stream].once("end", () => { lifecycle[stream].endMs = now(); event(stream === "stdout" ? "STDOUT_END" : "STDERR_END"); });
+    child[stream].once("close", () => { lifecycle[stream].closeMs = now(); event(stream === "stdout" ? "STDOUT_CLOSE" : "STDERR_CLOSE"); });
+    child[stream].once("error", error => { lifecycle[stream].error = code(error); event(stream === "stdout" ? "STDOUT_ERROR" : "STDERR_ERROR"); });
+  }
+  child.once("spawn", () => { lifecycle.spawn.observed = true; event("SPAWN"); });
+  child.once("error", error => { clearTimeout(timer); lifecycle.spawn.error = code(error); event("SPAWN_ERROR"); rejectCommand("UNAVAILABLE"); });
+  child.once("exit", (exitCode, exitSignal) => { lifecycle.exit = processEvent(exitCode, exitSignal); event("EXIT"); });
+  child.once("close", (exitCode, exitSignal) => {
+    clearTimeout(timer); lifecycle.close = processEvent(exitCode, exitSignal); event("CLOSE");
+    if (failure) rejectCommand(failure as "TIMEOUT" | "OUTPUT_LIMIT");
+    else resolve({ code: exitCode ?? -1, stdout: stdout + outDecoder.end(), stderr: stderr + errDecoder.end(), lifecycle: snapshot() });
+  });
+  child.stdin.on("error", error => { lifecycle.stdin.error = code(error); event("STDIN_ERROR"); });
+  child.stdin.once("finish", () => { lifecycle.stdin.finish = true; event("STDIN_FINISH"); });
+  child.stdin.on("drain", () => { lifecycle.stdin.drainCount = Math.min(64, lifecycle.stdin.drainCount + 1); event("STDIN_DRAIN"); });
+  lifecycle.stdin.endInvoked = true; event("STDIN_END");
+  try { child.stdin.end(stdin, (error?: Error | null) => { lifecycle.stdin.callback = true; if (error) lifecycle.stdin.error = code(error); event("STDIN_CALLBACK"); }); }
+  catch (error) { lifecycle.stdin.error = code(error); event("STDIN_ERROR"); rejectCommand("UNAVAILABLE"); }
 });
 
 /** Resolve local configuration once, then pin all operations to that Unix socket.
  * No candidate may supply this environment/runner; they are trusted test seams.
  * Socket paths and Docker diagnostics are never returned as evidence/errors. */
-export function createLocalDockerTransport(environment: NodeJS.ProcessEnv = process.env, runner: DockerCliRunner = runDockerCli): DockerTransport {
+export function createLocalDockerTransport(environment: NodeJS.ProcessEnv = process.env, runner: DockerCliRunner = runDockerCli, observer?: DockerLifecycleObserver): DockerTransport {
   const env = Object.freeze({ PATH: environment.PATH, HOME: environment.HOME, DOCKER_CONFIG: environment.DOCKER_CONFIG });
   const configuredHost = environment.DOCKER_HOST, configuredContext = environment.DOCKER_CONTEXT;
-  let selected: Promise<string> | undefined;
+  let selected: Promise<string> | undefined, ordinal = 0;
+  const invoke: DockerCliRunner = (args, stdin, limits, env) => runner(args, stdin, limits, env, { ordinal: Math.min(1000000, ++ordinal), observer });
   function localEndpoint(value: unknown) {
     if (typeof value !== "string" || !value.startsWith("unix:///") || /[\0\r\n?#%]/.test(value)) fail("BLOCKED");
     const path = value.slice("unix://".length);
@@ -79,7 +206,7 @@ export function createLocalDockerTransport(environment: NodeJS.ProcessEnv = proc
   }
   async function select() {
     if (configuredHost) { if (configuredContext) fail("BLOCKED"); return localEndpoint(configuredHost); }
-    const context = await runner(["context", "inspect"], "", { timeoutMs: 5000, maxOutputBytes: 65536 }, { ...env, ...(configuredContext ? { DOCKER_CONTEXT: configuredContext } : {}) });
+    const context = await invoke(["context", "inspect"], "", { timeoutMs: 5000, maxOutputBytes: 65536 }, { ...env, ...(configuredContext ? { DOCKER_CONTEXT: configuredContext } : {}) });
     if (context.code !== 0) fail("BLOCKED");
     const rows = JSON.parse(context.stdout);
     if (!Array.isArray(rows) || rows.length !== 1) fail("BLOCKED");
@@ -88,10 +215,17 @@ export function createLocalDockerTransport(environment: NodeJS.ProcessEnv = proc
   return async (args, stdin, limits) => {
     selected ??= select().catch(() => fail("BLOCKED"));
     const endpoint = await selected;
-    return runner(["--host", endpoint, ...args], stdin, limits, env);
+    return invoke(["--host", endpoint, ...args], stdin, limits, env);
   };
 }
-export const dockerTransport = createLocalDockerTransport();
+let defaultLifecycleRegistration: { observer: DockerLifecycleObserver } | undefined;
+/** Trusted host diagnostics only. Registration cannot replace the fixed transport. */
+export function observeDockerLifecycle(observer: DockerLifecycleObserver): () => void {
+  if (typeof observer !== "function" || defaultLifecycleRegistration) fail("BLOCKED");
+  const registration = { observer }; defaultLifecycleRegistration = registration;
+  return () => { if (defaultLifecycleRegistration === registration) defaultLifecycleRegistration = undefined; };
+}
+export const dockerTransport = createLocalDockerTransport(process.env, runDockerCli, snapshot => defaultLifecycleRegistration?.observer(snapshot));
 
 // This profile is supplied ONLY by the trusted host supervisor. It is neither
 // candidate configuration nor an authorization token. Never merge candidate data.
@@ -241,6 +375,18 @@ export class VerifiedContainerBackend {
     this.assertAvailable();
     const owner = randomUUID(), name = `rsi-${owner}`, p = this.#profile;
     let createdId: string | undefined, startFailure: z.infer<typeof containerCommandFailureSchema> | undefined;
+    let completed: Awaited<ReturnType<DockerTransport>> | undefined, primaryError: unknown;
+    const commands: DockerCommandLifecycle[] = [];
+    const cleanup: z.infer<typeof containerTransportDiagnosticSchema>["cleanup"] = { inspectReturned: null, nameMatch: null, ownerMatch: null, idMatch: null, rmInvoked: false, rmReturned: null };
+    const transportDiagnostic = () => commands.length ? freezeDiagnostic(containerTransportDiagnosticSchema.parse({ commands, cleanup })) : undefined;
+    const invoke = async (args: readonly string[], input: string, limits: DockerCommandLimits, diagnosticPhase: z.infer<typeof phase>) => {
+      try {
+        const response = await this.#transport(args, input, { ...limits, diagnosticPhase });
+        const lifecycle = decodeContainerDiagnostic(dockerCommandLifecycleSchema, !types.isProxy(response) ? Object.getOwnPropertyDescriptor(response, "lifecycle")?.value : undefined) as DockerCommandLifecycle | undefined;
+        if (lifecycle) commands.push(lifecycle);
+        return { code: response.code, stdout: response.stdout, stderr: response.stderr, ...(lifecycle ? { lifecycle } : {}) };
+      } catch (error) { const lifecycle = commandFailure(error).lifecycle; if (lifecycle) commands.push(lifecycle); throw error; }
+    };
     const nodeArgs = probe
       ? ["--permission", ...[...probePermissions, ...(p.entrypoint.kind === "native-file" ? ["/opt/rsi/native-wrapper.mjs"] : [])].map(path => `--allow-fs-read=${path}`), "--max-old-space-size=64", "--input-type=module", "-e", runtimeProbe(p)]
       : p.entrypoint.kind === "inline-node"
@@ -253,52 +399,67 @@ export class VerifiedContainerBackend {
       `--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=${p.tmpfsMiB}m,mode=1777`, "--shm-size=1m", "--ulimit=nofile=64:64", "--ulimit=core=0:0",
       "--log-driver=none", "--workdir=/tmp", "--interactive", `--entrypoint=${p.watchdogPath}`, p.image,
       "--signal=KILL", `${p.wallTimeMs / 1000}s`, "/usr/local/bin/node", ...nodeArgs];
-    const inspectOwned = async () => {
+    const inspectOwned = async (cleaning = false) => {
       let inspection: Awaited<ReturnType<DockerTransport>>;
-      try { inspection = await this.#transport(["inspect", name], "", commandLimits); }
+      try { inspection = await invoke(["inspect", name], "", commandLimits, cleaning ? "CLEANUP_INSPECT" : "INSPECT"); if (cleaning) cleanup.inspectReturned = true; }
       catch (error) { const command = commandFailure(error); throw cleanupError("INSPECT_TRANSPORT", transportFailure(error), command.stdoutBytes !== undefined ? command : undefined); }
       if (inspection.code !== 0) throw cleanupError("INSPECT_EXIT", "EXIT");
       let rows: unknown;
       try { rows = JSON.parse(inspection.stdout); } catch { throw cleanupError("INSPECT_JSON", "INVALID_JSON"); }
       const row = Array.isArray(rows) ? rows[0] : undefined;
+      if (cleaning) { cleanup.nameMatch = row?.Name === `/${name}`; cleanup.ownerMatch = row?.Config?.Labels?.["rsi.sandbox.owner"] === owner; cleanup.idMatch = createdId === undefined ? null : typeof row?.Id === "string" && /^[a-f0-9]{64}$/.test(row.Id) && row.Id === createdId; }
       if (!Array.isArray(rows) || rows.length !== 1 || !row || row.Name !== `/${name}` || row.Config?.Labels?.["rsi.sandbox.owner"] !== owner
         || !/^[a-f0-9]{64}$/.test(row.Id) || (createdId !== undefined && row.Id !== createdId)) throw cleanupError("INSPECT_OWNERSHIP", "OWNERSHIP");
       return row;
     };
     try {
-      const creation = await this.#transport(args, "", commandLimits);
+      const creation = await invoke(args, "", commandLimits, "CREATE");
       if (creation.code !== 0 || !/^[a-f0-9]{64}\n?$/.test(creation.stdout)) fail("UNAVAILABLE");
       createdId = creation.stdout.trim();
       const row = await inspectOwned();
       if (!Array.isArray(row.Mounts) || row.Mounts.length !== 0) fail("BLOCKED");
       let result: Awaited<ReturnType<DockerTransport>>;
-      try { result = await this.#transport(["start", "--attach", "--interactive", name], stdin, { timeoutMs: p.wallTimeMs, maxOutputBytes: p.maxOutputBytes }); }
+      try { result = await invoke(["start", "--attach", "--interactive", name], stdin, { timeoutMs: p.wallTimeMs, maxOutputBytes: p.maxOutputBytes }, "START"); }
       catch (error) {
         startFailure = commandFailure(error);
-        throw diagnosedError(error instanceof Error ? error.message : "RSI_SANDBOX_UNAVAILABLE", { startFailure });
+        throw transferOutput(error, diagnosedError(safeSandboxMessage(error), { startFailure }));
       }
       if (typeof result.stdout !== "string" || typeof result.stderr !== "string" || !Number.isInteger(result.code)) fail("IPC");
-      if (result.code !== 0) startFailure = Object.freeze({ failure: "EXIT", stdoutBytes: Math.min(65537, Buffer.byteLength(result.stdout)), stderrBytes: Math.min(65537, Buffer.byteLength(result.stderr)) });
+      if (result.code !== 0) startFailure = freezeDiagnostic({ failure: "EXIT", stdoutBytes: Math.min(65537, Buffer.byteLength(result.stdout)), stderrBytes: Math.min(65537, Buffer.byteLength(result.stderr)), ...(result.lifecycle ? { lifecycle: result.lifecycle } : {}) });
       // Real CLI overflow is OUTPUT_LIMIT; a transport returning an oversized
       // completed response violates IPC (the existing Node adapter contract).
       if (Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr) > p.maxOutputBytes) fail("IPC");
-      return result;
+      completed = result;
+    } catch (error) {
+      primaryError = error; throw error;
     } finally {
       // Exact ownership and ID, including uncertain create outcomes; no pruning.
       // Missing inspection is ambiguous (a daemon may still complete creation).
       try {
-        const row = await inspectOwned();
+        const row = await inspectOwned(true);
         let removed: Awaited<ReturnType<DockerTransport>>;
-        try { removed = await this.#transport(["rm", "--force", row.Id], "", commandLimits); }
+        cleanup.rmInvoked = true;
+        try { removed = await invoke(["rm", "--force", row.Id], "", commandLimits, "CLEANUP_RM"); cleanup.rmReturned = true; }
         catch (error) { const command = commandFailure(error); throw cleanupError("RM_TRANSPORT", transportFailure(error), command.stdoutBytes !== undefined ? command : undefined); }
         if (removed.code !== 0) throw cleanupError("RM_EXIT", "EXIT");
       } catch (error) {
         this.#blocked = true;
         const cause = cleanupCause(error);
-        if (cause) throw diagnosedError("RSI_SANDBOX_CLEANUP", { ...cause as z.infer<typeof containerCleanupFailureSchema>, ...(startFailure ? { startFailure } : {}) });
+        if (cause) {
+          const transport = transportDiagnostic();
+          const failure = transferOutput(primaryError, diagnosedError("RSI_SANDBOX_CLEANUP", { ...cause as z.infer<typeof containerCleanupFailureSchema>, ...(startFailure ? { startFailure } : {}), ...(transport ? { transport } : {}) }));
+          if (completed && Buffer.byteLength(completed.stdout) <= 32768) failedOutput.set(failure, { stdout: completed.stdout, truncated: false });
+          throw failure;
+        }
         throw cleanupError("INSPECT_OWNERSHIP", "OTHER");
       }
+      if (primaryError && startFailure) {
+        const transport = transportDiagnostic();
+        throw transferOutput(primaryError, diagnosedError(safeSandboxMessage(primaryError), { startFailure, ...(transport ? { transport } : {}) }));
+      }
     }
+    const transport = transportDiagnostic();
+    return { ...completed!, ...(transport ? { transport } : {}) };
   }
 
   async run(stdin: string) {
@@ -309,7 +470,7 @@ export class VerifiedContainerBackend {
       this.assertAvailable();
       const response = await this.#container(stdin);
       return { ...response, evidence: Object.freeze({ ...this.evidence, kind: "LOCAL_CONTAINER_RETURN" as const,
-        stdinDigest: hash(stdin), outputDigest: hash(response.stdout) }) };
+        stdinDigest: hash(stdin), outputDigest: hash(response.stdout), ...(response.transport ? { transport: response.transport } : {}) }) };
     });
     this.#tail = result.catch(() => {});
     return result;

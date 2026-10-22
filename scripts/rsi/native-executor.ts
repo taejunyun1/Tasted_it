@@ -4,8 +4,9 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { types } from "node:util";
 import { z } from "zod";
-import { VerifiedContainerBackend, dockerTransport, containerFailureDiagnosticSchema, type DockerTransport, type TrustedContainerProfile } from "./container-backend";
+import { VerifiedContainerBackend, dockerTransport, containerFailureDiagnosticSchema, containerTransportDiagnosticSchema, decodeContainerDiagnostic, classifyContainerFailure, type DockerTransport, type TrustedContainerProfile } from "./container-backend";
 import { rsiFixtureSchema } from "./oracle";
 import { NATIVE_RUNTIME, NATIVE_HARNESS, NATIVE_GUARD } from "./native-wrapper";
 
@@ -23,24 +24,8 @@ export const NATIVE_SOURCE_PATH = "app/features/operations/rsi-self-check.ts" as
 const candidateSchema = z.strictObject({ path: z.literal(NATIVE_SOURCE_PATH), source: z.string().min(1).max(65536), sourceDigest: digest });
 function fail(code: string, cause?: unknown): never { throw new Error(`RSI_NATIVE_${code}`, cause ? { cause } : undefined); }
 function nativeCleanupCause(error: unknown) {
-  const raw = error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined;
-  function data(value: unknown, depth = 0): unknown {
-    if (typeof value === "string" || typeof value === "number") return value;
-    if (!value || typeof value !== "object" || depth > 1 || Object.getPrototypeOf(value) !== Object.prototype || Reflect.ownKeys(value).length > 4) return undefined;
-    const output: Record<string, unknown> = {};
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key !== "string") return undefined;
-      const item = Object.getOwnPropertyDescriptor(value, key)!;
-      if (!("value" in item)) return undefined;
-      output[key] = data(item.value, depth + 1);
-    }
-    return output;
-  }
-  const parsed = containerFailureDiagnosticSchema.safeParse(data(raw));
-  if (!parsed.success) return undefined;
-  if (parsed.data.startFailure) Object.freeze(parsed.data.startFailure);
-  if ("command" in parsed.data && parsed.data.command) Object.freeze(parsed.data.command);
-  return Object.freeze(parsed.data);
+  const raw = error && typeof error === "object" && !types.isProxy(error) && error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined;
+  return decodeContainerDiagnostic(containerFailureDiagnosticSchema, raw);
 }
 function plainRequest(raw: unknown) {
   if (!raw || typeof raw !== "object" || Object.getPrototypeOf(raw) !== Object.prototype) fail("INPUT");
@@ -163,6 +148,27 @@ const executionSchema = candidateSchema.extend({ fixture: rsiFixtureSchema });
 const construction = Symbol("native executor");
 const startupCategory = z.strictObject({ category: z.enum(["FD_LIMIT", "READ_ONLY", "TEMP_SPACE", "THREAD_LIMIT", "PERMISSION", "LISTENER", "SIGNAL", "CONFIG_PROTOCOL", "OTHER"]), bytes: z.number().int().min(0).max(131072), digest, clues: z.array(z.enum(["TYPE", "MODULE", "SERVICE", "SOCKET", "SYSTEM_CALL", "FILESYSTEM", "SYMBOL", "COMPATIBILITY", "SCHEMA", "V8_ENGINE", "CRYPTOGRAPHY", "NETWORK", "RESOURCE", "UNSUPPORTED", "NOT_FOUND", "EXPECTATION", "TLS", "CERTIFICATES", "ENTROPY", "NODE_COMPAT", "WEB_CRYPTO", "UNKNOWN_FLAG", "CONTRADICTORY_FLAGS"])).max(23), locations: z.array(z.strictObject({ file: z.string().regex(/^(?:workerd\/(?:server|io|api|jsg|util)|kj|v8)\/[a-zA-Z0-9_/-]+\.(?:c\+\+|cc|h)$/), line: z.number().int().min(0).max(9999999) })).max(4) });
 const diagnosticSchema = z.strictObject({ schemaVersion: z.literal(1), runtime: runtimeSchema, diagnostic: z.strictObject({ ready: startupCategory.nullable(), disposal: startupCategory.nullable(), startupLogs: z.array(startupCategory).max(8), publicCa: z.strictObject({ directoryPresent: z.boolean(), entries: z.number().int().min(0).max(10000), bundlePresent: z.boolean(), certificates: z.number().int().min(0).max(10000) }), logs: logSchema, childSpawns: z.literal(1), candidateDispatches: z.literal(0), elapsedMs: z.number().int().min(0).max(15000), suppressedBytes: z.number().int().min(0).max(32768), peakMemoryBytes: z.number().int().min(1).max(536870912) }) });
+const fatalSchema = z.strictObject({ schemaVersion: z.literal(1), runtime: runtimeSchema, fatal: startupCategory });
+// Fixed native schemas only. This classification never supplies a verdict or permission.
+function failureFrame(stdout: string, truncated: boolean, manifest: NativeRuntimeManifest, artifact: { sourceDigest: string; compiledDigest: string }) {
+  if (Buffer.byteLength(stdout) > 32768) return undefined;
+  const metadata = { digest: stdout ? hash(stdout) : null, completeJSON: null as boolean | null, schemaMatch: null as boolean | null, bindingMatch: null as boolean | null };
+  if (truncated) return { frameKind: "PARTIAL", ...metadata };
+  if (!stdout) return { frameKind: "NONE", ...metadata };
+  let parsed: unknown;
+  try { parsed = JSON.parse(stdout); metadata.completeJSON = true; }
+  catch { return { frameKind: "INVALID", ...metadata, completeJSON: false, schemaMatch: false }; }
+  const trimmed = stdout.endsWith("\n") ? stdout.slice(0, -1) : stdout;
+  if (JSON.stringify(parsed) !== trimmed) return { frameKind: "INVALID", ...metadata, schemaMatch: false };
+  const evaluation = receiptSchema.safeParse(parsed);
+  if (evaluation.success) return { frameKind: "EVALUATION", ...metadata, schemaMatch: true,
+    bindingMatch: evaluation.data.sourceDigest === artifact.sourceDigest && evaluation.data.compiledDigest === artifact.compiledDigest && JSON.stringify(evaluation.data.runtime) === JSON.stringify(manifest.runtime) };
+  const probe = z.strictObject({ schemaVersion: z.literal(1), runtime: runtimeSchema }).safeParse(parsed);
+  if (probe.success) return { frameKind: "PROBE", ...metadata, schemaMatch: true, bindingMatch: JSON.stringify(probe.data.runtime) === JSON.stringify(manifest.runtime) };
+  const diagnostic = z.union([diagnosticSchema, fatalSchema]).safeParse(parsed);
+  if (diagnostic.success) return { frameKind: "DIAGNOSTIC", ...metadata, schemaMatch: true, bindingMatch: JSON.stringify(diagnostic.data.runtime) === JSON.stringify(manifest.runtime) };
+  return { frameKind: "INVALID", ...metadata, schemaMatch: false };
+}
 
 export class NativeExecutor {
   #backend: VerifiedContainerBackend;
@@ -193,7 +199,7 @@ export class NativeExecutor {
     if (result.code !== 0) fail(`DIAGNOSTIC_EXIT_${result.code >= 0 && result.code <= 255 ? result.code : "UNKNOWN"}`);
     if (result.stderr) fail("DIAGNOSTIC_STDERR");
     const parsed = parseJson(result.stdout);
-    const fatal = z.strictObject({ schemaVersion: z.literal(1), runtime: runtimeSchema, fatal: startupCategory }).safeParse(parsed);
+    const fatal = fatalSchema.safeParse(parsed);
     if (fatal.success) {
       if (JSON.stringify(fatal.data.runtime) !== JSON.stringify(this.#manifest.runtime)) fail("ARTIFACT_MISMATCH");
       return { fatal: true as const, cause: fatal.data.fatal, candidateDispatches: 0 as const, provenance: result.evidence };
@@ -207,12 +213,15 @@ export class NativeExecutor {
     let input: z.infer<typeof executionSchema>;
     try { input = executionSchema.parse(plainRequest(raw)); } catch { return fail("INPUT"); }
     const artifact = await compileNativeCandidate({ path: input.path, source: input.source, sourceDigest: input.sourceDigest });
-    const provenance = { ...this.#backend.evidence, sourceDigest: artifact.sourceDigest, compiledDigest: artifact.compiledDigest,
+    const identity = { ...this.#backend.evidence, sourceDigest: artifact.sourceDigest, compiledDigest: artifact.compiledDigest,
       manifestDigest: hash(JSON.stringify(this.#manifest)), oracleDigest: this.#manifest.artifacts.oracleDigest, harnessDigest: this.#manifest.artifacts.harnessDigest, guardDigest: this.#manifest.artifacts.guardDigest,
       workerdDigest: this.#manifest.runtime.workerdDigest, fixture: input.fixture, limits: NATIVE_LIMITS };
+    const provenance: typeof identity & { transport?: z.infer<typeof containerTransportDiagnosticSchema> } = identity;
     const unknown = (reasonCode: string) => ({ verdict: "UNKNOWN" as const, reasonCode, redReproduced: false, greenVerified: false, provenance });
     try {
       const response = await this.#backend.run(JSON.stringify({ operation: "evaluate", fixture: input.fixture, script: artifact.script, sourceDigest: artifact.sourceDigest, compiledDigest: artifact.compiledDigest }));
+      const transport = decodeContainerDiagnostic(containerTransportDiagnosticSchema, Object.getOwnPropertyDescriptor(response.evidence, "transport")?.value) as z.infer<typeof containerTransportDiagnosticSchema> | undefined;
+      if (transport) provenance.transport = transport;
       if (response.code !== 0) return unknown(`EXECUTION_EXIT_${response.code >= 0 && response.code <= 255 ? response.code : "UNKNOWN"}`);
       if (response.stderr !== "") return unknown("EXECUTION_STDERR");
       const receipt = receiptSchema.parse(parseJson(response.stdout));
@@ -226,12 +235,15 @@ export class NativeExecutor {
       if (response.evidence.transportKind !== "DOCKER_CLI") return unknown("INJECTED_TRANSPORT");
       return { ...receipt.grade, reason: receipt.reason, provenance: { ...provenance, receiptDigest: response.evidence.outputDigest, traceDigest: receipt.traceDigest, responseDigest: receipt.responseDigest, callCount: receipt.callCount, logs: receipt.logs, childSpawns: receipt.childSpawns, dispatchAttempts: receipt.dispatchAttempts, deadlineExpired: receipt.deadlineExpired, disposalConfirmed: receipt.disposalConfirmed, elapsedMs: receipt.elapsedMs, peakMemoryBytes: receipt.peakMemoryBytes, cleanupConfirmed: true } };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "";
+      const message = error && typeof error === "object" && !types.isProxy(error) && error instanceof Error ? Object.getOwnPropertyDescriptor(error, "message")?.value : "";
       const result = unknown(["RSI_SANDBOX_CLEANUP", "RSI_SANDBOX_TIMEOUT", "RSI_SANDBOX_OUTPUT_LIMIT", "RSI_SANDBOX_BLOCKED"].includes(message) ? message : "EXECUTION_UNVERIFIED");
       const cleanupFailure = nativeCleanupCause(error);
-      return cleanupFailure ? { ...result, provenance: { ...result.provenance,
-        ...("stage" in cleanupFailure ? { cleanupFailure } : {}),
-        ...(cleanupFailure.startFailure ? { startFailure: cleanupFailure.startFailure } : {}) } } : result;
+      const frame = classifyContainerFailure(error, (stdout, truncated) => failureFrame(stdout, truncated, this.#manifest, artifact));
+      return cleanupFailure || frame ? { ...result, provenance: { ...result.provenance,
+        ...(frame ? { failureFrame: frame } : {}),
+        ...(cleanupFailure && "transport" in cleanupFailure && cleanupFailure.transport ? { transport: cleanupFailure.transport } : {}),
+        ...(cleanupFailure && "stage" in cleanupFailure ? { cleanupFailure } : {}),
+        ...(cleanupFailure?.startFailure ? { startFailure: cleanupFailure.startFailure } : {}) } } : result;
     }
   }
 }
