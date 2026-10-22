@@ -34,13 +34,21 @@ export interface SelfImprovementGeneration {
 }
 export interface SelfImprovementResult {
   readonly schemaVersion: 1; readonly mode: "LOCAL_SYNTHETIC"; readonly actualRecovery: false;
-  readonly status: "COMPLETED" | "BLOCKED" | "PARTIAL" | "ROLLED_BACK"; readonly reasonCode: SelfImprovementReason;
+  readonly status: "COMPLETED" | "BLOCKED" | "PARTIAL" | "ROLLED_BACK"; readonly reasonCode: SelfImprovementReason; readonly failureCode: string | null;
   readonly completedGenerations: number; readonly generations: readonly SelfImprovementGeneration[];
   // Only a successful ledger+external-checkpoint boundary is returned here.
   // lastPublished records a completed fact, not an assertion about an uncertain newer disk head.
   readonly checkpoint: RsiLedgerCheckpoint | null; readonly lastPublished: R4CatalogVersion | null;
   readonly receiptPaths: readonly string[]; readonly receiptUncertain: boolean;
 }
+const failureCodes = new Set([
+  ...["TWO_GENERATIONS_PROMOTED", "ROLLED_BACK", "RESTART_FORBIDDEN", "OPERATOR_STOP", "DEADLINE_EXPIRED", "BUDGET_UNAVAILABLE", "SOURCE_UNAVAILABLE", "CATALOG_STALE", "INVALID_INPUT", "ACCOUNTING_UNCERTAIN", "RECEIPT_UNCERTAIN", "GENERATION_FAILED"].map(c => `RSI_SELF_IMPROVE_${c}`),
+  ...["NATIVE_UNKNOWN", "REGRESSION", "CANDIDATE_LIMIT", "AGENT_CUSTODY", "DIAGNOSIS", "PATCH", "REPRODUCTION_FAILED", "NO_CHANGE_UNCONFIRMED", "DEADLINE", "CLOCK", "OPERATOR_STOP", "CLOSURE_UNVERIFIED", "MANIFEST_UNVERIFIED", "INPUT", "AGENT_CLOSURE", "CHECKPOINT"].map(c => `RSI_CONTROLLER_${c}`),
+  ...["PROBE_FAILED", "GENERATION_CUSTODY", "FIXTURE_CUSTODY", "PROPOSAL_LIMIT", "PROPOSAL_AUTHORITY", "AGENT_ABI", "INVALID_PROPOSAL", "NO_AGENT_CHANGE", "CATALOG_STALE", "CLOSURE_UNVERIFIED", "SOURCE_UNAVAILABLE", "ACCOUNTING_UNCERTAIN", "INPUT", "EXECUTION_ALREADY_CLAIMED", "EXECUTION_ALREADY_STARTED"].map(c => `RSI_PROMOTION_${c}`),
+  ...["CLEANUP", "TIMEOUT", "OUTPUT_LIMIT", "BLOCKED", "INPUT", "IPC", "UNAVAILABLE", "RUNTIME", "OUTPUT"].map(c => `RSI_SANDBOX_${c}`),
+  "RSI_NATIVE_BLOCKED", "RSI_NATIVE_ARTIFACT_MISMATCH", "RSI_NATIVE_COMPATIBILITY_UNSUPPORTED", "RSI_LEDGER_BUDGET", "RSI_LEDGER_INVALID", "RSI_BROKER_ACCOUNTING", "RSI_BROKER_PHASE_LIMIT", "RSI_BROKER_LIMIT", "RSI_BROKER_INPUT", "RSI_BROKER_OUTPUT", "RSI_BROKER_TIMEOUT", "RSI_MEMORY_INVALID", "RSI_INVALID_EXECUTION_CONTRACT",
+]);
+function failureCode(error: unknown) { return error instanceof Error && failureCodes.has(error.message) ? error.message : "UNKNOWN_ERROR"; }
 function reason(error: unknown): SelfImprovementReason {
   const message = error instanceof Error ? error.message : "";
   if (/RESTART_FORBIDDEN/.test(message)) return "RESTART_FORBIDDEN";
@@ -99,10 +107,10 @@ function timing(options: Pick<SelfImprovementOptions, "monotonicMs" | "killSwitc
   const gate = createRepairRootGate({ rootTiming, monotonicMs, killSwitch: options.killSwitch }); gate.check();
   return { rootTiming, monotonicMs, gate };
 }
-interface Progress { checkpoint: RsiLedgerCheckpoint | null; published: R4CatalogVersion | null; generations: SelfImprovementGeneration[]; receiptPaths: string[]; completed: number; receiptUncertain: boolean }
+interface Progress { checkpoint: RsiLedgerCheckpoint | null; published: R4CatalogVersion | null; generations: SelfImprovementGeneration[]; receiptPaths: string[]; completed: number; receiptUncertain: boolean; failureCode: string | null }
 function result(progress: Progress, status: SelfImprovementResult["status"], reasonCode: SelfImprovementReason): SelfImprovementResult {
   return frozen({ schemaVersion: 1, mode: "LOCAL_SYNTHETIC", actualRecovery: false, status, reasonCode, completedGenerations: progress.completed,
-    generations: progress.generations, checkpoint: progress.checkpoint, lastPublished: progress.published, receiptPaths: progress.receiptPaths, receiptUncertain: progress.receiptUncertain });
+    generations: progress.generations, checkpoint: progress.checkpoint, lastPublished: progress.published, receiptPaths: progress.receiptPaths, receiptUncertain: progress.receiptUncertain, failureCode: progress.failureCode });
 }
 async function openStorage(storage: SelfImprovementStorage, root: ReturnType<typeof timing>, now: () => string, initialize: boolean) {
   const check = () => root.gate.check(); check();
@@ -162,7 +170,7 @@ async function generation(options: SelfImprovementOptions, storage: SelfImprovem
     try { await checkpointStore.assertCurrent(ledger.checkpoint); progress.checkpoint = ledger.checkpoint; durable = true; run = (await ledger.readImprovement()).executions.find(r => r.intent.executionId === intent.executionId); } catch { /* Preserve last trusted checkpoint; do not adopt disk head. */ }
     if (run) progress.generations.push(summary(run));
     try { progress.receiptPaths.push(await appendReceipt(storage.receiptDirectory, `generation-${generationNumber}.outcome.json`, { schemaVersion: 1, mode: "LOCAL_SYNTHETIC", actualRecovery: false,
-      status: "BLOCKED", reasonCode: durable ? reason(error) : "ACCOUNTING_UNCERTAIN", execution: run ?? null, lastTrustedCheckpoint: progress.checkpoint, checkpointCurrent: durable })); }
+      status: "BLOCKED", reasonCode: durable ? reason(error) : "ACCOUNTING_UNCERTAIN", failureCode: failureCode(error), execution: run ?? null, lastTrustedCheckpoint: progress.checkpoint, checkpointCurrent: durable })); }
     catch { progress.receiptUncertain = true; }
     if (!durable) fail("ACCOUNTING_UNCERTAIN"); throw error;
   }
@@ -171,7 +179,7 @@ function closureMetadata(closure: FixedRepairClosure) { return { controller: clo
 /** Exactly g0 -> g1 -> fresh-open exact g1 -> g2. No replay, source fallback,
  * generation three, candidate repair/selection, live service or provider path. */
 export async function runSelfImprovement(options: SelfImprovementOptions): Promise<SelfImprovementResult> {
-  const progress: Progress = { checkpoint: null, published: null, generations: [], receiptPaths: [], completed: 0, receiptUncertain: false };
+  const progress: Progress = { checkpoint: null, published: null, generations: [], receiptPaths: [], completed: 0, receiptUncertain: false, failureCode: null };
   try {
     const root1 = timing(options); // Before input, compile and all storage IO.
     const fixed = fixedInputs(options); root1.gate.check();
@@ -182,12 +190,13 @@ export async function runSelfImprovement(options: SelfImprovementOptions): Promi
     await generation(options, fresh, 2, fixed, progress, root2);
     return result(progress, "COMPLETED", "TWO_GENERATIONS_PROMOTED");
   } catch (error) {
+    progress.failureCode = failureCode(error);
     // Preparation (including fresh open and its root gate) may fail before a
     // generation owns an intent. Preserve that failure without modifying any
     // completed publication or claiming a new reservation/settlement.
     if (progress.checkpoint && !progress.receiptUncertain) {
       try { progress.receiptPaths.push(await appendReceipt(options.storage.receiptDirectory, `supervisor-${progress.completed}.failure.json`, {
-        schemaVersion: 1, mode: "LOCAL_SYNTHETIC", actualRecovery: false, status: "BLOCKED", reasonCode: reason(error),
+        schemaVersion: 1, mode: "LOCAL_SYNTHETIC", actualRecovery: false, status: "BLOCKED", reasonCode: reason(error), failureCode: progress.failureCode,
         completedGenerations: progress.completed, lastPublished: progress.published, lastTrustedCheckpoint: progress.checkpoint,
       })); } catch { progress.receiptUncertain = true; }
     }
@@ -197,7 +206,7 @@ export async function runSelfImprovement(options: SelfImprovementOptions): Promi
 /** Fresh operator action; target selection is exclusively the fixed Task3 CAS
  * rollback. The previous actual-validated artifact is reread and recompiled. */
 export async function rollbackSelfImprovement(options: Pick<SelfImprovementOptions, "storage" | "killSwitch" | "monotonicMs" | "nowUtc">): Promise<SelfImprovementResult> {
-  const progress: Progress = { checkpoint: null, published: null, generations: [], receiptPaths: [], completed: 0, receiptUncertain: false };
+  const progress: Progress = { checkpoint: null, published: null, generations: [], receiptPaths: [], completed: 0, receiptUncertain: false, failureCode: null };
   try {
     const root = timing(options); if (options.storage.mode !== "OPEN") fail("INVALID_INPUT");
     const stores = await openStorage(options.storage, root, options.nowUtc ?? (() => new Date().toISOString()), false);
@@ -207,5 +216,5 @@ export async function rollbackSelfImprovement(options: Pick<SelfImprovementOptio
     try { progress.receiptPaths.push(await appendReceipt(options.storage.receiptDirectory, `rollback-${accepted.active.catalog.revision}.json`, { schemaVersion: 1, mode: "LOCAL_SYNTHETIC", actualRecovery: false, ...accepted })); }
     catch { progress.receiptUncertain = true; return result(progress, "PARTIAL", "RECEIPT_UNCERTAIN"); }
     return result(progress, "ROLLED_BACK", "ROLLED_BACK");
-  } catch (error) { return result(progress, "BLOCKED", reason(error)); }
+  } catch (error) { progress.failureCode = failureCode(error); return result(progress, "BLOCKED", reason(error)); }
 }

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { containerFailureDiagnosticSchema } from "./container-backend";
 import { constants, type Stats } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -282,6 +283,33 @@ function failureReason(error: unknown): FailureReason {
   if (/CATALOG/.test(message)) return "CATALOG_STALE";
   return "EVIDENCE_UNKNOWN";
 }
+// Telemetry projects a fixed set of non-sensitive fields. It never records
+// source/model output, arbitrary errors, headers, stack traces or caller verdicts.
+function repairTelemetry(row: ActualRepairResult["evidence"][number]) {
+  const detail = row.detail as Record<string, unknown>, p = (detail.provenance ?? {}) as Record<string, unknown>;
+  const digest = (v: unknown) => typeof v === "string" && /^[a-f0-9]{64}$/.test(v) ? v : null;
+  const count = (v: unknown) => Number.isSafeInteger(v) && Number(v) >= 0 && Number(v) <= 536870912 ? v : null;
+  const boolean = (v: unknown) => typeof v === "boolean" ? v : null;
+  const pick = (v: unknown, choices: readonly string[]) => typeof v === "string" && choices.includes(v) ? v : null;
+  const pipe = (v: unknown) => { const d = v && typeof v === "object" ? v as Record<string, unknown> : {}; return { stdoutEof: boolean(d.stdoutEof), stderrEof: boolean(d.stderrEof), errorCount: count(d.errorCount), prematureCloseCount: count(d.prematureCloseCount) }; };
+  const codes = ["SIX_PATHS_VERIFIED", "NORMAL", "EXTERNAL_FAILURE", "ORACLE_MISMATCH", "EXECUTION_STDERR", "RECEIPT_MISMATCH", "RAW_LOG_CUSTODY_UNVERIFIED", "RUNTIME_DISPOSAL_UNVERIFIED", "INJECTED_TRANSPORT", "EXECUTION_UNVERIFIED", "RSI_SANDBOX_CLEANUP", "RSI_SANDBOX_TIMEOUT", "RSI_SANDBOX_OUTPUT_LIMIT", "RSI_SANDBOX_BLOCKED", "EXECUTION_EXIT_UNKNOWN", ...Array.from({ length: 256 }, (_, i) => `EXECUTION_EXIT_${i}`)];
+  const result: Record<string, unknown> = { kind: row.reference.kind, verdict: row.reference.verdict, custody: row.custody, referenceDigest: row.reference.digest };
+  if (row.custody === "ACTUAL_AGENT_CONTAINER") {
+    const m = (detail.brokerMetadata ?? {}) as Record<string, unknown>;
+    result.agent = { sourceDigest: digest(detail.sourceDigest), activeAgentHash: digest(detail.activeAgentHash), inputDigest: digest(detail.inputDigest), outputDigest: digest(detail.outputDigest),
+      policyDigest: digest(detail.policyDigest), transportKind: pick(detail.transportKind, ["DOCKER_CLI", "INJECTED_TRANSPORT"]), sequence: count(m.sequence), requestDigest: digest(m.requestDigest), receiptDigest: digest(m.receiptDigest), brokerOutputDigest: digest(m.outputDigest) };
+  } else if (["RED_TEST", "GREEN_TEST", "REGRESSION"].includes(row.reference.kind)) {
+    const logs = (p.logs ?? {}) as Record<string, unknown>;
+    const diagnostic = containerFailureDiagnosticSchema.safeParse(p.cleanupFailure ?? (p.startFailure ? { startFailure: p.startFailure } : undefined));
+    result.native = { reasonCode: pick(detail.reasonCode, codes) ?? "UNKNOWN_CODE", reason: pick(detail.reason, ["CANDIDATE_LOG", "OUTBOUND_REJECTED", "RUNTIME_FAILURE", "ORACLE_RESULT", "RESOURCE_DEADLINE"]),
+      fixture: pick(p.fixture, ["NATIVE_RECEIVER", "NORMAL", "HTTP_FAILURE", "AUTH_REDIRECT_FAILURE", "AUTH_STATUS_FAILURE"]), sourceDigest: digest(p.sourceDigest), compiledDigest: digest(p.compiledDigest), manifestDigest: digest(p.manifestDigest),
+      transportKind: pick(p.transportKind, ["DOCKER_CLI", "INJECTED_TRANSPORT"]), callCount: count(p.callCount), childSpawns: count(p.childSpawns), dispatchAttempts: count(p.dispatchAttempts), elapsedMs: count(p.elapsedMs),
+      receiptDigest: digest(p.receiptDigest), traceDigest: digest(p.traceDigest), responseDigest: digest(p.responseDigest), cleanupConfirmed: boolean(p.cleanupConfirmed), disposalConfirmed: boolean(p.disposalConfirmed), deadlineExpired: boolean(p.deadlineExpired),
+      logs: { valid: boolean(logs.valid), warningCount: count(logs.warningCount), rejectedCount: count(logs.rejectedCount), forbiddenMarkerCount: count(logs.forbiddenMarkerCount), digest: digest(logs.digest), custody: pipe(logs.custody) },
+      pipeCustody: pipe(p.pipeCustody), ...(diagnostic.success ? diagnostic.data : {}) };
+  } else return null;
+  return frozen(result);
+}
 interface ValidationDocument {
   schemaVersion: 1; kind: "ACTUAL_REPAIR_VALIDATION"; phase: "BASELINE_REPAIR" | "PROMOTION_REPAIR";
   executionId: string; source: R4SourceArtifactReference; context: Omit<R4ValidationBinding, "evidenceDigest">;
@@ -358,9 +386,18 @@ export class LabPromotionSession {
   }
   private async repair(agent: CompiledAgent, source: R4SourceArtifactReference, phase: "BASELINE_REPAIR" | "PROMOTION_REPAIR") {
     const purpose = phase === "BASELINE_REPAIR" ? "R4_BASELINE_REPAIR" : "R4_PROMOTION_REPAIR";
-    const before = this.sequence;
+    const before = this.sequence; let ordinal = 0;
     const result = await runActualRepairCore({ agent, closure: this.closure, rootGate: this.gate, request: { purpose, capability: this.phase(phase), nextSequence: () => ++this.sequence },
-      observation: this.intent.observation, baseSource: this.options.baseSource, lessons: this.lessons }); this.gate.check();
+      observation: this.intent.observation, baseSource: this.options.baseSource, lessons: this.lessons,
+      onEvent: async event => {
+        if (event.kind !== "EVIDENCE") return;
+        const evidence = repairTelemetry(event.evidence); if (!evidence) return;
+        if (++ordinal > 16) fail("ACCOUNTING_UNCERTAIN");
+        try { await writeBlob(this.options.sourceStore, { schemaVersion: 1, kind: "ACTUAL_REPAIR_TELEMETRY", executionId: this.intent.executionId, phase, ordinal, source, context: context(this.intent), evidence }, "evidence"); }
+        catch { fail("ACCOUNTING_UNCERTAIN"); }
+        // Core awaits this sink and rechecks the same root gate. Metadata does
+        // not authorize a verdict; failure stops the original execution.
+      } }); this.gate.check();
     if (result.outcome !== "REPAIRED" || result.candidateCount !== 1 || result.regressionReferences.length !== 4 || this.sequence !== before + 2) fail("PROBE_FAILED");
     const run = await this.readRun(), agentRows = result.evidence.filter(e => e.custody === "ACTUAL_AGENT_CONTAINER");
     if (agentRows.length !== 2) fail("GENERATION_CUSTODY");
