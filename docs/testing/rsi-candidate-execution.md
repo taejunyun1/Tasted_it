@@ -1,6 +1,8 @@
 # RSI 후보 소스의 로컬 네이티브 실행
 
-**상태: BLOCKED — 전체 네이티브 수용 미완료(2026-10-22).** 종료 deadline 범위를 보완한 최종 이미지의 정상 대조군·경로 누락 단일 검사는 각각 NO_CHANGE/FAIL 및 종료·정리를 확인했다. 이후 전체 실제 검사는 generator-constructor 사례의 `RM_TRANSPORT/TIMEOUT` 정리 UNKNOWN과 후속 capability 격리로 중단됐다. 타이머 보완이 과거 실패의 원인을 설명하거나 정리 문제를 해결했다는 주장은 없다. 추가 실제 재시도는 중지했으며, 현재 라벨 컨테이너 0개라는 관측을 과거 정리 성공으로 소급하지 않는다.
+**상태: fix round1 검증 완료·독립 재검토 대기(2026-10-22).** EOF 보강 이미지의 전체 검사는 110 PASS/1 FAIL/4 skip였다. 한 실패는 모듈 초기화에서 타이머를 예약한 대조군의 ready 단계 EXIT88이며, 원래 영수증을 보존했다. 예약을 요청 처리 함수 본문으로 옮긴 수정 대조군 한 건은 같은 이미지에서 PASS(6호출·양 EOF·marker0·dispose/cleanup 확인)했다. 다른 통과 사례는 재실행하지 않았다. Task3 최종 승인과 I1/I2 해제는 독립 재검토로 판정한다.
+
+이전 이력: 종료 deadline 범위를 보완한 이미지411의 전체 실제 검사는 generator-constructor 사례의 `RM_TRANSPORT/TIMEOUT` 정리 UNKNOWN과 후속 capability 격리로 중단됐다. EOF 보강이 그 실패의 원인을 설명하거나 Docker 정리 문제를 해결했다는 주장은 없다. 기존 UNKNOWN/BLOCKED와 진단32건을 보존하며, 이후 성공이나 컨테이너 부재를 과거 정리 성공으로 소급하지 않는다.
 
 Issue #323의 평가기는 한 파일의 가상 후보를 별도 Docker/workerd에서 평가한다. 선행 Issue #324 / PR #325의 workerd `1.20261022.1`, 최대 지원 날짜 `2026-10-22`, 목표 날짜 `2026-08-05`와 두 compatibility flag를 유지한다. 지원 날짜가 부족한 manifest는 `RSI_NATIVE_COMPATIBILITY_UNSUPPORTED`로 거절한다. 실제 실행 영수증은 로컬 합성 자료의 증거이며 운영 복구·배포·자기개선 효과의 증거가 아니다.
 
@@ -57,8 +59,12 @@ native 상한은 메모리 512 MiB, tmpfs 64 MiB, CPU 1개, PID 64개, wall 15�
 
 공통 backend의 `RSI_SANDBOX_CLEANUP` 메시지·한도·격리 동작은 유지한다. 추가 진단 cause는 INSPECT_TRANSPORT/INSPECT_EXIT/INSPECT_JSON/INSPECT_OWNERSHIP/RM_TRANSPORT/RM_EXIT 단계와 고정 failure enum만 제공하고 native 경계에서 다시 검증한다. 인자·ID·원문 출력·daemon 오류·소켓·환경값은 진단에 넣지 않는다. 관측 보강 전 실제 정리 UNKNOWN 두 건과 준비 BLOCKED 두 건은 과거 불확실 기록으로 남긴다. 별도 주입 경로의 고정 NORMAL 여덟 회(명령 53개, 소유 컨테이너 열 개 부재 확인)는 원인을 재현하지 못했으며 원래 실패의 해결 증거가 아니다. 기본 경로의 실제 영수증과 주입한 CLI 진단을 구분한다.
 
+독립 리뷰에서 child `close`만으로는 필터 전 로그가 모두 전달됐다고 볼 수 없음을 확인했다. 잠금 Miniflare가 kill 전에 stdout/stderr를 destroy하기 때문이다. 검증된 단일 workerd의 두 raw stream에만 한정한 adapter가 오류 없는 early destroy를 자연 `end`까지 지연한다. Miniflare의 stdin/control 파괴·abort·SIGKILL·자동 재시작 판단 순서는 유지하고 추가 spawn은 기존대로 실행 전에 거절한다. stream 오류의 destroy는 즉시 수행한다. 양 pipe의 EOF와 오류·중도 close 개수를 최종 로그 판정 및 native receipt schema에서 검증하며, 불완전하면 `RAW_LOG_CUSTODY_UNVERIFIED` UNKNOWN이다. dispatch부터 dispose·pipe/child 종료까지 기존 내부12초·외부15초와 raw 합계32KiB 상한을 유지한다.
+
+고정 trusted Node writer가 이미 쓴 12바이트는 기존 destroy/kill/close 대조군에서 관측0, 새 adapter의 stdout/stderr 검사에서 각각 관측12였다. 종료 직전 큐에 쓴 금지 marker도 최종 로그 거절에 포함됐다. 이것은 host fixture의 로그 유실 회귀 증거이며 실제 후보의 우회 성공이나 과거 Docker timeout의 원인 증거가 아니다. stream 오류·중도 close 반례는 UNKNOWN으로 제한하고, 변경된 wrapper/image의 실제 전체 수용을 따로 검사한다.
+
 실행과 제거가 모두 실패하면 `startFailure`와 cleanup 단계를 함께 보존한다. Docker CLI 실패의 고정 사유와 수신한 stdout/stderr 바이트 수만 남기며 각 수는 해당 출력 상한+1로 제한한다. 공통 진단 schema의 최대값은 65,537이고 native 경계에서 객체·접근자·enum·수 범위를 재검증한다. 부분 출력은 파싱하거나 PASS 영수증으로 복원하지 않는다. 실패한 START의 출력 바이트가 0인지 아닌지는 종료 전후의 단서일 뿐 성공 증거가 아니다.
 
-2026-10-22 승인된 원인 수집 배치는 고정 이미지에서 정상/기존 generator 실패형을 32건, 20.647초 실행하고 횟수 상한에서 종료했다. 정상16건은 NO_CHANGE, 실패형16건은 CANDIDATE_LOG FAIL이었고 해당 배치의 timeout은 없었다. 이 배치는 전체 수용 검사와 목적이 다르며 과거 반복 실패의 원인을 재현하지 못했다. 전체 수용 BLOCKED는 유지한다. 원인 수집 재실행에는 별도 범위 확인이 필요하며 일반 평가 API가 retry하는 구조는 아니다.
+2026-10-22 승인된 원인 수집 배치는 고정 이미지에서 정상/기존 generator 실패형을 32건, 20.647초 실행하고 횟수 상한에서 종료했다. 정상16건은 NO_CHANGE, 실패형16건은 CANDIDATE_LOG FAIL이었고 해당 배치의 timeout은 없었다. 이 배치는 전체 수용 검사와 목적이 다르며 과거 반복 실패의 원인을 재현하지 못했다. 이 진단 당시 전체 수용 BLOCKED를 유지했다. 원인 수집 재실행에는 별도 범위 확인이 필요하며 일반 평가 API가 retry하는 구조는 아니다.
 
 후보 소스나 원문 출력은 manifest·보고서에 저장하지 않는다. 기존 의존성 감사는 35건(critical 1, high 9, moderate 21, low 4)을 보고했다. 의존성은 이 작업에서 변경하지 않았으며 고정 이미지가 이를 해소했다고 주장하지 않는다. 이것은 운영 배포, 실제 provider·학생 데이터·서비스 복구 또는 자기개선 효과의 증거가 아니다.

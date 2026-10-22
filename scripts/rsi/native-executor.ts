@@ -154,7 +154,8 @@ export async function prepareNativeRuntimeImage(): Promise<NativeRuntimeManifest
 }
 
 const gradeSchema = z.strictObject({ verdict: z.enum(["PASS", "FAIL", "NO_CHANGE"]), reasonCode: z.enum(["SIX_PATHS_VERIFIED", "NORMAL", "EXTERNAL_FAILURE", "ORACLE_MISMATCH"]), redReproduced: z.literal(false), greenVerified: z.boolean() });
-const logSchema = z.strictObject({ valid: z.boolean(), warningCount: z.number().int().min(0).max(32768), rejectedCount: z.number().int().min(0).max(32768), forbiddenMarkerCount: z.number().int().min(0).max(32768), bytes: z.number().int().min(0).max(32768), digest, warningSourceDigest: digest, rejectionCodes: z.array(z.enum(["FIELDS", "TIMESTAMP", "LEVEL", "SOURCE", "CONTEXT", "MESSAGE", "LATE", "DUPLICATE"])).max(8) });
+const pipeCustodySchema = z.strictObject({ stdoutEof: z.boolean(), stderrEof: z.boolean(), errorCount: z.number().int().min(0).max(2), prematureCloseCount: z.number().int().min(0).max(2) });
+const logSchema = z.strictObject({ valid: z.boolean(), custody: pipeCustodySchema, warningCount: z.number().int().min(0).max(32768), rejectedCount: z.number().int().min(0).max(32768), forbiddenMarkerCount: z.number().int().min(0).max(32768), bytes: z.number().int().min(0).max(32768), digest, warningSourceDigest: digest, rejectionCodes: z.array(z.enum(["FIELDS", "TIMESTAMP", "LEVEL", "SOURCE", "CONTEXT", "MESSAGE", "LATE", "DUPLICATE"])).max(8) });
 const receiptSchema = z.strictObject({ schemaVersion: z.literal(1), grade: gradeSchema, runtime: runtimeSchema, sourceDigest: digest, compiledDigest: digest, traceDigest: digest, responseDigest: digest,
   logs: logSchema, childSpawns: z.literal(1), dispatchAttempts: z.literal(1), deadlineExpired: z.boolean(), disposalConfirmed: z.boolean(),
   callCount: z.number().int().min(0).max(6), elapsedMs: z.number().int().min(0).max(15000), peakMemoryBytes: z.number().int().min(1).max(536870912), reason: z.enum(["CANDIDATE_LOG", "OUTBOUND_REJECTED", "RUNTIME_FAILURE", "ORACLE_RESULT", "RESOURCE_DEADLINE"]) });
@@ -216,6 +217,10 @@ export class NativeExecutor {
       if (response.stderr !== "") return unknown("EXECUTION_STDERR");
       const receipt = receiptSchema.parse(parseJson(response.stdout));
       if (receipt.sourceDigest !== artifact.sourceDigest || receipt.compiledDigest !== artifact.compiledDigest || JSON.stringify(receipt.runtime) !== JSON.stringify(this.#manifest.runtime)) return unknown("RECEIPT_MISMATCH");
+      const custody = receipt.logs.custody;
+      if (!custody.stdoutEof || !custody.stderrEof || custody.errorCount || custody.prematureCloseCount) return {
+        ...unknown("RAW_LOG_CUSTODY_UNVERIFIED"), provenance: { ...provenance, pipeCustody: custody, cleanupConfirmed: true },
+      };
       if ((receipt.grade.verdict === "PASS" || receipt.grade.verdict === "NO_CHANGE") && (!receipt.logs.valid || receipt.logs.warningCount !== 1 || receipt.logs.rejectedCount !== 0 || receipt.deadlineExpired || !receipt.disposalConfirmed)) return unknown("RECEIPT_MISMATCH");
       if (!receipt.disposalConfirmed) return unknown("RUNTIME_DISPOSAL_UNVERIFIED");
       if (response.evidence.transportKind !== "DOCKER_CLI") return unknown("INJECTED_TRANSPORT");

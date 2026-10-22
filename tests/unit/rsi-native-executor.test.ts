@@ -1,10 +1,13 @@
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, readSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
 import { rootCertificates } from "node:tls";
 import { describe, expect, it, vi } from "vitest";
 import { compileNativeCandidate, NATIVE_SOURCE_PATH, prepareNativeRuntimeImage, NativeExecutor, nativeArtifactDigests, NATIVE_BUILD_FLAGS } from "../../scripts/rsi/native-executor";
 import { VerifiedContainerBackend, dockerTransport, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
-import { NATIVE_RUNTIME, classifyNativeStartupError, verifyNativePublicCa, createNativeLogGate, withNativeWorkerdDeadline } from "../../scripts/rsi/native-wrapper";
+import { NATIVE_RUNTIME, classifyNativeStartupError, verifyNativePublicCa, createNativeLogGate, withNativeWorkerdDeadline, observeNativeWorkerdPipes } from "../../scripts/rsi/native-wrapper";
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const source = readFileSync(new URL("../../app/features/operations/rsi-self-check.ts", import.meta.url), "utf8");
@@ -14,6 +17,85 @@ const startupWarning = 'service core:user:: The compatibility flag nodejs_compat
 const nativeLog = (message = startupWarning, extra: Record<string, unknown> = {}) => Buffer.from(JSON.stringify({ timestamp: "1", level: "warn", source: "workerd/server/workerd-api.c++:1", message, ...extra }) + "\n");
 // Pure parser seam only; the immutable wrapper uses its pinned measured source.
 const syntheticLogGate = () => createNativeLogGate(hash("workerd/server/workerd-api.c++:1"));
+const completePipes = { stdoutEof: true, stderrEof: true, errorCount: 0, prematureCloseCount: 0 };
+
+// Fixed trusted child only. Synchronously reading fd3 keeps data callbacks queued
+// until the child confirms its synchronous pipe write; no candidate code runs.
+function queuedTrustedWriter(stream: "stdout" | "stderr", payload: string) {
+  const child = spawn(process.execPath, ["--input-type=module", "-e", `import {writeSync} from 'node:fs'; writeSync(${stream === "stdout" ? 1 : 2}, ${JSON.stringify(payload)}); writeSync(3,'1'); setInterval(()=>{},1000);`],
+    { stdio: ["ignore", "pipe", "pipe", "pipe"], env: {} });
+  const control = child.stdio[3] as unknown as { _handle: { fd: number }; destroy(): void };
+  const started = performance.now(), byte = Buffer.alloc(1);
+  try {
+    for (;;) {
+      try { if (readSync(control._handle.fd, byte, 0, 1, null) === 1) break; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "EAGAIN") throw error; }
+      if (performance.now() - started > 2000) throw Error("TRUSTED_WRITER_CONTROL_TIMEOUT");
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1);
+    }
+  } catch (error) { child.kill("SIGKILL"); control.destroy(); throw error; }
+  return { child, control, writerConfirmed: byte[0] === 49 };
+}
+
+describe("verified workerd pipe EOF custody", () => {
+  it("reproduces written bytes lost by destroy/kill/close without claiming a native bypass", async () => {
+    const { child, control, writerConfirmed } = queuedTrustedWriter("stdout", "queued-line\n");
+    let observedBytes = 0;
+    child.stdout!.on("data", chunk => { observedBytes += chunk.length; });
+    const closed = new Promise<void>(resolve => child.once("close", () => resolve()));
+    child.stdout!.destroy(); child.stderr!.destroy(); control.destroy(); child.kill("SIGKILL");
+    await closed;
+    expect({ writerConfirmed, writtenBytes: 12, observedBytes }).toEqual({ writerConfirmed: true, writtenBytes: 12, observedBytes: 0 });
+  });
+  it.each(["stdout", "stderr"] as const)("drains queued trusted bytes on %s before accepting child close", async stream => {
+    const { child, control, writerConfirmed } = queuedTrustedWriter(stream, "queued-line\n");
+    let observedBytes = 0;
+    try {
+      const closed = observeNativeWorkerdPipes(child, (_stream, chunk) => { observedBytes += chunk.length; });
+      expect(observedBytes).toBe(0);
+      child.stdout!.destroy(); child.stderr!.destroy(); control.destroy(); child.kill("SIGKILL");
+      expect(await closed).toEqual(completePipes);
+      expect({ writerConfirmed, observedBytes }).toEqual({ writerConfirmed: true, observedBytes: 12 });
+    } finally { child.kill("SIGKILL"); control.destroy(); }
+  });
+  it("includes an already-written forbidden marker in the final gate", async () => {
+    const payload = nativeLog("RSI_NATIVE_FORBIDDEN_API", { source: undefined }).toString();
+    const { child, control } = queuedTrustedWriter("stderr", payload);
+    const gate = syntheticLogGate(); gate.push("stderr", nativeLog()); gate.markReady();
+    try {
+      const closed = observeNativeWorkerdPipes(child, (stream, chunk) => gate.push(stream, chunk));
+      child.stdout!.destroy(); child.stderr!.destroy(); control.destroy(); child.kill("SIGKILL");
+      expect(gate.finish(await closed)).toMatchObject({ valid: false, forbiddenMarkerCount: 1, custody: completePipes });
+    } finally { child.kill("SIGKILL"); control.destroy(); }
+  });
+  it.each(["stdout", "stderr"] as const)("does not replace %s error destruction or treat it as EOF", async stream => {
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough() });
+    const closed = observeNativeWorkerdPipes(child, () => {});
+    child[stream].destroy(Error("SYNTHETIC_STREAM_ERROR"));
+    await new Promise<void>(resolve => child[stream].once("close", resolve));
+    child.emit("close");
+    const custody = await closed;
+    expect(custody).toMatchObject({ [`${stream}Eof`]: false, errorCount: 1, prematureCloseCount: 1 });
+    expect(child[stream].destroyed).toBe(true);
+    const gate = syntheticLogGate(); gate.push("stderr", nativeLog());
+    expect(gate.finish(custody).valid).toBe(false);
+    child.stdout.destroy(); child.stderr.destroy();
+  });
+  it("rejects child close without both natural pipe ends", async () => {
+    const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough() });
+    const closed = observeNativeWorkerdPipes(child, () => {});
+    child.stdout.emit("close"); child.emit("close");
+    const custody = await closed;
+    expect(custody).toEqual({ stdoutEof: false, stderrEof: false, errorCount: 0, prematureCloseCount: 1 });
+    const gate = syntheticLogGate(); gate.push("stderr", nativeLog());
+    expect(gate.finish(custody).valid).toBe(false);
+    child.stdout.destroy(); child.stderr.destroy();
+  });
+  it("cannot finish a baseline-only gate with missing EOF custody", () => {
+    const gate = syntheticLogGate(); gate.push("stderr", nativeLog());
+    expect(gate.finish({ ...completePipes, stderrEof: false }).valid).toBe(false);
+  });
+});
 
 describe("fixed workerd deadline spans shutdown", () => {
   it.each(["dispose", "stream close"])("keeps the 12s deadline active while awaiting %s", async phase => {
@@ -50,7 +132,7 @@ describe("native raw log custody before Miniflare filtering", () => {
     const gate = syntheticLogGate();
     const line = nativeLog();
     gate.push("stderr", line.subarray(0, 17)); gate.push("stderr", line.subarray(17)); gate.markReady();
-    expect(gate.finish()).toMatchObject({ valid: true, warningCount: 1, rejectedCount: 0, bytes: line.length });
+    expect(gate.finish(completePipes)).toMatchObject({ valid: true, warningCount: 1, rejectedCount: 0, bytes: line.length });
   });
   it.each(["duplicate", "candidate mimic", "after ready", "filtered internal", "TLS", "malformed", "unterminated"])("rejects %s output", fault => {
     const gate = syntheticLogGate(); gate.push("stderr", nativeLog());
@@ -61,16 +143,16 @@ describe("native raw log custody before Miniflare filtering", () => {
       : fault === "malformed" ? Buffer.from("{broken}\n")
       : fault === "unterminated" ? Buffer.from("unterminated") : nativeLog();
     gate.push("stdout", extra);
-    expect(gate.finish().valid).toBe(false);
+    expect(gate.finish(completePipes).valid).toBe(false);
   });
   it("requires the mandatory startup warning and bounds both streams together", () => {
-    expect(createNativeLogGate().finish().valid).toBe(false);
+    expect(createNativeLogGate().finish(completePipes).valid).toBe(false);
     const gate = createNativeLogGate(); gate.push("stdout", Buffer.alloc(20000));
     expect(() => gate.push("stderr", Buffer.alloc(12769))).toThrow("RSI_NATIVE_LOG_LIMIT");
   });
   it("rejects a source that differs from the pinned measured C++ logger source", () => {
     const gate = createNativeLogGate(); gate.push("stderr", nativeLog());
-    expect(gate.finish()).toMatchObject({ valid: false, rejectionCodes: ["SOURCE"] });
+    expect(gate.finish(completePipes)).toMatchObject({ valid: false, rejectionCodes: ["SOURCE"] });
   });
 });
 
@@ -148,7 +230,7 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
     const runtime = { ...NATIVE_RUNTIME, supportedCompatibilityDate: "2026-08-05", workerdDigest: "1".repeat(64), publicCaDigest: "6".repeat(64), publicCaCount: 100 };
     const manifest = { schemaVersion: 1, imageId: `sha256:${"2".repeat(64)}`, baseImage: "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5", pnpm: "10.34.5", artifacts, runtime };
     const evidence = { transportKind: "INJECTED_TRANSPORT" };
-    const state = { blocked: false, error: "", corrupt: false, logs: false, cleanupCause: undefined as unknown };
+    const state = { blocked: false, error: "", corrupt: false, logs: false, custody: { ...completePipes }, cleanupCause: undefined as unknown };
     const backend = { evidence, assertAvailable() { if (state.blocked) throw Error("RSI_SANDBOX_BLOCKED"); }, async run(stdin: string) {
       const input = JSON.parse(stdin);
       if (state.error) { if (state.error === "RSI_SANDBOX_CLEANUP") state.blocked = true; throw new Error(state.error, { cause: state.cleanupCause }); }
@@ -156,7 +238,7 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
         schemaVersion: 1, runtime, grade: { verdict: "PASS", reasonCode: "SIX_PATHS_VERIFIED", redReproduced: false, greenVerified: true },
         sourceDigest: state.corrupt ? "3".repeat(64) : input.sourceDigest, compiledDigest: input.compiledDigest,
         traceDigest: "4".repeat(64), responseDigest: "5".repeat(64), callCount: 6, elapsedMs: 5, peakMemoryBytes: 200000000, reason: "ORACLE_RESULT",
-        logs: { valid: true, warningCount: 1, rejectedCount: 0, forbiddenMarkerCount: 0, bytes: 200, digest: "7".repeat(64), warningSourceDigest: "8".repeat(64), rejectionCodes: [] }, childSpawns: 1, dispatchAttempts: 1, deadlineExpired: false, disposalConfirmed: true,
+        logs: { valid: true, custody: state.custody, warningCount: 1, rejectedCount: 0, forbiddenMarkerCount: 0, bytes: 200, digest: "7".repeat(64), warningSourceDigest: "8".repeat(64), rejectionCodes: [] }, childSpawns: 1, dispatchAttempts: 1, deadlineExpired: false, disposalConfirmed: true,
       };
       return { code: 0, stdout: JSON.stringify(output) + "\n", stderr: state.logs ? "private candidate log" : "", evidence };
     } };
@@ -178,6 +260,16 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       const result = await executor.evaluate({ ...request(), fixture: "NATIVE_RECEIVER" });
       expect(result.verdict).toBe("UNKNOWN"); expect(result.reasonCode).toBe("INJECTED_TRANSPORT");
       expect(result.greenVerified).toBe(false);
+    } finally { fake.spy.mockRestore(); }
+  });
+  it.each(["stdoutEof", "stderrEof", "errorCount", "prematureCloseCount"] as const)("returns UNKNOWN for incomplete raw-pipe custody: %s", async field => {
+    const fake = await setup();
+    try {
+      const executor = await NativeExecutor.verify(fake.manifest);
+      Object.assign(fake.state.custody, { [field]: field.endsWith("Eof") ? false : 1 });
+      const result = await executor.evaluate({ ...request(), fixture: "NORMAL" });
+      expect(result.verdict).toBe("UNKNOWN"); expect(result.reasonCode).toBe("RAW_LOG_CUSTODY_UNVERIFIED");
+      expect(result.provenance).toMatchObject({ pipeCustody: fake.state.custody, cleanupConfirmed: true });
     } finally { fake.spy.mockRestore(); }
   });
   it("rejects artifact mismatch before any backend verification", async () => {
@@ -469,7 +561,7 @@ describe.runIf(process.env.RSI_NATIVE_PROBE === "1")("actual Docker/workerd prob
   }, 45000);
   it("distinguishes an unexecuted late timer from a blocked API invocation", async () => {
     const executor = await actualExecutor();
-    const value = 'setTimeout(()=>process.getBuiltinModule("net"),60000);' + source;
+    const value = duringCheck('setTimeout(()=>process.getBuiltinModule("net"),60000);');
     const result = await executor.evaluate({ ...request(value), fixture: "NATIVE_RECEIVER" });
     record("late-timer-not-observed-before-disposal", result);
     expect(result.verdict).toBe("PASS");

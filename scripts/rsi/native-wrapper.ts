@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import childProcess, { execFileSync } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import type { Readable } from "node:stream";
 import { existsSync, readdirSync, readFileSync, realpathSync, lstatSync } from "node:fs";
 import { rootCertificates } from "node:tls";
 import { createRequire } from "node:module";
@@ -24,6 +25,34 @@ export async function withNativeWorkerdDeadline<T>(operation: () => Promise<T>, 
   const timer = setTimeout(() => { deadlineExpired = true; terminate(); }, 12000);
   try { return { value: await operation(), deadlineExpired }; }
   finally { clearTimeout(timer); }
+}
+export interface NativePipeCustody { stdoutEof: boolean; stderrEof: boolean; errorCount: number; prematureCloseCount: number }
+/** Only the already-verified single child is adapted. Miniflare still owns its
+ * abort/control/kill/restart order. Defer its error-free raw-pipe destruction
+ * until readable end, so bytes already written are observed before close.
+ * Error destruction remains immediate and can never establish complete custody. */
+export function observeNativeWorkerdPipes(child: { stdout: Readable | null; stderr: Readable | null; once(event: "close", listener: () => void): unknown },
+  observe: (stream: "stdout" | "stderr", chunk: Buffer) => void): Promise<NativePipeCustody> {
+  if (!child.stdout || !child.stderr) throw new Error("RSI_NATIVE_CHILD_PIPES");
+  const states = { stdoutEof: false, stderrEof: false, errorCount: 0, prematureCloseCount: 0 };
+  const restore: (() => void)[] = [];
+  for (const name of ["stdout", "stderr"] as const) {
+    const stream = child[name]!;
+    const destroy = stream.destroy;
+    let requested = false, errored = false, closed = false;
+    const reset = () => { stream.destroy = destroy; };
+    restore.push(reset);
+    stream.on("data", (chunk: Buffer) => observe(name, chunk));
+    stream.once("end", () => { states[`${name}Eof`] = true; reset(); if (requested) destroy.call(stream); });
+    stream.on("error", () => { if (!errored) { errored = true; states.errorCount++; } });
+    stream.once("close", () => { if (!closed && !states[`${name}Eof`]) states.prematureCloseCount++; closed = true; reset(); });
+    stream.destroy = function(error?: Error) {
+      if (error || stream.readableEnded || stream.destroyed) return destroy.call(stream, error);
+      requested = true;
+      return stream;
+    };
+  }
+  return new Promise(resolve => child.once("close", () => { for (const reset of restore) reset(); resolve(Object.freeze({ ...states })); }));
 }
 /** Observe workerd's raw pipes before Miniflare's presentation filters. A JS
  * console record cannot supply the C++ logger's top-level source field. The
@@ -60,11 +89,12 @@ export function createNativeLogGate(expectedSourceDigest = "92e682819efef622f66f
       }
     },
     markReady() { ready = true; },
-    finish() {
+    finish(custody: NativePipeCustody) {
       if (finished) throw new Error("RSI_NATIVE_LOG_CLOSED");
       finished = true;
       for (const stream of ["stdout", "stderr"] as const) if (pending[stream] + decoders[stream].end()) rejectedCount++;
-      return { valid: warningCount === 1 && rejectedCount === 0, warningCount, rejectedCount, forbiddenMarkerCount, bytes, digest: digest.digest("hex"), warningSourceDigest, rejectionCodes };
+      return { valid: custody.stdoutEof && custody.stderrEof && custody.errorCount === 0 && custody.prematureCloseCount === 0 && warningCount === 1 && rejectedCount === 0,
+        custody, warningCount, rejectedCount, forbiddenMarkerCount, bytes, digest: digest.digest("hex"), warningSourceDigest, rejectionCodes };
     },
   };
 }
@@ -174,17 +204,15 @@ async function main() {
   const originalSpawn = childProcess.spawn;
   let spawned = 0;
   let workerdChild: ReturnType<typeof childProcess.spawn> | undefined;
-  let childClosed: Promise<void> | undefined;
+  let childClosed: Promise<NativePipeCustody> | undefined;
   childProcess.spawn = ((...args: Parameters<typeof childProcess.spawn>) => {
     if (args[0] !== workerdPath || spawned !== 0) throw new Error("RSI_NATIVE_CHILD_REJECTED");
     spawned++;
     const child = Reflect.apply(originalSpawn, childProcess, args) as ReturnType<typeof childProcess.spawn>;
     workerdChild = child;
-    if (!child.stdout || !child.stderr) throw new Error("RSI_NATIVE_CHILD_PIPES");
-    for (const stream of ["stdout", "stderr"] as const) child[stream]!.on("data", (chunk: Buffer) => {
+    childClosed = observeNativeWorkerdPipes(child, (stream, chunk) => {
       try { logGate.push(stream, chunk); } catch { exit(74); }
     });
-    childClosed = new Promise(resolve => child.once("close", () => resolve()));
     return child;
   }) as typeof childProcess.spawn;
   try {
@@ -242,8 +270,9 @@ async function main() {
     let disposal: ReturnType<typeof classifyNativeStartupError> | null = null;
     try { await mf.ready; logGate.markReady(); } catch (error) { ready = classifyNativeStartupError(error); }
     try { await mf.dispose(); } catch (error) { disposal = classifyNativeStartupError(error); }
-    await childClosed;
-    const logs = logGate.finish();
+    const custody = await childClosed;
+    if (!custody) throw new Error("RSI_NATIVE_CHILD_PIPES");
+    const logs = logGate.finish(custody);
     const publicCa = { directoryPresent: existsSync("/etc/ssl/certs"), entries: 0,
       bundlePresent: existsSync("/etc/ssl/certs/ca-certificates.crt"), certificates: 0 };
     if (publicCa.directoryPresent) publicCa.entries = readdirSync("/etc/ssl/certs").length;
@@ -276,10 +305,11 @@ async function main() {
     failureExit = 79;
     try { await mf.dispose(); } catch { disposalConfirmed = false; runtimeError = true; }
   }
-  await childClosed;
+  return await childClosed;
   }, () => { workerdChild?.kill("SIGKILL"); });
   deadlineExpired = execution.deadlineExpired;
-  const logs = logGate.finish();
+  if (!execution.value) throw new Error("RSI_NATIVE_CHILD_PIPES");
+  const logs = logGate.finish(execution.value);
   candidateLog = !logs.valid || spawned !== 1;
   failureExit = 80;
   const grade = gradeRsiPublicPathCheck(fixture, body, calls);
