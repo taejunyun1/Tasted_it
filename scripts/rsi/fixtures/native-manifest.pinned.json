@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "imageId": "sha256:b035afe75a5453408f0e878a9405d9f621203acad47763b82372f01d4c958d4b",
+  "baseImage": "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5",
+  "pnpm": "10.34.5",
+  "artifacts": {
+    "packageDigest": "257692887405a71fbc959353de45509e0e0edd001eaab4698091d51bfbf73ae1",
+    "lockDigest": "3f88797d9a2e666155555976df0b7f0b772e63e4972e707bfe93beb0e31f3f5d",
+    "wrapperSourceDigest": "c09a4b12277fea13e8754012cc127100ec4178beb4c4ebb6118ace710427144f",
+    "wrapperDigest": "4a5b6d302805fb36219eb4eeca1375501df7fdd77fc8bf40cdfed8b197b1a1e2",
+    "oracleDigest": "0a129a6d84a34e68985ea11985215308b57c0e6d9966f86cf3b886ea09146e05",
+    "contractsDigest": "9c4ce3308aa4fc1aee2a0086a1c7afc75d8d69e75fefef17eb2e06b665eb200d",
+    "dockerfileDigest": "9ec8db8754ad122711bdb26c0145f1e42aa93b460a819601fd98a2f8dfa323ca",
+    "harnessDigest": "b680ab34a0adb4089d381b470aa65dbb2b74d451391d247eea25ccd4d89d1c64",
+    "guardDigest": "4f672be52b7cce434af1b9e23d07515ef5a3c20bf02ad09a6e784e543d060ab5"
+  },
+  "runtime": {
+    "node": "v22.23.2",
+    "miniflare": "5.20260730.0-alpha",
+    "workerd": "1.20261022.1",
+    "platform": "linux/arm64",
+    "workerdBinaryVersion": "workerd 2026-10-22",
+    "supportedCompatibilityDate": "2026-10-22",
+    "compatibilityDate": "2026-08-05",
+    "compatibilityFlags": [
+      "nodejs_compat",
+      "global_fetch_strictly_public"
+    ],
+    "workerdDigest": "878852f43e1664e51e991db1805e1151cf9ea5a19bb98cf6e279793539452f80",
+    "publicCaDigest": "e3569ed5bde6e59d7718cd962b1f07a95ab0a4226a9fc35a18d8f586f98ea6a4",
+    "publicCaCount": 145
+  }
+}
