@@ -179,6 +179,16 @@ describe("shared actual repair core contracts (host data only)", () => {
     const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => 0, killSwitch: () => false });
     await expect(runActualAgentStep({ agent, rootGate, capability: request as unknown as ReturnType<LocalFakeModelBroker["phase"]>, sequence: 1, taskKind: "improve-agent", publicInput: {} })).rejects.toThrow("RSI_CONTROLLER_AGENT_CUSTODY");
   });
+  it("keeps the bounded passive input guard on the public improve-agent step (injected)", async () => {
+    const agent = await compileAgentSources(await loadSeedAgentSources()), execute = vi.fn();
+    vi.spyOn(DockerSandbox, "verify").mockResolvedValue({ execute } as unknown as DockerSandbox);
+    const request = { request: vi.fn() };
+    const rootGate = createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120000 }, monotonicMs: () => 0, killSwitch: () => false });
+    await expect(runActualAgentStep({ agent, rootGate, capability: request as unknown as LocalFakeModelBroker,
+      sequence: 1, taskKind: "improve-agent", publicInput: { source: "x".repeat(16001) },
+    })).rejects.toThrow("RSI_SANDBOX_INPUT");
+    expect(request.request).not.toHaveBeenCalled(); expect(execute).not.toHaveBeenCalled();
+  });
   it("awaits evidence recording in order without overlapping a supervisor sink (injected)", async () => {
     const agent = await compileAgentSources(await loadSeedAgentSources()), closure = await measureFixedClosure("R3"), obs = observation();
     injectHostCapabilities("RED");
@@ -374,6 +384,17 @@ describe("synthetic recovery contracts (host data only)", () => {
     const options = await setup(73551);
     expect(await recoverSyntheticIncident({ ...options, observation: observation(), baseSource: await service(), agentSources: await loadSeedAgentSources() })).toMatchObject({ status: "BLOCKED", reasonCode: "BUDGET_UNAVAILABLE" });
     expect((await options.ledger.read()).runs).toHaveLength(0);
+  });
+  it("counts an oversized constructed R1 request before broker input rejection (injected)", async () => {
+    const options = await setup(), capabilities = injectHostCapabilities("RED");
+    const baseSource = (await service()) + "\n//" + "x".repeat(16000);
+    expect(Buffer.byteLength(baseSource)).toBeLessThanOrEqual(65536);
+    const result = await recoverSyntheticIncident({ ...options, monotonicMs: () => 0,
+      observation: observation(), baseSource, agentSources: await loadSeedAgentSources() });
+    expect(result).toMatchObject({ status: "INCONCLUSIVE", reasonCode: "EVIDENCE_UNKNOWN", broker: { callCount: 1, chargedUnits: 0 } });
+    expect(result.evidence.at(-1)?.detail).toMatchObject({ failureCode: "RSI_BROKER_INPUT" });
+    expect((await options.ledger.read()).runs[0].settlement).toMatchObject({ kind: "CONFIRMED", consumedUnits: 0 });
+    expect(capabilities.execute).not.toHaveBeenCalled(); expect(capabilities.evaluate).not.toHaveBeenCalled();
   });
   it("rejects an injected strategy's forged PASS and never sends hidden fixture answers", async () => {
     const options = await setup(), obs = observation(), captured: unknown[] = [];
