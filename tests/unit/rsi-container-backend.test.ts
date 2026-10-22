@@ -4,6 +4,7 @@ import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
+import { z } from "zod";
 import { VerifiedContainerBackend, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
 import { createLocalDockerTransport as legacyLocal, dockerTransport as legacyTransport } from "../../scripts/rsi/sandbox";
 import { createLocalDockerTransport, dockerTransport, observeDockerLifecycle, containerFailureDiagnosticSchema, decodeContainerDiagnostic, classifyContainerFailure, type DockerCommandLifecycle } from "../../scripts/rsi/container-backend";
@@ -147,6 +148,21 @@ describe("trusted container backend", () => {
       expect(decodeContainerDiagnostic(containerFailureDiagnosticSchema, value)).toBeUndefined();
     }
     expect(touched).toBe(0);
+  });
+  it("rejects small sparse, high-index and oversized arrays before entering the schema parser", () => {
+    let parserEntries = 0;
+    const schema = z.preprocess(value => { parserEntries++; return value; }, z.array(z.null()).max(64));
+    const sparse = Array(64); sparse[63] = null;
+    const highIndex: null[] = []; highIndex[64] = null;
+    const gap: null[] = []; gap[0] = null; gap[2] = null;
+    for (const input of [sparse, highIndex, gap, Array(65).fill(null)]) {
+      parserEntries = 0;
+      expect(decodeContainerDiagnostic(schema, input)).toBeUndefined();
+      expect(parserEntries).toBe(0);
+    }
+    const dense = Array(64).fill(null);
+    expect(decodeContainerDiagnostic(schema, dense)).toEqual(dense);
+    expect(parserEntries).toBe(1);
   });
   it("observes the default CLI adapter without changing its identity or allowing a second observer", async () => {
     const fake = fakeDocker(), snapshots: Readonly<DockerCommandLifecycle>[] = [];

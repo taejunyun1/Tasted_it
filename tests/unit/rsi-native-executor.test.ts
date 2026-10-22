@@ -324,11 +324,11 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       expect(JSON.stringify(result)).not.toContain("private");
     } finally { fake.spy.mockRestore(); }
   });
-  it.each(["EVALUATION", "MISMATCH", "PROBE", "DIAGNOSTIC", "INVALID", "INCOMPLETE", "PARTIAL", "NONE"])("classifies failed stdout as %s without authorizing PASS or retaining raw data", async shape => {
+  it.each(["EVALUATION", "MISMATCH", "PROBE", "DIAGNOSTIC", "INVALID", "INCOMPLETE", "PARTIAL", "NONE", "STDERR_ONLY_LIMIT", "TIMEOUT_THEN_STDOUT_LIMIT"])("classifies failed stdout as %s without authorizing PASS or retaining raw data", async shape => {
     const fake = await setup(); const spawned: EventEmitter[] = [];
     vi.useFakeTimers();
     const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
-      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => { queueMicrotask(() => child.emit("close", null, "SIGKILL")); return true; }) });
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => { if (shape !== "TIMEOUT_THEN_STDOUT_LIMIT") queueMicrotask(() => child.emit("close", null, "SIGKILL")); return true; }) });
       spawned.push(child); return child as unknown as ReturnType<typeof childProcess.spawn>;
     }); syncBuiltinESMExports();
     let raw = "";
@@ -341,14 +341,22 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
           : shape === "MISMATCH" ? JSON.stringify({ ...evaluated, sourceDigest: "0".repeat(64) }) + "\n"
           : shape === "INVALID" ? "SYNTHETIC_PRIVATE_FRAME" : shape === "INCOMPLETE" ? '{"SYNTHETIC_PRIVATE_FRAME":' : shape === "NONE" ? "" : output;
         const cli = createLocalDockerTransport({ DOCKER_HOST: "unix:///SYNTHETIC_PRIVATE.sock" });
-        const pending = cli(["start", "SYNTHETIC_ARGV"], "SYNTHETIC_SOURCE", { timeoutMs: 10, maxOutputBytes: shape === "PARTIAL" ? 4 : 32768 }).catch(error => {
+        const maxOutputBytes = ["PARTIAL", "TIMEOUT_THEN_STDOUT_LIMIT"].includes(shape) ? 4 : shape === "STDERR_ONLY_LIMIT" ? Buffer.byteLength(raw) : 32768;
+        const pending = cli(["start", "SYNTHETIC_ARGV"], "SYNTHETIC_SOURCE", { timeoutMs: 10, maxOutputBytes }).catch(error => {
           // Same opaque Error retains CLI custody while a cleanup error dominates.
           Object.defineProperty(error, "message", { value: "RSI_SANDBOX_CLEANUP" });
           Object.defineProperty(error, "cause", { value: { stage: "RM_TRANSPORT", failure: "TIMEOUT", startFailure: error.cause } });
           throw error;
         });
         await Promise.resolve(); await Promise.resolve();
-        (spawned.at(-1) as EventEmitter & { stdout: PassThrough }).stdout.write(raw);
+        const child = spawned.at(-1) as EventEmitter & { stdout: PassThrough; stderr: PassThrough };
+        if (shape === "TIMEOUT_THEN_STDOUT_LIMIT") {
+          child.stdout.write(raw.slice(0, 4));
+          setTimeout(() => { child.stdout.write(raw.slice(4)); child.emit("close", null, "SIGKILL"); }, 11);
+        } else {
+          child.stdout.write(raw);
+          if (shape === "STDERR_ONLY_LIMIT") child.stderr.write("SYNTHETIC_PRIVATE_STDERR");
+        }
         return pending;
       };
       const pending = executor.evaluate({ ...request(), fixture: "NORMAL" });
@@ -356,8 +364,11 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       await vi.waitFor(() => expect(spawned).toHaveLength(1)); await vi.advanceTimersByTimeAsync(10);
       const result = await pending;
       expect(result.verdict).toBe("UNKNOWN"); expect(result.greenVerified).toBe(false); expect(result.reasonCode).toBe("RSI_SANDBOX_CLEANUP");
-      expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ frameKind: ["MISMATCH"].includes(shape) ? "EVALUATION" : shape === "INCOMPLETE" ? "INVALID" : shape }));
-      if (["EVALUATION", "PROBE", "DIAGNOSTIC", "MISMATCH"].includes(shape)) expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ completeJSON: true, schemaMatch: true, bindingMatch: shape !== "MISMATCH" }));
+      const frameKind = ["MISMATCH", "STDERR_ONLY_LIMIT"].includes(shape) ? "EVALUATION" : shape === "INCOMPLETE" ? "INVALID" : shape === "TIMEOUT_THEN_STDOUT_LIMIT" ? "PARTIAL" : shape;
+      expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ frameKind }));
+      if (["EVALUATION", "PROBE", "DIAGNOSTIC", "MISMATCH", "STDERR_ONLY_LIMIT"].includes(shape)) expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ completeJSON: true, schemaMatch: true, bindingMatch: shape !== "MISMATCH" }));
+      if (shape === "STDERR_ONLY_LIMIT") expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "OUTPUT_LIMIT", stdoutBytes: Buffer.byteLength(raw) }));
+      if (shape === "TIMEOUT_THEN_STDOUT_LIMIT") expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "TIMEOUT" }));
       if (shape === "INCOMPLETE") expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ completeJSON: false, bindingMatch: null }));
       expect(JSON.stringify(result)).not.toMatch(/SYNTHETIC_PRIVATE|SYNTHETIC_ARGV|SYNTHETIC_SOURCE|SIX_PATHS_VERIFIED|"grade"/);
       expect(JSON.stringify(result)).not.toContain(raw || "SYNTHETIC_UNUSED");
