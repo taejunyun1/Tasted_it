@@ -367,8 +367,14 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       const frameKind = ["MISMATCH", "STDERR_ONLY_LIMIT"].includes(shape) ? "EVALUATION" : shape === "INCOMPLETE" ? "INVALID" : shape === "TIMEOUT_THEN_STDOUT_LIMIT" ? "PARTIAL" : shape;
       expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ frameKind }));
       if (["EVALUATION", "PROBE", "DIAGNOSTIC", "MISMATCH", "STDERR_ONLY_LIMIT"].includes(shape)) expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ completeJSON: true, schemaMatch: true, bindingMatch: shape !== "MISMATCH" }));
-      if (shape === "STDERR_ONLY_LIMIT") expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "OUTPUT_LIMIT", stdoutBytes: Buffer.byteLength(raw) }));
-      if (shape === "TIMEOUT_THEN_STDOUT_LIMIT") expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "TIMEOUT" }));
+      if (shape === "STDERR_ONLY_LIMIT") {
+        expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "OUTPUT_LIMIT", stdoutBytes: Buffer.byteLength(raw) }));
+        expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ digest: hash(raw) }));
+      }
+      if (shape === "TIMEOUT_THEN_STDOUT_LIMIT") {
+        expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "TIMEOUT" }));
+        expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ digest: hash(raw.slice(0, 4)), completeJSON: null, schemaMatch: null, bindingMatch: null }));
+      }
       if (shape === "INCOMPLETE") expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ completeJSON: false, bindingMatch: null }));
       expect(JSON.stringify(result)).not.toMatch(/SYNTHETIC_PRIVATE|SYNTHETIC_ARGV|SYNTHETIC_SOURCE|SIX_PATHS_VERIFIED|"grade"/);
       expect(JSON.stringify(result)).not.toContain(raw || "SYNTHETIC_UNUSED");

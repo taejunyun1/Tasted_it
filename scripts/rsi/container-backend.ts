@@ -39,17 +39,19 @@ export function decodeContainerDiagnostic<Schema extends z.ZodType>(schema: Sche
     if (!value || typeof value !== "object" || types.isProxy(value)) throw Error();
     const array = Array.isArray(value);
     if (Object.getPrototypeOf(value) !== (array ? Array.prototype : Object.prototype)) throw Error();
+    const length = array ? Object.getOwnPropertyDescriptor(value, "length") : undefined;
+    if (array && (!length || !("value" in length) || !Number.isInteger(length.value) || length.value < 0 || length.value > 64)) throw Error();
     const keys = Reflect.ownKeys(value);
-    if (keys.length > (array ? 65 : 24)) throw Error();
+    if (keys.length > (array ? 65 : 24) || (array && keys.length !== length!.value + 1)) throw Error();
     const result: Record<string, unknown> | unknown[] = array ? [] : {};
     for (const key of keys) {
       if (array && key === "length") continue;
-      if (typeof key !== "string" || ["__proto__", "constructor", "prototype"].includes(key) || (array && !/^(0|[1-9][0-9]*)$/.test(key))) throw Error();
+      if (typeof key !== "string" || ["__proto__", "constructor", "prototype"].includes(key) || (array && (!/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= length!.value))) throw Error();
       const item = Object.getOwnPropertyDescriptor(value, key)!;
       if (!item.enumerable || !("value" in item)) throw Error();
       Object.defineProperty(result, key, { value: copy(item.value, depth + 1), enumerable: true, configurable: true, writable: true });
     }
-    if (array && (value as unknown[]).length !== (result as unknown[]).length) throw Error();
+    if (array && length!.value !== (result as unknown[]).length) throw Error();
     return result;
   }
   try { return freezeDiagnostic(schema.parse(copy(raw))); } catch { return undefined; }
@@ -146,10 +148,10 @@ const runDockerCli: DockerCliRunner = (args, stdin, limits, environment, diagnos
   const processEvent = (exitCode: number | null, exitSignal: string | null | undefined) => ({ atMs: now(),
     code: Number.isInteger(exitCode) && exitCode! >= -2147483648 && exitCode! <= 2147483647 ? exitCode : null,
     signal: exitSignal == null ? null : signal.safeParse(exitSignal).success ? exitSignal as z.infer<typeof signal> : "OTHER" as const });
-  let outputBytes = 0, stdoutBytes = 0, stderrBytes = 0, stdout = "", stderr = "", failure: string | undefined;
+  let outputBytes = 0, stdoutBytes = 0, stderrBytes = 0, stdout = "", stderr = "", stdoutTruncated = false, failure: string | undefined;
   const rejectCommand = (reason: "TIMEOUT" | "OUTPUT_LIMIT" | "UNAVAILABLE") => {
     const error = new Error(`RSI_SANDBOX_${reason}`, { cause: freezeDiagnostic({ failure: reason, stdoutBytes, stderrBytes, lifecycle: snapshot() }) });
-    if (kind === "START") failedOutput.set(error, { stdout, truncated: reason === "OUTPUT_LIMIT" }); reject(error);
+    if (kind === "START") failedOutput.set(error, { stdout, truncated: stdoutTruncated }); reject(error);
   };
   event("SPAWN_INVOKED");
   let child: ReturnType<typeof spawn> & { stdin: NonNullable<ReturnType<typeof spawn>["stdin"]>; stdout: NonNullable<ReturnType<typeof spawn>["stdout"]>; stderr: NonNullable<ReturnType<typeof spawn>["stderr"]> };
@@ -167,7 +169,8 @@ const runDockerCli: DockerCliRunner = (args, stdin, limits, environment, diagnos
       const state = lifecycle[stream]; state.bytes = Math.min(65537, state.bytes + chunk.length); state.chunks = Math.min(86400000, state.chunks + 1); state.firstMs ??= now(); state.lastMs = now();
       if (stream === "stdout") stdoutBytes = Math.min(limits.maxOutputBytes + 1, stdoutBytes + chunk.length); else stderrBytes = Math.min(limits.maxOutputBytes + 1, stderrBytes + chunk.length);
       outputBytes += chunk.length;
-      if (outputBytes > limits.maxOutputBytes) stop("OUTPUT_LIMIT"); else if (stream === "stdout") stdout += outDecoder.write(chunk); else stderr += errDecoder.write(chunk);
+      if (outputBytes > limits.maxOutputBytes) { if (stream === "stdout" && chunk.length > 0) stdoutTruncated = true; stop("OUTPUT_LIMIT"); }
+      else if (stream === "stdout") stdout += outDecoder.write(chunk); else stderr += errDecoder.write(chunk);
       observe();
     });
     child[stream].once("end", () => { lifecycle[stream].endMs = now(); event(stream === "stdout" ? "STDOUT_END" : "STDERR_END"); });
