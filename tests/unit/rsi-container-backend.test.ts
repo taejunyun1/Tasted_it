@@ -107,8 +107,32 @@ describe("trusted container backend", () => {
   });
   it("does not trust injected output bounds", async () => {
     const fake = fakeDocker(); const backend = await VerifiedContainerBackend.verify(profile(), fake.transport); fake.state.output = "x".repeat(32769);
-    await expect(backend.run("data")).rejects.toThrow("RSI_SANDBOX_OUTPUT_LIMIT");
+    await expect(backend.run("data")).rejects.toThrow("RSI_SANDBOX_IPC");
     expect(fake.calls.at(-1)?.args[0]).toBe("rm");
+  });
+  it("pins the entire verification/run/cleanup lifecycle despite ambient endpoint pollution", async () => {
+    const env = { DOCKER_HOST: "unix:///synthetic.sock", HOME: "/synthetic", PATH: "/synthetic-bin", HTTP_PROXY: "private-proxy" };
+    const fake = fakeDocker(); const calls: string[][] = [];
+    const transport = createLocalDockerTransport(env, async (args, stdin, limits, frozenEnv) => {
+      calls.push([...args]); expect(args.slice(0, 2)).toEqual(["--host", "unix:///synthetic.sock"]);
+      expect(frozenEnv.HOME).toBe("/synthetic"); expect(frozenEnv.HTTP_PROXY).toBeUndefined(); expect(frozenEnv.DOCKER_HOST).toBeUndefined();
+      env.DOCKER_HOST = "ssh://remote"; env.HOME = "/changed";
+      return fake.transport(args.slice(2), stdin, limits);
+    });
+    const backend = await VerifiedContainerBackend.verify(profile(), transport); await backend.run("data");
+    expect(new Set(calls.map(args => args[2]))).toEqual(new Set(["info", "image", "create", "inspect", "start", "rm"]));
+  });
+  it("permanently blocks queued runs after uncertain create and cleanup", async () => {
+    const fake = fakeDocker(); let broken = false; let afterFailure = 0;
+    const transport: DockerTransport = async (args, stdin, limits) => {
+      if (broken) { afterFailure++; throw Error("RSI_SANDBOX_TIMEOUT"); }
+      return fake.transport(args, stdin, limits);
+    };
+    const backend = await VerifiedContainerBackend.verify(profile(), transport); broken = true;
+    const results = await Promise.allSettled([backend.run("one"), backend.run("two")]);
+    expect(results.map(result => result.status === "rejected" ? result.reason.message : "returned")).toEqual(["RSI_SANDBOX_CLEANUP", "RSI_SANDBOX_BLOCKED"]);
+    expect(afterFailure).toBe(2); broken = false;
+    await expect(backend.run("three")).rejects.toThrow("RSI_SANDBOX_BLOCKED");
   });
   it("supports only a pinned local native image and protected fixed file, as injected evidence only", async () => {
     const p = profile(); p.image = nativeId; p.imageId = nativeId;

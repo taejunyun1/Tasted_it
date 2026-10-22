@@ -23,7 +23,7 @@ function fakeDocker(overrides: { runtime?: string; image?: string; output?: stri
       if (overrides.startError) throw new Error(overrides.startError);
       return ok(overrides.output ?? '{"schemaVersion":1,"output":{"count":2}}\n');
     }
-    if (args[0] === "inspect") return ok(JSON.stringify([{ Id: "a".repeat(64), Name: `/${name}`, Config: { Labels: { "rsi.sandbox.owner": label } } }]));
+    if (args[0] === "inspect") return ok(JSON.stringify([{ Id: "a".repeat(64), Name: `/${name}`, Mounts: [], Config: { Labels: { "rsi.sandbox.owner": label } } }]));
     if (args[0] === "rm") { if (overrides.cleanupError) throw new Error("failure"); created = false; return ok(name); }
     throw new Error("unexpected");
   };
@@ -69,8 +69,9 @@ describe("RSI Docker sandbox boundary", () => {
     expect(result.untrustedOutput).toEqual({ count: 2 });
     expect(result.evidence.kind).toBe("LOCAL_CONTAINER_RETURN");
     expect(result.evidence.transportKind).toBe("INJECTED_TRANSPORT");
-    expect(result.evidence.wrapperDigest).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.evidence.policyDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.evidence.wrapperDigest).toBe("bb6dff0520f796f1f51150e469b6da989274566c0ffc5a662af932f3305179fa");
+    expect(result.evidence.policyDigest).toBe("169c53629673bed2c29b365499035532d4ff5a401259eb19dc6169016f37e496");
+    expect(Object.keys(result.evidence).sort()).toEqual(["kind", "transportKind", "policyDigest", "wrapperDigest", "sourceDigest", "inputDigest", "outputDigest", "imageDigest", "runtime", "isolation"].sort());
     const creates = fake.calls.filter(c => c.args[0] === "create");
     expect(creates).toHaveLength(2);
     for (const { args } of creates) {
@@ -89,6 +90,10 @@ describe("RSI Docker sandbox boundary", () => {
     const fake = fakeDocker({ [key]: "wrong" });
     await expect(DockerSandbox.verify(fake.transport)).rejects.toThrow("RSI_SANDBOX_BLOCKED");
     expect(fake.calls.some(c => c.stdin.includes(request.source))).toBe(false);
+  });
+  it("preserves IPC classification when an injected transport returns excessive output", async () => {
+    const fake = fakeDocker({ output: "x".repeat(32769) }); const sandbox = await DockerSandbox.verify(fake.transport);
+    await expect(sandbox.execute(request)).rejects.toThrow("RSI_SANDBOX_IPC"); expect(fake.exists()).toBe(false);
   });
   it("reports unavailable backend as BLOCKED", async () => {
     await expect(DockerSandbox.verify(async () => { throw new Error("private details"); })).rejects.toThrow("RSI_SANDBOX_BLOCKED");
