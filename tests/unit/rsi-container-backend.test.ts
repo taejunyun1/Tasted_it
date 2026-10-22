@@ -139,6 +139,42 @@ describe("trusted container backend", () => {
     expect(afterFailure).toBe(2); broken = false;
     await expect(backend.run("three")).rejects.toThrow("RSI_SANDBOX_BLOCKED");
   });
+  it.each([
+    ["INSPECT_TRANSPORT", "TIMEOUT"], ["INSPECT_EXIT", "EXIT"],
+    ["INSPECT_JSON", "INVALID_JSON"], ["INSPECT_OWNERSHIP", "OWNERSHIP"],
+    ["RM_TRANSPORT", "OTHER"], ["RM_EXIT", "EXIT"],
+  ])("retains only bounded cleanup stage %s while quarantining", async (stage, failure) => {
+    const fake = fakeDocker(); let enabled = false, inspections = 0;
+    const transport: DockerTransport = async (args, stdin, limits) => {
+      if (enabled && args[0] === "inspect" && ++inspections === 2) {
+        if (stage === "INSPECT_TRANSPORT") throw Error("RSI_SANDBOX_TIMEOUT");
+        if (stage === "INSPECT_EXIT") return { code: 1, stdout: "", stderr: "SYNTHETIC_PRIVATE_DAEMON" };
+        if (stage === "INSPECT_JSON") return { code: 0, stdout: "SYNTHETIC_PRIVATE_DAEMON", stderr: "" };
+        if (stage === "INSPECT_OWNERSHIP") return { code: 0, stdout: JSON.stringify([{ Id: "x", Name: "SYNTHETIC_PRIVATE_DAEMON" }]), stderr: "" };
+      }
+      if (enabled && args[0] === "rm") {
+        if (stage === "RM_TRANSPORT") throw Error("SYNTHETIC_PRIVATE_DAEMON");
+        if (stage === "RM_EXIT") return { code: 1, stdout: "", stderr: "SYNTHETIC_PRIVATE_DAEMON" };
+      }
+      return fake.transport(args, stdin, limits);
+    };
+    const backend = await VerifiedContainerBackend.verify(profile(), transport); enabled = true;
+    const error = await backend.run("data").catch(error => error);
+    expect(error.message).toBe("RSI_SANDBOX_CLEANUP");
+    expect(error.cause).toEqual({ stage, failure });
+    expect(Object.isFrozen(error.cause)).toBe(true);
+    expect(JSON.stringify(error.cause)).not.toContain("SYNTHETIC_PRIVATE_DAEMON");
+    const count = fake.calls.length;
+    await expect(backend.run("queued")).rejects.toThrow("RSI_SANDBOX_BLOCKED");
+    expect(fake.calls).toHaveLength(count);
+  });
+  it("preserves bounded cleanup diagnosis when admission itself is blocked", async () => {
+    const fake = fakeDocker(); fake.state.cleanupError = true;
+    const error = await VerifiedContainerBackend.verify(profile(), fake.transport).catch(error => error);
+    expect(error.message).toBe("RSI_SANDBOX_BLOCKED");
+    expect(error.cause).toEqual({ stage: "RM_TRANSPORT", failure: "OTHER" });
+    expect(JSON.stringify(error.cause)).not.toContain("private");
+  });
   it("supports only a pinned local native image and protected fixed file, as injected evidence only", async () => {
     const p = profile(); p.image = nativeId; p.imageId = nativeId;
     p.entrypoint = { kind: "native-file", path: "/opt/rsi/native-wrapper.mjs", sha256: digest("future trusted wrapper") };

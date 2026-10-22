@@ -6,6 +6,27 @@ import { z } from "zod";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 function fail(code: string): never { throw new Error(`RSI_SANDBOX_${code}`); }
+export const containerCleanupFailureSchema = z.strictObject({
+  stage: z.enum(["INSPECT_TRANSPORT", "INSPECT_EXIT", "INSPECT_JSON", "INSPECT_OWNERSHIP", "RM_TRANSPORT", "RM_EXIT"]),
+  failure: z.enum(["TIMEOUT", "OUTPUT_LIMIT", "UNAVAILABLE", "EXIT", "INVALID_JSON", "OWNERSHIP", "OTHER"]),
+});
+type CleanupStage = z.infer<typeof containerCleanupFailureSchema>["stage"];
+type CleanupFailure = z.infer<typeof containerCleanupFailureSchema>["failure"];
+const knownCleanupCauses = new WeakSet<object>();
+function cleanupError(stage: CleanupStage, failure: CleanupFailure) {
+  const cause = Object.freeze({ stage, failure }); knownCleanupCauses.add(cause);
+  return new Error("RSI_SANDBOX_CLEANUP", { cause });
+}
+function cleanupCause(error: unknown) {
+  if (!(error instanceof Error)) return undefined;
+  const cause: unknown = Object.getOwnPropertyDescriptor(error, "cause")?.value;
+  return cause && typeof cause === "object" && knownCleanupCauses.has(cause) ? cause : undefined;
+}
+function transportFailure(error: unknown): CleanupFailure {
+  const message = error instanceof Error ? error.message : "";
+  return message === "RSI_SANDBOX_TIMEOUT" ? "TIMEOUT" : message === "RSI_SANDBOX_OUTPUT_LIMIT" ? "OUTPUT_LIMIT"
+    : message === "RSI_SANDBOX_UNAVAILABLE" ? "UNAVAILABLE" : "OTHER";
+}
 
 export interface DockerCommandLimits { timeoutMs: number; maxOutputBytes: number }
 export type DockerTransport = (args: readonly string[], stdin: string, limits: DockerCommandLimits) => Promise<{ code: number; stdout: string; stderr: string }>;
@@ -183,7 +204,11 @@ export class VerifiedContainerBackend {
       if (isolation.entrypoint) Object.freeze(isolation.entrypoint);
       backend.#isolation = Object.freeze(isolation);
       return backend;
-    } catch { return fail("BLOCKED"); }
+    } catch (error) {
+      const cause = cleanupCause(error);
+      if (cause) throw new Error("RSI_SANDBOX_BLOCKED", { cause });
+      return fail("BLOCKED");
+    }
   }
 
   assertAvailable() { if (this.#blocked) fail("BLOCKED"); }
@@ -211,11 +236,15 @@ export class VerifiedContainerBackend {
       "--log-driver=none", "--workdir=/tmp", "--interactive", `--entrypoint=${p.watchdogPath}`, p.image,
       "--signal=KILL", `${p.wallTimeMs / 1000}s`, "/usr/local/bin/node", ...nodeArgs];
     const inspectOwned = async () => {
-      const inspection = await this.#transport(["inspect", name], "", commandLimits);
-      if (inspection.code !== 0) fail("CLEANUP");
-      const rows = JSON.parse(inspection.stdout), row = rows[0];
-      if (!Array.isArray(rows) || rows.length !== 1 || row.Name !== `/${name}` || row.Config?.Labels?.["rsi.sandbox.owner"] !== owner
-        || !/^[a-f0-9]{64}$/.test(row.Id) || (createdId !== undefined && row.Id !== createdId)) fail("CLEANUP");
+      let inspection: Awaited<ReturnType<DockerTransport>>;
+      try { inspection = await this.#transport(["inspect", name], "", commandLimits); }
+      catch (error) { throw cleanupError("INSPECT_TRANSPORT", transportFailure(error)); }
+      if (inspection.code !== 0) throw cleanupError("INSPECT_EXIT", "EXIT");
+      let rows: unknown;
+      try { rows = JSON.parse(inspection.stdout); } catch { throw cleanupError("INSPECT_JSON", "INVALID_JSON"); }
+      const row = Array.isArray(rows) ? rows[0] : undefined;
+      if (!Array.isArray(rows) || rows.length !== 1 || !row || row.Name !== `/${name}` || row.Config?.Labels?.["rsi.sandbox.owner"] !== owner
+        || !/^[a-f0-9]{64}$/.test(row.Id) || (createdId !== undefined && row.Id !== createdId)) throw cleanupError("INSPECT_OWNERSHIP", "OWNERSHIP");
       return row;
     };
     try {
@@ -235,9 +264,16 @@ export class VerifiedContainerBackend {
       // Missing inspection is ambiguous (a daemon may still complete creation).
       try {
         const row = await inspectOwned();
-        const removed = await this.#transport(["rm", "--force", row.Id], "", commandLimits);
-        if (removed.code !== 0) fail("CLEANUP");
-      } catch { this.#blocked = true; fail("CLEANUP"); }
+        let removed: Awaited<ReturnType<DockerTransport>>;
+        try { removed = await this.#transport(["rm", "--force", row.Id], "", commandLimits); }
+        catch (error) { throw cleanupError("RM_TRANSPORT", transportFailure(error)); }
+        if (removed.code !== 0) throw cleanupError("RM_EXIT", "EXIT");
+      } catch (error) {
+        this.#blocked = true;
+        const cause = cleanupCause(error);
+        if (cause) throw new Error("RSI_SANDBOX_CLEANUP", { cause });
+        throw cleanupError("INSPECT_OWNERSHIP", "OTHER");
+      }
     }
   }
 
