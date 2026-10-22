@@ -340,7 +340,10 @@ export class LabPromotionSession {
       if (returned.activeAgentHash !== active.source.agentHash || returned.evidence.transportKind !== "DOCKER_CLI" || returned.evidence.sourceDigest !== active.source.compiledDigest
         || returned.evidence.imageDigest !== SANDBOX_POLICY.image || returned.evidence.runtime !== `${SANDBOX_POLICY.nodeVersion} linux arm64` || returned.evidence.policyDigest !== SANDBOX_POLICY_DIGEST
         || returned.evidence.inputDigest !== returned.actualInputDigest || returned.evidence.outputDigest !== returned.actualOutputDigest || returned.actualOutputDigest !== jhash({ schemaVersion: 1, output: returned.untrustedOutput })) fail("GENERATION_CUSTODY");
-      const checked = await validateAgentProposal(returned.untrustedOutput, active.source.agentHash); this.gate.check();
+      const output = passive(returned.untrustedOutput) as Record<string, unknown>;
+      if (output && typeof output === "object" && !Array.isArray(output) && same(Object.keys(output).sort(), ["action", "reason"]) && output.action === "NO_CHANGE"
+        && typeof output.reason === "string" && output.reason.length > 0 && output.reason.length <= 128) fail("NO_AGENT_CHANGE");
+      const checked = await validateAgentProposal(output, active.source.agentHash); this.gate.check();
       this.generated = true; // First complete proposal closes generation exploration.
       const source = await this.options.sourceStore.put(checked.modules); this.gate.check();
       await this.options.sourceStore.read(source); this.gate.check();
