@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { rootCertificates } from "node:tls";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { types } from "node:util";
 import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import { compileNativeCandidate, NATIVE_SOURCE_PATH, prepareNativeRuntimeImage, NativeExecutor, nativeArtifactDigests, NATIVE_BUILD_FLAGS } from "../../scripts/rsi/native-executor";
@@ -230,24 +231,41 @@ describe("native candidate syntax compilation (never host evaluation)", () => {
 
 const transportDiagnosticName = "records one pinned transport lifecycle diagnostic without retry";
 const transportDiagnosticPattern = `^${transportDiagnosticName}$`;
-function transportDiagnosticSelected(environment: NodeJS.ProcessEnv, argv: readonly string[]) {
-  const selectors = argv.flatMap((value, index) => value === "-t" || value === "--testNamePattern" ? [argv[index + 1]] : value.startsWith("--testNamePattern=") ? [value.slice(18)] : []);
+function transportDiagnosticRuntimePattern(): unknown {
+  // Pinned Vitest 4.1.10 supplies this own-data state to its worker threads.
+  // Missing or changed runner representation blocks the opt-in before Docker.
+  const data = (value: unknown, key: string) => value && typeof value === "object" && !types.isProxy(value) ? Object.getOwnPropertyDescriptor(value, key)?.value : undefined;
+  return data(data(data(globalThis, "__vitest_worker__"), "config"), "testNamePattern");
+}
+function transportDiagnosticSelected(environment: NodeJS.ProcessEnv, pattern: unknown) {
+  if (!pattern || typeof pattern !== "object" || types.isProxy(pattern) || Object.getPrototypeOf(pattern) !== RegExp.prototype
+    || Reflect.ownKeys(pattern).some(key => key !== "lastIndex")) return false;
   return environment.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1"
     && Object.keys(environment).filter(key => key.startsWith("RSI_NATIVE_")).every(key => key === "RSI_NATIVE_TRANSPORT_DIAGNOSTIC")
-    && selectors.length === 1 && selectors[0] === transportDiagnosticPattern;
+    && Object.getOwnPropertyDescriptor(RegExp.prototype, "source")!.get!.call(pattern) === transportDiagnosticPattern
+    && Object.getOwnPropertyDescriptor(RegExp.prototype, "flags")!.get!.call(pattern) === "";
 }
 
 describe("one-shot transport diagnostic admission", () => {
   const pattern = "^records one pinned transport lifecycle diagnostic without retry$";
   it("requires the independent flag and exact selector with every legacy flag absent", () => {
-    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, ["-t", pattern])).toBe(true);
+    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, new RegExp(pattern))).toBe(true);
     for (const environment of [{}, { RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "0" },
       ...["PREPARE", "PROBE", "SHUTDOWN_CONTROL", "CAUSE_COLLECTION", "DIAGNOSIS"].map(flag => ({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1", [`RSI_NATIVE_${flag}`]: "0" }))]) {
-      expect(transportDiagnosticSelected(environment, ["-t", pattern])).toBe(false);
+      expect(transportDiagnosticSelected(environment, new RegExp(pattern))).toBe(false);
     }
-    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, [])).toBe(false);
-    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, ["-t", ".*"])).toBe(false);
-    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, ["-t", pattern, "-t", ".*"])).toBe(false);
+    for (const selector of [undefined, pattern, /.*/, new RegExp(pattern, "i"), new Proxy(new RegExp(pattern), {}), Object.defineProperty(new RegExp(pattern), "source", { value: "private" })]) {
+      expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, selector)).toBe(false);
+    }
+  });
+  it("reads actual serialized selector from the pinned runner", () => {
+    const pattern = transportDiagnosticRuntimePattern();
+    expect(pattern === undefined || pattern instanceof RegExp).toBe(true);
+    const expected = process.env.RSI_TRANSPORT_GUARD_PATTERN;
+    if (expected !== undefined) {
+      expect(pattern instanceof RegExp).toBe(true);
+      expect(Object.getOwnPropertyDescriptor(RegExp.prototype, "source")!.get!.call(pattern)).toBe(expected);
+    }
   });
 });
 
@@ -279,7 +297,7 @@ it.runIf(process.env.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1")(transportDiagnosti
   let candidate: string;
   let manifest: unknown;
   try {
-    if (!transportDiagnosticSelected(process.env, process.argv) || process.env.RSI_TRANSPORT_SUPERVISED !== "GROUP_BOUND") throw Error("DIAGNOSTIC_GUARD");
+    if (!transportDiagnosticSelected(process.env, transportDiagnosticRuntimePattern()) || process.env.RSI_TRANSPORT_SUPERVISED !== "GROUP_BOUND") throw Error("DIAGNOSTIC_GUARD");
     const stat = lstatSync(directory);
     if (stat.isSymbolicLink() || !stat.isDirectory() || (stat.mode & 0o777) !== 0o700 || realpathSync(directory) !== directory) throw Error("DIAGNOSTIC_DIRECTORY");
     plan = planSchema.parse(JSON.parse(privateRead("run-plan.json")));
