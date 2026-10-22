@@ -3,9 +3,14 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { z } from "zod";
 import { RSI_PUBLIC_PATHS, RSI_SCHEMA_VERSION } from "./contracts";
+import {
+  expectedRsiFixtureResponse, gradeRsiPublicPathCheck, rsiFixtureSchema, rsiPublicPathResultSchema,
+  type RsiFixture, type RsiObservedCall,
+} from "./oracle";
+export type { RsiObservedCall } from "./oracle";
 
 const MANIFEST_HASH = "881e60d08a091d83651fd67a62023a1ab3e160841fb183a654e92764e68d0ce8";
-const fixtureSchema = z.enum(["NATIVE_RECEIVER", "NORMAL", "HTTP_FAILURE", "AUTH_REDIRECT_FAILURE", "AUTH_STATUS_FAILURE"]);
+const fixtureSchema = rsiFixtureSchema;
 const programSchema = z.enum([
   "BOUND", "UNBOUND", "SKIP_CHECK", "WEAK_SUCCESS", "FALSE_PASS", "ESCAPE_PATH",
   "WRONG_METHOD", "DUPLICATE_PATH", "MALFORMED_RESULT", "THROW", "TIMEOUT",
@@ -21,7 +26,7 @@ const manifestSchema = z.strictObject({
   })).min(1).max(64),
 });
 export type RsiDevelopmentManifest = z.infer<typeof manifestSchema>;
-type Fixture = z.infer<typeof fixtureSchema>;
+type Fixture = RsiFixture;
 type Program = z.infer<typeof programSchema>;
 const family: Record<Fixture, RsiDevelopmentManifest["cases"][number]["rootCauseFamily"]> = {
   NATIVE_RECEIVER: "NATIVE_RECEIVER", NORMAL: "NORMAL", HTTP_FAILURE: "UPSTREAM_HTTP",
@@ -110,21 +115,8 @@ function fixedProgram(program: Program): string {
   `;
 }
 
-type Path = (typeof RSI_PUBLIC_PATHS)[number];
-export type RsiObservedCall = {
-  path: Path | "OUTSIDE_ALLOWLIST";
-  method: "GET" | "OTHER";
-  status: number;
-  location: "" | "/login" | "/not-login";
-  originAllowed: boolean;
-};
-const resultSchema = z.strictObject({
-  ok: z.boolean(), failed: z.number().int().min(0).max(6), originHost: z.literal("rsi.invalid"),
+const resultSchema = rsiPublicPathResultSchema.extend({
   receiverErrors: z.number().int().min(0).max(6),
-  results: z.array(z.strictObject({
-    path: z.enum(RSI_PUBLIC_PATHS), status: z.number().int().min(0).max(599),
-    location: z.enum(["", "/login", "/not-login"]), ok: z.boolean(),
-  })).length(6),
 });
 type Reason = "INPUT_REJECTED" | "MANIFEST_REJECTED" | "NATIVE_RECEIVER_REPRODUCED" | "SIX_PATHS_VERIFIED"
   | "NORMAL" | "EXTERNAL_FAILURE" | "ORACLE_MISMATCH" | "EXECUTION_TIMEOUT" | "EXECUTION_ERROR" | "CLEANUP_ERROR";
@@ -142,45 +134,21 @@ export type RsiEvaluation = {
   calls: RsiObservedCall[];
 };
 
-function expectedResponse(fixture: Fixture, path: Path): Pick<RsiObservedCall, "status" | "location"> {
-  if (fixture === "AUTH_STATUS_FAILURE" && path === "/admin") return { status: 200, location: "" };
-  if (fixture === "HTTP_FAILURE" && path === "/places") return { status: 503, location: "" };
-  if (path === "/admin") return { status: 302, location: fixture === "AUTH_REDIRECT_FAILURE" ? "/not-login" : "/login" };
-  return { status: 200, location: "" };
-}
-
-// External oracle: independently checks actual calls AND reported observations.
-// A self-reported PASS, exit status or weakened candidate check cannot substitute.
+// R2 instrumentation adapter only. The four-field app/body and call comparison
+// live in the shared oracle; the known fixed UNBOUND RED stays here.
 function judge(fixture: Fixture, program: Program, body: unknown, calls: RsiObservedCall[]): Pick<RsiEvaluation, "verdict" | "reasonCode" | "redReproduced" | "greenVerified"> {
   const fail = { verdict: "FAIL", reasonCode: "ORACLE_MISMATCH", redReproduced: false, greenVerified: false } as const;
   const parsed = resultSchema.safeParse(body);
   if (!parsed.success) return fail;
-  const value = parsed.data;
-  if (new Set(value.results.map((row) => row.path)).size !== 6) return fail;
+  const { receiverErrors, ...value } = parsed.data;
   if (fixture === "NATIVE_RECEIVER" && program === "UNBOUND" && calls.length === 0
-    && value.receiverErrors === 6 && value.failed === 6 && !value.ok
+    && new Set(value.results.map((row) => row.path)).size === 6
+    && receiverErrors === 6 && value.failed === 6 && !value.ok
     && value.results.every((row) => row.status === 0 && row.location === "" && !row.ok)) {
     return { ...fail, reasonCode: "NATIVE_RECEIVER_REPRODUCED", redReproduced: true };
   }
-  if (calls.length !== 6 || value.receiverErrors !== 0) return fail;
-  let failed = 0;
-  for (const path of RSI_PUBLIC_PATHS) {
-    const observed = calls.filter((call) => call.path === path);
-    if (observed.length !== 1) return fail;
-    const call = observed[0];
-    const expected = expectedResponse(fixture, path);
-    if (!call.originAllowed || call.method !== "GET" || call.status !== expected.status || call.location !== expected.location) return fail;
-    const row = value.results.find((result) => result.path === path)!;
-    const ok = call.status === (path === "/admin" ? 302 : 200) && (path !== "/admin" || call.location === "/login");
-    if (row.status !== call.status || row.location !== call.location || row.ok !== ok) return fail;
-    if (!ok) failed++;
-  }
-  if (value.failed !== failed || value.ok !== (failed === 0)) return fail;
-  return {
-    verdict: fixture === "NATIVE_RECEIVER" ? "PASS" : "NO_CHANGE",
-    reasonCode: fixture === "NATIVE_RECEIVER" ? "SIX_PATHS_VERIFIED" : fixture === "NORMAL" ? "NORMAL" : "EXTERNAL_FAILURE",
-    redReproduced: false, greenVerified: failed === 0,
-  };
+  if (receiverErrors !== 0) return fail;
+  return gradeRsiPublicPathCheck(fixture, value, calls);
 }
 
 /** R3 must replace this closed catalogue with a separately approved isolated
@@ -190,6 +158,7 @@ export async function evaluateFixedCase(input: unknown): Promise<RsiEvaluation> 
     schemaVersion: RSI_SCHEMA_VERSION, verdict: "FAIL", reasonCode: "INPUT_REJECTED", nativeRuntime: "NOT_STARTED",
     manifestHash: null, evaluatorHash: hash(Buffer.concat([
       readFileSync(new URL("./evaluator.ts", import.meta.url)), readFileSync(new URL("./contracts.ts", import.meta.url)),
+      readFileSync(new URL("./oracle.ts", import.meta.url)),
     ])), programHash: null, redReproduced: false, greenVerified: false, expectedNoChange: false, calls: [],
   };
   let request: { fixture: Fixture; program: Program };
@@ -218,7 +187,7 @@ export async function evaluateFixedCase(input: unknown): Promise<RsiEvaluation> 
       outboundService: (requestOut: Request) => {
         const url = new URL(requestOut.url);
         const path = RSI_PUBLIC_PATHS.find((allowed) => allowed === url.pathname);
-        const response = path ? expectedResponse(request.fixture, path) : { status: 403, location: "" as const };
+        const response = path ? expectedRsiFixtureResponse(request.fixture, path) : { status: 403, location: "" as const };
         result.calls.push({ path: path ?? "OUTSIDE_ALLOWLIST", method: requestOut.method === "GET" ? "GET" : "OTHER",
           ...response, originAllowed: url.origin === "https://rsi.invalid" && !url.search });
         return new Response("synthetic fixture", { status: response.status,
