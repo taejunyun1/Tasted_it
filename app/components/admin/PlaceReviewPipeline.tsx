@@ -189,6 +189,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={standardBatchDisabled}>선택 중복 판정 저장</button>}
         {(query.step === 1 || query.step === 2) && <button type="button" onClick={startNaverBatch} disabled={!selectedIds.length || Boolean(naverBatch)}>선택 중 {Math.min(selectedIds.length, NAVER_REVIEW_RUN_MAX)}곳 NAVER 검증</button>}
         {query.step !== 5 && <button className="secondary" name="intent" value="advance-confident-review-items" disabled={standardBatchDisabled}>근거 있는 항목만 다음 단계</button>}
+        {query.step !== 2 && query.step !== 5 && <label className="place-review-sweep">일괄 진행 한도<input type="number" name="sweepLimit" min={1} max={100} defaultValue={100} />곳<label className="place-review-publish-confirm"><span><input type="checkbox" name="sweepDryRun" /> 시험 평가만 (이동 없음)</span></label><button className="secondary" name="intent" value="sweep-confident-review-stage">이 단계 큐 일괄 진행</button></label>}
         {query.step === 1 && <button className="secondary" name="intent" value="advance-review-items" disabled={standardBatchDisabled}>수동으로 NAVER 검증 대기로 이동</button>}
         {query.step === 2 && <button className="secondary" name="intent" value="update-review-item-addresses" disabled={standardBatchDisabled}>선택 주소 저장</button>}
         {query.step === 2 && <button className="secondary" name="intent" value="advance-review-items" disabled={standardBatchDisabled}>선택 항목을 카테고리 확정으로 이동</button>}

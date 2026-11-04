@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
 import { adminAuditLogs, businessLicenses, naverLocalCategoryVerifications, placeLivenessStates, placeReviewWorkItems, places, users } from "../../app/db/schema";
-import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, newReviewWorkItemValues, updateReviewItemAddresses } from "../../app/features/places/place-review-work-items.server";
+import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, newReviewWorkItemValues, sweepConfidentReviewStage, updateReviewItemAddresses } from "../../app/features/places/place-review-work-items.server";
 
 const now = "2026-08-15T12:00:00.000Z";
 
@@ -27,6 +27,19 @@ async function createSourceReviewItem(input: { businessName?: string; businessSu
 }
 
 describe("place review work item transitions", () => {
+  it("sweeps the ready queue slice with the same gates and no external calls", async () => {
+    const { db, actorUserId, workItemId } = await createSourceReviewItem();
+    const dry = await sweepConfidentReviewStage(db, { stage: "SOURCE_REVIEW", limit: 100, dryRun: true, actorUserId, now, confidentAdvanceEnabled: true });
+    expect(dry.scanned).toBeGreaterThanOrEqual(1); expect(dry.advanced).toEqual([]);
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) })).resolves.toMatchObject({ stage: "SOURCE_REVIEW" });
+    const live = await sweepConfidentReviewStage(db, { stage: "SOURCE_REVIEW", limit: 100, dryRun: false, actorUserId, now, confidentAdvanceEnabled: true });
+    expect(live.advanced).toContain(workItemId);
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) })).resolves.toMatchObject({ stage: "NAVER_VERIFICATION" });
+  });
+  it("never sweeps FINAL_APPROVAL: publish stays a human action", async () => {
+    const { db, actorUserId } = await createSourceReviewItem();
+    await expect(sweepConfidentReviewStage(db, { stage: "FINAL_APPROVAL", limit: 100, dryRun: false, actorUserId, now, confidentAdvanceEnabled: true })).resolves.toMatchObject({ scanned: 0, advanced: [] });
+  });
   it("advances one stage and rejects a stale stage version", async () => {
     const { db, actorUserId, workItemId } = await createSourceReviewItem();
     const first = await advancePlaceReviewWorkItems(db, {

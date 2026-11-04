@@ -37,7 +37,7 @@ import { publishReviewedPlaces } from "../features/places/place-review-publicati
 import { confirmLocalDiningReview } from "../features/places/local-dining-review.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { isConfidentAdvanceEnabled } from "../features/places/place-review-pipeline";
-import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
+import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, sweepConfidentReviewStage, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
@@ -303,6 +303,20 @@ export async function action({ request }: Route.ActionArgs) {
         message: confidentAdvanceEnabled
           ? `근거 있는 항목 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳 · 공개 0곳`
           : "조건부 이동이 꺼져 있습니다. 이동 0곳 · 공개 0곳",
+        skipped: result.skipped,
+      };
+    }
+    if (intent === "sweep-confident-review-stage") {
+      const sweepLimit = Math.min(Math.max(1, Number.parseInt(String(form.get("sweepLimit") ?? "100"), 10) || 100), 100);
+      const sweepDryRun = String(form.get("sweepDryRun") ?? "") === "on";
+      const result = await sweepConfidentReviewStage(db, {
+        stage: checked.expectedStage, limit: sweepLimit, dryRun: sweepDryRun, actorUserId: admin.id, now, confidentAdvanceEnabled,
+      });
+      return {
+        ok: true,
+        message: sweepDryRun
+          ? `시험 평가 ${result.scanned}곳 중 이동 가능 ${result.ready}곳 · 건너뜀 ${result.skipped.length}곳 · 실제 이동 0곳 · 공개 0곳`
+          : `단계 일괄 진행 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳 · 공개 0곳 (최대 ${sweepLimit}곳)`,
         skipped: result.skipped,
       };
     }

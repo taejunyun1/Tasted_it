@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -350,6 +350,53 @@ export async function advanceConfidentReviewWorkItems(db: AppDb, input: {
   }
 
   return { advanced, skipped };
+}
+
+/** One operator-triggered sweep over the queue slice a page batch cannot reach.
+ * Same gates, same audit log, same conditional update as the page path; the
+ * sweep only widens selection. FINAL_APPROVAL is never sweepable: publish
+ * stays a human action. External calls (NAVER) are not part of this path. */
+export const REVIEW_SWEEP_MAX = 100;
+
+export async function sweepConfidentReviewStage(db: AppDb, input: {
+  stage: ReviewStage;
+  limit: number;
+  dryRun: boolean;
+  actorUserId: string;
+  now: string;
+  confidentAdvanceEnabled?: boolean;
+}): Promise<{ scanned: number; ready: number; advanced: string[]; skipped: TransitionResult["skipped"] }> {
+  if (input.stage === "FINAL_APPROVAL") return { scanned: 0, ready: 0, advanced: [], skipped: [] };
+  const cap = Math.min(Math.max(1, Math.floor(input.limit) || 1), REVIEW_SWEEP_MAX);
+  const rows = await db.select({ id: placeReviewWorkItems.id, stageVersion: placeReviewWorkItems.stageVersion })
+    .from(placeReviewWorkItems)
+    .where(and(eq(placeReviewWorkItems.stage, input.stage), eq(placeReviewWorkItems.status, "ACTIVE")))
+    .orderBy(asc(placeReviewWorkItems.updatedAt))
+    .limit(cap);
+  if (input.dryRun || !input.confidentAdvanceEnabled) {
+    const skipped: TransitionResult["skipped"] = [];
+    let ready = 0;
+    for (const row of rows) {
+      const workItem = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, row.id) });
+      if (!workItem) continue;
+      const withCategory = await applyStoredLeafCategory(db, workItem, input.now);
+      const evidence = await reviewEvidence(db, withCategory, undefined, input.now);
+      if (confidentAdvanceAllowed(withCategory.stage, evidence)) ready += 1;
+      else skipped.push({ workItemId: row.id, code: confidentAdvanceSkipCode(withCategory.stage, evidence) });
+    }
+    return { scanned: rows.length, ready, advanced: [], skipped };
+  }
+  const advanced: string[] = [];
+  const skipped: TransitionResult["skipped"] = [];
+  for (const row of rows) {
+    const result = await advanceConfidentReviewWorkItems(db, {
+      workItemIds: [row.id], expectedStage: input.stage, expectedVersions: { [row.id]: row.stageVersion },
+      actorUserId: input.actorUserId, now: input.now, confidentAdvanceEnabled: true,
+    });
+    advanced.push(...result.advanced);
+    skipped.push(...result.skipped);
+  }
+  return { scanned: rows.length, ready: advanced.length, advanced, skipped };
 }
 
 async function changeReviewItemStatus(
