@@ -21,6 +21,7 @@ export const reviewIntents = [
   "publish-review-items",
   "hold-review-items",
   "exclude-review-items",
+  "sweep-confident-review-stage",
 ] as const;
 
 export type ReviewIntent = (typeof reviewIntents)[number];
@@ -33,6 +34,7 @@ export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> 
     "auto-verify-review-item-with-naver",
     "advance-review-items",
     "advance-confident-review-items",
+    "sweep-confident-review-stage",
     "hold-review-items",
     "exclude-review-items",
   ],
@@ -47,8 +49,8 @@ export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> 
     "hold-review-items",
     "exclude-review-items",
   ],
-  CATEGORY_CONFIRMATION: ["confirm-local-dining", "confirm-review-categories", "advance-confident-review-items", "hold-review-items", "exclude-review-items"],
-  DUPLICATE_REVIEW: ["confirm-local-dining", "resolve-review-duplicates", "advance-review-items", "advance-confident-review-items", "hold-review-items", "exclude-review-items"],
+  CATEGORY_CONFIRMATION: ["confirm-local-dining", "confirm-review-categories", "advance-confident-review-items", "sweep-confident-review-stage", "hold-review-items", "exclude-review-items"],
+  DUPLICATE_REVIEW: ["confirm-local-dining", "resolve-review-duplicates", "advance-review-items", "advance-confident-review-items", "sweep-confident-review-stage", "hold-review-items", "exclude-review-items"],
   FINAL_APPROVAL: ["confirm-local-dining", "publish-review-items", "hold-review-items", "exclude-review-items"],
 };
 
@@ -94,6 +96,8 @@ export function checkReviewRequest(input: ReviewRequestInput): ReviewRequestChec
 
   if (input.intent === "auto-verify-review-item-with-naver") {
     if (workItemIds.length !== 1) return { ok: false, code: "AUTO_VERIFY_SINGLE_REQUIRED" };
+  } else if (input.intent === "sweep-confident-review-stage") {
+    // Server selects the queue slice itself; no explicit selection is required.
   } else if (workItemIds.length < REVIEW_BATCH_MIN) {
     return { ok: false, code: "REVIEW_SELECTION_REQUIRED" };
   } else if (workItemIds.length > (input.intent === "verify-review-items-with-naver" ? NAVER_REVIEW_RUN_MAX : REVIEW_BATCH_MAX)) {

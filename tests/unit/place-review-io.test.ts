@@ -11,6 +11,7 @@ describe("place review request contract", () => {
       "auto-verify-review-item-with-naver",
       "advance-review-items",
       "advance-confident-review-items",
+      "sweep-confident-review-stage",
       "hold-review-items",
       "exclude-review-items",
     ]));
@@ -29,6 +30,7 @@ describe("place review request contract", () => {
       "confirm-local-dining",
       "confirm-review-categories",
       "advance-confident-review-items",
+      "sweep-confident-review-stage",
       "hold-review-items",
       "exclude-review-items",
     ]);
@@ -37,6 +39,7 @@ describe("place review request contract", () => {
       "resolve-review-duplicates",
       "advance-review-items",
       "advance-confident-review-items",
+      "sweep-confident-review-stage",
       "hold-review-items",
       "exclude-review-items",
     ]);
