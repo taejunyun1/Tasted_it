@@ -1,12 +1,18 @@
-import { appendFileSync, readFileSync, readSync } from "node:fs";
+import { appendFileSync, readFileSync, readSync, lstatSync, realpathSync, writeFileSync, renameSync, openSync, closeSync } from "node:fs";
 import { spawn } from "node:child_process";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { createHash } from "node:crypto";
 import { rootCertificates } from "node:tls";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { types } from "node:util";
+import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import { compileNativeCandidate, NATIVE_SOURCE_PATH, prepareNativeRuntimeImage, NativeExecutor, nativeArtifactDigests, NATIVE_BUILD_FLAGS } from "../../scripts/rsi/native-executor";
-import { VerifiedContainerBackend, dockerTransport, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
+import { VerifiedContainerBackend, dockerTransport, createLocalDockerTransport, observeDockerLifecycle, decodeContainerDiagnostic, containerFailureDiagnosticSchema, containerTransportDiagnosticSchema, containerFailureFrameSchema, dockerCommandLifecycleSchema, type DockerCommandLifecycle, type DockerTransport, type TrustedContainerProfile } from "../../scripts/rsi/container-backend";
 import { NATIVE_RUNTIME, classifyNativeStartupError, verifyNativePublicCa, createNativeLogGate, withNativeWorkerdDeadline, observeNativeWorkerdPipes } from "../../scripts/rsi/native-wrapper";
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -223,6 +229,196 @@ describe("native candidate syntax compilation (never host evaluation)", () => {
   });
 });
 
+const transportDiagnosticName = "records one pinned transport lifecycle diagnostic without retry";
+const transportDiagnosticPattern = `^${transportDiagnosticName}$`;
+function transportDiagnosticRuntimePattern(): unknown {
+  // Pinned Vitest 4.1.10 supplies this own-data state to its worker threads.
+  // Missing or changed runner representation blocks the opt-in before Docker.
+  const data = (value: unknown, key: string) => value && typeof value === "object" && !types.isProxy(value) ? Object.getOwnPropertyDescriptor(value, key)?.value : undefined;
+  return data(data(data(globalThis, "__vitest_worker__"), "config"), "testNamePattern");
+}
+function transportDiagnosticSelected(environment: NodeJS.ProcessEnv, pattern: unknown) {
+  if (!pattern || typeof pattern !== "object" || types.isProxy(pattern) || Object.getPrototypeOf(pattern) !== RegExp.prototype
+    || Reflect.ownKeys(pattern).some(key => key !== "lastIndex")) return false;
+  return environment.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1"
+    && Object.keys(environment).filter(key => key.startsWith("RSI_NATIVE_")).every(key => key === "RSI_NATIVE_TRANSPORT_DIAGNOSTIC")
+    && Object.getOwnPropertyDescriptor(RegExp.prototype, "source")!.get!.call(pattern) === transportDiagnosticPattern
+    && Object.getOwnPropertyDescriptor(RegExp.prototype, "flags")!.get!.call(pattern) === "";
+}
+function transportDiagnosticTraceComplete(commands: readonly DockerCommandLifecycle[], containers: 2 | 3) {
+  const ordered = [...commands].sort((a, b) => a.ordinal - b.ordinal);
+  const minimum = 3 + containers * 5;
+  return ordered.length >= minimum && ordered.length <= minimum + 1 && ordered.every((item, index) => item.ordinal === index + 1
+    && item.close.atMs !== null && item.close.code === 0 && item.timer.firedMs === null && item.kill.requestedMs === null && !item.observerError
+    && item.stdout.endMs !== null && item.stderr.endMs !== null && item.stdout.error === null && item.stderr.error === null && item.stdin.error === null)
+    && ordered.filter(item => item.command === "CREATE").length === containers && ordered.filter(item => item.command === "START").length === containers && ordered.filter(item => item.command === "RM").length === containers;
+}
+
+describe("one-shot transport diagnostic admission", () => {
+  const pattern = "^records one pinned transport lifecycle diagnostic without retry$";
+  it("requires the independent flag and exact selector with every legacy flag absent", () => {
+    expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, new RegExp(pattern))).toBe(true);
+    for (const environment of [{}, { RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "0" },
+      ...["PREPARE", "PROBE", "SHUTDOWN_CONTROL", "CAUSE_COLLECTION", "DIAGNOSIS"].map(flag => ({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1", [`RSI_NATIVE_${flag}`]: "0" }))]) {
+      expect(transportDiagnosticSelected(environment, new RegExp(pattern))).toBe(false);
+    }
+    for (const selector of [undefined, pattern, /.*/, new RegExp(pattern, "i"), new Proxy(new RegExp(pattern), {}), Object.defineProperty(new RegExp(pattern), "source", { value: "private" })]) {
+      expect(transportDiagnosticSelected({ RSI_NATIVE_TRANSPORT_DIAGNOSTIC: "1" }, selector)).toBe(false);
+    }
+  });
+  it("reads actual serialized selector from the pinned runner", () => {
+    const pattern = transportDiagnosticRuntimePattern();
+    expect(pattern === undefined || pattern instanceof RegExp).toBe(true);
+    const expected = process.env.RSI_TRANSPORT_GUARD_PATTERN;
+    if (expected !== undefined) {
+      expect(pattern instanceof RegExp).toBe(true);
+      expect(Object.getOwnPropertyDescriptor(RegExp.prototype, "source")!.get!.call(pattern)).toBe(expected);
+    }
+  });
+  it("requires complete admission custody before a third container can be selected", () => {
+    const pipe = { bytes: 0, chunks: 0, firstMs: null, lastMs: null, endMs: 1, closeMs: 1, error: null };
+    const commands = ["CONTEXT", "INFO", "IMAGE_INSPECT", "IMAGE_INSPECT", "CREATE", "INSPECT", "START", "INSPECT", "RM", "CREATE", "INSPECT", "START", "INSPECT", "RM"] as const;
+    const admission = commands.map((command, index) => dockerCommandLifecycleSchema.parse({ schemaVersion: 1, command, ordinal: index + 1, phase: "OTHER", timeoutMs: 5000, elapsedMs: 1,
+      spawn: { invoked: true, observed: true, error: null }, stdin: { endInvoked: true, callback: true, finish: true, drainCount: 0, error: null }, stdout: pipe, stderr: pipe,
+      exit: { atMs: 1, code: 0, signal: null }, close: { atMs: 1, code: 0, signal: null }, timer: { firedMs: null }, kill: { requestedMs: null, returned: null, error: null },
+      nativeReady: "UNOBSERVED", nativeDispatch: "UNOBSERVED", observerError: false, events: [] }));
+    expect(transportDiagnosticTraceComplete(admission, 2)).toBe(true);
+    expect(transportDiagnosticTraceComplete(admission.slice(1).map((item, index) => ({ ...item, ordinal: index + 1 })), 2)).toBe(true);
+    const missingCommand = admission.filter(item => item.ordinal !== 7);
+    const missingTerminal = admission.map(item => item.ordinal === 7 ? { ...item, close: { ...item.close, atMs: null } } : item);
+    const missingEof = admission.map(item => item.ordinal === 7 ? { ...item, stdout: { ...item.stdout, endMs: null } } : item);
+    const missingProbe = admission.map(item => item.ordinal === 12 ? { ...item, command: "INFO" as const } : item);
+    for (const incomplete of [[], missingCommand, missingTerminal, missingEof, missingProbe]) expect(transportDiagnosticTraceComplete(incomplete, 2)).toBe(false);
+  });
+});
+
+// Independent of the legacy PREPARE/PROBE suite. Registration performs no I/O.
+// Only the private outer watchdog starts this case; it suppresses raw test output.
+it.runIf(process.env.RSI_NATIVE_TRANSPORT_DIAGNOSTIC === "1")(transportDiagnosticName, async () => {
+  const root = realpathSync(fileURLToPath(new URL("../../", import.meta.url)));
+  const directory = join(root, ".superpowers/operations/rsi-transport-20261023-diagnostic");
+  const digest = z.string().regex(/^[a-f0-9]{64}$/);
+  const closurePaths = ["package.json", "pnpm-lock.yaml", "vitest.config.ts", "scripts/rsi/container-backend.ts", "scripts/rsi/native-executor.ts", "scripts/rsi/native-wrapper.ts", "scripts/rsi/oracle.ts", "scripts/rsi/contracts.ts", "scripts/rsi/fixtures/native-runtime.Dockerfile", "tests/unit/rsi-native-executor.test.ts", "docs/testing/rsi-evaluation-protocol.md", "docs/main-change-history.md"] as const;
+  const privatePaths = ["supervisor.py", "watchdog.py", "prepare-inputs.mjs", "input-digests.json"] as const;
+  const planSchema = z.strictObject({ schemaVersion: z.literal(1), measurementId: z.literal("transport-20261023-one-shot"),
+    task1Commit: z.literal("7109495122d2ab1f5eeb9249736543201bf5c814"), diagnosticCommit: z.string().regex(/^[a-f0-9]{40}$/), mainCommit: z.string().regex(/^[a-f0-9]{40}$/),
+    sourceDigest: z.literal("286873f23839d8587d91ddf9650ec46e8b9b6be0f7e2a7b18e63a4cdeaa85561"), compiledDigest: z.literal("8988dcc713e76fed9e0684b41a71e09c612dbd4c85c73d1ccc1f7f6c985b2d60"),
+    manifestCanonicalDigest: z.literal("605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae"), manifestRawDigest: digest,
+    imageId: z.literal("sha256:b035afe75a5453408f0e878a9405d9f621203acad47763b82372f01d4c958d4b"), nodeDigest: digest, pythonDigest: digest, dockerClientDigest: digest, hostNodeVersion: z.string().regex(/^v[0-9]+\.[0-9]+\.[0-9]+$/),
+    fixture: z.literal("AUTH_REDIRECT_FAILURE"), flag: z.literal("RSI_NATIVE_TRANSPORT_DIAGNOSTIC=1"), testName: z.literal(transportDiagnosticName), selector: z.literal(transportDiagnosticPattern),
+    maxContainers: z.literal(3), maxCommands: z.literal(19), postStopDockerQueries: z.literal(0), verifyCalls: z.literal(1), evaluateCalls: z.literal(1),
+    outer: z.strictObject({ termMs: z.literal(140000), killMs: z.literal(145000), drainMs: z.literal(150000) }),
+    closure: z.array(z.strictObject({ path: z.enum(closurePaths), digest })).length(closurePaths.length),
+    privateArtifacts: z.array(z.strictObject({ path: z.enum(privatePaths), digest })).length(privatePaths.length) });
+  const fileHash = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
+  const privateRead = (name: string) => {
+    const path = join(directory, name), stat = lstatSync(path);
+    if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.size > 131072 || realpathSync(path) !== path) throw Error("DIAGNOSTIC_INPUT");
+    return readFileSync(path, "utf8");
+  };
+  let plan: z.infer<typeof planSchema>;
+  let candidate: string;
+  let manifest: unknown;
+  try {
+    if (!transportDiagnosticSelected(process.env, transportDiagnosticRuntimePattern()) || process.env.RSI_TRANSPORT_SUPERVISED !== "GROUP_BOUND") throw Error("DIAGNOSTIC_GUARD");
+    const stat = lstatSync(directory);
+    if (stat.isSymbolicLink() || !stat.isDirectory() || (stat.mode & 0o777) !== 0o700 || realpathSync(directory) !== directory) throw Error("DIAGNOSTIC_DIRECTORY");
+    plan = planSchema.parse(JSON.parse(privateRead("run-plan.json")));
+    const git = (...args: string[]) => childProcess.execFileSync("git", args, { cwd: root, stdio: ["ignore", "pipe", "ignore"], maxBuffer: 131072 });
+    if (git("rev-parse", "HEAD").toString().trim() !== plan.diagnosticCommit || git("status", "--porcelain", "--untracked-files=no").length) throw Error("DIAGNOSTIC_CODE");
+    for (const [paths, values, base] of [[closurePaths, plan.closure, root], [privatePaths, plan.privateArtifacts, directory]] as const) {
+      if (new Set(values.map(item => item.path)).size !== paths.length) throw Error("DIAGNOSTIC_CLOSURE");
+      for (const item of values) if (lstatSync(join(base, item.path)).isSymbolicLink() || fileHash(join(base, item.path)) !== item.digest) throw Error("DIAGNOSTIC_CLOSURE");
+    }
+    if (fileHash(process.execPath) !== plan.nodeDigest || process.version !== plan.hostNodeVersion) throw Error("DIAGNOSTIC_RUNTIME");
+    candidate = privateRead("source.ts");
+    const compiled = await compileNativeCandidate({ path: NATIVE_SOURCE_PATH, source: candidate, sourceDigest: plan.sourceDigest });
+    if (hash(candidate) !== plan.sourceDigest || hash(privateRead("compiled.mjs")) !== plan.compiledDigest || compiled.compiledDigest !== plan.compiledDigest || compiled.script !== privateRead("compiled.mjs")
+      || createHash("sha256").update(git("show", `${plan.mainCommit}:${NATIVE_SOURCE_PATH}`)).digest("hex") !== plan.sourceDigest) throw Error("DIAGNOSTIC_BINDING");
+    const raw = privateRead("manifest.json"); manifest = JSON.parse(raw);
+    if (hash(raw) !== plan.manifestRawDigest || hash(JSON.stringify(manifest)) !== plan.manifestCanonicalDigest || (manifest as { imageId?: unknown }).imageId !== plan.imageId) throw Error("DIAGNOSTIC_MANIFEST");
+    // NativeExecutor.verify performs the unchanged strict manifest/artifact/runtime admission.
+    closeSync(openSync(join(directory, "case-started.lock"), "wx", 0o600));
+  } catch { throw Error("RSI_TRANSPORT_PREACTUAL_BLOCKED"); }
+
+  const bindings = { measurementId: plan.measurementId, diagnosticCommit: plan.diagnosticCommit, mainCommit: plan.mainCommit,
+    closureDigest: hash(JSON.stringify(plan.closure)), privateArtifactsDigest: hash(JSON.stringify(plan.privateArtifacts)), sourceDigest: plan.sourceDigest,
+    compiledDigest: plan.compiledDigest, manifestRawDigest: plan.manifestRawDigest, manifestCanonicalDigest: plan.manifestCanonicalDigest, imageId: plan.imageId,
+    hostNodeVersion: process.version, nodeDigest: plan.nodeDigest, pythonDigest: plan.pythonDigest, dockerClientDigest: plan.dockerClientDigest, dockerClientVersion: "UNOBSERVED" };
+  const snapshots = new Map<number, DockerCommandLifecycle>();
+  let observerError = false, persistenceError = false;
+  let phase: "VERIFY" | "EVALUATE" | "STOPPED" = "VERIFY";
+  const persist = (name: "metadata.json" | "result.json", value: unknown): void => {
+    const path = join(directory, name), temporary = `${path}.tmp`;
+    // The private directory was created exclusively for this attempt; no append or shared ledger.
+    const data = JSON.stringify(value);
+    if (Buffer.byteLength(data) > 262144) throw Error("DIAGNOSTIC_METADATA_LIMIT");
+    writeFileSync(temporary, data + "\n", { mode: 0o600, flag: "wx" }); renameSync(temporary, path);
+  };
+  const flush = (): void => persist("metadata.json", { schemaVersion: 1, bindings, phase, observerError, persistenceError,
+    commands: [...snapshots.values()].sort((a, b) => a.ordinal - b.ordinal), postStopAbsence: "UNOBSERVED", nativeReady: "UNOBSERVED", nativeDispatch: "UNOBSERVED" });
+  const observer = (raw: Readonly<DockerCommandLifecycle>): void => {
+    try {
+      const snapshot = decodeContainerDiagnostic(dockerCommandLifecycleSchema, raw) as DockerCommandLifecycle | undefined;
+      if (!snapshot || snapshot.ordinal > 19 || snapshot.observerError || (!snapshots.has(snapshot.ordinal) && snapshots.size >= 19)) { observerError = true; return; }
+      snapshots.set(snapshot.ordinal, snapshot); flush();
+    } catch { observerError = true; persistenceError = true; }
+  };
+  let release: (() => void) | undefined;
+  let normalControl = false;
+  let record: Record<string, unknown> = { schemaVersion: 1, bindings, status: "UNKNOWN", rootCause: "UNKNOWN", controlVerdict: null,
+    stopReason: "ADMISSION_FAILED", postStopAbsence: "UNOBSERVED", quarantineRequired: true, backendQuarantineConfirmed: null };
+  try {
+    release = observeDockerLifecycle(observer); flush();
+    const executor = await NativeExecutor.verify(manifest);
+    if (observerError || persistenceError) { record.stopReason = "OBSERVER_INTEGRITY"; throw Error("DIAGNOSTIC_OBSERVER"); }
+    if (!transportDiagnosticTraceComplete([...snapshots.values()], 2)) { record.stopReason = "ADMISSION_TRACE_UNVERIFIED"; throw Error("DIAGNOSTIC_ADMISSION_TRACE"); }
+    phase = "EVALUATE"; flush();
+    const result = await executor.evaluate({ path: NATIVE_SOURCE_PATH, source: candidate, sourceDigest: plan.sourceDigest, fixture: "AUTH_REDIRECT_FAILURE" });
+    const provenance = result.provenance;
+    const transport = decodeContainerDiagnostic(containerTransportDiagnosticSchema, Object.getOwnPropertyDescriptor(provenance, "transport")?.value);
+    const failureFrame = decodeContainerDiagnostic(containerFailureFrameSchema, Object.getOwnPropertyDescriptor(provenance, "failureFrame")?.value);
+    const cleanupFailure = decodeContainerDiagnostic(containerFailureDiagnosticSchema, Object.getOwnPropertyDescriptor(provenance, "cleanupFailure")?.value);
+    const startFailure = decodeContainerDiagnostic(containerFailureDiagnosticSchema, { startFailure: Object.getOwnPropertyDescriptor(provenance, "startFailure")?.value });
+    const receiptSchema = z.strictObject({ callCount: z.number().int().min(0).max(6), childSpawns: z.literal(1), dispatchAttempts: z.literal(1), deadlineExpired: z.boolean(), disposalConfirmed: z.boolean(), cleanupConfirmed: z.boolean(),
+      logs: z.strictObject({ valid: z.boolean(), warningCount: z.number().int().min(0).max(32768), rejectedCount: z.number().int().min(0).max(32768),
+        stdoutEof: z.boolean(), stderrEof: z.boolean(), errorCount: z.number().int().min(0).max(2), prematureCloseCount: z.number().int().min(0).max(2) }) });
+    const known = provenance as typeof provenance & { callCount?: number; childSpawns?: number; dispatchAttempts?: number; deadlineExpired?: boolean; disposalConfirmed?: boolean; cleanupConfirmed?: boolean;
+      receiptDigest?: string; traceDigest?: string; responseDigest?: string;
+      logs?: { valid: boolean; warningCount: number; rejectedCount: number; custody: { stdoutEof: boolean; stderrEof: boolean; errorCount: number; prematureCloseCount: number } } };
+    const evidenceDigests = z.strictObject({ receiptDigest: digest, traceDigest: digest, responseDigest: digest, sourceDigest: digest, compiledDigest: digest, manifestDigest: digest }).safeParse({
+      receiptDigest: known.receiptDigest, traceDigest: known.traceDigest, responseDigest: known.responseDigest,
+      sourceDigest: known.sourceDigest, compiledDigest: known.compiledDigest, manifestDigest: known.manifestDigest });
+    const receipt = receiptSchema.safeParse({ callCount: known.callCount, childSpawns: known.childSpawns, dispatchAttempts: known.dispatchAttempts,
+      deadlineExpired: known.deadlineExpired, disposalConfirmed: known.disposalConfirmed, cleanupConfirmed: known.cleanupConfirmed,
+      logs: known.logs ? { valid: known.logs.valid, warningCount: known.logs.warningCount, rejectedCount: known.logs.rejectedCount, ...known.logs.custody } : undefined });
+    const reasonCode = z.enum(["NORMAL", "EXTERNAL_FAILURE", "SIX_PATHS_VERIFIED", "ORACLE_MISMATCH", "RSI_SANDBOX_CLEANUP", "RSI_SANDBOX_TIMEOUT", "RSI_SANDBOX_OUTPUT_LIMIT", "RSI_SANDBOX_BLOCKED", "EXECUTION_UNVERIFIED", "EXECUTION_STDERR", "RECEIPT_MISMATCH", "RAW_LOG_CUSTODY_UNVERIFIED", "RUNTIME_DISPOSAL_UNVERIFIED", "INJECTED_TRANSPORT"]).safeParse(result.reasonCode);
+    const completeTrace = transportDiagnosticTraceComplete([...snapshots.values()], 3);
+    normalControl = result.verdict === "NO_CHANGE" && result.reasonCode === "EXTERNAL_FAILURE" && provenance.transportKind === "DOCKER_CLI"
+      && evidenceDigests.success && evidenceDigests.data.sourceDigest === plan.sourceDigest && evidenceDigests.data.compiledDigest === plan.compiledDigest && evidenceDigests.data.manifestDigest === plan.manifestCanonicalDigest
+      && receipt.success && receipt.data.callCount === 6 && receipt.data.dispatchAttempts === 1 && !receipt.data.deadlineExpired && receipt.data.disposalConfirmed && receipt.data.cleanupConfirmed
+      && receipt.data.logs.valid && receipt.data.logs.warningCount === 1 && receipt.data.logs.rejectedCount === 0 && receipt.data.logs.stdoutEof && receipt.data.logs.stderrEof && !receipt.data.logs.errorCount && !receipt.data.logs.prematureCloseCount
+      && !!transport && transport.cleanup.inspectReturned === true && transport.cleanup.nameMatch === true && transport.cleanup.ownerMatch === true && transport.cleanup.idMatch === true && transport.cleanup.rmInvoked && transport.cleanup.rmReturned === true
+      && completeTrace && !observerError && !persistenceError;
+    record = { ...record, status: normalControl ? "CONTROL_OBSERVED" : "UNKNOWN", stopReason: normalControl ? "COMPLETED_ONCE" : "FIRST_UNVERIFIED_EXECUTION",
+      controlVerdict: result.verdict, reasonCode: reasonCode.success ? reasonCode.data : "OPAQUE", transportKind: provenance.transportKind === "DOCKER_CLI" ? "DOCKER_CLI" : "UNVERIFIED",
+      redReproduced: result.redReproduced, greenVerified: result.greenVerified,
+      ...(evidenceDigests.success ? { evidenceDigests: evidenceDigests.data } : {}), ...(receipt.success ? { receipt: receipt.data } : {}), ...(transport ? { transport } : {}), ...(failureFrame ? { failureFrame } : {}),
+      ...(cleanupFailure ? { cleanupFailure } : {}), ...(startFailure?.startFailure ? { startFailure: startFailure.startFailure } : {}),
+      quarantineRequired: !normalControl, backendQuarantineConfirmed: cleanupFailure ? true : null };
+  } catch (error) {
+    const diagnostic = decodeContainerDiagnostic(containerFailureDiagnosticSchema, error instanceof Error ? Object.getOwnPropertyDescriptor(error, "cause")?.value : undefined);
+    record = { ...record, ...(diagnostic ? { admissionDiagnostic: diagnostic } : {}) };
+  } finally {
+    release?.(); phase = "STOPPED";
+    try { flush(); persist("result.json", { ...record, observerError, persistenceError, commandCountObserved: snapshots.size,
+      containersObserved: [...snapshots.values()].filter(item => item.command === "CREATE").length }); }
+    catch { persistenceError = true; normalControl = false; }
+  }
+  // A terminal UNKNOWN is retained and fails this opt-in case; exit 0 is separate evidence.
+  expect(normalControl && !observerError && !persistenceError).toBe(true);
+}, 150000);
+
 describe("synthetic adapter failures (no OS/native proof)", () => {
   async function setup() {
     const artifacts = await nativeArtifactDigests();
@@ -230,20 +426,22 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
     const runtime = { ...NATIVE_RUNTIME, supportedCompatibilityDate: "2026-08-05", workerdDigest: "1".repeat(64), publicCaDigest: "6".repeat(64), publicCaCount: 100 };
     const manifest = { schemaVersion: 1, imageId: `sha256:${"2".repeat(64)}`, baseImage: "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5", pnpm: "10.34.5", artifacts, runtime };
     const evidence = { transportKind: "INJECTED_TRANSPORT" };
-    const state = { blocked: false, error: "", corrupt: false, logs: false, custody: { ...completePipes }, cleanupCause: undefined as unknown };
+    const state = { blocked: false, error: "", corrupt: false, logs: false, custody: { ...completePipes }, cleanupCause: undefined as unknown,
+      failureFactory: undefined as ((output: string) => Promise<{ code: number; stdout: string; stderr: string; evidence: typeof evidence }>) | undefined };
     const backend = { evidence, assertAvailable() { if (state.blocked) throw Error("RSI_SANDBOX_BLOCKED"); }, async run(stdin: string) {
       const input = JSON.parse(stdin);
-      if (state.error) { if (state.error === "RSI_SANDBOX_CLEANUP") state.blocked = true; throw new Error(state.error, { cause: state.cleanupCause }); }
       const output = input.operation === "probe" ? { schemaVersion: 1, runtime } : {
         schemaVersion: 1, runtime, grade: { verdict: "PASS", reasonCode: "SIX_PATHS_VERIFIED", redReproduced: false, greenVerified: true },
         sourceDigest: state.corrupt ? "3".repeat(64) : input.sourceDigest, compiledDigest: input.compiledDigest,
         traceDigest: "4".repeat(64), responseDigest: "5".repeat(64), callCount: 6, elapsedMs: 5, peakMemoryBytes: 200000000, reason: "ORACLE_RESULT",
         logs: { valid: true, custody: state.custody, warningCount: 1, rejectedCount: 0, forbiddenMarkerCount: 0, bytes: 200, digest: "7".repeat(64), warningSourceDigest: "8".repeat(64), rejectionCodes: [] }, childSpawns: 1, dispatchAttempts: 1, deadlineExpired: false, disposalConfirmed: true,
       };
+      if (state.failureFactory) return state.failureFactory(JSON.stringify(output) + "\n");
+      if (state.error) { if (state.error === "RSI_SANDBOX_CLEANUP") state.blocked = true; throw new Error(state.error, { cause: state.cleanupCause }); }
       return { code: 0, stdout: JSON.stringify(output) + "\n", stderr: state.logs ? "private candidate log" : "", evidence };
     } };
     const spy = vi.spyOn(VerifiedContainerBackend, "verify").mockResolvedValue(backend as unknown as VerifiedContainerBackend);
-    return { manifest, state, spy };
+    return { manifest, state, spy, evidence };
   }
   it("blocks an unsupported target compatibility date before dispatch", async () => {
     const fake = await setup();
@@ -319,6 +517,128 @@ describe("synthetic adapter failures (no OS/native proof)", () => {
       expect(result.provenance).toHaveProperty("startFailure", { failure: "TIMEOUT", stdoutBytes: 103, stderrBytes: 0 });
       if ("startFailure" in result.provenance) expect(Object.isFrozen(result.provenance.startFailure)).toBe(true);
       expect(JSON.stringify(result)).not.toContain("private");
+    } finally { fake.spy.mockRestore(); }
+  });
+  it.each([
+    ["stdout", false], ["stderr", false], ["stdout", true], ["stderr", true],
+  ] as const)("keeps a valid frame UNKNOWN after host %s read error with cleanup uncertainty %s", async (stream, cleanup) => {
+    const fake = await setup(); const spawned: EventEmitter[] = [];
+    const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn() });
+      spawned.push(child); return child as unknown as ReturnType<typeof childProcess.spawn>;
+    }); syncBuiltinESMExports();
+    let frameDigest = "";
+    try {
+      const executor = await NativeExecutor.verify(fake.manifest);
+      // Synthetic evidence only: permit the success branch so a missing CLI rejection cannot hide behind INJECTED_TRANSPORT.
+      fake.evidence.transportKind = "DOCKER_CLI";
+      fake.state.failureFactory = async output => {
+        frameDigest = hash(output);
+        const pending = createLocalDockerTransport({ DOCKER_HOST: "unix:///synthetic.sock" })(["start"], "", { timeoutMs: 15000, maxOutputBytes: 32768 }).catch(error => {
+          // Preserve the real backend's START wrapper and existing cleanup-only quarantine boundary.
+          Object.defineProperty(error, "cause", { value: { ...(cleanup ? { stage: "RM_TRANSPORT", failure: "TIMEOUT" } : {}), startFailure: error.cause } });
+          if (cleanup) { Object.defineProperty(error, "message", { value: "RSI_SANDBOX_CLEANUP" }); fake.state.blocked = true; }
+          throw error;
+        });
+        await Promise.resolve(); await Promise.resolve();
+        const child = spawned.at(-1) as EventEmitter & { stdout: PassThrough; stderr: PassThrough; kill: ReturnType<typeof vi.fn> };
+        child.stdout.write(output);
+        child[stream].emit("error", Object.assign(Error("SYNTHETIC_PRIVATE_READ_ERROR"), { code: "ECONNRESET" }));
+        child.emit("close", 0, null);
+        expect(child.kill).not.toHaveBeenCalled();
+        return { ...await pending, evidence: fake.evidence };
+      };
+      const result = await executor.evaluate({ ...request(), fixture: "NORMAL" });
+      expect(result.verdict).toBe("UNKNOWN"); expect(result.greenVerified).toBe(false);
+      expect(result.reasonCode).toBe(cleanup ? "RSI_SANDBOX_CLEANUP" : "EXECUTION_UNVERIFIED");
+      expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "UNAVAILABLE", lifecycle: expect.objectContaining({ [stream]: expect.objectContaining({ error: "ECONNRESET" }), close: expect.objectContaining({ code: 0 }) }) }));
+      expect(result.provenance).toHaveProperty("failureFrame", { frameKind: "EVALUATION", digest: frameDigest, completeJSON: true, schemaMatch: true, bindingMatch: true });
+      expect(fake.state.blocked).toBe(cleanup);
+      if (cleanup) await expect(executor.evaluate({ ...request(), fixture: "NORMAL" })).rejects.toThrow("RSI_SANDBOX_BLOCKED");
+      expect(JSON.stringify(result)).not.toMatch(/SYNTHETIC_PRIVATE|SIX_PATHS_VERIFIED|"grade"/);
+    } finally { spawned.forEach(child => child.emit("close", 0, null)); spawn.mockRestore(); syncBuiltinESMExports(); fake.spy.mockRestore(); }
+  });
+  it.each(["EVALUATION", "MISMATCH", "PROBE", "DIAGNOSTIC", "INVALID", "INCOMPLETE", "PARTIAL", "NONE", "STDERR_ONLY_LIMIT", "TIMEOUT_THEN_STDOUT_LIMIT"])("classifies failed stdout as %s without authorizing PASS or retaining raw data", async shape => {
+    const fake = await setup(); const spawned: EventEmitter[] = [];
+    vi.useFakeTimers();
+    const spawn = vi.spyOn(childProcess, "spawn").mockImplementation(() => {
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => { if (shape !== "TIMEOUT_THEN_STDOUT_LIMIT") queueMicrotask(() => child.emit("close", null, "SIGKILL")); return true; }) });
+      spawned.push(child); return child as unknown as ReturnType<typeof childProcess.spawn>;
+    }); syncBuiltinESMExports();
+    let raw = "";
+    try {
+      const executor = await NativeExecutor.verify(fake.manifest);
+      fake.state.failureFactory = async output => {
+        const evaluated = JSON.parse(output);
+        raw = shape === "PROBE" ? JSON.stringify({ schemaVersion: 1, runtime: fake.manifest.runtime }) + "\n"
+          : shape === "DIAGNOSTIC" ? JSON.stringify({ schemaVersion: 1, runtime: fake.manifest.runtime, fatal: { category: "OTHER", bytes: 12, digest: "a".repeat(64), clues: [], locations: [] } }) + "\n"
+          : shape === "MISMATCH" ? JSON.stringify({ ...evaluated, sourceDigest: "0".repeat(64) }) + "\n"
+          : shape === "INVALID" ? "SYNTHETIC_PRIVATE_FRAME" : shape === "INCOMPLETE" ? '{"SYNTHETIC_PRIVATE_FRAME":' : shape === "NONE" ? "" : output;
+        const cli = createLocalDockerTransport({ DOCKER_HOST: "unix:///SYNTHETIC_PRIVATE.sock" });
+        const maxOutputBytes = ["PARTIAL", "TIMEOUT_THEN_STDOUT_LIMIT"].includes(shape) ? 4 : shape === "STDERR_ONLY_LIMIT" ? Buffer.byteLength(raw) : 32768;
+        const pending = cli(["start", "SYNTHETIC_ARGV"], "SYNTHETIC_SOURCE", { timeoutMs: 10, maxOutputBytes }).catch(error => {
+          // Same opaque Error retains CLI custody while a cleanup error dominates.
+          Object.defineProperty(error, "message", { value: "RSI_SANDBOX_CLEANUP" });
+          Object.defineProperty(error, "cause", { value: { stage: "RM_TRANSPORT", failure: "TIMEOUT", startFailure: error.cause } });
+          throw error;
+        });
+        await Promise.resolve(); await Promise.resolve();
+        const child = spawned.at(-1) as EventEmitter & { stdout: PassThrough; stderr: PassThrough };
+        if (shape === "TIMEOUT_THEN_STDOUT_LIMIT") {
+          child.stdout.write(raw.slice(0, 4));
+          setTimeout(() => { child.stdout.write(raw.slice(4)); child.emit("close", null, "SIGKILL"); }, 11);
+        } else {
+          child.stdout.write(raw);
+          if (shape === "STDERR_ONLY_LIMIT") child.stderr.write("SYNTHETIC_PRIVATE_STDERR");
+        }
+        return pending;
+      };
+      const pending = executor.evaluate({ ...request(), fixture: "NORMAL" });
+      // Compilation is asynchronous and intentionally does not use fake wall time.
+      await vi.waitFor(() => expect(spawned).toHaveLength(1)); await vi.advanceTimersByTimeAsync(10);
+      const result = await pending;
+      expect(result.verdict).toBe("UNKNOWN"); expect(result.greenVerified).toBe(false); expect(result.reasonCode).toBe("RSI_SANDBOX_CLEANUP");
+      const frameKind = ["MISMATCH", "STDERR_ONLY_LIMIT"].includes(shape) ? "EVALUATION" : shape === "INCOMPLETE" ? "INVALID" : shape === "TIMEOUT_THEN_STDOUT_LIMIT" ? "PARTIAL" : shape;
+      expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ frameKind }));
+      if (["EVALUATION", "PROBE", "DIAGNOSTIC", "MISMATCH", "STDERR_ONLY_LIMIT"].includes(shape)) expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ completeJSON: true, schemaMatch: true, bindingMatch: shape !== "MISMATCH" }));
+      if (shape === "STDERR_ONLY_LIMIT") {
+        expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "OUTPUT_LIMIT", stdoutBytes: Buffer.byteLength(raw) }));
+        expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ digest: hash(raw) }));
+      }
+      if (shape === "TIMEOUT_THEN_STDOUT_LIMIT") {
+        expect(result.provenance).toHaveProperty("startFailure", expect.objectContaining({ failure: "TIMEOUT" }));
+        expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ digest: hash(raw.slice(0, 4)), completeJSON: null, schemaMatch: null, bindingMatch: null }));
+      }
+      if (shape === "INCOMPLETE") expect(result.provenance).toHaveProperty("failureFrame", expect.objectContaining({ completeJSON: false, bindingMatch: null }));
+      expect(JSON.stringify(result)).not.toMatch(/SYNTHETIC_PRIVATE|SYNTHETIC_ARGV|SYNTHETIC_SOURCE|SIX_PATHS_VERIFIED|"grade"/);
+      expect(JSON.stringify(result)).not.toContain(raw || "SYNTHETIC_UNUSED");
+    } finally { spawned.forEach(child => child.emit("close", null)); spawn.mockRestore(); syncBuiltinESMExports(); fake.spy.mockRestore(); vi.useRealTimers(); }
+  });
+  it.each(["valid", "proxy", "getter", "extra", "oversize", "prototype"])("revalidates nested lifecycle provenance without evaluating %s data", async shape => {
+    const fake = await setup(); let touched = 0;
+    try {
+      const executor = await NativeExecutor.verify(fake.manifest);
+      const pipe = { bytes: 0, chunks: 0, firstMs: null, lastMs: null, endMs: null, closeMs: null, error: null };
+      const lifecycle = dockerCommandLifecycleSchema.parse({ schemaVersion: 1, command: "START", ordinal: 1, phase: "START", timeoutMs: 15000, elapsedMs: 15000,
+        spawn: { invoked: true, observed: null, error: null }, stdin: { endInvoked: true, callback: null, finish: null, drainCount: 0, error: null }, stdout: pipe, stderr: pipe,
+        exit: { atMs: null, code: null, signal: null }, close: { atMs: null, code: null, signal: null }, timer: { firedMs: 15000 }, kill: { requestedMs: 15000, returned: false, error: null }, nativeReady: "UNOBSERVED", nativeDispatch: "UNOBSERVED", observerError: false, events: [{ kind: "TIMER", atMs: 15000 }] });
+      const command = { failure: "TIMEOUT", stdoutBytes: 0, stderrBytes: 0, lifecycle };
+      const transport = { commands: [lifecycle], cleanup: { inspectReturned: true, nameMatch: true, ownerMatch: true, idMatch: true, rmInvoked: true, rmReturned: null } };
+      const valid = { stage: "RM_TRANSPORT", failure: "TIMEOUT", command, startFailure: command, transport };
+      fake.state.cleanupCause = shape === "valid" ? JSON.parse(JSON.stringify(valid))
+        : shape === "proxy" ? new Proxy(valid, { getPrototypeOf() { touched++; throw Error(); }, ownKeys() { touched++; throw Error(); } })
+        : shape === "getter" ? { ...valid, transport: { get commands() { touched++; return []; } } }
+        : shape === "extra" ? { ...valid, transport: { ...transport, raw: "SYNTHETIC_PRIVATE" } }
+        : shape === "oversize" ? { ...valid, transport: { ...transport, commands: Array(6).fill(lifecycle) } }
+        : Object.assign(Object.create({}), valid);
+      fake.state.error = "RSI_SANDBOX_CLEANUP";
+      const result = await executor.evaluate({ ...request(), fixture: "NORMAL" });
+      expect(result.verdict).toBe("UNKNOWN");
+      if (shape === "valid") {
+        expect(result.provenance).toHaveProperty("cleanupFailure", valid); expect(result.provenance).toHaveProperty("transport", transport);
+        expect(Object.isFrozen((result.provenance as { transport: typeof transport }).transport.commands[0].stdin)).toBe(true);
+      } else expect(result.provenance).not.toHaveProperty("cleanupFailure");
+      expect(touched).toBe(0); expect(JSON.stringify(result)).not.toContain("SYNTHETIC_PRIVATE");
     } finally { fake.spy.mockRestore(); }
   });
 });
