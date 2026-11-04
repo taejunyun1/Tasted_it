@@ -11,7 +11,10 @@
   "containers": [
     {
       "class_name": "Sandbox",
-      "image": "./workers/rsi-sandbox.Dockerfile",
+      // Registry image reference — no local Docker build needed (this host's
+      // daemon is unresponsive; see PR #333). Keep the Dockerfile in-repo for
+      // future customization; deploy-time image tag must be re-verified.
+      "image": "docker.io/cloudflare/sandbox:0.7.0",
       "instance_type": "lite",
       "max_instances": 1
     }
