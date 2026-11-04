@@ -154,6 +154,8 @@ describe("shared actual repair core contracts (host data only)", () => {
     tick = 84000; expect(() => rootGate.check()).toThrow("RSI_CONTROLLER_CLOCK");
     killed = true; expect(() => rootGate.check()).toThrow("RSI_CONTROLLER_OPERATOR_STOP");
     expect(() => createRepairRootGate({ rootTiming: { startedMs: 0, deadlineMs: 120001 }, monotonicMs: () => 0, killSwitch: () => false })).toThrow("RSI_CONTROLLER_CLOCK");
+    const fractionalStart = 11741.985875; // Real monotonic readings: subtracting a large fractional start can round the window above the bound in FP64.
+    expect(() => createRepairRootGate({ rootTiming: { startedMs: fractionalStart, deadlineMs: fractionalStart + 120000 }, monotonicMs: () => fractionalStart, killSwitch: () => false })).not.toThrow();
   });
   it("consumes a reserved R4 phase without opening/finishing a nested pool and stops after one patch (injected)", async () => {
     const options = await setup(), obs = observation(), sources = await loadSeedAgentSources(), agent = await compileAgentSources(sources), closure = await measureFixedClosure("R3");

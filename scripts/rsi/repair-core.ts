@@ -183,7 +183,7 @@ export interface RepairRootGate {
  * that existing timing; neither a nested helper nor phase gets a fresh 120s. */
 export function createRepairRootGate(options: { rootTiming: { startedMs: number; deadlineMs: number }; killSwitch: () => boolean; monotonicMs: () => number }): RepairRootGate {
   const { startedMs, deadlineMs } = options.rootTiming;
-  if (![startedMs, deadlineMs].every(Number.isFinite) || startedMs < 0 || deadlineMs <= startedMs || deadlineMs - startedMs > MODEL_POLICY.recoveryTimeoutMs) fail("CLOCK");
+  if (![startedMs, deadlineMs].every(Number.isFinite) || startedMs < 0 || deadlineMs <= startedMs || deadlineMs > startedMs + MODEL_POLICY.recoveryTimeoutMs) fail("CLOCK");
   let lastTime = startedMs;
   return Object.freeze({ rootTiming: Object.freeze({ startedMs, deadlineMs }), check(requiredMs = 0) {
     if (options.killSwitch()) fail("OPERATOR_STOP");
