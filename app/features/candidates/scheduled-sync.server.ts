@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { createDb } from "../../db/client.server";
 import { publicDataSyncRuns } from "../../db/schema";
 import { syncPublicDataBatch, type AddressField } from "./sync.server";
@@ -26,9 +26,14 @@ export async function runScheduledCandidateSync(env: Env & { DATA_GO_KR_SERVICE_
     });
   }
   const resumable = running && running.status === "RUNNING" && Date.now() - new Date(running.updatedAt).getTime() <= 24 * 60 * 60 * 1000 ? running : null;
-  const job = resumable ? {
-    sourceType: resumable.sourceType as PublicDataSource,
-    addressField: resumable.addressField as AddressField,
+  const failed = resumable ? null : await db.query.publicDataSyncRuns.findFirst({
+    where: and(eq(publicDataSyncRuns.status, "FAILED"), gt(publicDataSyncRuns.nextPage, 1)),
+    orderBy: desc(publicDataSyncRuns.startedAt),
+  });
+  const resume = resumable ?? failed;
+  const job = resume ? {
+    sourceType: resume.sourceType as PublicDataSource,
+    addressField: resume.addressField as AddressField,
   } : jobs[new Date().getUTCDate() % jobs.length];
   await syncPublicDataBatch(db, { serviceKey: env.DATA_GO_KR_SERVICE_KEY, ...job, maxPages: 5 });
   try {
