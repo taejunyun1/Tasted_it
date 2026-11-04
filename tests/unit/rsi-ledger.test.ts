@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { LocalRsiLedger } from "../../scripts/rsi/ledger";
 import { deriveIncidentId, deriveIncidentKey, deriveKst, deriveObservationFingerprint, RSI_PUBLIC_PATHS } from "../../scripts/rsi/contracts";
+import { R4_POLICY_DIGEST, deriveSourceAgentHash, parseImprovementIntent, parseSourceArtifactReference } from "../../scripts/rsi/execution-contracts";
 
 const digest = "a".repeat(64);
 const now = "2026-10-22T14:59:00.000Z";
@@ -263,5 +264,229 @@ describe("local RSI ledger", () => {
     await expect(LocalRsiLedger.open(`${p}/../store`, ledger.checkpoint)).rejects.toThrow("RSI_LEDGER");
     const file = (await readdir(p))[0]; const original = await readFile(join(p, file)); const outside = `${p}-outside`; await writeFile(outside, original); await rm(join(p, file)); await symlink(outside, join(p, file));
     await expect(ledger.read()).rejects.toThrow("RSI_LEDGER");
+  });
+});
+
+// These are trusted-writer structural fixtures, never actual container evidence.
+const campaignId = "22222222-2222-4222-8222-222222222222";
+function artifact(letter = "a") {
+  const modules = { "scripts/rsi/agent/diagnostic-policy.ts": { digest: letter.repeat(64), byteLength: 100 },
+    "scripts/rsi/agent/repair-policy.ts": { digest: "e".repeat(64), byteLength: 100 } };
+  return { schemaVersion: 1 as const, modules, agentHash: deriveSourceAgentHash(modules), compiledDigest: letter.repeat(64), artifactDigest: letter.repeat(64), compiledByteLength: 200, artifactByteLength: 1000 };
+}
+async function improvement(ledger: LocalRsiLedger, obs = observation()) {
+  const catalog = (await ledger.readImprovement()).catalog.at(-1)!;
+  return { schemaVersion: 1 as const, purpose: "R4_SELF_IMPROVE" as const, executionId: randomUUID(), requestId: randomUUID(), campaignId,
+    generation: 1 as 1 | 2, parentExecutionId: null as string | null, expectedCatalogRevision: catalog.revision, expectedCatalogHash: catalog.hash,
+    activeAgentHash: catalog.source.agentHash, activeCompiledDigest: catalog.source.compiledDigest, activeSourceArtifactDigest: catalog.source.artifactDigest,
+    observation: obs, incidentKey: deriveIncidentKey(obs.incident), incidentEpoch: 1, observationFingerprint: deriveObservationFingerprint(obs), baseAppSha: obs.incident.baseAppSha,
+    controllerHash: digest, evaluatorHash: digest, memorySnapshotHash: digest, policyDigest: R4_POLICY_DIGEST, fakeFixtureDigest: digest };
+}
+async function seed(ledger: LocalRsiLedger) {
+  await ledger.commitLabCatalog({ kind: "SEED", expectedCatalogRevision: -1, expectedCatalogHash: null, source: artifact() }, now);
+}
+async function createImprovement(caps = { incident: 500000, campaign: 500000, day: 500000, month: 500000 }) {
+  const p = await path(), ledger = await create(p, caps); await seed(ledger); return { p, ledger, input: await improvement(ledger) };
+}
+function validation(input: Awaited<ReturnType<typeof improvement>>) {
+  return { evidenceDigest: digest, controllerHash: input.controllerHash, evaluatorHash: input.evaluatorHash,
+    memorySnapshotHash: input.memorySnapshotHash, policyDigest: input.policyDigest, fakeFixtureDigest: input.fakeFixtureDigest };
+}
+async function call(ledger: LocalRsiLedger, executionId: string, sequence: number, phase: "BASELINE_REPAIR" | "GENERATE_AGENT" | "PROMOTION_REPAIR", at = now) {
+  const callId = randomUUID();
+  await ledger.recordImprovementEvent({ executionId, event: { kind: "CALL_STARTED", sequence, phase, callId, requestDigest: digest } }, at);
+  await ledger.recordImprovementEvent({ executionId, event: { kind: "CALL_RETURNED", sequence, callId, receiptDigest: digest, outputDigest: digest, costUnits: 1 } }, at);
+  return callId;
+}
+async function validated(ledger: LocalRsiLedger, input: Awaited<ReturnType<typeof improvement>>, source = artifact("b")) {
+  const executionId = input.executionId;
+  await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+  if (input.generation === 1) {
+    await call(ledger, executionId, 1, "BASELINE_REPAIR"); await call(ledger, executionId, 2, "BASELINE_REPAIR");
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "BASELINE_VALIDATED", binding: validation(input) } }, now);
+  }
+  await ledger.recordImprovementEvent({ executionId, event: { kind: "GENERATING" } }, now);
+  const sequence = input.generation === 1 ? 3 : 1, callId = await call(ledger, executionId, sequence, "GENERATE_AGENT");
+  await ledger.recordImprovementEvent({ executionId, event: { kind: "PROPOSED", source, generationBinding: {
+    executionId, activeAgentHash: input.activeAgentHash, activeCompiledDigest: input.activeCompiledDigest,
+    sequence, callId, brokerRequestDigest: digest, brokerReceiptDigest: digest, brokerOutputDigest: digest,
+    actualInputDigest: digest, actualOutputDigest: digest, generationEvidenceDigest: digest } } }, now);
+  await ledger.recordImprovementEvent({ executionId, event: { kind: "PROBING" } }, now);
+  await call(ledger, executionId, sequence + 1, "PROMOTION_REPAIR"); await call(ledger, executionId, sequence + 2, "PROMOTION_REPAIR");
+  await ledger.recordImprovementEvent({ executionId, event: { kind: "VALIDATED", binding: validation(input) } }, now);
+}
+async function settleImprovement(ledger: LocalRsiLedger, executionId: string, kind: "CONFIRMED" | "AMBIGUOUS" = "CONFIRMED", chargedUnits = 5, at = now, receiptId = randomUUID()) {
+  await ledger.settleImprovement({ executionId, receiptId, kind, chargedUnits: kind === "AMBIGUOUS" ? null : chargedUnits, receiptDigest: digest }, at);
+}
+async function promote(ledger: LocalRsiLedger, input: Awaited<ReturnType<typeof improvement>>) {
+  await ledger.commitLabCatalog({ kind: "PROMOTE", executionId: input.executionId, expectedCatalogRevision: input.expectedCatalogRevision,
+    expectedCatalogHash: input.expectedCatalogHash, source: artifact(input.generation === 1 ? "b" : "c"), binding: validation(input), settlementDigest: digest }, now);
+}
+
+describe("R4 execution contracts on the same ledger", () => {
+  it("preserves legacy shape and bytes while persisting a distinct execution and immutable seed", async () => {
+    const p = await path(), ledger = await create(p), bytes = await readFile(join(p, "00000.json"), "utf8"); await seed(ledger);
+    const input = await improvement(ledger);
+    await expect(ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER_BUDGET");
+    expect(Object.keys(await ledger.read())).toEqual(["config", "lastAtUtc", "runs", "aliases", "closures"]);
+    expect(await readFile(join(p, "00000.json"), "utf8")).toBe(bytes);
+    expect((await ledger.readImprovement()).catalog[0].kind).toBe("SEED");
+    await expect(seed(ledger)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("deduplicates exact intent, rejects changed identities, spent generation slots and parent/CAS mismatches", async () => {
+    const { ledger, input, p } = await createImprovement();
+    expect((await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now)).authorized).toBe(true);
+    const head = ledger.checkpoint;
+    expect((await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now)).authorized).toBe(false);
+    expect(ledger.checkpoint).toEqual(head);
+    for (const bad of [{ ...input, fakeFixtureDigest: "b".repeat(64) }, { ...input, executionId: randomUUID(), requestId: randomUUID() },
+      { ...input, requestId: input.executionId }, { ...input, expectedCatalogHash: digest }, { ...input, generation: 2, parentExecutionId: randomUUID() }]) {
+      await expect(ledger.reserveImprovement({ intent: bad, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+    }
+    const reopened = await LocalRsiLedger.open(p, ledger.checkpoint);
+    expect((await reopened.readImprovement()).executions).toHaveLength(1);
+    await expect(reopened.reserveImprovement({ intent: { ...input, executionId: randomUUID(), requestId: randomUUID() }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+  });
+  it.each(["incident", "campaign", "day", "month"] as const)("combines R1 and R4 pending/ambiguous exposure under %s caps in both directions", async cap => {
+    const caps = { incident: 500000, campaign: 500000, day: 500000, month: 500000, [cap]: 73600 };
+    const { ledger, input } = await createImprovement(caps), legacy = intent(49, input.observation);
+    await ledger.reserve(legacy, now);
+    await expect(ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER_BUDGET");
+    await ledger.settle({ runId: legacy.lineage.runId, receiptId: randomUUID(), kind: "CONFIRMED", chargedUnits: 48, receiptDigest: digest }, now);
+    await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await settleImprovement(ledger, input.executionId, "AMBIGUOUS");
+    const other = intent(1); other.observation.incident.workerVersion = randomUUID();
+    other.lineage.incidentKey = deriveIncidentKey(other.observation.incident); other.lineage.eventFingerprint = deriveObservationFingerprint(other.observation);
+    if (cap === "incident") { await ledger.transition({ runId: legacy.lineage.runId, transition: terminal() }, now); other.observation = legacy.observation; other.lineage = { ...legacy.lineage, runId: randomUUID(), parentRunId: legacy.lineage.runId as never, attempt: 2 }; }
+    await expect(ledger.reserve(other, now)).rejects.toThrow("RSI_LEDGER_BUDGET");
+  });
+  it("carries mixed pending exposure across KST month and charges confirmed cost in reservation and settlement periods", async () => {
+    const before = "2026-10-31T14:59:00.000Z", after = "2026-10-31T15:00:00.000Z";
+    const { ledger } = await createImprovement({ incident: 500000, campaign: 500000, day: 73552, month: 73552 });
+    const input = await improvement(ledger, observation(before));
+    await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, before);
+    const other = intent(1, observation(after));
+    await expect(ledger.reserve(other, after)).rejects.toThrow("RSI_LEDGER_BUDGET");
+    await settleImprovement(ledger, input.executionId, "CONFIRMED", 0, after);
+    expect((await ledger.reserve(other, after)).authorized).toBe(true);
+    const row = (await ledger.readImprovement()).executions[0];
+    expect(row.day).toBe("2026-10-31"); expect(row.settlement?.day).toBe("2026-11-01");
+  });
+  it("rejects mixed safe-integer overflow and cross-purpose IDs including aliases and receipts", async () => {
+    const caps = { incident: Number.MAX_SAFE_INTEGER, campaign: Number.MAX_SAFE_INTEGER, day: Number.MAX_SAFE_INTEGER, month: Number.MAX_SAFE_INTEGER };
+    const { ledger, input } = await createImprovement(caps), legacy = intent(Number.MAX_SAFE_INTEGER, input.observation);
+    await ledger.reserve(legacy, now);
+    await expect(ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER_BUDGET");
+    await ledger.settle({ runId: legacy.lineage.runId, receiptId: randomUUID(), kind: "CONFIRMED", chargedUnits: 0, receiptDigest: digest }, now);
+    for (const value of [legacy.requestId, legacy.lineage.runId, (await ledger.read()).runs[0].settlement!.receiptId]) {
+      await expect(ledger.reserveImprovement({ intent: { ...input, executionId: value }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+    }
+    await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await expect(ledger.reserve({ ...intent(), requestId: input.executionId }, now)).rejects.toThrow("RSI_LEDGER");
+    await expect(settleImprovement(ledger, input.executionId, "CONFIRMED", 0, now, legacy.requestId)).rejects.toThrow("RSI_LEDGER");
+    await expect(ledger.settle({ runId: legacy.lineage.runId, receiptId: input.executionId, kind: "CONFIRMED", chargedUnits: 0, receiptDigest: digest }, now)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("requires validated, confirmed promotion and a fresh exact checkpoint session for generation two", async () => {
+    const { ledger, input, p } = await createImprovement(); await validated(ledger, input);
+    await expect(promote(ledger, input)).rejects.toThrow("RSI_LEDGER");
+    await settleImprovement(ledger, input.executionId); await promote(ledger, input);
+    const next = { ...await improvement(ledger, input.observation), generation: 2 as const, parentExecutionId: input.executionId };
+    await expect(ledger.reserveImprovement({ intent: next, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+    const reopened = await LocalRsiLedger.open(p, ledger.checkpoint);
+    for (const bad of [{ ...next, parentExecutionId: randomUUID() }, { ...next, activeCompiledDigest: digest }, { ...next, memorySnapshotHash: "c".repeat(64) }]) {
+      await expect(reopened.reserveImprovement({ intent: bad, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+    }
+    await validated(reopened, next, artifact("c")); await settleImprovement(reopened, next.executionId, "CONFIRMED", 3); await promote(reopened, next);
+    expect((await reopened.read()).runs).toHaveLength(0);
+    expect((await reopened.readImprovement()).executions.map(e => e.status)).toEqual(["PROMOTED", "PROMOTED"]);
+    await expect(reopened.reserveImprovement({ intent: { ...next, generation: 3 }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("uses append-only rollback to the immediate previously verified catalog and preserves costs", async () => {
+    const { ledger, input } = await createImprovement();
+    const seedCatalog = (await ledger.readImprovement()).catalog[0];
+    await expect(ledger.commitLabCatalog({ kind: "ROLLBACK", expectedCatalogRevision: 0, expectedCatalogHash: seedCatalog.hash, targetCatalogRevision: 0, targetCatalogHash: seedCatalog.hash, reasonCode: "FOLLOWUP_FAILED" }, now)).rejects.toThrow("RSI_LEDGER");
+    await validated(ledger, input); await settleImprovement(ledger, input.executionId); await promote(ledger, input);
+    const current = (await ledger.readImprovement()).catalog.at(-1)!;
+    const rollback = { kind: "ROLLBACK", expectedCatalogRevision: current.revision, expectedCatalogHash: current.hash, targetCatalogRevision: 0, targetCatalogHash: seedCatalog.hash, reasonCode: "FOLLOWUP_FAILED" };
+    await expect(ledger.commitLabCatalog({ ...rollback, targetCatalogHash: digest }, now)).rejects.toThrow("RSI_LEDGER");
+    await ledger.commitLabCatalog(rollback, now);
+    const state = await ledger.readImprovement(); expect(state.catalog.at(-1)?.source).toEqual(artifact());
+    expect(state.catalog.map(c => c.kind)).toEqual(["SEED", "PROMOTE", "ROLLBACK"]);
+    expect(state.catalog.at(-1)?.commit).toEqual(rollback);
+    expect(state.executions[0].settlement?.consumedUnits).toBe(5);
+  });
+  it("rejects extra proposals, unchanged source, unbound generation receipts and closure swaps", async () => {
+    const { ledger, input } = await createImprovement(); await validated(ledger, input);
+    const row = (await ledger.readImprovement()).executions[0], event = row.events.find(e => e.kind === "PROPOSED")!;
+    for (const bad of [event, { kind: "VALIDATED", binding: { ...validation(input), controllerHash: "b".repeat(64) } }]) {
+      await expect(ledger.recordImprovementEvent({ executionId: input.executionId, event: bad }, now)).rejects.toThrow("RSI_LEDGER");
+    }
+    await settleImprovement(ledger, input.executionId, "AMBIGUOUS"); await expect(promote(ledger, input)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("directly rejects unchanged/aliased artifacts, generation receipt swaps and validation closure swaps", async () => {
+    const { ledger, input } = await createImprovement(), executionId = input.executionId;
+    await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await call(ledger, executionId, 1, "BASELINE_REPAIR"); await call(ledger, executionId, 2, "BASELINE_REPAIR");
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "BASELINE_VALIDATED", binding: validation(input) } }, now);
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "GENERATING" } }, now);
+    const callId = await call(ledger, executionId, 3, "GENERATE_AGENT");
+    const event = { kind: "PROPOSED", source: artifact("b"), generationBinding: {
+      executionId, activeAgentHash: input.activeAgentHash, activeCompiledDigest: input.activeCompiledDigest, sequence: 3, callId,
+      brokerRequestDigest: digest, brokerReceiptDigest: digest, brokerOutputDigest: digest,
+      actualInputDigest: digest, actualOutputDigest: digest, generationEvidenceDigest: digest } };
+    for (const bad of [{ ...event, source: artifact() }, { ...event, source: { ...event.source, artifactDigest: artifact().artifactDigest } },
+      ...["executionId", "activeAgentHash", "activeCompiledDigest", "brokerRequestDigest", "brokerReceiptDigest", "brokerOutputDigest"].map(key => ({ ...event, generationBinding: { ...event.generationBinding, [key]: key === "executionId" ? randomUUID() : "c".repeat(64) } })),
+      { ...event, rawResponse: "private" }]) {
+      await expect(ledger.recordImprovementEvent({ executionId, event: bad }, now)).rejects.toThrow("RSI_LEDGER");
+    }
+    await ledger.recordImprovementEvent({ executionId, event }, now);
+    await expect(call(ledger, executionId, 4, "GENERATE_AGENT")).rejects.toThrow("RSI_LEDGER");
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "PROBING" } }, now);
+    await call(ledger, executionId, 4, "PROMOTION_REPAIR"); await call(ledger, executionId, 5, "PROMOTION_REPAIR");
+    await expect(ledger.recordImprovementEvent({ executionId, event: { kind: "VALIDATED", binding: { ...validation(input), memorySnapshotHash: "c".repeat(64) } } }, now)).rejects.toThrow("RSI_LEDGER");
+    await ledger.recordImprovementEvent({ executionId, event: { kind: "VALIDATED", binding: validation(input) } }, now);
+  });
+  it("retains failed generation slots, idempotent receipts and full exposure for unresolved calls", async () => {
+    const { ledger, input } = await createImprovement();
+    await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await ledger.recordImprovementEvent({ executionId: input.executionId, event: { kind: "CALL_STARTED", sequence: 1, phase: "BASELINE_REPAIR", callId: randomUUID(), requestDigest: digest } }, now);
+    await expect(settleImprovement(ledger, input.executionId, "CONFIRMED", 0)).rejects.toThrow("RSI_LEDGER");
+    const receiptId = randomUUID(); await settleImprovement(ledger, input.executionId, "AMBIGUOUS", 0, now, receiptId);
+    const head = ledger.checkpoint; await settleImprovement(ledger, input.executionId, "AMBIGUOUS", 0, now, receiptId);
+    expect(ledger.checkpoint).toEqual(head);
+    await expect(settleImprovement(ledger, input.executionId, "CONFIRMED", 0, now, receiptId)).rejects.toThrow("RSI_LEDGER");
+    await expect(ledger.reserveImprovement({ intent: { ...input, executionId: randomUUID(), requestId: randomUUID() }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+    expect((await ledger.readImprovement()).executions[0].settlement?.consumedUnits).toBe(73552);
+    const rejected = await createImprovement(); await rejected.ledger.reserveImprovement({ intent: rejected.input, maximumCostUnits: 73552 }, now);
+    await rejected.ledger.recordImprovementEvent({ executionId: rejected.input.executionId, event: { kind: "REJECTED", reasonCode: "BASELINE_FAILED" } }, now);
+    await settleImprovement(rejected.ledger, rejected.input.executionId, "CONFIRMED", 0);
+    await expect(rejected.ledger.reserveImprovement({ intent: { ...rejected.input, executionId: randomUUID(), requestId: randomUUID() }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("bounds source references to exactly two raw digests and stores no raw source or arbitrary reason", async () => {
+    const source = artifact();
+    for (const invalid of [{ ...source, modules: { ...source.modules, "extra.ts": source.modules["scripts/rsi/agent/repair-policy.ts"] } },
+      { ...source, agentHash: digest }, { ...source, compiledByteLength: 65537 }, { ...source, artifactByteLength: 262145 }, { ...source, rawSource: "private" }]) {
+      expect(() => parseSourceArtifactReference(invalid)).toThrow("RSI_INVALID_EXECUTION_CONTRACT");
+    }
+    const { ledger, input } = await createImprovement(); await ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now);
+    await expect(ledger.recordImprovementEvent({ executionId: input.executionId, event: { kind: "BLOCKED", reasonCode: "PRIVATE_VALUE" } }, now)).rejects.toThrow("RSI_LEDGER");
+    await expect(ledger.reserveImprovement({ intent: { ...input, incidentEpoch: 2 }, maximumCostUnits: 73552 }, now)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("fails closed on R4 writer races, stale heads and partial writes without rewriting events", async () => {
+    const { p, ledger, input } = await createImprovement(), other = await LocalRsiLedger.open(p, ledger.checkpoint);
+    const results = await Promise.allSettled([ledger.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now), other.reserveImprovement({ intent: input, maximumCostUnits: 73552 }, now)]);
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    const winner = results[0].status === "fulfilled" ? ledger : other;
+    await writeFile(join(p, ".pending"), "partial");
+    await expect(LocalRsiLedger.open(p, winner.checkpoint)).rejects.toThrow("RSI_LEDGER");
+  });
+  it("rejects active objects without invoking accessors/proxies and verifies derived context", async () => {
+    const { ledger, input } = await createImprovement(); let executed = 0;
+    const trap = () => { executed++; throw new Error("must not run"); };
+    for (const bad of [new Proxy(input, { get: trap, getPrototypeOf: trap, ownKeys: trap }), Object.defineProperty({ ...input }, "private", { get: trap, enumerable: true }),
+      { ...input, incidentKey: "b".repeat(64) }, { ...input, observationFingerprint: "b".repeat(64) }, { ...input, baseAppSha: "b".repeat(40) }, { ...input, proposalAgentHash: digest }]) {
+      expect(() => parseImprovementIntent(bad)).toThrow("RSI_INVALID_EXECUTION_CONTRACT");
+    }
+    expect(executed).toBe(0);
   });
 });

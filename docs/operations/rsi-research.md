@@ -2,8 +2,8 @@
 
 - 담당: Jay/Codex
 - 추적: [Issue #319](https://github.com/taejunyun1/Tasted_it/issues/319), [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320), [설계 PR #305](https://github.com/taejunyun1/Tasted_it/pull/305)
-- 범위: R1 사건·계보·원장·기억, R2 고정 평가, R3 로컬 합성 격리·broker·수신자 오류 한 건의 복구 감독기
-- 상태: R1의 승인 기준은 [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320)의 병합 범위다. R3 로컬 합성 구현은 아래 별도 절에 기록하며 운영 GO나 자기개선 효과로 승격하지 않는다. 각 후속 단계의 승인 기준은 해당 병합 PR이다.
+- 범위: R1 사건·계보·원장·기억, R2 고정 평가, R3 로컬 합성 격리·broker·수신자 오류 한 건의 복구 감독기, R4 고정 두 세대 감독기
+- 상태: R4의 실제 두 세대 수용은 현재 **HOLD**다. 아래 두 실제 실패와 단위 검증을 구분한다. R1의 승인 기준은 [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320)의 병합 범위다. R3 로컬 합성 구현은 아래 별도 절에 기록하며 운영 GO나 자기개선 효과로 승격하지 않는다. 각 후속 단계의 승인 기준은 해당 병합 PR이다.
 
 ## 이번 단계에서 만드는 것
 
@@ -89,7 +89,7 @@ terminal `NO_CHANGE`에는 `DURABLE_TERMINAL_WINS`를 적용한다. 기록 직�
 
 ### R4 연결과 검증
 
-`compileAgentSources(g1Sources)`의 실제 `source`를 `DockerSandbox.verify().execute({schemaVersion:1,source,input:{schemaVersion:1,taskKind:"improve-agent",payload}})`에 전달하면 repair와 동일한 활성 hash/격리 ABI로 g1을 실행할 수 있다. 출력은 끝까지 untrusted data다. R4는 새로 생성된 정확한 두 module 바이트를 별도 검증·bundle하고, 새 세션의 repair 실행에 `agentSources:g2Sources,parentAgentHash:g1.agentHash`를 제공해야 한다. 세대 숫자만 올리는 것을 인정하지 않는다. 이 seed는 LOCAL_FAKE 응답을 전달하는 순수 전략이며 실제 모델 기여·자가수정·개선 효과를 증명하지 않는다.
+R4의 현재 진입점은 아래 `runSelfImprovement()`다. gen1이 실제 반환한 두 module의 불변 artifact를 catalog에 승격한 뒤, gen1 broker·session·compiled source 객체를 함수 범위 밖으로 전달하지 않는다. 외부 trusted checkpoint로 원장·checkpoint·source store를 새로 열고 catalog에서 exact g1을 다시 읽고 compile해 gen2 improve-agent를 실행한다. 호출자가 g1 source나 hash만 전달하는 방식은 fresh session의 근거가 아니다. 고정 fake 응답을 전달하는 이 seed와 인간 제공 g1/g2 fixture는 실모델 생성·자가수정 효과를 증명하지 않는다.
 
 ```sh
 pnpm exec vitest run tests/unit/rsi-controller.test.ts
@@ -106,3 +106,81 @@ pnpm audit
 기본 단위 시험은 fresh checkout에서도 ignored manifest 파일에 의존하지 않도록 시험 파일 안의 4 KiB 미만 비실행 JSON snapshot을 사용한다. 이는 이미지·capability·실제 근거를 공급하지 않는 host 계약 fixture다. live 파일 읽기를 금지한 집중 시험으로 이 경계를 확인한다. `RSI_CONTROLLER_PROBE=1`은 그 snapshot을 우회하고 실제 고정 파일을 읽으며 실제 시험은 `unitReads=0/liveReads>0`도 확인한다. 이 시험용 mock은 production 감독기의 manifest 공급·자동 채택 경로가 아니다.
 
 이번 변경은 운영 앱 파일·provider·학생 자료·credential·Cloudflare binding·cron·workflow·의존성을 바꾸지 않는다. 제거는 해당 구현 PR의 범위 revert로 처리하며 합성 기록을 운영 기록으로 승격하거나 기존 운영 데이터를 복원하지 않는다.
+
+
+## R4: 고정 두 세대의 로컬 자기수정 기전
+
+[Issue #327](https://github.com/taejunyun1/Tasted_it/issues/327)·[PR #328](https://github.com/taejunyun1/Tasted_it/pull/328)의 로컬 연구 도구다. `scripts/rsi/self-improve.ts`의 `runSelfImprovement(options)`는 `g0 → g1 승격 → fresh-open exact g1 → g2 승격`까지만 실행한다. 고정 감독기는 전략이나 정답을 생성·수선·선택하지 않는다. 후보는 순수한 두 agent module만 data로 반환하며, 실행은 기존 고정 Docker sandbox/native evaluator에서 한다. 호스트·CI의 후보 import/eval, 세 번째 세대, 실패 후 다른 완전 후보 탐색은 없다.
+
+### 호출과 저장
+
+신뢰된 호출자가 canonical 절대 경로의 전용 owner0700 상위 디렉터리, 익명 합성 observation, 승인된 고정 fixture 전체, 동일 기억 K/승인 목록, baseSource와 kill switch를 준비한다. source store 경로는 symlink를 포함하면 거절한다. fixture는 두 세대 전체 descriptor의 `sha256(JSON.stringify(fixedCorpus))` 하나로 고정하고 각 세대 배열만 해당 broker에 전달한다. 미래 응답·oracle·manifest는 후보 public input에 전달하지 않는다.
+
+```ts
+const result = await runSelfImprovement({
+  storage: {
+    mode: "CREATE", ledgerPath, checkpointPath, sourceDirectory, receiptDirectory,
+    config: {
+      schemaVersion: 1, environment: "LOCAL_SYNTHETIC", campaignId,
+      currencyUnit: "MICRO_USD",
+      limits: { incident: 147104, campaign: 147104, day: 147104, month: 147104 },
+    },
+  },
+  observation, baseSource, fakeFixture,
+  memory: { snapshot: approvedK, approvals: trustedApprovals },
+  killSwitch: () => stopped,
+});
+```
+
+위 한도는 사전 고정하는 **전용 로컬 합성 검증** 예시다. 기존 낮은 config를 올리지 않으며 paid GO가 아니다. 같은 LocalRsiLedger의 R1+R4 미정산·확정·AMBIGUOUS를 incident/campaign/AsiaSeoul 일·월에 함께 합산한다. 세대당 단일 pool73,552, 두 세대 최대147,104 MICRO_USD다. gen1 quota는 baseline2/generate4/promotion2, gen2는 baseline0/generate6/promotion2이며 전체8·생성 canonical ceiling6을 넘지 않는다. 첫 완전 proposal에서 탐색을 끝내고 남은 quota를 채우지 않는다.
+
+`storage.mode:"OPEN"`은 caller가 보관한 `trustedCheckpoint`를 요구한다. 이미 R4 실행이 있으면 완료·실패·미완료 여부에 관계없이 `RESTART_FORBIDDEN`이며 자동 재개·재예약·replay·seed fallback은 없다. 같은 실행 안에서 gen1이 정상 정산·승격·외부 checkpoint를 모두 끝낸 경우에만 내부 gen2 fresh open이 허용된다. catalog는 원장의 같은 append-only event에서 파생하며 raw source는 owner0400 불변 source artifact에만 보관한다.
+
+입력·compile 전부터 세대별 root deadline120초를 시작하고 gen2 fresh IO보다 먼저 새 root를 캡처한다. 하위 helper는 시계를 초기화하지 않는다. 기존16k 입력/2k 응답·30초 호출·38/85/23/35초 사전 admission, await 후와 commit 전 gate를 유지한다. 파일·compile·fsync의 hard real-time 보장은 없다.
+
+### 결과·중단·복원
+
+반환 shape는 `schemaVersion/mode/actualRecovery/status/reasonCode/failureCode/completedGenerations/generations/checkpoint/lastPublished/receiptPaths/receiptUncertain`다. `actualRecovery:false`와 `mode:"LOCAL_SYNTHETIC"`을 유지한다. 각 generation summary는 execution/intent/source hash, phase별 실제 호출 수와 실제 정산을 담는다. receipt는 intent/closure·source reference·K/승인 digest·broker calls·generation/validation binding·catalog·외부 checkpoint·기억 선택/거절 근거를 최대64KiB씩 독점 생성한다. 원문 model/source/비밀값은 공개 receipt에 넣지 않는다. `failureCode`는 고정 allowlist의 오류 이름만 보존하고 나머지는 `UNKNOWN_ERROR`다. source/evidence private artifact를 공개 결과와 구분한다. private repair sink는 agent/native EVIDENCE마다 execution/phase/source/context/순번·입출력 digest·native UNKNOWN/exit/EOF/timeout/cleanup metadata를 제한된 불변 telemetry로 먼저 저장한다. 원문 error/stack/header는 제외하며 이 기록은 PASS나 실행 권한이 아니다.
+
+- `COMPLETED`: 두 세대의 ledger+외부 checkpoint 승격 완료. 실모델 효과나 운영 성공을 뜻하지 않는다.
+- `BLOCKED`: 실제 도달한 실패 단계와 이전 완료 사실을 보존한다. gen2 실패면 g1을 유지하고 원장·비용·거절을 삭제하지 않는다. 초기 입력/시계 거절처럼 저장소를 열기 전 실패에는 disk receipt가 없을 수 있다.
+- `PARTIAL/RECEIPT_UNCERTAIN`: 승격은 durable 완료됐지만 이후 receipt/메타데이터 저장이 불명확하다. 완료된 catalog와 정산을 취소하거나 거짓 회계 실패로 바꾸지 않고 후속 gen2를 차단한다. 마지막 published catalog는 완료 사실이며 불확실한 최신 disk head를 뜻하지 않는다.
+- 중단은 `killSwitch`를 통해 새 action gate에서 처리한다. 정상 승격 persist 뒤 늦게 도착한 stop은 완료 사실을 번복하지 않는다. 쓰기 불명확성·`.pending`·lock·checkpoint 불일치는 보존하고 자동 복구하지 않는다.
+
+명시적인 로컬 rollback은 `rollbackSelfImprovement({storage:{mode:"OPEN",...paths,trustedCheckpoint},killSwitch})`다. fresh open 후 `rollbackLabCatalog`가 즉시 이전의 **실제 검증된** source만 다시 읽고 compile해 append-only CAS commit한다. 호출자가 목표 source/hash를 고르지 않는다. 새 모델·예약·비용 삭제 없이 g2→g1, 별도 다음 action으로 g1→g0가 가능하다. 코드 제거는 PR 범위 revert이며 기존 Worker·학생·운영 데이터 복원 작업은 없다.
+
+### 실제 실행과 효과의 경계
+
+기본 `pnpm test tests/unit/rsi-self-improve.test.ts`는 주입된 host 계약 시험이다. 해당 fixture의 `DOCKER_CLI` 문자열은 실제 실행 근거가 아니다. actual opt-in은 승인된 비민감 run-plan에 전용 campaign·저장 경로·원본 pin·코드/fixture/K digest·상한·명령을 먼저 고정한 뒤 다음 단일 시험만 실행한다. 기존 b035 native image/원본 canonical manifest605ad858…가 검증되지 않으면 BLOCKED이며 rebuild/pull/새 pin 채택을 하지 않는다.
+
+```sh
+RSI_R4_PROBE=1 RSI_R4_PROBE_DIRECTORY='/canonical/private/run-directory' \
+RSI_R4_PROBE_CAMPAIGN='predeclared-campaign-uuid' \
+pnpm test tests/unit/rsi-self-improve.test.ts -t 'actual pinned g0 to fresh g1 to g2 local mechanism'
+```
+
+실패하면 원장·비용·부분 파일·receipt를 그대로 보존하고 원인/범위부터 조율한다. 같은 campaign 초기화, 이름만 바꾼 재실행, 성공할 때까지 blind retry는 하지 않는다. backend 부재·SKIP·UNKNOWN을 성공으로 세지 않는다. 정상 actual 하나가 변조·중단·불명확 usage·partial persist 등 모든 negative 분기까지 실행한 것은 아니다.
+
+R4 검증의 기억은 빈 승인 K/lesson0이며 사용은 `UNCONFIRMED`다. 선택·전달과 실제 적용/학습을 구분한다. g1/g2 source 자체는 인간 제공 fixture이므로 실제 연결이 통과해도 모델 코드 생성·H3·새 원인 일반화·비용 대비 개선 효과는 미측정이다. 같은 receiver 개발 family 반복을 독립 근본원인으로 세지 않는다.
+
+R5는 실모델과 서로 다른 개발 사건의 F1/F2 대조 효과, 고정 독립 평가/holdout, 원격 계정 원장·실제 비용·데이터·자격증명 경계를 별도 한정 GO로 정해야 한다. 효과 미확인·안전 실패는 HOLD다. R6 운영 연결과 배포·라이브 RSI는 그 후속 승인 범위이며 이 PR은 provider/Cloudflare/학생·메일/credential/DB/cron/binding/workflow/운영 권한·배포를 확장하지 않는다. 중지된 학생 감시도 재개하지 않는다.
+
+
+### 2026-10-23 실제 수용 상태: HOLD
+
+실제 고정 이미지로 시작한 두 흐름 모두 `BLOCKED`로 끝났고 g1/g2 승격은 0회다. 실제 fresh exact g1→g2의 연결은 확인하지 못했다. 첫 실패 뒤에는 Issue #327의 범위 조율로 실패 직전 근거를 보존하는 private telemetry와 고정 `failureCode`만 추가했다. 원래 실패 원장과 정산은 그대로 유지했다.
+
+| 증거 | 최초 실제 흐름 | 승인된 새 버전 진단 1회 |
+| --- | --- | --- |
+| 코드 | `7602ba3` | `450dd93` |
+| 도달 단계 | baseline 검증 후 g0 생성1·proposal1, promotion probe2 호출 뒤 차단 | baseline의 인증 리다이렉트 회귀에서 차단 |
+| 호출/합성 확정 정산 | 5회 / 10,635 MICRO_USD | 2회 / 4,352 MICRO_USD |
+| 실패 근거 | `EVIDENCE_UNKNOWN`; 원래 세부 gate는 미보존으로 UNKNOWN | `RSI_CONTROLLER_NATIVE_UNKNOWN`; native `RSI_SANDBOX_CLEANUP`, `RM_TRANSPORT/TIMEOUT`, 시작도 TIMEOUT |
+| 활성 catalog | SEED, 승격0 | SEED, 승격0 |
+| gen2 | 미시도 | 미시도 |
+
+두 번째 진단은 stdout 1,480바이트의 **개수**와 stderr0을 보존했지만 원문은 저장하지 않았다. EOF·cleanup·disposal 완료 값은 미확인(null)이며 PASS로 대체하지 않았다. 즉시 실패 원인은 컨테이너 정리 전송 시간 초과로 확인됐고, 그 근본원인과 첫 실패와의 연관은 UNKNOWN이다. 나중 읽기 전용 조회의 소유 컨테이너 잔존0은 실패 당시 cleanup 확인을 대신하지 않는다. 추가 실제 실행·이미지 변경·자동 cleanup 재시도는 중단했다.
+
+각 흐름의 합성 정산을 별도로 보존하며 합계14,987은 실제 계정 예산이나 원격 통합 원장의 검증이 아니다. 두 흐름 모두 같은 원본 pin·빈 K/lesson0·고정 corpus를 사용했고 실제 지출0이다. 각 코드 버전의 controller15·evaluator16, 합집합21 실파일 SHA를 별도 읽기로 대조했다. 이 closure 일치는 실패한 두 세대 수용을 성공으로 바꾸지 않는다.
+
+`450dd93`의 별도 검증은 unit1회 1,561 PASS/52 SKIP(167파일), typecheck/build 통과, production audit0/dev포함 기존35건이다. 실제 opt-in을 건너뛴 기본 단위 결과를 실제 컨테이너 성공으로 해석하지 않는다. 두 번째 actual은 01:17:05 KST 시작/24.64초, default unit은 01:17:37 시작/31.55초로 실행 시간이 겹치지 않았다. 이 시각 관계만으로 시간 초과의 원인을 단정하지 않는다.
