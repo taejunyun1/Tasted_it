@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { adminAuditLogs, businessLicenses, naverLocalCategoryVerifications, placeLivenessStates, placeReviewWorkItems, places, users } from "../../app/db/schema";
 import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, newReviewWorkItemValues, sweepConfidentReviewStage, updateReviewItemAddresses } from "../../app/features/places/place-review-work-items.server";
+import { AUTO_PIPELINE_ACTOR_ID, runAutoReviewPipeline } from "../../app/features/places/place-review-auto-pipeline.server";
 
 const now = "2026-08-15T12:00:00.000Z";
 
@@ -39,6 +40,18 @@ describe("place review work item transitions", () => {
   it("never sweeps FINAL_APPROVAL: publish stays a human action", async () => {
     const { db, actorUserId } = await createSourceReviewItem();
     await expect(sweepConfidentReviewStage(db, { stage: "FINAL_APPROVAL", limit: 100, dryRun: false, actorUserId, now, confidentAdvanceEnabled: true })).resolves.toMatchObject({ scanned: 0, advanced: [] });
+  });
+  it("auto pipeline advances ready items under the auto-pipeline actor and stops at publish", async () => {
+    const { db, workItemId } = await createSourceReviewItem();
+    const disabled = await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: false });
+    expect(disabled.enabled).toBe(false);
+    const result = await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: true });
+    expect(result.actorUserId).toBe(AUTO_PIPELINE_ACTOR_ID);
+    await expect(db.query.users.findFirst({ where: eq(users.id, AUTO_PIPELINE_ACTOR_ID) })).resolves.toMatchObject({ id: AUTO_PIPELINE_ACTOR_ID });
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) })).resolves.toMatchObject({ stage: "NAVER_VERIFICATION" });
+    const rerun = await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: true });
+    await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) })).resolves.toMatchObject({ stage: "NAVER_VERIFICATION", status: "ACTIVE" });
+    expect(rerun.summary.FINAL_APPROVAL).toBeUndefined();
   });
   it("advances one stage and rejects a stale stage version", async () => {
     const { db, actorUserId, workItemId } = await createSourceReviewItem();
