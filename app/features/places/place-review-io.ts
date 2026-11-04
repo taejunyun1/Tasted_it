@@ -98,7 +98,7 @@ export function checkReviewRequest(input: ReviewRequestInput): ReviewRequestChec
 
   if (input.intent === "auto-verify-review-item-with-naver") {
     if (workItemIds.length !== 1) return { ok: false, code: "AUTO_VERIFY_SINGLE_REQUIRED" };
-  } else if (input.intent === "sweep-confident-review-stage") {
+  } else if (input.intent === "sweep-confident-review-stage" || input.intent === "geocode-missing-coords") {
     // Server selects the queue slice itself; no explicit selection is required.
   } else if (workItemIds.length < REVIEW_BATCH_MIN) {
     return { ok: false, code: "REVIEW_SELECTION_REQUIRED" };
