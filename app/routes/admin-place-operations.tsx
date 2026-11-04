@@ -37,7 +37,7 @@ import { publishReviewedPlaces } from "../features/places/place-review-publicati
 import { confirmLocalDiningReview } from "../features/places/local-dining-review.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { isConfidentAdvanceEnabled } from "../features/places/place-review-pipeline";
-import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, sweepConfidentReviewStage, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
+import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, sweepConfidentReviewStage, geocodeMissingReviewCoords, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
@@ -361,6 +361,12 @@ export async function action({ request }: Route.ActionArgs) {
       const result = await updateReviewItemAddresses(db, { workItemIds, addressByWorkItem, actorUserId: admin.id, now });
       if (!result.changed.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
       return { ok: true, message: `주소 저장 ${result.changed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    if (intent === "geocode-missing-coords") {
+      const apiKey = env.KAKAO_REST_API_KEY?.trim() ?? "";
+      if (!apiKey) return reviewActionError("KAKAO_REST_API_KEY_REQUIRED");
+      const result = await geocodeMissingReviewCoords(db, { limit: 50, actorUserId: admin.id, now, apiKey });
+      return { ok: true, message: `좌표 복구 ${result.geocoded.length}곳 · 스캔 ${result.scanned}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "hold-review-items" || intent === "exclude-review-items") {
       const result = intent === "hold-review-items"

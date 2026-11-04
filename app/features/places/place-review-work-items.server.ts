@@ -1,4 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
+
+import { searchKakaoAddress } from "./kakao-local.server";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -574,4 +576,43 @@ export async function updateReviewItemAddresses(db: AppDb, input: {
   }
 
   return { changed, skipped };
+}
+
+const GEOCODE_BATCH_MAX = 50;
+
+/** Bounded coordinate repair: fills missing license coordinates for ACTIVE
+ * SOURCE_REVIEW items via the governed Kakao address search so the SOURCE gate
+ * (OPEN+address+coords) can pass them. Not a stage transition; writes audit. */
+export async function geocodeMissingReviewCoords(db: AppDb, input: {
+  limit: number;
+  actorUserId: string;
+  now: string;
+  apiKey: string;
+  fetchImpl?: typeof fetch;
+}) {
+  const cap = Math.min(Math.max(1, Math.floor(input.limit) || 1), GEOCODE_BATCH_MAX);
+  const rows = await db.select({ id: placeReviewWorkItems.id, licenseId: businessLicenses.id, road: businessLicenses.roadAddress, lot: businessLicenses.lotAddress })
+    .from(placeReviewWorkItems)
+    .innerJoin(businessLicenses, eq(placeReviewWorkItems.businessLicenseId, businessLicenses.id))
+    .where(and(eq(placeReviewWorkItems.stage, "SOURCE_REVIEW"), eq(placeReviewWorkItems.status, "ACTIVE"), sql`${businessLicenses.latitude} is null or ${businessLicenses.longitude} is null`))
+    .orderBy(asc(placeReviewWorkItems.updatedAt))
+    .limit(cap);
+  const geocoded: string[] = [];
+  const skipped: Array<{ workItemId: string; code: string }> = [];
+  for (const row of rows) {
+    const query = row.road?.trim() || row.lot?.trim() || "";
+    if (!query) { skipped.push({ workItemId: row.id, code: "GEOCODE_ADDRESS_REQUIRED" }); continue; }
+    let hit: { longitude: number; latitude: number } | null = null;
+    try {
+      hit = await searchKakaoAddress({ apiKey: input.apiKey, query, fetchImpl: input.fetchImpl });
+    } catch (error) {
+      skipped.push({ workItemId: row.id, code: error instanceof Error && "code" in error ? (error as { code: string }).code : "GEOCODE_FAILED" });
+      continue;
+    }
+    if (!hit) { skipped.push({ workItemId: row.id, code: "GEOCODE_NO_MATCH" }); continue; }
+    await db.update(businessLicenses).set({ latitude: hit.latitude, longitude: hit.longitude, updatedAt: input.now }).where(and(eq(businessLicenses.id, row.licenseId), sql`${businessLicenses.latitude} is null or ${businessLicenses.longitude} is null`));
+    await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_GEOCODE_COORDS", targetType: "place_review_work_item", targetId: row.id, beforeState: JSON.stringify({ latitude: null, longitude: null }), afterState: JSON.stringify(hit), createdAt: input.now });
+    geocoded.push(row.id);
+  }
+  return { scanned: rows.length, geocoded, skipped };
 }
