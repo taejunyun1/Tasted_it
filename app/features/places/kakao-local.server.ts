@@ -133,3 +133,33 @@ function numberValue(value: unknown) {
   if (typeof value === "string" && value.trim()) return Number(value);
   return value;
 }
+
+const KAKAO_ADDRESS_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/address.json";
+
+export async function searchKakaoAddress(input: {
+  apiKey: string;
+  query: string;
+  fetchImpl?: typeof fetch;
+}): Promise<{ longitude: number; latitude: number } | null> {
+  if (!input.apiKey.trim() || !input.query.trim()) throw new KakaoLocalError("KAKAO_REQUEST_INVALID");
+  const url = new URL(KAKAO_ADDRESS_SEARCH_URL);
+  url.search = new URLSearchParams({ query: input.query, size: "1" }).toString();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KAKAO_SEARCH_TIMEOUT_MS);
+  try {
+    let response: Response;
+    try {
+      response = await (input.fetchImpl ?? fetch)(url.toString(), { headers: { Authorization: `KakaoAK ${input.apiKey}` }, signal: controller.signal });
+    } catch {
+      if (controller.signal.aborted) throw new KakaoLocalError("KAKAO_REQUEST_TIMEOUT");
+      throw new KakaoLocalError("KAKAO_REQUEST_FAILED");
+    }
+    if (!response.ok) throw httpError(response.status);
+    const body = await response.json();
+    const first = (body as { documents?: Array<{ x?: unknown; y?: unknown }> })?.documents?.[0];
+    const x = numberValue(first?.x), y = numberValue(first?.y);
+    return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y) ? { longitude: x, latitude: y } : null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}

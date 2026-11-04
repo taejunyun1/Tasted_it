@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
 import { adminAuditLogs, businessLicenses, naverLocalCategoryVerifications, placeLivenessStates, placeReviewWorkItems, places, users } from "../../app/db/schema";
-import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, newReviewWorkItemValues, sweepConfidentReviewStage, updateReviewItemAddresses } from "../../app/features/places/place-review-work-items.server";
+import { advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, geocodeMissingReviewCoords, holdPlaceReviewItems, newReviewWorkItemValues, sweepConfidentReviewStage, updateReviewItemAddresses } from "../../app/features/places/place-review-work-items.server";
 import { AUTO_PIPELINE_ACTOR_ID, runAutoReviewPipeline } from "../../app/features/places/place-review-auto-pipeline.server";
 
 const now = "2026-08-15T12:00:00.000Z";
@@ -52,6 +52,17 @@ describe("place review work item transitions", () => {
     const rerun = await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: true });
     await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) })).resolves.toMatchObject({ stage: "NAVER_VERIFICATION", status: "ACTIVE" });
     expect(rerun.summary.FINAL_APPROVAL).toBeUndefined();
+  });
+  it("geocodes coordless source items and writes audit without touching ready ones", async () => {
+    const { db, actorUserId, businessLicenseId, workItemId } = await createSourceReviewItem();
+    await db.update(businessLicenses).set({ latitude: null, longitude: null }).where(eq(businessLicenses.id, businessLicenseId));
+    const fakeFetch = vi.fn(async () => Response.json({ documents: [{ x: "126.9", y: "35.16" }] }));
+    const result = await geocodeMissingReviewCoords(db, { limit: 50, actorUserId, now, apiKey: "k", fetchImpl: fakeFetch as typeof fetch });
+    expect(result.geocoded).toContain(workItemId);
+    await expect(db.query.businessLicenses.findFirst({ where: eq(businessLicenses.id, businessLicenseId) })).resolves.toMatchObject({ latitude: 35.16, longitude: 126.9 });
+    await expect(db.query.adminAuditLogs.findFirst({ where: eq(adminAuditLogs.targetId, workItemId) })).resolves.toMatchObject({ action: "PLACE_REVIEW_GEOCODE_COORDS", actorUserId });
+    const noMatch = await geocodeMissingReviewCoords(db, { limit: 50, actorUserId, now, apiKey: "k", fetchImpl: vi.fn(async () => Response.json({ documents: [] })) as typeof fetch });
+    expect(noMatch.geocoded).not.toContain(workItemId);
   });
   it("advances one stage and rejects a stale stage version", async () => {
     const { db, actorUserId, workItemId } = await createSourceReviewItem();

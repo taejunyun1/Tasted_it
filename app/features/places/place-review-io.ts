@@ -22,6 +22,7 @@ export const reviewIntents = [
   "hold-review-items",
   "exclude-review-items",
   "sweep-confident-review-stage",
+  "geocode-missing-coords",
 ] as const;
 
 export type ReviewIntent = (typeof reviewIntents)[number];
@@ -35,6 +36,7 @@ export const reviewIntentsByStage: Record<ReviewStage, readonly ReviewIntent[]> 
     "advance-review-items",
     "advance-confident-review-items",
     "sweep-confident-review-stage",
+    "geocode-missing-coords",
     "hold-review-items",
     "exclude-review-items",
   ],
