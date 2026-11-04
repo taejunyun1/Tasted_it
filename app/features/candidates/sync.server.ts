@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { publicDataSyncRuns } from "../../db/schema";
@@ -33,19 +33,20 @@ export async function syncPublicDataBatch(db: AppDb, input: {
       eq(publicDataSyncRuns.sourceType, input.sourceType),
       eq(publicDataSyncRuns.regionCode, syncRegion),
       eq(publicDataSyncRuns.addressField, input.addressField),
-      eq(publicDataSyncRuns.status, "RUNNING"),
+      inArray(publicDataSyncRuns.status, ["RUNNING", "FAILED"]),
     ),
     orderBy: desc(publicDataSyncRuns.startedAt),
   });
-  const runId = existing?.id ?? crypto.randomUUID();
-  let page = existing?.nextPage ?? 1;
+  const resumable = existing && existing.nextPage > 1 ? existing : null;
+  const runId = resumable?.id ?? crypto.randomUUID();
+  let page = resumable?.nextPage ?? 1;
   let fetched = 0;
   let inserted = 0;
   let updated = 0;
   let skipped = 0;
   let excluded = 0;
-  let totalCount = existing?.totalCount ?? 0;
-  if (!existing) {
+  let totalCount = resumable?.totalCount ?? 0;
+  if (!resumable) {
     await db.insert(publicDataSyncRuns).values({
       id: runId, sourceType: input.sourceType, regionCode: syncRegion,
       addressField: input.addressField, status: "RUNNING", nextPage: 1,
@@ -60,8 +61,18 @@ export async function syncPublicDataBatch(db: AppDb, input: {
         pageNo: page, numOfRows: 100, addressField: input.addressField,
         addressPrefix: LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX,
       });
-      const response = await fetcher(url, { headers: { Accept: "application/json" } });
-      if (!response.ok) throw new Error(`PUBLIC_DATA_HTTP_${response.status}`);
+      let response: Awaited<ReturnType<typeof fetcher>> | null = null;
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          response = await fetcher(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(30_000) });
+          if (response.ok) break;
+          lastError = new Error(`PUBLIC_DATA_HTTP_${response.status}`);
+          if (response.status < 500) break;
+        } catch (error) { lastError = error; }
+        response = null;
+      }
+      if (!response || !response.ok) throw (lastError ?? new Error("PUBLIC_DATA_HTTP_UNKNOWN"));
       const parsed = parsePublicDataResponse(await response.json());
       totalCount = parsed.totalCount;
       for (const raw of parsed.items) {
@@ -78,10 +89,10 @@ export async function syncPublicDataBatch(db: AppDb, input: {
     const completed = (page - 1) * 100 >= totalCount || totalCount === 0;
     await db.update(publicDataSyncRuns).set({
       status: completed ? "COMPLETED" : "RUNNING", nextPage: page, totalCount,
-      fetchedCount: (existing?.fetchedCount ?? 0) + fetched,
-      insertedCount: (existing?.insertedCount ?? 0) + inserted,
-      updatedCount: (existing?.updatedCount ?? 0) + updated,
-      skippedCount: (existing?.skippedCount ?? 0) + skipped,
+      fetchedCount: (resumable?.fetchedCount ?? 0) + fetched,
+      insertedCount: (resumable?.insertedCount ?? 0) + inserted,
+      updatedCount: (resumable?.updatedCount ?? 0) + updated,
+      skippedCount: (resumable?.skippedCount ?? 0) + skipped,
       finishedAt: completed ? now : null, updatedAt: now, errorSummary: null,
     }).where(eq(publicDataSyncRuns.id, runId));
     return { runId, completed, nextPage: page, totalCount, fetched, inserted, updated, skipped, excluded };

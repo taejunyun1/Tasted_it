@@ -24,6 +24,7 @@ declare namespace Cloudflare {
     PLACE_CATEGORY_V5_ENABLED: string;
     COURSE_CONTEXT_V2_ENABLED: string;
     REVIEW_CONFIDENT_ADVANCE_ENABLED: string;
+    REVIEW_AUTO_PIPELINE_ENABLED: string;
     RSI_CLOUDFLARE_ENABLED: string;
     RSI_CHECK_TOKEN: string;
     REVIEW_PHOTOS: R2Bucket;
