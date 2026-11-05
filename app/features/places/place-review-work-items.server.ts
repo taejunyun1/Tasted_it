@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import { searchKakaoAddress } from "./kakao-local.server";
@@ -504,7 +504,14 @@ type SweepWriteOp = {
 };
 
 const SWEEP_WRITE_BATCH = 80;
+const SWEEP_SCAN_PAGE = 100;
+const SWEEP_SCAN_MAX = 500;
+const SWEEP_SKIPPED_REPORT_MAX = 200;
 
+/** The queue head is ordered by updatedAt and failing items keep that position,
+ * so a fixed head window pins forever behind un-advanceable rows. Walk pages by
+ * an (updatedAt, id) cursor until `cap` items are ready or a scan budget is
+ * spent, whichever comes first. */
 export async function sweepConfidentReviewStage(db: AppDb, input: {
   stage: ReviewStage;
   limit: number;
@@ -515,25 +522,14 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
 }): Promise<{ scanned: number; ready: number; advanced: string[]; skipped: TransitionResult["skipped"] }> {
   if (input.stage === "FINAL_APPROVAL") return { scanned: 0, ready: 0, advanced: [], skipped: [] };
   const cap = Math.min(Math.max(1, Math.floor(input.limit) || 1), REVIEW_SWEEP_MAX);
-  const rows = await db.select()
-    .from(placeReviewWorkItems)
-    .where(and(eq(placeReviewWorkItems.stage, input.stage), eq(placeReviewWorkItems.status, "ACTIVE")))
-    .orderBy(asc(placeReviewWorkItems.updatedAt))
-    .limit(cap);
-  if (!rows.length) return { scanned: 0, ready: 0, advanced: [], skipped: [] };
-  const ctx = await prefetchReviewContext(db, rows);
+  const scanCap = Math.min(Math.max(cap * 5, SWEEP_SCAN_PAGE), SWEEP_SCAN_MAX);
+  const dry = input.dryRun || !input.confidentAdvanceEnabled;
   const skipped: TransitionResult["skipped"] = [];
-  if (input.dryRun || !input.confidentAdvanceEnabled) {
-    let ready = 0;
-    for (const workItem of rows) {
-      const { evidence, dining, candidateNaver } = await prefetchedReviewEvidence(ctx, workItem, input.now);
-      const withCategory = await applyStoredLeafCategoryPrefetched(db, ctx, workItem, dining, candidateNaver, input.now);
-      const activeEvidence = withCategory === workItem ? evidence : (await prefetchedReviewEvidence(ctx, withCategory, input.now)).evidence;
-      if (confidentAdvanceAllowed(withCategory.stage, activeEvidence)) ready += 1;
-      else skipped.push({ workItemId: workItem.id, code: confidentAdvanceSkipCode(withCategory.stage, activeEvidence) });
-    }
-    return { scanned: rows.length, ready, advanced: [], skipped };
-  }
+  const processed: Array<typeof placeReviewWorkItems.$inferSelect> = [];
+  let ready = 0;
+  let cursorUpdatedAt: string | null = null;
+  let cursorId: string | null = null;
+
   // Plan every item's writes in memory first, then flush them as chunked
   // db.batch calls. Per-item statements execute in order inside a batch, so
   // chained stages keep their version chain; a raced statement simply changes
@@ -541,71 +537,51 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
   type ItemPlan = { ops: SweepWriteOp[]; fallbackSkip: TransitionSkipCode };
   const plans = new Map<string, ItemPlan>();
   const flatOps: SweepWriteOp[] = [];
-  const advanced: string[] = [];
-  for (const workItem of rows) {
-    let current = workItem;
-    const plan: ItemPlan = { ops: [], fallbackSkip: "STALE_WORK_ITEM" };
-    plans.set(workItem.id, plan);
-    const parts = await prefetchedSubjectParts(ctx, workItem, input.now);
-    const { dining, candidateNaver } = parts;
-    for (let step = 0; step < 4; step += 1) {
-      let activeEvidence = evidenceFromPrefetch(ctx, current, parts);
-      if (dining.decision.decision === "EXCLUDE") {
-        // Same write shape as enforceReviewDiningExclusion, deferred into the sweep batch.
-        const note = [...dining.decision.reasons.map((reason) => diningReasonLabels[reason]), ...dining.decision.matchedRules].join(" · ");
-        plan.ops.push({
-          workItemId: workItem.id, advance: false, resultIndex: flatOps.length,
-          update: db.update(placeReviewWorkItems).set({ status: "EXCLUDED", holdCode: "AUTO_LOCAL_DINING_EXCLUSION", holdNote: note,
-            stageVersion: current.stageVersion + 1, lastTransitionBy: input.actorUserId, lastTransitionAt: input.now, updatedAt: input.now })
-            .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.status, "ACTIVE"), eq(placeReviewWorkItems.stageVersion, current.stageVersion), isNull(placeReviewWorkItems.claimToken)))
-            .returning({ id: placeReviewWorkItems.id }),
-          audit: db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_AUTO_EXCLUDE_LOCAL_DINING",
-            targetType: "PLACE_REVIEW_WORK_ITEM", targetId: current.id, beforeState: JSON.stringify({ stage: current.stage, status: current.status }),
-            afterState: JSON.stringify({ status: "EXCLUDED", ...dining.decision }), createdAt: input.now }),
-        });
-        flatOps.push(plan.ops[plan.ops.length - 1]!);
-        plan.fallbackSkip = "ACTIVE_EXCLUSION";
-        break;
+
+  outer:
+  while (ready < cap) {
+    const remaining = scanCap - processed.length;
+    if (remaining <= 0) break;
+    const page: Array<typeof placeReviewWorkItems.$inferSelect> = await db.select()
+      .from(placeReviewWorkItems)
+      .where(and(
+        eq(placeReviewWorkItems.stage, input.stage),
+        eq(placeReviewWorkItems.status, "ACTIVE"),
+        cursorId ? or(
+          gt(placeReviewWorkItems.updatedAt, cursorUpdatedAt!),
+          and(eq(placeReviewWorkItems.updatedAt, cursorUpdatedAt!), gt(placeReviewWorkItems.id, cursorId)),
+        ) : undefined,
+      ))
+      .orderBy(asc(placeReviewWorkItems.updatedAt), asc(placeReviewWorkItems.id))
+      .limit(Math.min(SWEEP_SCAN_PAGE, remaining));
+    if (!page.length) break;
+    const tail = page[page.length - 1]!;
+    cursorUpdatedAt = tail.updatedAt;
+    cursorId = tail.id;
+    const ctx = await prefetchReviewContext(db, page);
+    for (const workItem of page) {
+      processed.push(workItem);
+      if (dry) {
+        const { evidence, dining, candidateNaver } = await prefetchedReviewEvidence(ctx, workItem, input.now);
+        const withCategory = await applyStoredLeafCategoryPrefetched(db, ctx, workItem, dining, candidateNaver, input.now);
+        const activeEvidence = withCategory === workItem ? evidence : (await prefetchedReviewEvidence(ctx, withCategory, input.now)).evidence;
+        if (confidentAdvanceAllowed(withCategory.stage, activeEvidence)) ready += 1;
+        else skipped.push({ workItemId: workItem.id, code: confidentAdvanceSkipCode(withCategory.stage, activeEvidence) });
+      } else {
+        let eligible = false;
+        const { ops, fallbackSkip } = await planWorkItemAdvance(db, ctx, workItem, input, flatOps);
+        plans.set(workItem.id, { ops, fallbackSkip });
+        eligible = ops.some((op) => op.advance);
+        if (eligible) ready += 1;
       }
-      const leafCategoryId = !current.selectedCategoryId && current.businessLicenseId && dining.candidateFresh
-        && candidateNaver?.status === "VERIFIED" && candidateNaver.mappedCategoryId
-        && ctx.categoryById.get(candidateNaver.mappedCategoryId)?.isActive && ctx.activeCategoryLeafIds.has(candidateNaver.mappedCategoryId)
-        ? candidateNaver.mappedCategoryId : null;
-      if (leafCategoryId) {
-        plan.ops.push({
-          workItemId: workItem.id, advance: false, resultIndex: flatOps.length,
-          update: db.update(placeReviewWorkItems).set({ selectedCategoryId: leafCategoryId, categoryOverrideReason: null, updatedAt: input.now, stageVersion: current.stageVersion + 1 })
-            .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.stage, current.stage), eq(placeReviewWorkItems.stageVersion, current.stageVersion), eq(placeReviewWorkItems.status, "ACTIVE")))
-            .returning({ id: placeReviewWorkItems.id }),
-          audit: null,
-        });
-        flatOps.push(plan.ops[plan.ops.length - 1]!);
-        current = { ...current, selectedCategoryId: leafCategoryId, categoryOverrideReason: null, stageVersion: current.stageVersion + 1, updatedAt: input.now };
-        activeEvidence = evidenceFromPrefetch(ctx, current, parts);
-      }
-      if (!confidentAdvanceAllowed(current.stage, activeEvidence)) {
-        plan.fallbackSkip = confidentAdvanceSkipCode(current.stage, activeEvidence);
-        break;
-      }
-      const evaluation = evaluateReviewAdvance(current.stage, activeEvidence);
-      if (!evaluation.ok) {
-        plan.fallbackSkip = evaluation.code;
-        break;
-      }
-      plan.ops.push({
-        workItemId: workItem.id, advance: true, resultIndex: flatOps.length,
-        update: db.update(placeReviewWorkItems).set({ stage: evaluation.nextStage, stageVersion: current.stageVersion + 1,
-          manualEvidenceReason: current.manualEvidenceReason, lastTransitionBy: input.actorUserId, lastTransitionAt: input.now, updatedAt: input.now })
-          .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.stage, current.stage), eq(placeReviewWorkItems.stageVersion, current.stageVersion), eq(placeReviewWorkItems.status, "ACTIVE")))
-          .returning({ id: placeReviewWorkItems.id }),
-        audit: db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_STAGE_CHANGE",
-          targetType: "PLACE_REVIEW_WORK_ITEM", targetId: current.id, beforeState: JSON.stringify({ stage: current.stage, stageVersion: current.stageVersion }),
-          afterState: JSON.stringify({ stage: evaluation.nextStage, stageVersion: current.stageVersion + 1 }), createdAt: input.now }),
-      });
-      flatOps.push(plan.ops[plan.ops.length - 1]!);
-      current = { ...current, stage: evaluation.nextStage, stageVersion: current.stageVersion + 1, updatedAt: input.now };
+      if (ready >= cap) continue outer;
     }
+    if (page.length < Math.min(SWEEP_SCAN_PAGE, remaining)) break;
   }
+  const scanned = processed.length;
+  if (!scanned) return { scanned: 0, ready: 0, advanced: [], skipped: [] };
+  if (dry) return { scanned, ready, advanced: [], skipped: skipped.slice(0, SWEEP_SKIPPED_REPORT_MAX) };
+
   const changed: boolean[] = new Array(flatOps.length).fill(false);
   for (let i = 0; i < flatOps.length; i += SWEEP_WRITE_BATCH) {
     const chunk = flatOps.slice(i, i + SWEEP_WRITE_BATCH).map((op) => op.update) as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]];
@@ -616,13 +592,85 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
   for (let i = 0; i < auditStatements.length; i += SWEEP_WRITE_BATCH) {
     await db.batch(auditStatements.slice(i, i + SWEEP_WRITE_BATCH) as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
   }
-  for (const workItem of rows) {
+  const advanced: string[] = [];
+  for (const workItem of processed) {
     const plan = plans.get(workItem.id)!;
     if (plan.ops.some((op) => op.advance && changed[op.resultIndex])) advanced.push(workItem.id);
     else if (plan.ops.some((op) => op.advance)) skipped.push({ workItemId: workItem.id, code: "STALE_WORK_ITEM" });
     else skipped.push({ workItemId: workItem.id, code: plan.fallbackSkip });
   }
-  return { scanned: rows.length, ready: advanced.length, advanced, skipped };
+  return { scanned, ready: advanced.length, advanced, skipped: skipped.slice(0, SWEEP_SKIPPED_REPORT_MAX) };
+}
+
+/** One item's write plan for a real sweep; factored out of the page loop so the
+ * per-item semantics stay byte-for-byte with the previous implementation. */
+async function planWorkItemAdvance(
+  db: AppDb,
+  ctx: Awaited<ReturnType<typeof prefetchReviewContext>>,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  input: { actorUserId: string; now: string },
+  flatOps: SweepWriteOp[],
+): Promise<{ ops: SweepWriteOp[]; fallbackSkip: TransitionSkipCode }> {
+  const ops: SweepWriteOp[] = [];
+  let fallbackSkip: TransitionSkipCode = "STALE_WORK_ITEM";
+  let current = workItem;
+  const parts = await prefetchedSubjectParts(ctx, workItem, input.now);
+  const { dining, candidateNaver } = parts;
+  for (let step = 0; step < 4; step += 1) {
+    let activeEvidence = evidenceFromPrefetch(ctx, current, parts);
+    if (dining.decision.decision === "EXCLUDE") {
+      // Same write shape as enforceReviewDiningExclusion, deferred into the sweep batch.
+      const note = [...dining.decision.reasons.map((reason) => diningReasonLabels[reason]), ...dining.decision.matchedRules].join(" · ");
+      ops.push({
+        workItemId: workItem.id, advance: false, resultIndex: flatOps.length,
+        update: db.update(placeReviewWorkItems).set({ status: "EXCLUDED", holdCode: "AUTO_LOCAL_DINING_EXCLUSION", holdNote: note,
+          stageVersion: current.stageVersion + 1, lastTransitionBy: input.actorUserId, lastTransitionAt: input.now, updatedAt: input.now })
+          .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.status, "ACTIVE"), eq(placeReviewWorkItems.stageVersion, current.stageVersion), isNull(placeReviewWorkItems.claimToken)))
+          .returning({ id: placeReviewWorkItems.id }),
+        audit: db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_AUTO_EXCLUDE_LOCAL_DINING",
+          targetType: "PLACE_REVIEW_WORK_ITEM", targetId: current.id, beforeState: JSON.stringify({ stage: current.stage, status: current.status }),
+          afterState: JSON.stringify({ status: "EXCLUDED", ...dining.decision }), createdAt: input.now }),
+      });
+      flatOps.push(ops[ops.length - 1]!);
+      return { ops, fallbackSkip: "ACTIVE_EXCLUSION" };
+    }
+    const leafCategoryId = !current.selectedCategoryId && current.businessLicenseId && dining.candidateFresh
+      && candidateNaver?.status === "VERIFIED" && candidateNaver.mappedCategoryId
+      && ctx.categoryById.get(candidateNaver.mappedCategoryId)?.isActive && ctx.activeCategoryLeafIds.has(candidateNaver.mappedCategoryId)
+      ? candidateNaver.mappedCategoryId : null;
+    if (leafCategoryId) {
+      ops.push({
+        workItemId: workItem.id, advance: false, resultIndex: flatOps.length,
+        update: db.update(placeReviewWorkItems).set({ selectedCategoryId: leafCategoryId, categoryOverrideReason: null, updatedAt: input.now, stageVersion: current.stageVersion + 1 })
+          .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.stage, current.stage), eq(placeReviewWorkItems.stageVersion, current.stageVersion), eq(placeReviewWorkItems.status, "ACTIVE")))
+          .returning({ id: placeReviewWorkItems.id }),
+        audit: null,
+      });
+      flatOps.push(ops[ops.length - 1]!);
+      current = { ...current, selectedCategoryId: leafCategoryId, categoryOverrideReason: null, stageVersion: current.stageVersion + 1, updatedAt: input.now };
+      activeEvidence = evidenceFromPrefetch(ctx, current, parts);
+    }
+    if (!confidentAdvanceAllowed(current.stage, activeEvidence)) {
+      return { ops, fallbackSkip: confidentAdvanceSkipCode(current.stage, activeEvidence) };
+    }
+    const evaluation = evaluateReviewAdvance(current.stage, activeEvidence);
+    if (!evaluation.ok) {
+      return { ops, fallbackSkip: evaluation.code };
+    }
+    ops.push({
+      workItemId: workItem.id, advance: true, resultIndex: flatOps.length,
+      update: db.update(placeReviewWorkItems).set({ stage: evaluation.nextStage, stageVersion: current.stageVersion + 1,
+        manualEvidenceReason: current.manualEvidenceReason, lastTransitionBy: input.actorUserId, lastTransitionAt: input.now, updatedAt: input.now })
+        .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.stage, current.stage), eq(placeReviewWorkItems.stageVersion, current.stageVersion), eq(placeReviewWorkItems.status, "ACTIVE")))
+        .returning({ id: placeReviewWorkItems.id }),
+      audit: db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_STAGE_CHANGE",
+        targetType: "PLACE_REVIEW_WORK_ITEM", targetId: current.id, beforeState: JSON.stringify({ stage: current.stage, stageVersion: current.stageVersion }),
+        afterState: JSON.stringify({ stage: evaluation.nextStage, stageVersion: current.stageVersion + 1 }), createdAt: input.now }),
+    });
+    flatOps.push(ops[ops.length - 1]!);
+    current = { ...current, stage: evaluation.nextStage, stageVersion: current.stageVersion + 1, updatedAt: input.now };
+  }
+  return { ops, fallbackSkip };
 }
 
 async function changeReviewItemStatus(
