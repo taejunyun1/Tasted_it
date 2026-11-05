@@ -386,7 +386,13 @@ async function prefetchReviewContext(db: AppDb, workItems: Array<typeof placeRev
         .where(and(inArray(businessLicenseExclusions.businessLicenseId, licenseIds), eq(businessLicenseExclusions.status, "ACTIVE")))
       : Promise.resolve([]),
     db.select().from(categories),
-    listReviewDuplicateCandidates(db, workItems.map((item) => item.id)),
+    // listReviewDuplicateCandidates caps its id list at REVIEW_BATCH_MAX; sweep
+    // cap is larger, so chunk instead of widening the public batch limit.
+    Promise.all(
+      Array.from({ length: Math.ceil(workItems.length / REVIEW_BATCH_MAX) }, (_, i) =>
+        listReviewDuplicateCandidates(db, workItems.slice(i * REVIEW_BATCH_MAX, (i + 1) * REVIEW_BATCH_MAX).map((item) => item.id))
+      ),
+    ).then((batches) => batches.flat()),
   ]);
   const verificationByLicenseId = new Map<string, typeof naverLocalCategoryVerifications.$inferSelect>();
   for (const row of verifications) {

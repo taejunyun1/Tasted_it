@@ -41,6 +41,14 @@ describe("place review work item transitions", () => {
     const { db, actorUserId } = await createSourceReviewItem();
     await expect(sweepConfidentReviewStage(db, { stage: "FINAL_APPROVAL", limit: 100, dryRun: false, actorUserId, now, confidentAdvanceEnabled: true })).resolves.toMatchObject({ scanned: 0, advanced: [] });
   });
+  it("sweeps beyond REVIEW_BATCH_MAX via chunked duplicate prefetch", async () => {
+    const { db, actorUserId } = await createSourceReviewItem();
+    for (let i = 0; i < 51; i += 1) await createSourceReviewItem();
+    const live = await sweepConfidentReviewStage(db, { stage: "SOURCE_REVIEW", limit: 100, dryRun: false, actorUserId, now, confidentAdvanceEnabled: true });
+    expect(live.scanned).toBeGreaterThanOrEqual(51);
+    expect(live.advanced.length + live.skipped.length).toBe(live.scanned);
+    expect(live.advanced.length).toBeGreaterThan(0);
+  });
   it("auto pipeline advances ready items under the auto-pipeline actor and stops at publish", async () => {
     const { db, workItemId } = await createSourceReviewItem();
     const disabled = await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: false });
