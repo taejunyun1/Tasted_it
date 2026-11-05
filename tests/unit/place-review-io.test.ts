@@ -31,6 +31,7 @@ describe("place review request contract", () => {
       "confirm-review-categories",
       "advance-confident-review-items",
       "sweep-confident-review-stage",
+      "apply-category-fallback",
       "hold-review-items",
       "exclude-review-items",
     ]);
