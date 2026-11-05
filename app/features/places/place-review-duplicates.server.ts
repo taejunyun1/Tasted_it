@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
+import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import { adminAuditLogs, businessLicenses, placeReviewDuplicateResolutions, placeReviewWorkItems, places } from "../../db/schema";
 import { classifyChainStore } from "../candidates/chain-store-policy";
 import { REVIEW_BATCH_MAX } from "./place-review-io";
@@ -103,14 +104,14 @@ export async function openReviewDuplicateCounts(db: AppDb, workItemIds: string[]
   const counts = new Map<string, number>();
   if (!ids.length) return counts;
   const [items, candidatePlaces, resolutions] = await Promise.all([
-    db.select({ workItem: placeReviewWorkItems, license: businessLicenses, place: places })
+    loadInD1Chunks(ids, (chunk) => db.select({ workItem: placeReviewWorkItems, license: businessLicenses, place: places })
       .from(placeReviewWorkItems)
       .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId))
       .leftJoin(places, eq(places.id, placeReviewWorkItems.placeId))
-      .where(inArray(placeReviewWorkItems.id, ids)),
+      .where(inArray(placeReviewWorkItems.id, chunk)), { reservedBindings: 10 }),
     db.select({ id: places.id, name: places.name, address: places.address, latitude: places.latitude, longitude: places.longitude })
       .from(places),
-    db.select().from(placeReviewDuplicateResolutions).where(inArray(placeReviewDuplicateResolutions.workItemId, ids)),
+    loadInD1Chunks(ids, (chunk) => db.select().from(placeReviewDuplicateResolutions).where(inArray(placeReviewDuplicateResolutions.workItemId, chunk)), { reservedBindings: 10 }),
   ]);
   const resolutionByPair = new Map(resolutions.map((row) => [`${row.workItemId}|${row.candidatePlaceId}`, row.decision]));
   const placesByNormalizedName = new Map<string, typeof candidatePlaces>();

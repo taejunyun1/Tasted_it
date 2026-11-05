@@ -4,6 +4,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { searchKakaoAddress } from "./kakao-local.server";
 
 import type { AppDb } from "../../db/client.server";
+import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import {
   adminAuditLogs,
   businessLicenseExclusions,
@@ -379,14 +380,12 @@ async function prefetchReviewContext(db: AppDb, workItems: Array<typeof placeRev
   const licenseIds = [...new Set(workItems.map((item) => item.businessLicenseId).filter((id): id is string => Boolean(id)))];
   const placeIds = [...new Set(workItems.map((item) => item.placeId).filter((id): id is string => Boolean(id)))];
   const [licenses, placeRows, verifications, livenessRows, exclusions, categoryRows, openDuplicateCountByWorkItemId] = await Promise.all([
-    licenseIds.length ? db.select().from(businessLicenses).where(inArray(businessLicenses.id, licenseIds)) : Promise.resolve([]),
-    placeIds.length ? db.select().from(places).where(inArray(places.id, placeIds)) : Promise.resolve([]),
-    licenseIds.length ? db.select().from(naverLocalCategoryVerifications).where(inArray(naverLocalCategoryVerifications.businessLicenseId, licenseIds)) : Promise.resolve([]),
-    placeIds.length ? db.select().from(placeLivenessStates).where(inArray(placeLivenessStates.placeId, placeIds)) : Promise.resolve([]),
-    licenseIds.length
-      ? db.select({ businessLicenseId: businessLicenseExclusions.businessLicenseId }).from(businessLicenseExclusions)
-        .where(and(inArray(businessLicenseExclusions.businessLicenseId, licenseIds), eq(businessLicenseExclusions.status, "ACTIVE")))
-      : Promise.resolve([]),
+    loadInD1Chunks(licenseIds, (ids) => db.select().from(businessLicenses).where(inArray(businessLicenses.id, ids)), { reservedBindings: 10 }),
+    loadInD1Chunks(placeIds, (ids) => db.select().from(places).where(inArray(places.id, ids)), { reservedBindings: 10 }),
+    loadInD1Chunks(licenseIds, (ids) => db.select().from(naverLocalCategoryVerifications).where(inArray(naverLocalCategoryVerifications.businessLicenseId, ids)), { reservedBindings: 10 }),
+    loadInD1Chunks(placeIds, (ids) => db.select().from(placeLivenessStates).where(inArray(placeLivenessStates.placeId, ids)), { reservedBindings: 10 }),
+    loadInD1Chunks(licenseIds, (ids) => db.select({ businessLicenseId: businessLicenseExclusions.businessLicenseId }).from(businessLicenseExclusions)
+      .where(and(inArray(businessLicenseExclusions.businessLicenseId, ids), eq(businessLicenseExclusions.status, "ACTIVE"))), { reservedBindings: 1 }),
     db.select().from(categories),
     openReviewDuplicateCounts(db, workItems.map((item) => item.id)),
   ]);
