@@ -37,8 +37,8 @@ export async function reviewDiningContextFromRows(item: Pick<WorkItem, "localDin
 }
 
 /** Never publishes or changes the underlying source/place. Exclusion is recoverable review state. */
-export async function enforceReviewDiningExclusion(db: AppDb, item: WorkItem, actorUserId: string | null, now: string, prefetchedContext?: Awaited<ReturnType<typeof getReviewDiningContext>>) {
-  const context = prefetchedContext ?? (await getReviewDiningContext(db, item, now));
+export async function enforceReviewDiningExclusion(db: AppDb, item: WorkItem, actorUserId: string | null, now: string) {
+  const context = await getReviewDiningContext(db, item, now);
   if (context.decision.decision !== "EXCLUDE") return { ...context, excluded: false };
   const note = [...context.decision.reasons.map((reason) => diningReasonLabels[reason]), ...context.decision.matchedRules].join(" · ");
   const changed = await db.update(placeReviewWorkItems).set({ status: "EXCLUDED", holdCode: "AUTO_LOCAL_DINING_EXCLUSION", holdNote: note,
