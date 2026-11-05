@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 
 import { searchKakaoAddress } from "./kakao-local.server";
 
@@ -26,6 +27,7 @@ import {
 } from "./place-review-pipeline";
 import { listReviewDuplicateCandidates, openReviewDuplicateCount } from "./place-review-duplicates.server";
 import { enforceReviewDiningExclusion, getReviewDiningContext, reviewDiningContextFromRows } from "./local-dining-review.server";
+import { diningReasonLabels } from "./local-dining-policy";
 import { getTerminalCategoryIds } from "../candidates/category-selection";
 import { regionFromAddress } from "../regions/region-pack";
 
@@ -487,40 +489,17 @@ async function applyStoredLeafCategoryPrefetched(
   return updated[0] ?? workItem;
 }
 
-/** Conditional stage update + audit, same shape as `advancePlaceReviewWorkItems`. */
-async function advanceReviewWorkItemStage(
-  db: AppDb,
-  workItem: typeof placeReviewWorkItems.$inferSelect,
-  nextStage: ReviewStage,
-  actorUserId: string,
-  now: string,
-) {
-  const changed = await db.update(placeReviewWorkItems).set({
-    stage: nextStage,
-    stageVersion: workItem.stageVersion + 1,
-    manualEvidenceReason: workItem.manualEvidenceReason,
-    lastTransitionBy: actorUserId,
-    lastTransitionAt: now,
-    updatedAt: now,
-  }).where(and(
-    eq(placeReviewWorkItems.id, workItem.id),
-    eq(placeReviewWorkItems.stage, workItem.stage),
-    eq(placeReviewWorkItems.stageVersion, workItem.stageVersion),
-    eq(placeReviewWorkItems.status, "ACTIVE"),
-  )).returning({ id: placeReviewWorkItems.id });
-  if (!changed.length) return false;
-  await db.insert(adminAuditLogs).values({
-    id: crypto.randomUUID(),
-    actorUserId,
-    action: "PLACE_REVIEW_STAGE_CHANGE",
-    targetType: "PLACE_REVIEW_WORK_ITEM",
-    targetId: workItem.id,
-    beforeState: JSON.stringify({ stage: workItem.stage, stageVersion: workItem.stageVersion }),
-    afterState: JSON.stringify({ stage: nextStage, stageVersion: workItem.stageVersion + 1 }),
-    createdAt: now,
-  });
-  return true;
-}
+/** Lazily-built write pair for one state change; the audit runs only when the
+ * conditional update changed a row (checked after the batched phase). */
+type SweepWriteOp = {
+  workItemId: string;
+  update: BatchItem<"sqlite">;
+  audit: BatchItem<"sqlite"> | null;
+  advance: boolean;
+  resultIndex: number;
+};
+
+const SWEEP_WRITE_BATCH = 80;
 
 export async function sweepConfidentReviewStage(db: AppDb, input: {
   stage: ReviewStage;
@@ -551,37 +530,92 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
     }
     return { scanned: rows.length, ready, advanced: [], skipped };
   }
+  // Plan every item's writes in memory first, then flush them as chunked
+  // db.batch calls. Per-item statements execute in order inside a batch, so
+  // chained stages keep their version chain; a raced statement simply changes
+  // no row and the paired audit is dropped in phase two.
+  type ItemPlan = { ops: SweepWriteOp[]; fallbackSkip: TransitionSkipCode };
+  const plans = new Map<string, ItemPlan>();
+  const flatOps: SweepWriteOp[] = [];
   const advanced: string[] = [];
   for (const workItem of rows) {
     let current = workItem;
-    let itemAdvanced = false;
+    const plan: ItemPlan = { ops: [], fallbackSkip: "STALE_WORK_ITEM" };
+    plans.set(workItem.id, plan);
     for (let step = 0; step < 4; step += 1) {
       const { evidence, dining, candidateNaver } = await prefetchedReviewEvidence(ctx, current, input.now);
-      const exclusion = await enforceReviewDiningExclusion(db, current, input.actorUserId, input.now, dining);
-      if (exclusion.decision.decision === "EXCLUDE") {
-        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: "ACTIVE_EXCLUSION" });
+      if (dining.decision.decision === "EXCLUDE") {
+        // Same write shape as enforceReviewDiningExclusion, deferred into the sweep batch.
+        const note = [...dining.decision.reasons.map((reason) => diningReasonLabels[reason]), ...dining.decision.matchedRules].join(" · ");
+        plan.ops.push({
+          workItemId: workItem.id, advance: false, resultIndex: flatOps.length,
+          update: db.update(placeReviewWorkItems).set({ status: "EXCLUDED", holdCode: "AUTO_LOCAL_DINING_EXCLUSION", holdNote: note,
+            stageVersion: current.stageVersion + 1, lastTransitionBy: input.actorUserId, lastTransitionAt: input.now, updatedAt: input.now })
+            .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.status, "ACTIVE"), eq(placeReviewWorkItems.stageVersion, current.stageVersion), isNull(placeReviewWorkItems.claimToken)))
+            .returning({ id: placeReviewWorkItems.id }),
+          audit: db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_AUTO_EXCLUDE_LOCAL_DINING",
+            targetType: "PLACE_REVIEW_WORK_ITEM", targetId: current.id, beforeState: JSON.stringify({ stage: current.stage, status: current.status }),
+            afterState: JSON.stringify({ status: "EXCLUDED", ...dining.decision }), createdAt: input.now }),
+        });
+        flatOps.push(plan.ops[plan.ops.length - 1]!);
+        plan.fallbackSkip = "ACTIVE_EXCLUSION";
         break;
       }
-      const withCategory = await applyStoredLeafCategoryPrefetched(db, ctx, current, dining, candidateNaver, input.now);
-      const activeEvidence = withCategory === current ? evidence : (await prefetchedReviewEvidence(ctx, withCategory, input.now)).evidence;
-      if (!confidentAdvanceAllowed(withCategory.stage, activeEvidence)) {
-        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: confidentAdvanceSkipCode(withCategory.stage, activeEvidence) });
+      const leafCategoryId = !current.selectedCategoryId && current.businessLicenseId && dining.candidateFresh
+        && candidateNaver?.status === "VERIFIED" && candidateNaver.mappedCategoryId
+        && ctx.categoryById.get(candidateNaver.mappedCategoryId)?.isActive && ctx.activeCategoryLeafIds.has(candidateNaver.mappedCategoryId)
+        ? candidateNaver.mappedCategoryId : null;
+      let activeEvidence = evidence;
+      if (leafCategoryId) {
+        plan.ops.push({
+          workItemId: workItem.id, advance: false, resultIndex: flatOps.length,
+          update: db.update(placeReviewWorkItems).set({ selectedCategoryId: leafCategoryId, categoryOverrideReason: null, updatedAt: input.now, stageVersion: current.stageVersion + 1 })
+            .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.stage, current.stage), eq(placeReviewWorkItems.stageVersion, current.stageVersion), eq(placeReviewWorkItems.status, "ACTIVE")))
+            .returning({ id: placeReviewWorkItems.id }),
+          audit: null,
+        });
+        flatOps.push(plan.ops[plan.ops.length - 1]!);
+        current = { ...current, selectedCategoryId: leafCategoryId, categoryOverrideReason: null, stageVersion: current.stageVersion + 1, updatedAt: input.now };
+        activeEvidence = (await prefetchedReviewEvidence(ctx, current, input.now)).evidence;
+      }
+      if (!confidentAdvanceAllowed(current.stage, activeEvidence)) {
+        plan.fallbackSkip = confidentAdvanceSkipCode(current.stage, activeEvidence);
         break;
       }
-      const evaluation = evaluateReviewAdvance(withCategory.stage, activeEvidence);
+      const evaluation = evaluateReviewAdvance(current.stage, activeEvidence);
       if (!evaluation.ok) {
-        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: evaluation.code });
+        plan.fallbackSkip = evaluation.code;
         break;
       }
-      const changed = await advanceReviewWorkItemStage(db, withCategory, evaluation.nextStage, input.actorUserId, input.now);
-      if (!changed) {
-        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: "STALE_WORK_ITEM" });
-        break;
-      }
-      itemAdvanced = true;
-      current = { ...withCategory, stage: evaluation.nextStage, stageVersion: withCategory.stageVersion + 1, updatedAt: input.now };
+      plan.ops.push({
+        workItemId: workItem.id, advance: true, resultIndex: flatOps.length,
+        update: db.update(placeReviewWorkItems).set({ stage: evaluation.nextStage, stageVersion: current.stageVersion + 1,
+          manualEvidenceReason: current.manualEvidenceReason, lastTransitionBy: input.actorUserId, lastTransitionAt: input.now, updatedAt: input.now })
+          .where(and(eq(placeReviewWorkItems.id, current.id), eq(placeReviewWorkItems.stage, current.stage), eq(placeReviewWorkItems.stageVersion, current.stageVersion), eq(placeReviewWorkItems.status, "ACTIVE")))
+          .returning({ id: placeReviewWorkItems.id }),
+        audit: db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "PLACE_REVIEW_STAGE_CHANGE",
+          targetType: "PLACE_REVIEW_WORK_ITEM", targetId: current.id, beforeState: JSON.stringify({ stage: current.stage, stageVersion: current.stageVersion }),
+          afterState: JSON.stringify({ stage: evaluation.nextStage, stageVersion: current.stageVersion + 1 }), createdAt: input.now }),
+      });
+      flatOps.push(plan.ops[plan.ops.length - 1]!);
+      current = { ...current, stage: evaluation.nextStage, stageVersion: current.stageVersion + 1, updatedAt: input.now };
     }
-    if (itemAdvanced) advanced.push(workItem.id);
+  }
+  const changed: boolean[] = new Array(flatOps.length).fill(false);
+  for (let i = 0; i < flatOps.length; i += SWEEP_WRITE_BATCH) {
+    const chunk = flatOps.slice(i, i + SWEEP_WRITE_BATCH).map((op) => op.update) as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]];
+    const results = await db.batch(chunk);
+    results.forEach((resultRows, offset) => { changed[i + offset] = Boolean((resultRows as Array<{ id: string }>)?.length); });
+  }
+  const auditStatements = flatOps.filter((op) => op.audit && changed[op.resultIndex]).map((op) => op.audit!);
+  for (let i = 0; i < auditStatements.length; i += SWEEP_WRITE_BATCH) {
+    await db.batch(auditStatements.slice(i, i + SWEEP_WRITE_BATCH) as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+  }
+  for (const workItem of rows) {
+    const plan = plans.get(workItem.id)!;
+    if (plan.ops.some((op) => op.advance && changed[op.resultIndex])) advanced.push(workItem.id);
+    else if (plan.ops.some((op) => op.advance)) skipped.push({ workItemId: workItem.id, code: "STALE_WORK_ITEM" });
+    else skipped.push({ workItemId: workItem.id, code: plan.fallbackSkip });
   }
   return { scanned: rows.length, ready: advanced.length, advanced, skipped };
 }
