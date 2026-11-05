@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { searchKakaoAddress } from "./kakao-local.server";
 
@@ -24,8 +24,8 @@ import {
   type ReviewBlockCode,
   type ReviewStage,
 } from "./place-review-pipeline";
-import { openReviewDuplicateCount } from "./place-review-duplicates.server";
-import { enforceReviewDiningExclusion, getReviewDiningContext } from "./local-dining-review.server";
+import { listReviewDuplicateCandidates, openReviewDuplicateCount } from "./place-review-duplicates.server";
+import { enforceReviewDiningExclusion, getReviewDiningContext, reviewDiningContextFromRows } from "./local-dining-review.server";
 import { getTerminalCategoryIds } from "../candidates/category-selection";
 import { regionFromAddress } from "../regions/region-pack";
 
@@ -360,6 +360,162 @@ export async function advanceConfidentReviewWorkItems(db: AppDb, input: {
  * stays a human action. External calls (NAVER) are not part of this path. */
 export const REVIEW_SWEEP_MAX = 100;
 
+/** One bulk read per sweep instead of ~15 queries per item. The per-item path
+ * stays for manual batches; the sweep cannot afford it (Worker subrequest cap). */
+type ReviewPrefetchContext = {
+  licenseById: Map<string, typeof businessLicenses.$inferSelect>;
+  placeById: Map<string, typeof places.$inferSelect>;
+  verificationByLicenseId: Map<string, typeof naverLocalCategoryVerifications.$inferSelect>;
+  livenessByPlaceId: Map<string, typeof placeLivenessStates.$inferSelect>;
+  excludedLicenseIds: Set<string>;
+  categoryById: Map<string, typeof categories.$inferSelect>;
+  activeCategoryLeafIds: Set<string>;
+  openDuplicateCountByWorkItemId: Map<string, number>;
+};
+
+async function prefetchReviewContext(db: AppDb, workItems: Array<typeof placeReviewWorkItems.$inferSelect>): Promise<ReviewPrefetchContext> {
+  const licenseIds = [...new Set(workItems.map((item) => item.businessLicenseId).filter((id): id is string => Boolean(id)))];
+  const placeIds = [...new Set(workItems.map((item) => item.placeId).filter((id): id is string => Boolean(id)))];
+  const [licenses, placeRows, verifications, livenessRows, exclusions, categoryRows, duplicateCandidates] = await Promise.all([
+    licenseIds.length ? db.select().from(businessLicenses).where(inArray(businessLicenses.id, licenseIds)) : Promise.resolve([]),
+    placeIds.length ? db.select().from(places).where(inArray(places.id, placeIds)) : Promise.resolve([]),
+    licenseIds.length ? db.select().from(naverLocalCategoryVerifications).where(inArray(naverLocalCategoryVerifications.businessLicenseId, licenseIds)) : Promise.resolve([]),
+    placeIds.length ? db.select().from(placeLivenessStates).where(inArray(placeLivenessStates.placeId, placeIds)) : Promise.resolve([]),
+    licenseIds.length
+      ? db.select({ businessLicenseId: businessLicenseExclusions.businessLicenseId }).from(businessLicenseExclusions)
+        .where(and(inArray(businessLicenseExclusions.businessLicenseId, licenseIds), eq(businessLicenseExclusions.status, "ACTIVE")))
+      : Promise.resolve([]),
+    db.select().from(categories),
+    listReviewDuplicateCandidates(db, workItems.map((item) => item.id)),
+  ]);
+  const verificationByLicenseId = new Map<string, typeof naverLocalCategoryVerifications.$inferSelect>();
+  for (const row of verifications) {
+    if (!verificationByLicenseId.has(row.businessLicenseId)) verificationByLicenseId.set(row.businessLicenseId, row);
+  }
+  const livenessByPlaceId = new Map<string, typeof placeLivenessStates.$inferSelect>();
+  for (const row of livenessRows) {
+    if (!livenessByPlaceId.has(row.placeId)) livenessByPlaceId.set(row.placeId, row);
+  }
+  const openDuplicateCountByWorkItemId = new Map<string, number>();
+  for (const candidate of duplicateCandidates) {
+    if (candidate.decision) continue;
+    openDuplicateCountByWorkItemId.set(candidate.workItemId, (openDuplicateCountByWorkItemId.get(candidate.workItemId) ?? 0) + 1);
+  }
+  return {
+    licenseById: new Map(licenses.map((row) => [row.id, row])),
+    placeById: new Map(placeRows.map((row) => [row.id, row])),
+    verificationByLicenseId,
+    livenessByPlaceId,
+    excludedLicenseIds: new Set(exclusions.map((row) => row.businessLicenseId)),
+    categoryById: new Map(categoryRows.map((row) => [row.id, row])),
+    activeCategoryLeafIds: getTerminalCategoryIds(categoryRows.filter((row) => row.isActive)),
+    openDuplicateCountByWorkItemId,
+  };
+}
+
+/** Same gate inputs as `reviewEvidence`, served from the sweep's bulk read. */
+async function prefetchedReviewEvidence(
+  ctx: ReviewPrefetchContext,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  now: string,
+) {
+  const hasManualEvidence = hasManualReviewEvidence(workItem.manualEvidenceReason);
+  const businessLicense = workItem.businessLicenseId ? ctx.licenseById.get(workItem.businessLicenseId) : undefined;
+  const place = workItem.placeId ? ctx.placeById.get(workItem.placeId) : undefined;
+  const candidateNaver = workItem.businessLicenseId ? ctx.verificationByLicenseId.get(workItem.businessLicenseId) : undefined;
+  const placeLiveness = workItem.placeId ? ctx.livenessByPlaceId.get(workItem.placeId) : undefined;
+  const selectedCategory = workItem.selectedCategoryId ? ctx.categoryById.get(workItem.selectedCategoryId) : undefined;
+  const mappedCategory = !selectedCategory && candidateNaver?.mappedCategoryId ? ctx.categoryById.get(candidateNaver.mappedCategoryId) : undefined;
+  const leafCategory = selectedCategory ?? mappedCategory;
+  const sourceReady = businessLicense
+    ? businessLicense.normalizedStatus === "OPEN"
+      && Boolean(businessLicense.roadAddress ?? businessLicense.lotAddress)
+      && businessLicense.latitude != null
+      && businessLicense.longitude != null
+    : Boolean(place?.address && place.latitude != null && place.longitude != null);
+  const dining = await reviewDiningContextFromRows(workItem, businessLicense, place, candidateNaver, placeLiveness, now);
+  return {
+    evidence: {
+      sourceReady,
+      naverDecision: businessLicense
+        ? naverDecisionForCandidate(candidateNaver?.status, hasManualEvidence)
+        : naverDecisionForPlace(placeLiveness?.naverStatus, hasManualEvidence),
+      selectedCategoryId: workItem.selectedCategoryId,
+      categoryActive: Boolean(leafCategory?.isActive),
+      openDuplicateCount: ctx.openDuplicateCountByWorkItemId.get(workItem.id) ?? 0,
+      activeExclusion: Boolean(businessLicense && ctx.excludedLicenseIds.has(businessLicense.id)),
+      localDiningDecision: dining.decision.decision,
+      categoryLeaf: Boolean(leafCategory && ctx.activeCategoryLeafIds.has(leafCategory.id)),
+      hasManualEvidence,
+    } satisfies ConfidentAdvanceEvidence,
+    dining,
+    candidateNaver,
+  };
+}
+
+/** Same write semantics as `applyStoredLeafCategory`, served from prefetched rows. */
+async function applyStoredLeafCategoryPrefetched(
+  db: AppDb,
+  ctx: ReviewPrefetchContext,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  dining: Awaited<ReturnType<typeof getReviewDiningContext>>,
+  candidateNaver: typeof naverLocalCategoryVerifications.$inferSelect | undefined,
+  now: string,
+) {
+  if (workItem.selectedCategoryId || !workItem.businessLicenseId) return workItem;
+  if (dining.decision.decision === "EXCLUDE" || !dining.candidateFresh) return workItem;
+  if (candidateNaver?.status !== "VERIFIED" || !candidateNaver.mappedCategoryId) return workItem;
+  const mapped = ctx.categoryById.get(candidateNaver.mappedCategoryId);
+  if (!mapped?.isActive || !ctx.activeCategoryLeafIds.has(mapped.id)) return workItem;
+  const updated = await db.update(placeReviewWorkItems).set({
+    selectedCategoryId: mapped.id,
+    categoryOverrideReason: null,
+    updatedAt: now,
+    stageVersion: workItem.stageVersion + 1,
+  }).where(and(
+    eq(placeReviewWorkItems.id, workItem.id),
+    eq(placeReviewWorkItems.stage, workItem.stage),
+    eq(placeReviewWorkItems.stageVersion, workItem.stageVersion),
+    eq(placeReviewWorkItems.status, "ACTIVE"),
+  )).returning();
+  return updated[0] ?? workItem;
+}
+
+/** Conditional stage update + audit, same shape as `advancePlaceReviewWorkItems`. */
+async function advanceReviewWorkItemStage(
+  db: AppDb,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  nextStage: ReviewStage,
+  actorUserId: string,
+  now: string,
+) {
+  const changed = await db.update(placeReviewWorkItems).set({
+    stage: nextStage,
+    stageVersion: workItem.stageVersion + 1,
+    manualEvidenceReason: workItem.manualEvidenceReason,
+    lastTransitionBy: actorUserId,
+    lastTransitionAt: now,
+    updatedAt: now,
+  }).where(and(
+    eq(placeReviewWorkItems.id, workItem.id),
+    eq(placeReviewWorkItems.stage, workItem.stage),
+    eq(placeReviewWorkItems.stageVersion, workItem.stageVersion),
+    eq(placeReviewWorkItems.status, "ACTIVE"),
+  )).returning({ id: placeReviewWorkItems.id });
+  if (!changed.length) return false;
+  await db.insert(adminAuditLogs).values({
+    id: crypto.randomUUID(),
+    actorUserId,
+    action: "PLACE_REVIEW_STAGE_CHANGE",
+    targetType: "PLACE_REVIEW_WORK_ITEM",
+    targetId: workItem.id,
+    beforeState: JSON.stringify({ stage: workItem.stage, stageVersion: workItem.stageVersion }),
+    afterState: JSON.stringify({ stage: nextStage, stageVersion: workItem.stageVersion + 1 }),
+    createdAt: now,
+  });
+  return true;
+}
+
 export async function sweepConfidentReviewStage(db: AppDb, input: {
   stage: ReviewStage;
   limit: number;
@@ -370,33 +526,56 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
 }): Promise<{ scanned: number; ready: number; advanced: string[]; skipped: TransitionResult["skipped"] }> {
   if (input.stage === "FINAL_APPROVAL") return { scanned: 0, ready: 0, advanced: [], skipped: [] };
   const cap = Math.min(Math.max(1, Math.floor(input.limit) || 1), REVIEW_SWEEP_MAX);
-  const rows = await db.select({ id: placeReviewWorkItems.id, stageVersion: placeReviewWorkItems.stageVersion })
+  const rows = await db.select()
     .from(placeReviewWorkItems)
     .where(and(eq(placeReviewWorkItems.stage, input.stage), eq(placeReviewWorkItems.status, "ACTIVE")))
     .orderBy(asc(placeReviewWorkItems.updatedAt))
     .limit(cap);
+  if (!rows.length) return { scanned: 0, ready: 0, advanced: [], skipped: [] };
+  const ctx = await prefetchReviewContext(db, rows);
+  const skipped: TransitionResult["skipped"] = [];
   if (input.dryRun || !input.confidentAdvanceEnabled) {
-    const skipped: TransitionResult["skipped"] = [];
     let ready = 0;
-    for (const row of rows) {
-      const workItem = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, row.id) });
-      if (!workItem) continue;
-      const withCategory = await applyStoredLeafCategory(db, workItem, input.now);
-      const evidence = await reviewEvidence(db, withCategory, undefined, input.now);
-      if (confidentAdvanceAllowed(withCategory.stage, evidence)) ready += 1;
-      else skipped.push({ workItemId: row.id, code: confidentAdvanceSkipCode(withCategory.stage, evidence) });
+    for (const workItem of rows) {
+      const { evidence, dining, candidateNaver } = await prefetchedReviewEvidence(ctx, workItem, input.now);
+      const withCategory = await applyStoredLeafCategoryPrefetched(db, ctx, workItem, dining, candidateNaver, input.now);
+      const activeEvidence = withCategory === workItem ? evidence : (await prefetchedReviewEvidence(ctx, withCategory, input.now)).evidence;
+      if (confidentAdvanceAllowed(withCategory.stage, activeEvidence)) ready += 1;
+      else skipped.push({ workItemId: workItem.id, code: confidentAdvanceSkipCode(withCategory.stage, activeEvidence) });
     }
     return { scanned: rows.length, ready, advanced: [], skipped };
   }
   const advanced: string[] = [];
-  const skipped: TransitionResult["skipped"] = [];
-  for (const row of rows) {
-    const result = await advanceConfidentReviewWorkItems(db, {
-      workItemIds: [row.id], expectedStage: input.stage, expectedVersions: { [row.id]: row.stageVersion },
-      actorUserId: input.actorUserId, now: input.now, confidentAdvanceEnabled: true,
-    });
-    advanced.push(...result.advanced);
-    skipped.push(...result.skipped);
+  for (const workItem of rows) {
+    let current = workItem;
+    let itemAdvanced = false;
+    for (let step = 0; step < 4; step += 1) {
+      const { evidence, dining, candidateNaver } = await prefetchedReviewEvidence(ctx, current, input.now);
+      const exclusion = await enforceReviewDiningExclusion(db, current, input.actorUserId, input.now, dining);
+      if (exclusion.decision.decision === "EXCLUDE") {
+        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: "ACTIVE_EXCLUSION" });
+        break;
+      }
+      const withCategory = await applyStoredLeafCategoryPrefetched(db, ctx, current, dining, candidateNaver, input.now);
+      const activeEvidence = withCategory === current ? evidence : (await prefetchedReviewEvidence(ctx, withCategory, input.now)).evidence;
+      if (!confidentAdvanceAllowed(withCategory.stage, activeEvidence)) {
+        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: confidentAdvanceSkipCode(withCategory.stage, activeEvidence) });
+        break;
+      }
+      const evaluation = evaluateReviewAdvance(withCategory.stage, activeEvidence);
+      if (!evaluation.ok) {
+        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: evaluation.code });
+        break;
+      }
+      const changed = await advanceReviewWorkItemStage(db, withCategory, evaluation.nextStage, input.actorUserId, input.now);
+      if (!changed) {
+        if (!itemAdvanced) skipped.push({ workItemId: workItem.id, code: "STALE_WORK_ITEM" });
+        break;
+      }
+      itemAdvanced = true;
+      current = { ...withCategory, stage: evaluation.nextStage, stageVersion: withCategory.stageVersion + 1, updatedAt: input.now };
+    }
+    if (itemAdvanced) advanced.push(workItem.id);
   }
   return { scanned: rows.length, ready: advanced.length, advanced, skipped };
 }
