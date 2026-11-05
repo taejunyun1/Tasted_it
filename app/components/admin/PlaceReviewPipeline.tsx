@@ -198,6 +198,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         {query.step === 2 && <button name="intent" value="approve-manual-review-evidence" disabled={standardBatchDisabled}>수동 근거로 카테고리 단계 이동</button>}
         {query.step !== 1 && query.step !== 2 && <button name="intent" value={query.step === 5 ? "publish-review-items" : query.step === 3 ? "confirm-review-categories" : "advance-review-items"} disabled={standardBatchDisabled}>{query.step === 3 ? "선택 카테고리 확정" : nextAction[query.step]}</button>}
         {query.step === 2 && !naverBatch && <Link className="secondary" to={buildPlaceReviewNextStepHref(query)}>{nextStep === 3 ? "NAVER 확인 후 카테고리 확정 단계 보기" : "카테고리 확정 단계로 이동"}</Link>}
+        {query.step === 3 && <button className="secondary" name="intent" value="apply-category-fallback">카테고리 없는 항목 폴백 배정</button>}
       </div>
     </Form>
     <PlaceReviewToolbar query={query} page={page} />
