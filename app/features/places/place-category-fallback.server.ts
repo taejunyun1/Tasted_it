@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { loadInD1Chunks } from "../../db/d1-query-chunks";
@@ -153,6 +153,9 @@ export async function applyCategoryFallback(db: AppDb, input: {
         eq(placeReviewWorkItems.stage, "CATEGORY_CONFIRMATION"),
         eq(placeReviewWorkItems.status, "ACTIVE"),
         isNull(placeReviewWorkItems.selectedCategoryId),
+        // License-less items carry zero fallback signals and would otherwise pin
+        // the head of the updatedAt-ordered scan window on every batch.
+        isNotNull(placeReviewWorkItems.businessLicenseId),
       ))
       .orderBy(asc(placeReviewWorkItems.updatedAt))
       .limit(cap),
