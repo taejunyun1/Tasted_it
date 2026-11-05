@@ -25,7 +25,7 @@ import {
   type ReviewBlockCode,
   type ReviewStage,
 } from "./place-review-pipeline";
-import { listReviewDuplicateCandidates, openReviewDuplicateCount } from "./place-review-duplicates.server";
+import { openReviewDuplicateCount, openReviewDuplicateCounts } from "./place-review-duplicates.server";
 import { enforceReviewDiningExclusion, getReviewDiningContext, reviewDiningContextFromRows } from "./local-dining-review.server";
 import { diningReasonLabels } from "./local-dining-policy";
 import { getTerminalCategoryIds } from "../candidates/category-selection";
@@ -378,7 +378,7 @@ type ReviewPrefetchContext = {
 async function prefetchReviewContext(db: AppDb, workItems: Array<typeof placeReviewWorkItems.$inferSelect>): Promise<ReviewPrefetchContext> {
   const licenseIds = [...new Set(workItems.map((item) => item.businessLicenseId).filter((id): id is string => Boolean(id)))];
   const placeIds = [...new Set(workItems.map((item) => item.placeId).filter((id): id is string => Boolean(id)))];
-  const [licenses, placeRows, verifications, livenessRows, exclusions, categoryRows, duplicateCandidates] = await Promise.all([
+  const [licenses, placeRows, verifications, livenessRows, exclusions, categoryRows, openDuplicateCountByWorkItemId] = await Promise.all([
     licenseIds.length ? db.select().from(businessLicenses).where(inArray(businessLicenses.id, licenseIds)) : Promise.resolve([]),
     placeIds.length ? db.select().from(places).where(inArray(places.id, placeIds)) : Promise.resolve([]),
     licenseIds.length ? db.select().from(naverLocalCategoryVerifications).where(inArray(naverLocalCategoryVerifications.businessLicenseId, licenseIds)) : Promise.resolve([]),
@@ -388,13 +388,7 @@ async function prefetchReviewContext(db: AppDb, workItems: Array<typeof placeRev
         .where(and(inArray(businessLicenseExclusions.businessLicenseId, licenseIds), eq(businessLicenseExclusions.status, "ACTIVE")))
       : Promise.resolve([]),
     db.select().from(categories),
-    // listReviewDuplicateCandidates caps its id list at REVIEW_BATCH_MAX; sweep
-    // cap is larger, so chunk instead of widening the public batch limit.
-    Promise.all(
-      Array.from({ length: Math.ceil(workItems.length / REVIEW_BATCH_MAX) }, (_, i) =>
-        listReviewDuplicateCandidates(db, workItems.slice(i * REVIEW_BATCH_MAX, (i + 1) * REVIEW_BATCH_MAX).map((item) => item.id))
-      ),
-    ).then((batches) => batches.flat()),
+    openReviewDuplicateCounts(db, workItems.map((item) => item.id)),
   ]);
   const verificationByLicenseId = new Map<string, typeof naverLocalCategoryVerifications.$inferSelect>();
   for (const row of verifications) {
@@ -403,11 +397,6 @@ async function prefetchReviewContext(db: AppDb, workItems: Array<typeof placeRev
   const livenessByPlaceId = new Map<string, typeof placeLivenessStates.$inferSelect>();
   for (const row of livenessRows) {
     if (!livenessByPlaceId.has(row.placeId)) livenessByPlaceId.set(row.placeId, row);
-  }
-  const openDuplicateCountByWorkItemId = new Map<string, number>();
-  for (const candidate of duplicateCandidates) {
-    if (candidate.decision) continue;
-    openDuplicateCountByWorkItemId.set(candidate.workItemId, (openDuplicateCountByWorkItemId.get(candidate.workItemId) ?? 0) + 1);
   }
   return {
     licenseById: new Map(licenses.map((row) => [row.id, row])),
@@ -421,17 +410,29 @@ async function prefetchReviewContext(db: AppDb, workItems: Array<typeof placeRev
   };
 }
 
-/** Same gate inputs as `reviewEvidence`, served from the sweep's bulk read. */
-async function prefetchedReviewEvidence(
+/** Subject rows + dining context for one item — computed once per sweep item;
+ * the dining fingerprint hash and classification do not change between chain steps. */
+async function prefetchedSubjectParts(
   ctx: ReviewPrefetchContext,
   workItem: typeof placeReviewWorkItems.$inferSelect,
   now: string,
 ) {
-  const hasManualEvidence = hasManualReviewEvidence(workItem.manualEvidenceReason);
   const businessLicense = workItem.businessLicenseId ? ctx.licenseById.get(workItem.businessLicenseId) : undefined;
   const place = workItem.placeId ? ctx.placeById.get(workItem.placeId) : undefined;
   const candidateNaver = workItem.businessLicenseId ? ctx.verificationByLicenseId.get(workItem.businessLicenseId) : undefined;
   const placeLiveness = workItem.placeId ? ctx.livenessByPlaceId.get(workItem.placeId) : undefined;
+  const dining = await reviewDiningContextFromRows(workItem, businessLicense, place, candidateNaver, placeLiveness, now);
+  return { businessLicense, place, candidateNaver, placeLiveness, dining };
+}
+
+/** Same gate inputs as `reviewEvidence`, assembled synchronously from prefetched parts. */
+function evidenceFromPrefetch(
+  ctx: ReviewPrefetchContext,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  parts: { businessLicense?: typeof businessLicenses.$inferSelect; place?: typeof places.$inferSelect; candidateNaver?: typeof naverLocalCategoryVerifications.$inferSelect; placeLiveness?: typeof placeLivenessStates.$inferSelect; dining: Awaited<ReturnType<typeof getReviewDiningContext>> },
+): ConfidentAdvanceEvidence {
+  const { businessLicense, place, candidateNaver, placeLiveness, dining } = parts;
+  const hasManualEvidence = hasManualReviewEvidence(workItem.manualEvidenceReason);
   const selectedCategory = workItem.selectedCategoryId ? ctx.categoryById.get(workItem.selectedCategoryId) : undefined;
   const mappedCategory = !selectedCategory && candidateNaver?.mappedCategoryId ? ctx.categoryById.get(candidateNaver.mappedCategoryId) : undefined;
   const leafCategory = selectedCategory ?? mappedCategory;
@@ -441,24 +442,28 @@ async function prefetchedReviewEvidence(
       && businessLicense.latitude != null
       && businessLicense.longitude != null
     : Boolean(place?.address && place.latitude != null && place.longitude != null);
-  const dining = await reviewDiningContextFromRows(workItem, businessLicense, place, candidateNaver, placeLiveness, now);
   return {
-    evidence: {
-      sourceReady,
-      naverDecision: businessLicense
-        ? naverDecisionForCandidate(candidateNaver?.status, hasManualEvidence)
-        : naverDecisionForPlace(placeLiveness?.naverStatus, hasManualEvidence),
-      selectedCategoryId: workItem.selectedCategoryId,
-      categoryActive: Boolean(leafCategory?.isActive),
-      openDuplicateCount: ctx.openDuplicateCountByWorkItemId.get(workItem.id) ?? 0,
-      activeExclusion: Boolean(businessLicense && ctx.excludedLicenseIds.has(businessLicense.id)),
-      localDiningDecision: dining.decision.decision,
-      categoryLeaf: Boolean(leafCategory && ctx.activeCategoryLeafIds.has(leafCategory.id)),
-      hasManualEvidence,
-    } satisfies ConfidentAdvanceEvidence,
-    dining,
-    candidateNaver,
+    sourceReady,
+    naverDecision: businessLicense
+      ? naverDecisionForCandidate(candidateNaver?.status, hasManualEvidence)
+      : naverDecisionForPlace(placeLiveness?.naverStatus, hasManualEvidence),
+    selectedCategoryId: workItem.selectedCategoryId,
+    categoryActive: Boolean(leafCategory?.isActive),
+    openDuplicateCount: ctx.openDuplicateCountByWorkItemId.get(workItem.id) ?? 0,
+    activeExclusion: Boolean(businessLicense && ctx.excludedLicenseIds.has(businessLicense.id)),
+    localDiningDecision: dining.decision.decision,
+    categoryLeaf: Boolean(leafCategory && ctx.activeCategoryLeafIds.has(leafCategory.id)),
+    hasManualEvidence,
   };
+}
+
+async function prefetchedReviewEvidence(
+  ctx: ReviewPrefetchContext,
+  workItem: typeof placeReviewWorkItems.$inferSelect,
+  now: string,
+) {
+  const parts = await prefetchedSubjectParts(ctx, workItem, now);
+  return { evidence: evidenceFromPrefetch(ctx, workItem, parts), dining: parts.dining, candidateNaver: parts.candidateNaver };
 }
 
 /** Same write semantics as `applyStoredLeafCategory`, served from prefetched rows. */
@@ -542,8 +547,10 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
     let current = workItem;
     const plan: ItemPlan = { ops: [], fallbackSkip: "STALE_WORK_ITEM" };
     plans.set(workItem.id, plan);
+    const parts = await prefetchedSubjectParts(ctx, workItem, input.now);
+    const { dining, candidateNaver } = parts;
     for (let step = 0; step < 4; step += 1) {
-      const { evidence, dining, candidateNaver } = await prefetchedReviewEvidence(ctx, current, input.now);
+      let activeEvidence = evidenceFromPrefetch(ctx, current, parts);
       if (dining.decision.decision === "EXCLUDE") {
         // Same write shape as enforceReviewDiningExclusion, deferred into the sweep batch.
         const note = [...dining.decision.reasons.map((reason) => diningReasonLabels[reason]), ...dining.decision.matchedRules].join(" · ");
@@ -565,7 +572,6 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
         && candidateNaver?.status === "VERIFIED" && candidateNaver.mappedCategoryId
         && ctx.categoryById.get(candidateNaver.mappedCategoryId)?.isActive && ctx.activeCategoryLeafIds.has(candidateNaver.mappedCategoryId)
         ? candidateNaver.mappedCategoryId : null;
-      let activeEvidence = evidence;
       if (leafCategoryId) {
         plan.ops.push({
           workItemId: workItem.id, advance: false, resultIndex: flatOps.length,
@@ -576,7 +582,7 @@ export async function sweepConfidentReviewStage(db: AppDb, input: {
         });
         flatOps.push(plan.ops[plan.ops.length - 1]!);
         current = { ...current, selectedCategoryId: leafCategoryId, categoryOverrideReason: null, stageVersion: current.stageVersion + 1, updatedAt: input.now };
-        activeEvidence = (await prefetchedReviewEvidence(ctx, current, input.now)).evidence;
+        activeEvidence = evidenceFromPrefetch(ctx, current, parts);
       }
       if (!confidentAdvanceAllowed(current.stage, activeEvidence)) {
         plan.fallbackSkip = confidentAdvanceSkipCode(current.stage, activeEvidence);
