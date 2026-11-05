@@ -38,6 +38,7 @@ import { confirmLocalDiningReview } from "../features/places/local-dining-review
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { isConfidentAdvanceEnabled } from "../features/places/place-review-pipeline";
 import { advanceConfidentReviewWorkItems, advancePlaceReviewWorkItems, autoExcludeNonFoodReviewItems, excludePlaceReviewItems, holdPlaceReviewItems, sweepConfidentReviewStage, geocodeMissingReviewCoords, updateReviewItemAddresses } from "../features/places/place-review-work-items.server";
+import { applyCategoryFallback } from "../features/places/place-category-fallback.server";
 import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../features/places/place-revalidation.server";
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
@@ -367,6 +368,10 @@ export async function action({ request }: Route.ActionArgs) {
       if (!apiKey) return reviewActionError("KAKAO_REST_API_KEY_REQUIRED");
       const result = await geocodeMissingReviewCoords(db, { limit: 50, actorUserId: admin.id, now, apiKey });
       return { ok: true, message: `좌표 복구 ${result.geocoded.length}곳 · 스캔 ${result.scanned}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+    }
+    if (intent === "apply-category-fallback") {
+      const result = await applyCategoryFallback(db, { limit: 200, actorUserId: admin.id, now });
+      return { ok: true, message: `카테고리 폴백 ${result.changed.length}곳 · 스캔 ${result.scanned}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "hold-review-items" || intent === "exclude-review-items") {
       const result = intent === "hold-review-items"
