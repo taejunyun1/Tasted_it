@@ -49,6 +49,16 @@ describe("place review work item transitions", () => {
     expect(live.advanced.length + live.skipped.length).toBe(live.scanned);
     expect(live.advanced.length).toBeGreaterThan(0);
   });
+  it("walks past gate-failing head items instead of pinning on them", async () => {
+    const stuck = await createSourceReviewItem();
+    const ready = await createSourceReviewItem();
+    await stuck.db.update(businessLicenses).set({ latitude: null, longitude: null }).where(eq(businessLicenses.id, stuck.businessLicenseId));
+    await stuck.db.update(placeReviewWorkItems).set({ updatedAt: "2026-01-01T00:00:00.000Z" }).where(eq(placeReviewWorkItems.id, stuck.workItemId));
+    const live = await sweepConfidentReviewStage(stuck.db, { stage: "SOURCE_REVIEW", limit: 1, dryRun: false, actorUserId: ready.actorUserId, now, confidentAdvanceEnabled: true });
+    expect(live.advanced).toEqual([ready.workItemId]);
+    expect(live.skipped).toEqual([{ workItemId: stuck.workItemId, code: "SOURCE_NOT_READY" }]);
+    expect(live.scanned).toBeGreaterThanOrEqual(2);
+  });
   it("auto pipeline advances ready items under the auto-pipeline actor and stops at publish", async () => {
     const { db, workItemId } = await createSourceReviewItem();
     const disabled = await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: false });
