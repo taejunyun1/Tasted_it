@@ -91,6 +91,59 @@ export async function openReviewDuplicateCount(db: AppDb, workItem: typeof place
   return candidates.filter((candidate) => !candidate.decision).length;
 }
 
+/**
+ * Same undecided-candidate counts as `openReviewDuplicateCount` for many items
+ * at once, without the per-item O(items x places) nested scan: candidate places
+ * are indexed by normalized name once, then each item checks only its bucket.
+ * Internal caller (sweep) passes up to REVIEW_SWEEP_MAX ids; the public batch
+ * cap on listReviewDuplicateCandidates does not apply here.
+ */
+export async function openReviewDuplicateCounts(db: AppDb, workItemIds: string[]) {
+  const ids = [...new Set(workItemIds.filter(Boolean))];
+  const counts = new Map<string, number>();
+  if (!ids.length) return counts;
+  const [items, candidatePlaces, resolutions] = await Promise.all([
+    db.select({ workItem: placeReviewWorkItems, license: businessLicenses, place: places })
+      .from(placeReviewWorkItems)
+      .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId))
+      .leftJoin(places, eq(places.id, placeReviewWorkItems.placeId))
+      .where(inArray(placeReviewWorkItems.id, ids)),
+    db.select({ id: places.id, name: places.name, address: places.address, latitude: places.latitude, longitude: places.longitude })
+      .from(places),
+    db.select().from(placeReviewDuplicateResolutions).where(inArray(placeReviewDuplicateResolutions.workItemId, ids)),
+  ]);
+  const resolutionByPair = new Map(resolutions.map((row) => [`${row.workItemId}|${row.candidatePlaceId}`, row.decision]));
+  const placesByNormalizedName = new Map<string, typeof candidatePlaces>();
+  for (const candidate of candidatePlaces) {
+    if (classifyChainStore(candidate.name)) continue;
+    const normalized = normalizePlaceName(candidate.name);
+    if (!normalized) continue;
+    const bucket = placesByNormalizedName.get(normalized) ?? [];
+    bucket.push(candidate);
+    placesByNormalizedName.set(normalized, bucket);
+  }
+  for (const { workItem, license, place } of items) {
+    const name = license?.businessName ?? place?.name ?? "";
+    const address = license?.roadAddress ?? license?.lotAddress ?? place?.address ?? "";
+    const latitude = license?.latitude ?? place?.latitude ?? null;
+    const longitude = license?.longitude ?? place?.longitude ?? null;
+    let count = 0;
+    if (name && address && latitude != null && longitude != null && !classifyChainStore(name)) {
+      const normalizedName = normalizePlaceName(name);
+      const normalizedAddress = normalizeAddress(address);
+      for (const candidate of placesByNormalizedName.get(normalizedName) ?? []) {
+        if (candidate.id === workItem.placeId) continue;
+        const sameAddress = normalizedAddress === normalizeAddress(candidate.address);
+        const meters = distanceMeters({ latitude, longitude }, candidate);
+        if (!sameAddress && meters > MAX_MATCH_DISTANCE_METERS) continue;
+        if (!resolutionByPair.get(`${workItem.id}|${candidate.id}`)) count += 1;
+      }
+    }
+    counts.set(workItem.id, count);
+  }
+  return counts;
+}
+
 export async function resolveReviewDuplicates(db: AppDb, input: {
   resolutions: Array<{ workItemId: string; candidatePlaceId: string; decision: "LINK_EXISTING" | "MERGE" | "DISTINCT"; reason: string }>;
   actorUserId: string;
