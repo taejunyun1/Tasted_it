@@ -61,6 +61,18 @@ describe("place review work item transitions", () => {
     await expect(db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, workItemId) })).resolves.toMatchObject({ stage: "NAVER_VERIFICATION", status: "ACTIVE" });
     expect(rerun.summary.FINAL_APPROVAL).toBeUndefined();
   });
+  it("auto pipeline verifies up to naverLimit items instead of collapsing to one", async () => {
+    const items = await Promise.all([createSourceReviewItem(), createSourceReviewItem(), createSourceReviewItem()]);
+    for (const { db, workItemId } of items) {
+      await db.update(placeReviewWorkItems).set({ stage: "NAVER_VERIFICATION" }).where(eq(placeReviewWorkItems.id, workItemId));
+    }
+    const adapter = {
+      search: vi.fn(async () => [{ name: "검수 식당", category: "음식점>한식", address: "광주광역시 북구 검수로 1", latitude: 35.16, longitude: 126.91 }]),
+    };
+    const result = await runAutoReviewPipeline(items[0]!.db, { now, naverLimit: 5, naverAdapter: adapter, confidentAdvanceEnabled: true });
+    expect(adapter.search.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(result.summary.NAVER_VERIFICATION?.scanned).toBeGreaterThanOrEqual(3);
+  });
   it("geocodes coordless source items and writes audit without touching ready ones", async () => {
     const { db, actorUserId, businessLicenseId, workItemId } = await createSourceReviewItem();
     await db.update(businessLicenses).set({ latitude: null, longitude: null }).where(eq(businessLicenses.id, businessLicenseId));

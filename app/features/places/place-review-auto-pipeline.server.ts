@@ -11,6 +11,11 @@ import { sweepConfidentReviewStage } from "./place-review-work-items.server";
  * automated move is attributable to the pipeline, not a human operator. */
 export const AUTO_PIPELINE_ACTOR_ID = "auto-pipeline";
 
+/** Per-item verify calls run in flights of this size; each call is one external
+ * request, so a flight of five keeps a scheduled tick within its budget while
+ * still draining more than a single candidate per run. */
+const NAVER_VERIFY_FLIGHT = 5;
+
 async function ensureAutoPipelineActor(db: AppDb, now: string) {
   const existing = await db.query.users.findFirst({ where: eq(users.id, AUTO_PIPELINE_ACTOR_ID) });
   if (existing) return;
@@ -46,11 +51,27 @@ export async function runAutoReviewPipeline(db: AppDb, input: {
         .orderBy(asc(placeReviewWorkItems.updatedAt))
         .limit(naverLimit);
       if (naverItems.length) {
-        const result = await verifyReviewItemsWithNaver(db, {
-          workItemIds: naverItems.map((item) => item.id), actorUserId, now: input.now,
-          adapter: input.naverAdapter, confidentAdvanceEnabled: true,
-        });
-        summary.NAVER_VERIFICATION = { scanned: naverItems.length, advanced: result.passed, skipped: result.skipped.length };
+        // verifyReviewItemsWithNaver caps each call at one item (external request
+        // per item by design); run the bounded slice in small parallel flights so
+        // naverLimit is real instead of collapsing to a single verification.
+        const adapter = input.naverAdapter;
+        let scanned = 0;
+        let advanced = 0;
+        let skipped = 0;
+        for (let index = 0; index < naverItems.length; index += NAVER_VERIFY_FLIGHT) {
+          const results = await Promise.all(naverItems.slice(index, index + NAVER_VERIFY_FLIGHT).map((item) =>
+            verifyReviewItemsWithNaver(db, {
+              workItemIds: [item.id], actorUserId, now: input.now,
+              adapter, confidentAdvanceEnabled: true,
+            }).catch(() => null)));
+          for (const result of results) {
+            if (!result) { skipped += 1; continue; }
+            scanned += result.scanned;
+            advanced += result.passed;
+            skipped += result.skipped.length;
+          }
+        }
+        summary.NAVER_VERIFICATION = { scanned, advanced, skipped };
       }
     }
     const result = await sweepConfidentReviewStage(db, {
