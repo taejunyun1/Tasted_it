@@ -35,22 +35,26 @@ describe("suggestFallbackCategory", () => {
       .toEqual({ categoryId: "cat-cafe-shop", basis: "subtype" });
   });
 
-  it("uses name keywords only when subtype is generic or unmapped", async () => {
+  it("uses name keywords when path and subtype produce no leaf", async () => {
     const rows = await loadCategoryRows();
     expect(suggestFallbackCategory({ businessName: "김밥천국 광주점", businessSubtype: "기타", matchedCategoryPath: null }, rows))
       .toEqual({ categoryId: "cat-gimbap", basis: "name" });
     expect(suggestFallbackCategory({ businessName: "맛있는피자", businessSubtype: "일반음식점", matchedCategoryPath: null }, rows))
       .toEqual({ categoryId: "cat-pizza", basis: "name" });
+    expect(suggestFallbackCategory({ businessName: "김밥천국 뷔페", businessSubtype: "뷔페식", matchedCategoryPath: null }, rows))
+      .toEqual({ categoryId: "cat-gimbap", basis: "name" });
     expect(suggestFallbackCategory({ businessName: "김밥천국", businessSubtype: "한식", matchedCategoryPath: null }, rows))
       .toEqual({ categoryId: "cat-korean-general", basis: "subtype" });
   });
 
-  it("falls back to the 기타 leaf only after every precise rule fails", async () => {
+  it("falls back to the 기타 leaf only when some evidence exists", async () => {
     const rows = await loadCategoryRows();
     expect(suggestFallbackCategory({ businessName: "알 수 없는 가게", businessSubtype: "기타", matchedCategoryPath: null }, rows))
       .toEqual({ categoryId: "cat-other", basis: "fallback" });
     expect(suggestFallbackCategory({ businessName: "알 수 없는 가게", businessSubtype: "이동판매", matchedCategoryPath: null }, rows))
       .toEqual({ categoryId: "cat-other", basis: "fallback" });
+    expect(suggestFallbackCategory({ businessName: null, businessSubtype: null, matchedCategoryPath: null }, rows))
+      .toBeNull();
   });
 });
 

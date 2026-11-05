@@ -87,8 +87,6 @@ const NAME_KEYWORDS: Array<[RegExp, string]> = [
   [/양식|레스토랑|그릴/, "cat-western-general"],
 ];
 
-const GENERIC_SUBTYPES = new Set(["기타", "일반음식점", "휴게음식점", "기타음식점", ""]);
-
 function leafSet(rows: CategoryRow[]) {
   return getTerminalCategoryIds(rows.filter((row) => row.isActive));
 }
@@ -131,14 +129,16 @@ export function suggestFallbackCategory(input: {
   const mapped = SUBTYPE_TO_LEAF_ID[subtype];
   if (mapped && leaves.has(mapped)) return { categoryId: mapped, basis: "subtype" };
 
-  if (!subtype || GENERIC_SUBTYPES.has(subtype)) {
-    const normalized = normalizeName(input.businessName ?? "");
-    for (const [pattern, leafId] of NAME_KEYWORDS) {
-      if (pattern.test(normalized) && leaves.has(leafId)) return { categoryId: leafId, basis: "name" };
-    }
+  const normalized = normalizeName(input.businessName ?? "");
+  for (const [pattern, leafId] of NAME_KEYWORDS) {
+    if (pattern.test(normalized) && leaves.has(leafId)) return { categoryId: leafId, basis: "name" };
   }
 
-  return other ? { categoryId: other.id, basis: "fallback" } : null;
+  // "기타" residual only when some real evidence exists; zero-evidence items
+  // stay selectedCategoryId-less for human judgment.
+  if (!other) return null;
+  const hasEvidence = Boolean(subtype) || Boolean((input.matchedCategoryPath ?? "").trim()) || Boolean(normalized);
+  return hasEvidence ? { categoryId: other.id, basis: "fallback" } : null;
 }
 
 export async function applyCategoryFallback(db: AppDb, input: {
