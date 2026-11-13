@@ -5,6 +5,7 @@ import { hashPassword } from "../../app/features/auth/password.server";
 import { consumeAdminReauthRateLimit } from "../../app/features/auth/admin-reauth-rate-limit.server";
 import { upsertBetaUser } from "../../app/features/auth/login.server";
 import { createDb } from "../../app/db/client.server";
+import { consumeLoginRateLimit } from "../../app/features/security/rate-limit.server";
 
 const now = new Date("2026-11-14T01:00:00.000Z");
 beforeAll(async () => {
@@ -60,6 +61,13 @@ describe("session-bound admin assurance", () => {
     const admin = await fixture();
     for (let index = 0; index < 10; index++) expect(await consumeAdminReauthRateLimit(env.DB, { ...admin, kind: "VERIFY", ip: null })).toBe(true);
     expect(await consumeAdminReauthRateLimit(env.DB, { ...admin, sessionId: admin.otherSessionId, kind: "VERIFY", ip: null })).toBe(false);
+  });
+  it("keeps the mail budget when ordinary login cleanup advances its window", async () => {
+    const admin = await fixture();
+    for (let index = 0; index < 3; index++) expect(await consumeAdminReauthRateLimit(env.DB, { ...admin, kind: "SEND", ip: null })).toBe(true);
+    const later = new Date(now.getTime() + 20 * 60_000);
+    await consumeLoginRateLimit(createDb(env.DB), { email: "synthetic-cleanup@example.test", now: later });
+    expect(await consumeAdminReauthRateLimit(env.DB, { ...admin, now: later, kind: "SEND", ip: null })).toBe(false);
   });
   it("preserves explicitly managed roles during ordinary beta logins", async () => {
     const admin = await fixture();
