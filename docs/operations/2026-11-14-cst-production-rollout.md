@@ -1,6 +1,6 @@
 # CST 운영 배포·필수 live 검증 — 2026-11-14
 
-- 상태: **GO — 이 문서를 포함한 PR 병합 시 아래 한정 작업 실행 승인**. 실행 완료와 전체 T01~T08 수용은 별도다.
+- 상태: **EXECUTED — PR #403 범위의 운영 전환·한정 live 검증 PASS**. 전체 T01~T08 수용은 별도다. 아래는 병합으로 승인된 실행 범위와 결과다.
 - 담당·소유: Jay/Codex(root), #401. 사용자의 운영 배포·필수 live 검증 요청에 따른다. #399 ADMIN 확장 계획·#400 TEMP100은 별도 범위다.
 - 소스 기준: main `4ae8abf` 및 이 PR의 병합 main. Wrangler 4.118.0/pnpm 10.34.5, 기존 스택·계정·바인딩을 유지한다.
 - 대상: 계정 `7543330c65069ee2df1b7b353fb0201c`, Worker `retaste-beta`, D1 `retaste-production` / `5181489d-83a7-4f78-9384-db096cadaa2d`, 기존 `REVIEW_PHOTOS` 버킷. 공개 주소는 기존 배포 런북을 따른다.
@@ -45,6 +45,18 @@
 
 ## 결과 기록
 
-실제 배포version/503창/migration/검증·정리 결과는 실행 후 아래에 추가한다. 현재는 실행전이며 로컬 성공을livePASS로세지않는다. [CST SSOT](../plans/2026-11-13-cst-service-ssot.md), [인수 실행서](./cst-acceptance.md), [증거 원장](../evidence/cst-20261210/README.md)을 따른다.
+아래에 실제 배포 version·점검 차단·migration·검증·정리 결과를 기록했다. 로컬 성공과 실제 live 증거를 구분한다. [CST SSOT](../plans/2026-11-13-cst-service-ssot.md), [인수 실행서](./cst-acceptance.md), [증거 원장](../evidence/cst-20261210/README.md)을 따른다.
 
 공식근거: [D1 migration 명령](https://developers.cloudflare.com/d1/wrangler-commands/), [D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/), [D1 export](https://developers.cloudflare.com/d1/best-practices/import-export-data/), [Worker rollback 자원제약](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/).
+
+## 실제 실행 결과 — 2026-11-14 KST
+
+PR #403의 필수4CI·독립리뷰 후 병합 main `76dce1e`를 빌드했다. fence version `a7c312bd-d00a-453a-afda-a509eedcf45d`의7요청503/no-store·정적 자산 차단과 구 실행 terminal을 대조한 뒤 비공개 D1 export102,718,267bytes/TimeTravel지점을 보관했다. 0040·0041을1회 적용하고7레거시 리뷰·8사진/역할·초대·좌석 보존·자동승인0을 확인했다. 정상 version `f69c3aa5-a01a-4931-9335-5093474b8a19`를16:30:32 UTC 이전에 배포했다.
+
+공개6경로·보호3경로 로그인 이동·검색0건/일반검색·실제목록→상세·레거시사진 GET/HEAD404/no-store/Vary:Cookie를 확인했다. 새로운 guest1개의 저장→조회→취소→조회는 일치했고 정확ID 정리/잔존0이다. 별도 운영ADMIN의30분 임시session1개로 RSI GET405/POST1회(retry0), **실제 Worker6/6 PASS와 감사1행**을 대조한 뒤 session잔존0을 확인했다. 수동스크립트HTTP28회이며 Worker내부RSI6GET·브라우저선행조회는 별도다. 초기 DB표본이 기본 목록에 없어 실제목록 링크로 검증 표본을 정했고, 한글slug의 클라이언트URL인코딩 오류는 요청 전 수정했다. 이를 제품 결함/복구로 세지 않는다.
+
+[비식별 결과·백업hash·정리](../evidence/cst-20261210/production-live-20261114.json)에 연결한다. raw D1/쿠키/원문/계정·사진ID는 private0700/0600 원본에만 있다. 실제 D1/R2복원·리뷰어 승인 양성·이전 다운로드회수·전체T수용은 NOT_RUN/미보장으로 보존한다.
+
+## 후속 #406의 운영 반영
+
+#406 병합 `1c63a98`와 PR의 한정 재배포 GO에 따라 migration/기능 flag 변경 없이 정상 version `f5b49eb9-a3ee-4367-906d-c22db249d930`를 배포했다. 실제 desktop/mobile의 client entry를 보류한 SSR 버튼은 disabled이고, entry 해제·성공한 초기 조회 뒤 enabled/미저장 상태를 확인했다. 외부 자동 요청을 차단한 fresh browser의 읽기 전용 검사이며 실제 로그인·지도 공급자 품질 시험은 아니다. 공개6경로/상세/JSasset·전용guest 저장→조회→취소→조회·새 Worker RSI6/6/감사1행과 전용guest/임시ADMIN session 잔존0을 확인했다. 수동HTTP는 browser dynamic을 포함24/25이며 browser 정적자산·Worker 내부6GET은 별도다. [후속 증거](../evidence/cst-20261210/production-guest-readiness-live-20261114.json)에 실제 시각과 source/version을 연결했다. 이전 첫 배포 증거를 최신 버전 결과로 바꾸지 않는다.

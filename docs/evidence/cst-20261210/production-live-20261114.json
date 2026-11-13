@@ -1,0 +1,80 @@
+{
+  "status": "PASS_PARTIAL_SCOPES",
+  "source_sha": "76dce1e071581c4ff6d8b40f84412d2bff2a3052",
+  "production_version": "f69c3aa5-a01a-4931-9335-5093474b8a19",
+  "fence_version": "a7c312bd-d00a-453a-afda-a509eedcf45d",
+  "migrations": [
+    "0040",
+    "0041"
+  ],
+  "public_routes_pass": 6,
+  "protected_redirects_pass": 3,
+  "search_empty_and_list_detail_pass": true,
+  "legacy_photo_get_head_404_pass": true,
+  "legacy_reviews_preserved_private": 7,
+  "legacy_photos_preserved": 8,
+  "automatic_approvals": 0,
+  "guest_save_read_cancel_read_pass": true,
+  "worker_rsi_paths": [
+    {
+      "path": "/",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/places",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/admin",
+      "status": 302,
+      "ok": true
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "ok": true
+    }
+  ],
+  "rsi_audit_rows": 1,
+  "rsi_post_count": 1,
+  "rsi_retries": 0,
+  "temporary_admin_sessions_remaining": 0,
+  "operator_cleanup_at": "2026-11-13T16:35:08.345Z",
+  "core_roles_invites_seats_unchanged": true,
+  "manual_http_record_count": 28,
+  "backup": {
+    "bytes": 102718267,
+    "sha256": "857b732c89d9d072e1ddad3fd43ff81da6a486b4ff4070e666a0cc5f0608969f",
+    "permissions": "0o600",
+    "bookmark_saved_private": true
+  },
+  "whole_T01_T08": "NOT_RUN",
+  "production_restore": "NOT_RUN",
+  "reviewer_approval_positive": "NOT_RUN",
+  "old_download_cache_recall": "NOT_GUARANTEED",
+  "photo_upload_enabled": false,
+  "issue397": "HOLD_NO_PRODUCTION_BLOCK_OBSERVED",
+  "harness_notes": [
+    "Initial DB sample was absent from the default list; selected an actual list link before the positive detail/guest canary.",
+    "Encoded a Unicode public slug before sending the detail request. No network request was sent by the failed client encoding attempt."
+  ],
+  "raw_evidence": "PRIVATE_0700_0600_NOT_COMMITTED",
+  "dedicated_canary_guest_sessions_remaining": 0,
+  "final_core_verified_at_utc": "2026-11-13T16:39:51.167Z",
+  "production_traffic_percent": 100,
+  "pending_migrations": 0,
+  "deployment_state_evidence": "Wrangler deployments list and remote D1 migrations list; sanitized from private receipts",
+  "evidence_recorded_at_utc": "2026-11-13T16:47:50.369Z"
+}

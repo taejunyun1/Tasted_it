@@ -50,3 +50,9 @@ pnpm exec playwright test tests/e2e/release.spec.ts --project=chromium
 연구팀 실제 실증은 교수/CST의 확정 설계·동의 범위로만 수행한다. 기술시험 fixture·개발자가 대신 클릭한 결과를 참여자 성공으로 세지 않는다. 익명 세션코드·기기·버전·과업·성공/실패·시간·막힘·도움요청·관찰을 별도 권한 저장소에 남기고 공개 저장소에는 비식별 집계와 승인된 참조만 둔다.
 
 12/10 수용 기록은 검토자·날짜·source/deploy version·T01~08 결과·콘텐츠/권리·정책·운영/복구·실증 준비/실행 상태·미완료·잔여 기한·조건부/NO-GO 이유를 함께 담는다. 12/18 업체 최종 납품과 차이를 명시한다. 실제 수용 서명·실명·성과 수치는 미제공이면 빈칸으로 둔다.
+
+## 2026-11-14 한정 운영 실행
+
+PR #403 병합 main76dce1e의0040/0041·배포/fence/backup과 Worker RSI6/6을 실제 확인했다. 공개 검색·목록상세, guest저장/취소, 레거시사진 직접GET/HEAD차단은 원장 하위case5개 PASS다. [운영 증거](../evidence/cst-20261210/production-live-20261114.json)를 따른다. 검증guest/임시ADMIN세션은잔존0, 기존권한·초대·좌석·원문은보존했다. 사진업로드false·실자료승인0·운영복원미실행·전체T01~08 NOT_RUN을 유지한다.
+
+후속 #406의 저장 준비 경계도 main1c63a98/운영f5b49eb9에서 desktop/mobile·guest 저장/취소·Worker RSI6/6을 확인했다. [후속 증거](../evidence/cst-20261210/production-guest-readiness-live-20261114.json)의 하위3case만 추가하며 실제 인증/지도SDK·전체검수와 구분한다.
