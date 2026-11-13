@@ -2,9 +2,11 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { action, loader } from "../../app/routes/guest-saves-resource";
 import { createDb } from "../../app/db/client.server";
+import { users } from "../../app/db/schema";
 import { upsertPlace } from "../../app/features/places/place.server";
 import { createGuestSession } from "../../app/features/onboarding/guest-session.server";
 import { setGuestSavedPlace } from "../../app/features/onboarding/guest-saves.server";
+import { mergeGuestTasteSessionFromRequest } from "../../app/features/onboarding/guest-merge.server";
 
 const url = "https://example.test/resources/guest-saves";
 function req(body: string, cookie?: string, origin = "https://example.test") {
@@ -72,5 +74,24 @@ describe("guest save transport recovery", () => {
     const serverAction = async () => { throw new TypeError("synthetic network failure"); };
     expect(await clientAction({ serverAction } as never)).toMatchObject({ ok: false, message: expect.stringContaining("다시 시도") });
     expect(await clientLoader({ serverLoader: serverAction } as never)).toMatchObject({ ok: false });
+  });
+  it("reports an unknown result when a merge commits before its response is lost", async () => {
+    const { clientAction } = await import("../../app/routes/guest-saves-resource");
+    const db = createDb(env.DB), now = new Date().toISOString();
+    const guestId = crypto.randomUUID(), userId = crypto.randomUUID(), placeId = await place();
+    await db.insert(users).values({ id: userId, email: `${userId}@example.test`, displayName: "합성 사용자", role: "USER", createdAt: now, updatedAt: now });
+    await createGuestSession(db, { id: guestId, now });
+    await setGuestSavedPlace(db, { sessionId: guestId, placeId, saved: true, now });
+    const request = req("intent=merge", `retaste_guest=${guestId}`);
+    const result = await clientAction({ serverAction: async () => {
+      expect((await mergeGuestTasteSessionFromRequest(db, request, userId, now)).merged).toBe(true);
+      throw new TypeError("synthetic response lost after commit");
+    } } as never);
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("현재 상태") });
+    expect((await env.DB.prepare("SELECT count(*) n FROM saved_places WHERE user_id=? AND place_id=?").bind(userId, placeId).first<{n: number}>())?.n).toBe(1);
+    expect((await env.DB.prepare("SELECT count(*) n FROM guest_saved_places WHERE session_id=?").bind(guestId).first<{n: number}>())?.n).toBe(0);
+    expect((await env.DB.prepare("SELECT merged_user_id value FROM guest_taste_sessions WHERE id=?").bind(guestId).first<{value: string}>())?.value).toBe(userId);
+    expect((await mergeGuestTasteSessionFromRequest(db, request, userId, now)).merged).toBe(false);
+    expect((await env.DB.prepare("SELECT count(*) n FROM saved_places WHERE user_id=? AND place_id=?").bind(userId, placeId).first<{n: number}>())?.n).toBe(1);
   });
 });
