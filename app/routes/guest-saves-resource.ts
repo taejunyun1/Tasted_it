@@ -97,15 +97,15 @@ export async function action({ request }: Route.ActionArgs) {
       : status === 403 ? "현재 서비스에서 다시 요청해 주세요."
       : status === 404 ? "공개된 장소를 찾을 수 없습니다."
       : status < 500 ? "요청 내용을 확인한 뒤 다시 시도해 주세요."
-      : "자료를 연결하거나 저장하지 못했습니다. 임시 자료를 유지했으니 다시 시도해 주세요.";
+      : "저장·연결 결과를 확인하지 못했습니다. 새로고침해 현재 상태를 확인한 뒤 필요하면 다시 시도해 주세요.";
     return json({ ok: false, message }, status);
   }
 }
 
-// Fetcher network failures keep the original guest cookie/data and a retryable UI.
+// A response can be lost after a committed write; keep retry UI without claiming rollback.
 export async function clientAction({ serverAction }: Route.ClientActionArgs) {
   try { return await serverAction(); }
-  catch { return { ok: false, message: "연결하지 못했습니다. 임시 자료를 유지했으니 다시 시도해 주세요." }; }
+  catch { return { ok: false, message: "저장·연결 결과를 확인하지 못했습니다. 새로고침해 현재 상태를 확인한 뒤 필요하면 다시 시도해 주세요." }; }
 }
 export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
   try { return await serverLoader(); }
