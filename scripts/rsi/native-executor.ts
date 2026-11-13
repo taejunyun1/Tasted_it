@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile, mkdtemp, rm, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp, rm, mkdir, open, lstat, realpath } from "node:fs/promises";
+import { constants } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -76,8 +77,38 @@ const artifactSchema = z.strictObject({ packageDigest: digest, lockDigest: diges
 const manifestSchema = z.strictObject({ schemaVersion: z.literal(1), imageId: z.string().regex(/^sha256:[a-f0-9]{64}$/), baseImage: z.literal(`node@${baseId}`), pnpm: z.literal("10.34.5"), artifacts: artifactSchema, runtime: runtimeSchema });
 export type NativeRuntimeManifest = z.infer<typeof manifestSchema>;
 
+// The existing image contains these exact dependencies, not the evolving app's
+// package/lock. Pin bytes independently of caller manifests before verify/build.
+const nativeDependencies = [
+  { name: "package.json", digest: "257692887405a71fbc959353de45509e0e0edd001eaab4698091d51bfbf73ae1", maxBytes: 65536 },
+  { name: "pnpm-lock.yaml", digest: "3f88797d9a2e666155555976df0b7f0b772e63e4972e707bfe93beb0e31f3f5d", maxBytes: 524288 },
+] as const;
+async function pinnedNativeDependency(input: (typeof nativeDependencies)[number]) {
+  const directory = join(root, "scripts/rsi/fixtures/native-runtime"), path = join(directory, input.name);
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    const parent = await lstat(directory);
+    if (!parent.isDirectory() || await realpath(directory) !== directory) fail("ARTIFACT_MISMATCH");
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const before = await handle.stat();
+    if (!before.isFile() || before.size > input.maxBytes || before.nlink !== 1) fail("ARTIFACT_MISMATCH");
+    const buffer = Buffer.alloc(input.maxBytes + 1); let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (!bytesRead) break;
+      length += bytesRead;
+    }
+    const bytes = buffer.subarray(0, length), after = await handle.stat(), entry = await lstat(path), parentAfter = await lstat(directory);
+    if (bytes.length > input.maxBytes || hash(bytes) !== input.digest || !entry.isFile()
+      || before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+      || entry.dev !== after.dev || entry.ino !== after.ino || parent.dev !== parentAfter.dev || parent.ino !== parentAfter.ino
+      || !parentAfter.isDirectory() || await realpath(directory) !== directory) fail("ARTIFACT_MISMATCH");
+    return bytes.toString("utf8");
+  } catch { return fail("ARTIFACT_MISMATCH"); }
+  finally { try { await handle?.close(); } catch { fail("ARTIFACT_MISMATCH"); } }
+}
 async function trustedArtifacts() {
-  const files = await Promise.all(["package.json", "pnpm-lock.yaml", "scripts/rsi/native-wrapper.ts", "scripts/rsi/oracle.ts", "scripts/rsi/contracts.ts", "scripts/rsi/fixtures/native-runtime.Dockerfile"].map(path => readFile(join(root, path), "utf8")));
+  const files = [...await Promise.all(nativeDependencies.map(pinnedNativeDependency)), ...await Promise.all(["scripts/rsi/native-wrapper.ts", "scripts/rsi/oracle.ts", "scripts/rsi/contracts.ts", "scripts/rsi/fixtures/native-runtime.Dockerfile"].map(path => readFile(join(root, path), "utf8")))];
   const built = await compiler.build({ entryPoints: [join(root, "scripts/rsi/native-wrapper.ts")], bundle: true, packages: "external", platform: "node", format: "esm", target: "node22", write: false, sourcemap: false, legalComments: "none", logLevel: "silent" });
   if (built.warnings.length || built.outputFiles.length !== 1) fail("PREPARATION");
   const wrapper = built.outputFiles[0].text;

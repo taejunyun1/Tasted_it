@@ -125,6 +125,17 @@ describe("shared actual repair core contracts (host data only)", () => {
     manifestRead.driftPath = ""; manifestRead.missingPath = "/promotion.ts";
     await expect(measureFixedClosure("R4")).rejects.toThrow("RSI_CONTROLLER_CLOSURE_UNVERIFIED");
   });
+  it.each(["package.json", "pnpm-lock.yaml", "scripts/rsi/fixtures/native-runtime/package.json", "scripts/rsi/fixtures/native-runtime/pnpm-lock.yaml"])("binds evolving app and fixed native dependency bytes separately: %s", async path => {
+    const original = await measureFixedClosure("R4");
+    expect(original.controller.files).toHaveProperty(path);
+    expect(original.evaluator.files).toHaveProperty(path);
+    manifestRead.driftPath = new URL("../../" + path, import.meta.url).pathname;
+    const changed = await measureFixedClosure("R4");
+    expect(changed.controllerHash).not.toBe(original.controllerHash);
+    expect(changed.evaluatorHash).not.toBe(original.evaluatorHash);
+    manifestRead.driftPath = ""; manifestRead.missingPath = new URL("../../" + path, import.meta.url).pathname;
+    await expect(measureFixedClosure("R4")).rejects.toThrow("RSI_CONTROLLER_CLOSURE_UNVERIFIED");
+  });
   it("binds R3 to its transitive execution contracts without requiring R4-only files", async () => {
     const original = await measureFixedClosure("R3");
     manifestRead.driftPath = "/execution-contracts.ts";

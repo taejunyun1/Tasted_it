@@ -140,8 +140,9 @@ export async function validateReceiverPatch(baseSource: string, raw: unknown) {
   } catch { return fail("PATCH"); }
 }
 
-const controllerFiles = ["scripts/rsi/controller.ts", "scripts/rsi/repair-core.ts", "scripts/rsi/fixtures/native-manifest.pinned.json", "scripts/rsi/contracts.ts", "scripts/rsi/execution-contracts.ts", "scripts/rsi/ledger.ts", "scripts/rsi/memory.ts", "scripts/rsi/model-broker.ts", "scripts/rsi/sandbox.ts", "scripts/rsi/container-backend.ts", "scripts/rsi/sandbox-policy.json", "package.json", "pnpm-lock.yaml"];
-const evaluatorFiles = ["scripts/rsi/repair-core.ts", "scripts/rsi/fixtures/native-manifest.pinned.json", "scripts/rsi/evaluator.ts", "scripts/rsi/contracts.ts", "scripts/rsi/oracle.ts", "scripts/rsi/native-executor.ts", "scripts/rsi/native-wrapper.ts", "scripts/rsi/container-backend.ts", "scripts/rsi/fixtures/native-runtime.Dockerfile", "scripts/rsi/fixtures/development-manifest.json", "package.json", "pnpm-lock.yaml"];
+const nativeDependencyFiles = ["scripts/rsi/fixtures/native-runtime/package.json", "scripts/rsi/fixtures/native-runtime/pnpm-lock.yaml"];
+const controllerFiles = ["scripts/rsi/controller.ts", "scripts/rsi/repair-core.ts", "scripts/rsi/fixtures/native-manifest.pinned.json", "scripts/rsi/contracts.ts", "scripts/rsi/execution-contracts.ts", "scripts/rsi/ledger.ts", "scripts/rsi/memory.ts", "scripts/rsi/model-broker.ts", "scripts/rsi/sandbox.ts", "scripts/rsi/container-backend.ts", "scripts/rsi/sandbox-policy.json", "package.json", "pnpm-lock.yaml", ...nativeDependencyFiles];
+const evaluatorFiles = ["scripts/rsi/repair-core.ts", "scripts/rsi/fixtures/native-manifest.pinned.json", "scripts/rsi/evaluator.ts", "scripts/rsi/contracts.ts", "scripts/rsi/oracle.ts", "scripts/rsi/native-executor.ts", "scripts/rsi/native-wrapper.ts", "scripts/rsi/container-backend.ts", "scripts/rsi/fixtures/native-runtime.Dockerfile", "scripts/rsi/fixtures/development-manifest.json", "package.json", "pnpm-lock.yaml", ...nativeDependencyFiles];
 const trustedNativeManifestDigest = "605ad858ec0c49edda87c5b733d06bf04c954388bb619a1e81664400d20627ae";
 // Fixed backend: create/inspect/final-inspect/rm = 4*5000ms, plus
 // start=3000/15000ms. Agent verify adds info/image inspect and the initial
