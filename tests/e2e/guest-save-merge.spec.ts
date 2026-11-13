@@ -11,6 +11,62 @@ test.beforeEach(async ({}, testInfo) => {
 });
 const detail = "/places/sample-dongmyeong-ramen";
 
+test("guest save waits for hydration and its initial read, then recovers the current member choice after a failed read", async ({ page, context }, testInfo) => {
+  await page.route("https://oapi.map.naver.com/**", (route) => route.abort());
+  let releaseEntry!: () => void;
+  let releaseRead!: () => void;
+  let readStarted!: () => void;
+  const entryBarrier = new Promise<void>((resolve) => { releaseEntry = resolve; });
+  const readBarrier = new Promise<void>((resolve) => { releaseRead = resolve; });
+  const initialRead = new Promise<void>((resolve) => { readStarted = resolve; });
+  await page.route("**/entry.client.tsx*", async (route) => { await entryBarrier; await route.continue(); });
+  let firstRead = true;
+  await page.route("**/resources/guest-saves*", async (route) => {
+    if (route.request().method() === "GET" && firstRead) {
+      firstRead = false;
+      readStarted();
+      await readBarrier;
+      return route.abort("failed");
+    }
+    return route.continue();
+  });
+  const entryRequested = page.waitForRequest((request) => /\/entry\.client\.tsx(?:\?|$)/.test(request.url()));
+  try {
+    await page.goto(detail, { waitUntil: "commit" });
+    await entryRequested;
+    const control = page.locator(".guest-save-control");
+    const save = control.getByRole("button", { name: "임시 저장", exact: true });
+    await expect(save).toBeVisible();
+    await expect(save).toBeDisabled();
+    await control.screenshot({ path: testInfo.outputPath("guest-ssr-disabled.png") });
+    releaseEntry();
+    await initialRead;
+    await expect(save).toBeDisabled();
+    releaseRead();
+    await expect(control.getByRole("alert")).toContainText("다시 시도");
+    await expect(save).toBeDisabled();
+    const retry = control.getByRole("button", { name: "저장 상태 다시 확인", exact: true });
+    await expect(retry).toBeEnabled();
+    await control.screenshot({ path: testInfo.outputPath("guest-read-retry.png") });
+
+    // Login in another client request while this already-rendered guest control is waiting.
+    const origin = new URL(page.url()).origin;
+    const loggedIn = await context.request.post("/login", { maxRedirects: 0, headers: { Origin: origin }, form: { email: `e2e-onboarding-${testInfo.project.name}@retaste.local`, password: "local-onboarding-password", returnTo: detail } });
+    expect(loggedIn.status()).toBe(302);
+    const selected = await context.request.post("/resources/guest-saves", { headers: { Origin: origin }, form: { intent: "save", placeId: "sample-place-1", saved: "true" } });
+    expect(selected.status()).toBe(200);
+    expect(await selected.json()).toMatchObject({ ok: true, saved: true, signedIn: true });
+    await retry.click();
+    const currentChoice = control.getByRole("button", { name: "저장 해제", exact: true });
+    await expect(currentChoice).toBeEnabled();
+    await expect(currentChoice).toHaveAttribute("aria-pressed", "true");
+    await expect(control.locator('input[name="saved"]')).toHaveValue("false");
+    await expect(control.getByRole("alert")).toHaveCount(0);
+    await control.screenshot({ path: testInfo.outputPath("guest-member-choice-ready.png") });
+    expect(new URL(page.url()).pathname).toBe(detail);
+  } finally { releaseEntry(); releaseRead(); }
+});
+
 test("guest saves survive reload, keep their unsave intent after failure and connect after login", async ({ page, context }, testInfo) => {
   await page.goto(detail);
   const save = page.getByRole("button", { name: "임시 저장", exact: true });
@@ -32,6 +88,26 @@ test("guest saves survive reload, keep their unsave intent after failure and con
   await expect(page.getByRole("alert")).toContainText("다시 시도");
   await expect(unsave).toBeEnabled();
   await unsave.click();
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(unsave).toBeEnabled();
+  let loseResponse = true;
+  await page.route("**/resources/guest-saves*", async (route) => {
+    if (loseResponse && route.request().method() === "POST") {
+      loseResponse = false;
+      await route.fetch();
+      return route.abort("failed");
+    }
+    return route.continue();
+  });
+  await unsave.click();
+  await expect(page.getByRole("alert")).toContainText("결과를 확인");
+  await expect(unsave).toBeEnabled();
+  const serverChoice = await context.request.get("/resources/guest-saves?placeId=sample-place-1");
+  expect(await serverChoice.json()).toMatchObject({ ok: true, saved: false });
+  const retryWrite = page.waitForRequest((request) => request.method() === "POST" && request.url().includes("/resources/guest-saves"));
+  await unsave.click();
+  expect(new URLSearchParams((await retryWrite).postData()!).get("saved")).toBe("false");
   await expect(save).toBeEnabled();
   await save.click();
   await expect(unsave).toBeEnabled();
@@ -93,8 +169,10 @@ test("switching a saved mobile sheet to another place with a failed load does no
   await dialog.getByRole("button", { name: "임시 저장", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "임시 저장 해제", exact: true })).toBeEnabled();
   const firstPlaceId = await dialog.locator('input[name="placeId"]').inputValue();
+  let failedRead = false;
   await page.route("**/resources/guest-saves*", async (route) => {
-    if (route.request().method() === "GET" && new URL(route.request().url()).searchParams.get("placeId") !== firstPlaceId) {
+    if (route.request().method() === "GET" && new URL(route.request().url()).searchParams.get("placeId") !== firstPlaceId && !failedRead) {
+      failedRead = true;
       return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, message: "합성 상태 조회 실패" }) });
     }
     return route.continue();
@@ -109,6 +187,8 @@ test("switching a saved mobile sheet to another place with a failed load does no
   await expect(dialog.locator('input[name="placeId"]')).not.toHaveValue(firstPlaceId);
   await expect(dialog.getByRole("alert")).toBeVisible();
   const secondSave = dialog.getByRole("button", { name: "임시 저장", exact: true });
+  await expect(secondSave).toBeDisabled();
+  await dialog.getByRole("button", { name: "저장 상태 다시 확인", exact: true }).click();
   await expect(secondSave).toBeEnabled();
   const nextWrite = page.waitForRequest((request) => request.method() === "POST" && request.url().includes("/resources/guest-saves"));
   await secondSave.click();
