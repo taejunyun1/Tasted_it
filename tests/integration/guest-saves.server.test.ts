@@ -134,3 +134,46 @@ describe("guest merge notices and write limits", () => {
     expect((await env.DB.prepare("SELECT count(*) n FROM rate_limit_windows WHERE bucket_hash=?").bind(ip).first<{n: number}>())?.n).toBe(0);
   });
 });
+
+describe("guest unsave versus merge", () => {
+  it("reports a conflict when merge wins after the active-session read", async () => {
+    const { db, id, placeIds: [placeId], userId } = await fixture();
+    await setGuestSavedPlace(db, { sessionId: id, placeId, saved: true, now });
+    let first = true;
+    const racedDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === "query") return { ...target.query, guestTasteSessions: {
+          ...target.query.guestTasteSessions,
+          findFirst: async (...args: Parameters<typeof target.query.guestTasteSessions.findFirst>) => {
+            const result = await target.query.guestTasteSessions.findFirst(...args);
+            if (first) {
+              first = false;
+              await mergeGuestTasteSessionFromRequest(target, request(id), userId, now);
+            }
+            return result;
+          },
+        } };
+        return Reflect.get(target, property, receiver);
+      },
+    }) as typeof db;
+    await expect(setGuestSavedPlace(racedDb, { sessionId: id, placeId, saved: false, now })).rejects.toThrow("GUEST_SESSION_UNAVAILABLE");
+    expect(await db.select().from(savedPlaces).where(eq(savedPlaces.userId, userId))).toHaveLength(1);
+  });
+  it("keeps an unsave committed before merge out of the member account", async () => {
+    const { db, id, placeIds: [placeId], userId } = await fixture();
+    await setGuestSavedPlace(db, { sessionId: id, placeId, saved: true, now });
+    await setGuestSavedPlace(db, { sessionId: id, placeId, saved: false, now });
+    expect((await mergeGuestTasteSessionFromRequest(db, request(id), userId, now)).merged).toBe(true);
+    expect(await db.select().from(savedPlaces).where(eq(savedPlaces.userId, userId))).toHaveLength(0);
+  });
+});
+
+describe("member save choice retention", () => {
+  it("deletes explicit save choice markers when the member withdraws", async () => {
+    const { withdrawAccount } = await import("../../app/features/auth/account.server");
+    const { db, placeIds: [placeId], userId } = await fixture();
+    await setSaved(db, { userId, placeId, saved: false, now });
+    await withdrawAccount(db, { userId, now: new Date(now) });
+    expect((await env.DB.prepare("SELECT count(*) n FROM member_save_choices WHERE user_id=?").bind(userId).first<{n: number}>())?.n).toBe(0);
+  });
+});
