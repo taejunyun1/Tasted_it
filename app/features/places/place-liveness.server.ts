@@ -14,6 +14,7 @@ import {
   reviewerVisitReviews,
   savedPlaces,
 } from "../../db/schema";
+import { eligibleReviewCondition, eligibleVoteCondition } from "../ratings/reviewer-publication.server";
 import type { KakaoLivenessStatus, LivenessDecision, LivenessPlace, LivenessStatus } from "./place-liveness";
 
 const LEASE_MS = 5 * 60 * 1_000;
@@ -190,12 +191,13 @@ export async function loadPlaceLivenessEvidence(
       latestAt: max(reviewerVisitReviews.publishedAt),
     }).from(reviewerVisitReviews).where(and(
       eq(reviewerVisitReviews.placeId, input.placeId),
+      eligibleReviewCondition(reviewerVisitReviews.id),
       gt(reviewerVisitReviews.photoCount, 0),
       gte(reviewerVisitReviews.publishedAt, cutoff),
     )),
     db.select({ count: sql<number>`count(*)`, latestAt: max(currentVotes.updatedAt) })
       .from(currentVotes)
-      .where(and(eq(currentVotes.placeId, input.placeId), gte(currentVotes.updatedAt, cutoff))),
+      .where(and(eq(currentVotes.placeId, input.placeId), eligibleVoteCondition(), gte(currentVotes.updatedAt, cutoff))),
     db.select({ count: sql<number>`count(*)`, latestAt: max(savedPlaces.createdAt) })
       .from(savedPlaces)
       .where(and(eq(savedPlaces.placeId, input.placeId), gte(savedPlaces.createdAt, cutoff))),

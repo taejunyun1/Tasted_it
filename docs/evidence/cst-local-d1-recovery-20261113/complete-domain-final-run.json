@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "mode": "LOCAL_SYNTHETIC",
+  "status": "PASS",
+  "createdAt": "2026-11-13T13:05:46.834Z",
+  "sourceSha": "4bde49fb27580aaac8e68f7113ea4a4f1f81fafa",
+  "stages": [
+    "MIGRATE_SOURCE",
+    "SEED_SOURCE",
+    "SNAPSHOT_SOURCE",
+    "EXPORT_BACKUP",
+    "MUTATE_SOURCE",
+    "SNAPSHOT_CHANGED_SOURCE",
+    "IMPORT_RESTORED",
+    "SNAPSHOT_RESTORED"
+  ],
+  "scriptSha256": "75cbbadb9c01f2656197a0fceaf39081cfce088b933fbb5c4f417221db7e8bcb",
+  "backupSha256": "5e719f4e9b02274f492093f3fd0c1a9f269255d767ac02f728861af0cf36a17e",
+  "backupBytes": 88045,
+  "sourceRowDigest": "bf02f90d8d64d7d7d0bc31110a1852690ec679c6f68261e825160dfc9078243d",
+  "restoredRowDigest": "bf02f90d8d64d7d7d0bc31110a1852690ec679c6f68261e825160dfc9078243d",
+  "counts": {
+    "categories": 1,
+    "places": 1,
+    "links": 1
+  },
+  "quickCheck": "ok",
+  "physicalIntegrity": {
+    "source": {
+      "status": "ok",
+      "mode": "READ_ONLY_SCRATCH_COPY",
+      "copiedBytes": 2611896
+    },
+    "restored": {
+      "status": "ok",
+      "mode": "READ_ONLY_SCRATCH_COPY",
+      "copiedBytes": 1141056
+    }
+  },
+  "projectVerification": {
+    "status": "MATCH",
+    "excludedObjectNames": [
+      "sqlite_*",
+      "_cf_*",
+      "d1_migrations (including owned indexes/triggers)"
+    ],
+    "schemaObjectCount": 151,
+    "domainTableCount": 67,
+    "sourceSchemaDigest": "ef1e6b516249fe5ee2e18f704d411ae6c303dfc70ec645c885464fb35db7ffd8",
+    "restoredSchemaDigest": "ef1e6b516249fe5ee2e18f704d411ae6c303dfc70ec645c885464fb35db7ffd8",
+    "sourceDomainDataDigest": "613f33f528504c6fee5143d5b7cbd354c55d7caca2f5ef0623d0c34e56c4f4ea",
+    "restoredDomainDataDigest": "613f33f528504c6fee5143d5b7cbd354c55d7caca2f5ef0623d0c34e56c4f4ea",
+    "domainRows": 156
+  },
+  "foreignKeyViolations": 0,
+  "sourceMutationObserved": true,
+  "guards": [
+    {
+      "name": "CORRUPT_BACKUP",
+      "status": "REJECTED_BEFORE_IMPORT",
+      "code": "BACKUP_DIGEST_MISMATCH"
+    },
+    {
+      "name": "MISSING_BACKUP",
+      "status": "REJECTED_BEFORE_IMPORT",
+      "code": "BACKUP_UNAVAILABLE"
+    }
+  ],
+  "migrationsSha256": "9a04fc0c89eacc679201a1a93b066da64882599d07ea0a621c0d77dedb99d386",
+  "migrationsRef": "./verified-local-round-trip.json#migrations"
+}

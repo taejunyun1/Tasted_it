@@ -5,6 +5,8 @@ import { createDb } from "../../app/db/client.server";
 import { currentVotes, places, reviewerReliabilitySnapshots, reviewerSimilarityEdges, users, voteEvents } from "../../app/db/schema";
 import { refreshReviewerTrust } from "../../app/features/ratings/reviewer-trust.server";
 
+import { seedApprovedReviewerVote } from "./reviewer-public-fixtures";
+
 describe("reviewer trust refresh", () => {
   it("derives reliability and similarity from active role-separated votes", async () => {
     const db = createDb(env.DB); const prefix = `trust-${crypto.randomUUID()}`; const now = "2026-08-06T12:00:00.000Z";
@@ -22,8 +24,7 @@ describe("reviewer trust refresh", () => {
       for (const [reviewerIndex, reviewerId] of reviewerIds.entries()) {
         const eventId = `${prefix}-reviewer-event-${placeIndex}-${reviewerIndex}`;
         const value = reviewerIndex === 1 && placeIndex === 9 ? -1 : 1;
-        await db.insert(voteEvents).values({ id: eventId, placeId, userId: reviewerId, value, eventType: "CREATE", createdAt: now });
-        await db.insert(currentVotes).values({ placeId, userId: reviewerId, eventId, value, updatedAt: now });
+        await seedApprovedReviewerVote(db, { reviewerId, placeId, eventId, value: value as -1 | 1, now });
       }
     }
     const result = await refreshReviewerTrust(db, { now });

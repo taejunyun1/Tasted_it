@@ -32,6 +32,19 @@ function reviewInput(overrides: Record<string, unknown> = {}) {
     placeId,
     categoryId,
     categoryName: "라멘" as const,
+    visitedOn: "2026-08-12",
+    visitNote: "현장 방문 식사",
+    disclosure: "NONE" as const,
+    photoMetadata: [
+      {
+        position: 0,
+        takenOn: "2026-08-12",
+        rightsBasis: "OWN_WORK" as const,
+        rightsNote: "",
+        caption: "음식 사진",
+        privacyChecked: true as const,
+      },
+    ],
     evaluation: "RECOMMEND" as const,
     badges: [] as string[],
     golden: false,
@@ -44,59 +57,99 @@ function reviewInput(overrides: Record<string, unknown> = {}) {
 beforeEach(async () => {
   reviewerUserId = `photo-publish-reviewer-${crypto.randomUUID()}`;
   await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO users (id, email, display_name, role, created_at, updated_at) VALUES (?, ?, '사진 리뷰어', 'REVIEWER', ?, ?)")
-      .bind(reviewerUserId, `${reviewerUserId}@example.com`, now, now),
-    env.DB.prepare("INSERT OR IGNORE INTO reviewer_profiles (user_id, slug, status, occupation, taste_direction, region_code, specialty_slugs, last_activity_at, approved_at, created_at, updated_at) VALUES (?, ?, 'ACTIVE', '테스터', '균형', 'GWANGJU', '[]', ?, ?, ?, ?)")
-      .bind(reviewerUserId, reviewerUserId, now, now, now, now),
-    env.DB.prepare("INSERT OR IGNORE INTO categories (id, slug, name, emoji, sort_order, is_active, created_at, updated_at) VALUES (?, 'photo-publish-ramen', '라멘', '🍜', 999, 1, ?, ?)")
-      .bind(categoryId, now, now),
-    env.DB.prepare("INSERT OR IGNORE INTO places (id, slug, name, status, address, neighborhood, latitude, longitude, search_text, created_at, updated_at) VALUES (?, 'photo-publish-place', '사진 발행 라멘', 'PUBLISHED', '광주', '동명동', 35.149, 126.923, '사진 라멘', ?, ?)")
-      .bind(placeId, now, now),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO users (id, email, display_name, role, created_at, updated_at) VALUES (?, ?, '사진 리뷰어', 'REVIEWER', ?, ?)",
+    ).bind(reviewerUserId, `${reviewerUserId}@example.com`, now, now),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO reviewer_profiles (user_id, slug, status, occupation, taste_direction, region_code, specialty_slugs, last_activity_at, approved_at, created_at, updated_at) VALUES (?, ?, 'ACTIVE', '테스터', '균형', 'GWANGJU', '[]', ?, ?, ?, ?)",
+    ).bind(reviewerUserId, reviewerUserId, now, now, now, now),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO categories (id, slug, name, emoji, sort_order, is_active, created_at, updated_at) VALUES (?, 'photo-publish-ramen', '라멘', '🍜', 999, 1, ?, ?)",
+    ).bind(categoryId, now, now),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO places (id, slug, name, status, address, neighborhood, latitude, longitude, search_text, created_at, updated_at) VALUES (?, 'photo-publish-place', '사진 발행 라멘', 'PUBLISHED', '광주', '동명동', 35.149, 126.923, '사진 라멘', ?, ?)",
+    ).bind(placeId, now, now),
   ]);
 });
 
 describe("publishReviewerVisitWithPhotos", () => {
   it("publishes review and photo metadata together after durable R2 storage", async () => {
     const reviewId = "photo-publish-success";
-    const result = await publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
-      ...reviewInput({ id: reviewId }),
-      photos: [photo("photo-publish-1")],
-    });
+    const result = await publishReviewerVisitWithPhotos(
+      createDb(env.DB),
+      env.REVIEW_PHOTOS,
+      {
+        ...reviewInput({ id: reviewId }),
+        photos: [photo("photo-publish-1")],
+      },
+    );
 
     expect(result.review).toMatchObject({ id: reviewId, photoCount: 1 });
-    expect(result.photos).toEqual([{ id: "photo-publish-1", url: "/review-photos/photo-publish-1" }]);
-    await expect(env.DB.prepare("SELECT review_id AS reviewId, position FROM reviewer_visit_photos WHERE id = ?")
-      .bind("photo-publish-1").first()).resolves.toEqual({ reviewId, position: 0 });
-    await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, "photo-publish-1"))).resolves.toBeTruthy();
+    expect(result.photos).toEqual([
+      {
+        id: "photo-publish-1",
+        url: "/review-photos/photo-publish-1?preview=1",
+      },
+    ]);
+    await expect(
+      env.DB.prepare(
+        "SELECT review_id AS reviewId, position FROM reviewer_visit_photos WHERE id = ?",
+      )
+        .bind("photo-publish-1")
+        .first(),
+    ).resolves.toEqual({ reviewId, position: 0 });
+    await expect(
+      env.REVIEW_PHOTOS.head(
+        getReviewerPhotoObjectKey(reviewId, "photo-publish-1"),
+      ),
+    ).resolves.toBeTruthy();
   });
 
   it("does not persist a review when photo storage fails", async () => {
     const reviewId = "photo-publish-storage-failure";
     const failingStore = {
-      put: async () => { throw new Error("R2_DOWN"); },
+      put: async () => {
+        throw new Error("R2_DOWN");
+      },
       delete: async () => {},
     };
 
-    await expect(publishReviewerVisitWithPhotos(createDb(env.DB), failingStore, {
-      ...reviewInput({ id: reviewId }),
-      photos: [photo("photo-storage-failure")],
-    })).rejects.toThrow("PHOTO_STORAGE_FAILED");
+    await expect(
+      publishReviewerVisitWithPhotos(createDb(env.DB), failingStore, {
+        ...reviewInput({ id: reviewId }),
+        photos: [photo("photo-storage-failure")],
+      }),
+    ).rejects.toThrow("PHOTO_STORAGE_FAILED");
 
-    await expect(env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id = ?").bind(reviewId).first()).resolves.toBeNull();
+    await expect(
+      env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id = ?")
+        .bind(reviewId)
+        .first(),
+    ).resolves.toBeNull();
   });
 
   it("compensates stored R2 photos if the D1 publish batch fails", async () => {
     const reviewId = "photo-publish-d1-failure";
     const photoId = "photo-d1-failure";
-    await env.DB.exec("CREATE TRIGGER reviewer_photo_publish_failure BEFORE INSERT ON reviewer_visit_photos BEGIN SELECT RAISE(FAIL, 'REVIEW_PHOTO_TEST_TRIGGER'); END");
+    await env.DB.exec(
+      "CREATE TRIGGER reviewer_photo_publish_failure BEFORE INSERT ON reviewer_visit_photos BEGIN SELECT RAISE(FAIL, 'REVIEW_PHOTO_TEST_TRIGGER'); END",
+    );
     try {
-      await expect(publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
-        ...reviewInput({ id: reviewId }),
-        photos: [photo(photoId)],
-      })).rejects.toThrow("REVIEW_PHOTO_TEST_TRIGGER");
+      await expect(
+        publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
+          ...reviewInput({ id: reviewId }),
+          photos: [photo(photoId)],
+        }),
+      ).rejects.toThrow("REVIEW_PHOTO_TEST_TRIGGER");
 
-      await expect(env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id = ?").bind(reviewId).first()).resolves.toBeNull();
-      await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeNull();
+      await expect(
+        env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id = ?")
+          .bind(reviewId)
+          .first(),
+      ).resolves.toBeNull();
+      await expect(
+        env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId)),
+      ).resolves.toBeNull();
     } finally {
       await env.DB.exec("DROP TRIGGER reviewer_photo_publish_failure");
     }
@@ -107,21 +160,37 @@ describe("publishReviewerVisitWithPhotos", () => {
     const photoId = "photo-committed-response-lost";
     const db = createDb(env.DB);
     const originalBatch = db.batch.bind(db);
-    const batch = vi.spyOn(db, "batch").mockImplementationOnce(async (...statements) => {
-      await originalBatch(...statements);
-      throw new Error("D1_RESPONSE_LOST");
-    });
-
-    try {
-      const result = await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
-        ...reviewInput({ id: reviewId }),
-        photos: [photo(photoId)],
+    const batch = vi
+      .spyOn(db, "batch")
+      .mockImplementationOnce(async (...statements) => {
+        await originalBatch(...statements);
+        throw new Error("D1_RESPONSE_LOST");
       });
 
-      expect(result).toMatchObject({ review: { id: reviewId }, photos: [{ id: photoId }] });
-      await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeTruthy();
-      await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
-        .bind(reviewId).first()).resolves.toBeNull();
+    try {
+      const result = await publishReviewerVisitWithPhotos(
+        db,
+        env.REVIEW_PHOTOS,
+        {
+          ...reviewInput({ id: reviewId }),
+          photos: [photo(photoId)],
+        },
+      );
+
+      expect(result).toMatchObject({
+        review: { id: reviewId },
+        photos: [{ id: photoId }],
+      });
+      await expect(
+        env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId)),
+      ).resolves.toBeTruthy();
+      await expect(
+        env.DB.prepare(
+          "SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?",
+        )
+          .bind(reviewId)
+          .first(),
+      ).resolves.toBeNull();
     } finally {
       batch.mockRestore();
     }
@@ -130,24 +199,52 @@ describe("publishReviewerVisitWithPhotos", () => {
   it("keeps a bounded cleanup job when D1 publish and immediate R2 compensation both fail", async () => {
     const reviewId = "photo-publish-compensation-retry";
     const photoId = "photo-compensation-retry";
-    await env.DB.exec("CREATE TRIGGER reviewer_photo_compensation_failure BEFORE INSERT ON reviewer_visit_photos BEGIN SELECT RAISE(FAIL, 'REVIEW_PHOTO_COMPENSATION_TRIGGER'); END");
+    await env.DB.exec(
+      "CREATE TRIGGER reviewer_photo_compensation_failure BEFORE INSERT ON reviewer_visit_photos BEGIN SELECT RAISE(FAIL, 'REVIEW_PHOTO_COMPENSATION_TRIGGER'); END",
+    );
     const failingDeleteStore = {
-      put: (key: string, value: Uint8Array, options: { httpMetadata: { contentType: "image/jpeg" } }) => env.REVIEW_PHOTOS.put(key, value, options),
-      delete: async () => { throw new Error("R2_DELETE_FAILED"); },
+      put: (
+        key: string,
+        value: Uint8Array,
+        options: { httpMetadata: { contentType: "image/jpeg" } },
+      ) => env.REVIEW_PHOTOS.put(key, value, options),
+      delete: async () => {
+        throw new Error("R2_DELETE_FAILED");
+      },
     };
 
     try {
-      await expect(publishReviewerVisitWithPhotos(createDb(env.DB), failingDeleteStore, {
-        ...reviewInput({ id: reviewId }),
-        photos: [photo(photoId)],
-      })).rejects.toThrow("REVIEW_PHOTO_COMPENSATION_TRIGGER");
+      await expect(
+        publishReviewerVisitWithPhotos(createDb(env.DB), failingDeleteStore, {
+          ...reviewInput({ id: reviewId }),
+          photos: [photo(photoId)],
+        }),
+      ).rejects.toThrow("REVIEW_PHOTO_COMPENSATION_TRIGGER");
 
-      await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
-        .bind(reviewId).first()).resolves.toEqual({ reviewId });
-      await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeTruthy();
-      await expect(recoverPendingReviewerPhotoCleanup(createDb(env.DB), env.REVIEW_PHOTOS, { now: "2026-08-13T01:00:00.000Z" })).resolves.toEqual({ deleted: 1, pending: 0, failed: 0 });
-      await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
-        .bind(reviewId).first()).resolves.toBeNull();
+      await expect(
+        env.DB.prepare(
+          "SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?",
+        )
+          .bind(reviewId)
+          .first(),
+      ).resolves.toEqual({ reviewId });
+      await expect(
+        env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId)),
+      ).resolves.toBeTruthy();
+      await expect(
+        recoverPendingReviewerPhotoCleanup(
+          createDb(env.DB),
+          env.REVIEW_PHOTOS,
+          { now: "2026-08-13T01:00:00.000Z" },
+        ),
+      ).resolves.toEqual({ deleted: 1, pending: 0, failed: 0 });
+      await expect(
+        env.DB.prepare(
+          "SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?",
+        )
+          .bind(reviewId)
+          .first(),
+      ).resolves.toBeNull();
     } finally {
       await env.DB.exec("DROP TRIGGER reviewer_photo_compensation_failure");
     }
@@ -157,66 +254,131 @@ describe("publishReviewerVisitWithPhotos", () => {
     const reviewId = "photo-publish-ambiguous-put";
     const photoId = "photo-ambiguous-put";
     const ambiguousStore = {
-      put: async (key: string, value: Uint8Array, options: { httpMetadata: { contentType: "image/jpeg" } }) => {
+      put: async (
+        key: string,
+        value: Uint8Array,
+        options: { httpMetadata: { contentType: "image/jpeg" } },
+      ) => {
         await env.REVIEW_PHOTOS.put(key, value, options);
         throw new Error("R2_RESPONSE_LOST");
       },
-      delete: async () => { throw new Error("R2_DELETE_FAILED"); },
+      delete: async () => {
+        throw new Error("R2_DELETE_FAILED");
+      },
     };
 
-    await expect(publishReviewerVisitWithPhotos(createDb(env.DB), ambiguousStore, {
-      ...reviewInput({ id: reviewId }),
-      photos: [photo(photoId)],
-    })).rejects.toThrow("PHOTO_STORAGE_FAILED");
+    await expect(
+      publishReviewerVisitWithPhotos(createDb(env.DB), ambiguousStore, {
+        ...reviewInput({ id: reviewId }),
+        photos: [photo(photoId)],
+      }),
+    ).rejects.toThrow("PHOTO_STORAGE_FAILED");
 
-    await expect(env.DB.prepare("SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?")
-      .bind(reviewId).first()).resolves.toEqual({ reviewId });
-    await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).resolves.toBeTruthy();
-    await expect(recoverPendingReviewerPhotoCleanup(createDb(env.DB), env.REVIEW_PHOTOS, { now: "2026-08-13T01:00:00.000Z" })).resolves.toEqual({ deleted: 1, pending: 0, failed: 0 });
+    await expect(
+      env.DB.prepare(
+        "SELECT review_id AS reviewId FROM reviewer_photo_cleanup_jobs WHERE review_id = ?",
+      )
+        .bind(reviewId)
+        .first(),
+    ).resolves.toEqual({ reviewId });
+    await expect(
+      env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId)),
+    ).resolves.toBeTruthy();
+    await expect(
+      recoverPendingReviewerPhotoCleanup(createDb(env.DB), env.REVIEW_PHOTOS, {
+        now: "2026-08-13T01:00:00.000Z",
+      }),
+    ).resolves.toEqual({ deleted: 1, pending: 0, failed: 0 });
   });
 
   it("requires a durable uploaded photo for Golden Pick", async () => {
-    await expect(publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
-      ...reviewInput({
-        id: "golden-no-photo",
-        golden: true,
-        badges: ["육수 농도 선명", "면 익힘 알맞음"],
-        goldenReason: "육수와 면의 조화가 안정적이라 다시 찾고 싶은 라멘입니다.",
+    await expect(
+      publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
+        ...reviewInput({
+          id: "golden-no-photo",
+          golden: true,
+          badges: ["육수 농도 선명", "면 익힘 알맞음"],
+          goldenReason:
+            "육수와 면의 조화가 안정적이라 다시 찾고 싶은 라멘입니다.",
+        }),
+        photos: [],
+        photoMetadata: [],
       }),
-      photos: [],
-    })).rejects.toThrow("GOLDEN_PICK_PUBLISHED_PHOTO_REQUIRED");
+    ).rejects.toThrow("GOLDEN_PICK_PUBLISHED_PHOTO_REQUIRED");
   });
 
   it("does not persist photo rows when the photo count invariant is removed", async () => {
     const reviewId = "photo-count-invariant";
-    const result = await publishReviewerVisitWithPhotos(createDb(env.DB), env.REVIEW_PHOTOS, {
-      ...reviewInput({ id: reviewId }),
-      photos: [photo("photo-count-invariant")],
-    });
+    const result = await publishReviewerVisitWithPhotos(
+      createDb(env.DB),
+      env.REVIEW_PHOTOS,
+      {
+        ...reviewInput({ id: reviewId }),
+        photos: [photo("photo-count-invariant")],
+      },
+    );
 
     expect(result.review.photoCount).toBe(1);
-    await expect(env.DB.prepare("SELECT count(*) AS count FROM reviewer_visit_photos WHERE review_id = ?")
-      .bind(reviewId).first<{ count: number }>()).resolves.toEqual({ count: 1 });
+    await expect(
+      env.DB.prepare(
+        "SELECT count(*) AS count FROM reviewer_visit_photos WHERE review_id = ?",
+      )
+        .bind(reviewId)
+        .first<{ count: number }>(),
+    ).resolves.toEqual({ count: 1 });
   });
 
-  it("projects only opaque public photo URLs for every viewer of a place", async () => {
+  it("projects only approved opaque public photo URLs and preserves unapproved rows privately", async () => {
     const db = createDb(env.DB);
-    await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
-      ...reviewInput({ id: "public-photo-old", now: "2026-08-13T00:00:00.000Z" }),
-      photos: [photo("public-photo-old-1")],
-    });
-    await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
-      ...reviewInput({ id: "public-photo-new", now: "2026-08-13T01:00:00.000Z" }),
+    const result = await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
+      ...reviewInput({ id: "public-photo-new" }),
+      photoMetadata: [0, 1].map((position) => ({
+        position,
+        takenOn: "2026-08-12",
+        rightsBasis: "OWN_WORK" as const,
+        rightsNote: "",
+        caption: "음식 사진",
+        privacyChecked: true as const,
+      })),
       photos: [photo("public-photo-new-1"), photo("public-photo-new-2", 1)],
     });
-
+    expect(await listPublishedPlaceReviewPhotos(db, placeId, 12)).toEqual([]);
+    const admin = "photo-moderation-admin";
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO users(id,email,display_name,role,created_at,updated_at) VALUES (?,?,'관리자','ADMIN',?,?)",
+    )
+      .bind(admin, `${admin}@example.com`, now, now)
+      .run();
+    const { moderateReviewerVisit } =
+      await import("../../app/features/ratings/reviewer-moderation.server");
+    await moderateReviewerVisit(db, {
+      reviewId: result.review.id,
+      actorUserId: admin,
+      expectedVersion: 1,
+      status: "APPROVED",
+      reason: "사진과 권리 확인",
+      checks: {
+        visitVerified: true,
+        rightsVerified: true,
+        privacyVerified: true,
+        placeVerified: true,
+      },
+      now,
+    });
     const photos = await listPublishedPlaceReviewPhotos(db, placeId, 12);
-    expect(photos.slice(0, 3)).toEqual([
-      expect.objectContaining({ id: "public-photo-new-1", url: "/review-photos/public-photo-new-1", position: 0 }),
-      expect.objectContaining({ id: "public-photo-new-2", url: "/review-photos/public-photo-new-2", position: 1 }),
-      expect.objectContaining({ id: "public-photo-old-1", url: "/review-photos/public-photo-old-1", position: 0 }),
+    expect(photos).toEqual([
+      expect.objectContaining({
+        id: "public-photo-new-1",
+        url: "/review-photos/public-photo-new-1",
+        position: 0,
+      }),
+      expect.objectContaining({
+        id: "public-photo-new-2",
+        url: "/review-photos/public-photo-new-2",
+        position: 1,
+      }),
     ]);
-    expect(photos.some((photo) => "objectKey" in photo)).toBe(false);
+    expect(photos.some((p) => "objectKey" in p)).toBe(false);
   });
 
   it("includes only opaque photo URLs in the reviewer’s own history", async () => {
@@ -229,8 +391,51 @@ describe("publishReviewerVisitWithPhotos", () => {
     const history = await listReviewerVisitHistory(db, reviewerUserId, 12);
     const review = history.find((item) => item.id === "history-photo-review");
     expect(review).toMatchObject({
-      photos: [{ id: "history-photo-1", url: "/review-photos/history-photo-1" }],
+      photos: [
+        {
+          id: "history-photo-1",
+          url: "/review-photos/history-photo-1?preview=1",
+        },
+      ],
     });
     expect("objectKey" in (review?.photos[0] ?? {})).toBe(false);
   });
+});
+
+for (const status of ["APPROVED","CHANGES_REQUESTED"] as const) {
+  it(`preserves committed photos when ${status} moderation precedes recovery from a lost response`,async()=>{
+    const db=createDb(env.DB);const reviewId=crypto.randomUUID();const photoId=crypto.randomUUID();const actorId=crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO users(id,email,display_name,role,created_at,updated_at) VALUES(?,?,?,'ADMIN',?,?)").bind(actorId,`${actorId}@example.test`,"합성 검수자",now,now).run();
+    const originalBatch=db.batch.bind(db);
+    const batch=vi.spyOn(db,"batch").mockImplementationOnce(async(...statements)=>{
+      await originalBatch(...statements);
+      const {moderateReviewerVisit}=await import("../../app/features/ratings/reviewer-moderation.server");
+      await moderateReviewerVisit(db,{reviewId,actorUserId:actorId,expectedVersion:1,status,reason:"방문과 사진 권리 확인",checks:{visitVerified:true,rightsVerified:true,privacyVerified:true,placeVerified:true},now});
+      throw new Error("D1_RESPONSE_LOST");
+    });
+    try {
+      const result=await publishReviewerVisitWithPhotos(db,env.REVIEW_PHOTOS,{...reviewInput({id:reviewId}),photos:[photo(photoId)]});
+      expect(result.review.status).toBe(status);
+      expect(await env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId,photoId))).toBeTruthy();
+      expect(await env.DB.prepare("SELECT count(*) n FROM reviewer_visit_photos WHERE review_id=?").bind(reviewId).first()).toEqual({n:1});
+    } finally {batch.mockRestore();}
+  });
+}
+
+it("preserves referenced objects when both the commit response and confirmation read fail",async()=>{
+  const db=createDb(env.DB);const reviewId=crypto.randomUUID();const photoId=crypto.randomUUID();const originalBatch=db.batch.bind(db);let selectSpy:ReturnType<typeof vi.spyOn>|undefined;
+  const batch=vi.spyOn(db,"batch").mockImplementationOnce(async(...statements)=>{await originalBatch(...statements);selectSpy=vi.spyOn(db,"select").mockImplementationOnce(()=>{throw new Error("D1_CONFIRMATION_UNAVAILABLE");});throw new Error("D1_RESPONSE_LOST");});
+  try {
+    await expect(publishReviewerVisitWithPhotos(db,env.REVIEW_PHOTOS,{...reviewInput({id:reviewId}),photos:[photo(photoId)]})).rejects.toThrow("D1_RESPONSE_LOST");
+    expect(await env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId,photoId))).toBeTruthy();
+    expect(await env.DB.prepare("SELECT count(*) n FROM reviewer_visit_photos WHERE review_id=?").bind(reviewId).first()).toEqual({n:1});
+  } finally {selectSpy?.mockRestore();batch.mockRestore();}
+});
+
+it("checks the current reviewer role before any object write or cleanup plan",async()=>{
+  const db=createDb(env.DB);const reviewId=crypto.randomUUID();const put=vi.fn();
+  await env.DB.prepare("UPDATE users SET role='USER' WHERE id=?").bind(reviewerUserId).run();
+  await expect(publishReviewerVisitWithPhotos(db,{put,delete:async()=>{}},{...reviewInput({id:reviewId}),photos:[photo(crypto.randomUUID())]})).rejects.toThrow("ACTIVE_REVIEWER_REQUIRED");
+  expect(put).not.toHaveBeenCalled();
+  expect(await env.DB.prepare("SELECT count(*) n FROM reviewer_photo_cleanup_jobs WHERE review_id=?").bind(reviewId).first()).toEqual({n:0});
 });

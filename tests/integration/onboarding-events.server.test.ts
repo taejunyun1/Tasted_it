@@ -56,7 +56,8 @@ vi.mock("../../app/features/places/place.server", () => ({
 
 vi.mock("../../app/features/ratings/vote.server", () => ({
   castVote: routeMocks.castVote,
-  getCurrentVote: vi.fn(async () => null),
+  getCurrentVoteState: vi.fn(async () => null),
+  withdrawVote: vi.fn(async () => true),
 }));
 
 vi.mock("../../app/features/saves/save.server", () => ({
