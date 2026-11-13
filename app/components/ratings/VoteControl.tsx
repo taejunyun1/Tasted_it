@@ -51,6 +51,12 @@ export function VoteControl({ vote, saved, signedIn, returnTo }: {
           <button type="submit" disabled={pending}>비추천 반영</button>
         </Form>
       )}
+      {vote !== null && (
+        <Form method="post" onSubmit={() => setNegativeReasonOpen(false)}>
+          <input type="hidden" name="intent" value="withdraw" />
+          <button type="submit" disabled={pending}>평가 취소</button>
+        </Form>
+      )}
       <Form method="post">
         <input type="hidden" name="intent" value="save" />
         <input type="hidden" name="saved" value={String(!saved)} />

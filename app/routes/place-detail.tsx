@@ -9,11 +9,11 @@ import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
-import { castVote, getCurrentVote } from "../features/ratings/vote.server";
+import { castVote, getCurrentVote, withdrawVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
-import { recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
+import { clearRecommendationFeedback, recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
 import { recordProductEvent, type ProductEventMetadata, type ProductEventName } from "../features/onboarding/onboarding-events.server";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import {
@@ -30,6 +30,7 @@ const actionSchema = z.discriminatedUnion("intent", [
     value: z.coerce.number().refine((value): value is -1 | 1 => value === -1 || value === 1),
     reason: z.enum(["MENU", "DISTANCE", "PRICE", "ATMOSPHERE", "ALREADY_VISITED"]).nullable().default(null),
   }),
+  z.object({ intent: z.literal("withdraw") }),
   z.object({ intent: z.literal("save"), saved: z.enum(["true", "false"]).transform((value) => value === "true") }),
 ]);
 
@@ -168,6 +169,15 @@ export async function action({ request, params }: Route.ActionArgs) {
       },
       occurredAt: now,
     });
+  } else if (parsed.data.intent === "withdraw") {
+    // Remove feedback first: failed cleanup must keep the visible vote retryable.
+    await clearRecommendationFeedback(db, { userId: user.id, placeId: place.id });
+    await withdrawVote(db, { placeId: place.id, userId: user.id, eventId: crypto.randomUUID(), now });
+    try {
+      await refreshInferredTasteSignals(db, user.id, now);
+    } catch {
+      console.error("TASTE_LEARNING_REFRESH_FAILED");
+    }
   } else {
     await setSavedAndRefreshTaste(db, { placeId: place.id, userId: user.id, saved: parsed.data.saved, now });
     if (parsed.data.saved && provenance) {
