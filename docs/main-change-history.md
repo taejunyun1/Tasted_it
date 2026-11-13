@@ -17,6 +17,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Merged | 2026-11-13 공통 헤더의 모바일 메뉴 잘림을 DS8줄로 보완하고 normalized44px·hit/Tab·메뉴/목록 Enter를 검증했다. 실제 RED→GREEN2/2·최종4CI·독립 화면/코드 검토, 폰트 fallback/CSS확대/partialT07 범위 명시. | [PR #392](https://github.com/taejunyun1/Tasted_it/pull/392) · `646392c` |
 | Merged | 2026-11-13 #359 방문·사진별 권리 제출→보완/승인→프로필/장소·수정 재심/회수·본인철회를 UI로 연결했다. native400 사유 유실·일반USER 본인기록 권한 회귀를 보완, 최종unit1636/53skip·integration535·smoke16·독립리뷰 통과. 코드 이슈 종료, 운영 미실행. | [PR #390](https://github.com/taejunyun1/Tasted_it/pull/390) · `a95f9ee` |
 | Merged | 2026-11-13 모바일 검색버튼 한 줄/44px·지도 실패 안내/미니맵 겹침과 빈여백을 분류 화면 범위에서 보완했다. 실제 RED2→GREEN8·최종4CI·독립 화면/코드 리뷰, 실제 제공자 지도/전체 T07과 구분. | [PR #389](https://github.com/taejunyun1/Tasted_it/pull/389) · `f0ca8e0` |
 | Merged | 2026-11-13 #359 관리자 승인·권리/출처·직접사진·집계/추천/신뢰/추론 회수, 레거시·원본event 보존을 backend에 결속했다. 사진 응답유실과 cross-place trust 두 P2·동시 취소/legacy 충돌·101 reviewer 경계 보완, 최종CI integration535·unit1627/53skip·리뷰 통과. UI/운영은 후속, standalone Flavor는LEARNING/0. | [PR #382](https://github.com/taejunyun1/Tasted_it/pull/382) · `3bc7758` |
