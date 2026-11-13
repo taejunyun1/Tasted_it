@@ -7,7 +7,14 @@ export function publicLoginError(_error: unknown) {
 export function authEntryHref(pathname: "/login" | "/signup", currentPath: string, search = "") {
   const returnTo = safeReturnTo(`${currentPath}${search}`);
   if (returnTo === "/") return pathname;
-  return `${pathname}?returnTo=${encodeURIComponent(returnTo)}`;
+  // Framework SSR serializes search params, while the browser keeps raw commas/spaces.
+  // Match that serialization after validation so hydration has the same href.
+  const destination = new URL(returnTo, "https://retaste.invalid");
+  const searchParams = new URLSearchParams(destination.search);
+  searchParams.delete("_routes");
+  destination.search = searchParams.toString();
+  const canonicalReturnTo = `${destination.pathname}${destination.search}${destination.hash}`;
+  return `${pathname}?returnTo=${encodeURIComponent(canonicalReturnTo)}`;
 }
 
 export function retainedAuthFields(form: Record<string, FormDataEntryValue>) {

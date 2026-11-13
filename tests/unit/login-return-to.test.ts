@@ -53,6 +53,8 @@ describe("auth entry href and field retention", () => {
     for (const path of ["//evil.test/places", "/places/%252e%252e/admin", "/auth/callback", "/places/%255c%255cevil"]) {
       expect(authEntryHref("/login", path, "?bbox=1,2,3,4")).toBe("/login");
     }
+    expect(authEntryHref("/login", "/places", "?bbox=1,2,3,4&_routes=routes%2Fplace-list"))
+      .toBe(authEntryHref("/login", "/places", "?bbox=1,2,3,4"));
     const entry = new URL(authEntryHref("/login", "/places.data", "?bbox=1,2,3,4&_routes=routes%2Fplace-list"), "https://retaste.test");
     const destination = new URL(entry.searchParams.get("returnTo")!, entry);
     expect(destination.pathname).toBe("/places");

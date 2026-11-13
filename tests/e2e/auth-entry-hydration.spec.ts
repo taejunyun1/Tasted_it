@@ -6,7 +6,7 @@ test("header authentication hrefs preserve browse query through SSR and hydratio
   page.on("console", (message) => {
     if (message.type() === "error" && /hydration|hydrated|did not match|server rendered HTML/i.test(message.text())) errors.push(message.text());
   });
-  const path = "/places?bbox=126.80,35.10,127.00,35.25&q=라멘%20가게&badge=food-ramen&badge=style-market";
+  const path = "/places?bbox=126.80,35.10,127.00,35.25&q=라멘%20가게&badge=food-ramen&badge=style-market&_routes=routes%2Fplace-list";
   const response = await page.goto(path);
   expect(response?.ok()).toBe(true);
   const html = await response!.text();
@@ -21,10 +21,13 @@ test("header authentication hrefs preserve browse query through SSR and hydratio
     expect(target.pathname).toBe(entry);
     const destination = new URL(target.searchParams.get("returnTo")!, page.url());
     expect(destination.pathname).toBe("/places");
-    expect([...destination.searchParams]).toEqual([...new URL(path, page.url()).searchParams]);
+    const originalFilters = new URL(path, page.url()).searchParams;
+    originalFilters.delete("_routes");
+    expect([...destination.searchParams]).toEqual([...originalFilters]);
   }
   expect(errors).toEqual([]);
   await page.getByRole("link", { name: "로그인", exact: true }).click();
+  await expect(page).toHaveURL(/\/login\?returnTo=/);
   const destination = new URL(new URL(page.url()).searchParams.get("returnTo")!, page.url());
   expect(destination.searchParams.get("bbox")).toBe("126.80,35.10,127.00,35.25");
   expect(destination.searchParams.get("q")).toBe("라멘 가게");
