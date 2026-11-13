@@ -19,6 +19,8 @@ describe("TEMP public boundary", () => {
   it("rejects unapproved external hosts, embedded ratings and arbitrary photo paths", () => {
     const entry = { sourceId: "temp100-001", name: "합성 식당", address: "광주 동구 길 1", region: "광주 동구", cuisine: "한식", summary: "합성 테스트용 독자 설명입니다.", sourceUrl: "https://tour.gwangju.go.kr/example", sourceTitle: "공식 소개", checkedAt: "2026-11-14T00:00:00Z", evaluation: { kind: "OFFICIAL_CURATION", provider: "공식 관광", sourceUrl: "https://tour.gwangju.go.kr/example" }, photo: null };
     expect(tempEntrySchema.safeParse(entry).success).toBe(true);
+    expect(tempEntrySchema.safeParse({ ...entry, sourceUrl: "https://www.hwasun.go.kr/gallery.do?S=S05" }).success).toBe(true);
+    expect(tempEntrySchema.safeParse({ ...entry, sourceUrl: "https://www.hwasun.go.kr.unapproved.example/gallery.do" }).success).toBe(false);
     expect(tempEntrySchema.safeParse({ ...entry, sourceUrl: "https://unapproved.example/photo" }).success).toBe(false);
     expect(tempEntrySchema.safeParse({ ...entry, internalScore: 5 }).success).toBe(false);
     expect(photoObjectKey("../review-photos", { ...entry, photo: { sha256: "a".repeat(64), contentType: "image/jpeg", licenseType: "KOGL-1", licenseUrl: "https://www.kogl.or.kr/info/license.do", attribution: "합성", creator: "합성", evidenceUrl: "https://www.yeosu.go.kr/example" } } as never)).toBe(null);
