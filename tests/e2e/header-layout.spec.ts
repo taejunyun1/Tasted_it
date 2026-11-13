@@ -27,18 +27,18 @@ async function tabToMenu(page: Page) {
   throw new Error("Header menu cannot be reached from the brand with Tab");
 }
 
-test("header controls fit and remain keyboard reachable at 320px, CSS enlargement, and desktop", async ({ page, context }, testInfo) => {
-  const externalRequests: string[] = [];
-  await page.route("**/*", async route => {
-    const url = new URL(route.request().url());
-    if (url.hostname !== "127.0.0.1") { externalRequests.push(url.hostname); await route.abort(); }
-    else await route.continue();
-  });
-  const cdp = await context.newCDPSession(page);
-  await cdp.send("DOM.enable");
-  await cdp.send("CSS.enable");
-  const measurements: unknown[] = [];
-  for (const user of ["anonymous", "reviewer"] as const) {
+for (const user of ["anonymous", "reviewer"] as const) {
+  test(`header controls fit and remain keyboard reachable at 320px, CSS enlargement, and desktop (${user})`, async ({ page, context }, testInfo) => {
+    const externalRequests: string[] = [];
+    await page.route("**/*", async route => {
+      const url = new URL(route.request().url());
+      if (url.hostname !== "127.0.0.1") { externalRequests.push(url.hostname); await route.abort(); }
+      else await route.continue();
+    });
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    const measurements: unknown[] = [];
     await context.clearCookies();
     if (user === "reviewer") await context.addCookies([{ name: "retaste_session", value: "qa-active-reviewer-session", domain: "127.0.0.1", path: "/" }]);
     for (const [width, zoom, fontMode] of [[320, 1, "default"], [640, 2, "default"], [320, 1, "monospace-stress"], [640, 2, "monospace-stress"], [1280, 1, "default"]] as const) {
@@ -133,9 +133,9 @@ test("header controls fit and remain keyboard reachable at 320px, CSS enlargemen
         await page.screenshot({ path: testInfo.outputPath(`header-short-${width}-zoom-${zoom}.png`) });
       }
     }
-  }
-  const measurementFile = testInfo.outputPath("header-measurements.json");
-  await writeFile(measurementFile, JSON.stringify({ measurements, externalRequestsBlocked: externalRequests }, null, 2));
-  await testInfo.attach("header-measurements.json", { path: measurementFile, contentType: "application/json" });
-  await cdp.detach();
-});
+    const measurementFile = testInfo.outputPath("header-measurements.json");
+    await writeFile(measurementFile, JSON.stringify({ measurements, externalRequestsBlocked: externalRequests }, null, 2));
+    await testInfo.attach("header-measurements.json", { path: measurementFile, contentType: "application/json" });
+    await cdp.detach();
+  });
+}
