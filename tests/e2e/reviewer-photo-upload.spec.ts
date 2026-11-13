@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.skip(Boolean(process.env.BASE_URL), "사진 제출 시험은 격리한 로컬 합성 자료에서만 실행합니다.");
+
 test.beforeEach(async ({ page }) => {
   // 방문 검수 시험은 외부 지도 공급자를 호출하지 않는다.
   await page.route("https://oapi.map.naver.com/**", (route) => route.abort());
@@ -36,12 +38,12 @@ async function completeReviewBeforePhotoStep(page: import("@playwright/test").Pa
 async function fillVisitEvidence(page: import("@playwright/test").Page) {
   const preview = page.locator(".reviewer-preview");
   await preview.getByLabel("방문일", { exact: true }).fill("2026-11-01");
-  await preview.getByLabel("직접 확인한 방문 근거", { exact: true }).fill("자동시험 합성 방문 기록입니다.");
-  await preview.getByLabel("광고·협찬·이해관계", { exact: true }).selectOption("NONE");
+  await preview.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill("자동시험 합성 방문 기록입니다.");
+  await preview.getByRole("combobox", { name: "광고·협찬·이해관계", exact: true }).selectOption("NONE");
 }
 async function fillPhotoRights(page: import("@playwright/test").Page) {
   await page.locator(".reviewer-workspace").getByLabel("사진 1 촬영일", { exact: true }).fill("2026-11-01");
-  await page.locator(".reviewer-workspace").getByLabel("사진 1 이용권리", { exact: true }).selectOption("OWN_WORK");
+  await page.locator(".reviewer-workspace").getByRole("combobox", { name: "사진 1 이용권리", exact: true }).selectOption("OWN_WORK");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 권리 근거", { exact: true }).fill("직접 만든 자동시험 합성 이미지입니다.");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 설명", { exact: true }).fill("합성 사진");
   await page.locator(".reviewer-workspace").getByLabel("사진 1의 불필요한 인물·차량번호·개인정보 노출을 확인했어요.").check();
@@ -75,7 +77,7 @@ test("reviewer submits a metadata-free JPEG that remains private pending moderat
   await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeVisible();
 
   await expect(page.locator(".reviewer-workspace").getByLabel("사진 1 촬영일", { exact: true })).toHaveValue("");
-  await expect(page.locator(".reviewer-workspace").getByLabel("사진 1 이용권리", { exact: true })).toHaveValue("");
+  await expect(page.locator(".reviewer-workspace").getByRole("combobox", { name: "사진 1 이용권리", exact: true })).toHaveValue("");
   await expect(page.locator(".reviewer-workspace").getByLabel("사진 1의 불필요한 인물·차량번호·개인정보 노출을 확인했어요.")).not.toBeChecked();
 
   // Replacing a choice revokes only discarded previews; the current photo still

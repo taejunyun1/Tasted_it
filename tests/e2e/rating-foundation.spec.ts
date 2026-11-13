@@ -13,6 +13,7 @@ test("place detail explains the eight-vote threshold and rating groups", async (
 });
 
 test("active reviewer can open the rating workspace", async ({ page }) => {
+  test.skip(Boolean(process.env.BASE_URL), "리뷰 제출은 격리한 로컬 합성 자료에서만 검증합니다.");
   await page.context().addCookies([{ name: "retaste_session", value: "qa-active-reviewer-session", domain: "127.0.0.1", path: "/" }]);
   await page.goto("/reviewer/ratings");
   await expect(page.getByRole("heading", { name: "방문 리뷰 제출" })).toBeVisible();
@@ -36,8 +37,8 @@ test("active reviewer can open the rating workspace", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "제출 전 한 번만 확인해 주세요" })).toBeVisible();
   const preview = page.locator(".reviewer-preview");
   await preview.getByLabel("방문일", { exact: true }).fill("2026-11-01");
-  await preview.getByLabel("직접 확인한 방문 근거", { exact: true }).fill("합성 시험용 방문 근거입니다.");
-  await preview.getByLabel("광고·협찬·이해관계", { exact: true }).selectOption("NONE");
+  await preview.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill("합성 시험용 방문 근거입니다.");
+  await preview.getByRole("combobox", { name: "광고·협찬·이해관계", exact: true }).selectOption("NONE");
   await page.getByRole("button", { name: "검수 요청", exact: true }).click();
   await expect(page.getByText("검수 요청 완료", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "내 제출 기록" })).toBeVisible();

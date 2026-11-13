@@ -7,7 +7,7 @@ import { requireAdmin } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { listReviewerModerationQueue, moderateReviewerVisit } from "../features/ratings/reviewer-moderation.server";
 import { ReviewerModerationCard } from "../components/reviewer-moderation-card";
-import { reviewerVisitStatusLabels } from "../components/reviewer-visit-moderation";
+import { reviewerModerationErrorMessage, reviewerVisitStatusLabels } from "../components/reviewer-visit-moderation";
 import "../styles/reviewer-moderation.css";
 
 const statusSchema = z.enum(["LEGACY_UNREVIEWED", "PENDING", "APPROVED", "CHANGES_REQUESTED", "REJECTED", "WITHDRAWN"]);
@@ -87,11 +87,15 @@ export async function action({ request }: Route.ActionArgs) {
 
 export function meta() { return [{ title: "방문 리뷰 검수 — Re:Taste Admin" }]; }
 
-export default function AdminReviewerVisits({ loaderData }: Route.ComponentProps) {
+export default function AdminReviewerVisits({ loaderData, actionData }: Route.ComponentProps) {
+  const nativeError = actionData && typeof actionData === "object" && "error" in actionData && typeof actionData.error === "string" ? actionData.error : null;
+  const nativeSuccess = actionData && typeof actionData === "object" && "ok" in actionData && actionData.ok === true;
   return <main id="main" className="reviewer-moderation-shell">
     <p className="eyebrow">관리자 / 방문 검수</p><h1>방문 리뷰 검수</h1>
     <p className="reviewer-moderation-notice">방문 근거·사진 권리·개인정보·장소 일치를 확인한 현재 버전만 승인하세요. 승인 전 자료와 공개 회수 자료는 공개 평가·사진에 반영되지 않습니다.</p>
     <Link to="/admin/ratings">평가 운영으로</Link>
+    {nativeError && <p role="alert">{reviewerModerationErrorMessage(nativeError)}</p>}
+    {nativeSuccess && <p role="status">검수 결과를 저장했어요.</p>}
     <nav className="reviewer-moderation-filters" aria-label="방문 검수 상태">
       {Object.entries(reviewerVisitStatusLabels).map(([status, label]) => <Link key={status} to={`?status=${status}`} aria-current={loaderData.status === status ? "page" : undefined}>{label}</Link>)}
       <Link to="?status=ALL" aria-current={loaderData.status === "ALL" ? "page" : undefined}>전체</Link>

@@ -43,7 +43,7 @@ export function reviewerModerationErrorMessage(code: string) {
     REVIEW_PHOTO_RIGHTS_INVALID: "사진별 촬영일·권리 근거·설명과 개인정보 확인을 모두 입력해 주세요.",
     REVIEW_MODERATION_CHECKS_REQUIRED: "방문·권리·개인정보·장소 확인을 모두 마쳐 주세요.",
   };
-  return messages[code] ?? "요청을 처리하지 못했어요. 입력 내용을 유지했으니 최신 상태를 확인하고 다시 시도해 주세요.";
+  return messages[code] ?? "요청을 처리하지 못했어요. 최신 상태와 입력 내용을 확인하고 다시 시도해 주세요.";
 }
 
 export function VisitEvidenceFields({ initial = {} }: { initial?: { visitedOn?: string | null; visitNote?: string | null; disclosure?: string | null } }) {
