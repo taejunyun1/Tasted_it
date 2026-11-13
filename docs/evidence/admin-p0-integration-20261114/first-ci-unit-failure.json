@@ -1,0 +1,18 @@
+{
+  "pr": 419,
+  "head": "e78d2264d09954dfa55cdd24cc2eb798d60e3906",
+  "runId": 43475614876,
+  "jobId": 132058555211,
+  "test": "tests/unit/http-response-privacy.test.ts",
+  "case": "preserves unrelated cache policy for /admin/students-report",
+  "outcome": "FAIL",
+  "passed": 1666,
+  "failed": 1,
+  "skipped": 53,
+  "cause": "The old student-only policy expected a public cache on another /admin path; approved P0 now enforces no-store on every admin path.",
+  "resolution": "Keep this path tested under protected paths; retain an unrelated /admin-tools negative control. No timeout/retry/production behavior relaxation.",
+  "localRecheck": {
+    "files": 2,
+    "passed": 28
+  }
+}

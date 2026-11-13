@@ -10,3 +10,5 @@
 
 ![desktop](desktop-integrity-preview.png)
 ![mobile](mobile-integrity-preview.png)
+
+- 최초 #419 CI(e78d226, 43475614876) 단위1실패/1666통과/53skip: 기존 student 전용 정책의 `/admin/students-report` 공개 캐시 기대가 신규 전역 ADMIN 보호와 충돌했다. 해당 경로를 보호 검사로 이동하고 `/admin-tools` 비해당 대조 경로를 유지했다. 관련28건 통과, 최초 실패는 JSON에 보존한다.
