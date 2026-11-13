@@ -32,3 +32,14 @@ schema 적용 후 pre0040 Worker rollback금지. 실패하면 same-schema fence�
 ## 사진·자료 선행 확인
 
 공식 출처 좌표63개와 23개 실사진의 private 증거를 준비했다. 사진 contact sheet에서 식사/실내만 확인했고 눈에 보이는 인물·차량번호는 없었다. 23파일 메타데이터 검사에서 EXIF0/JFIF만 확인했다. 이는 모든 개인정보 부재나 영업/최종 권리 검수 전체 완료를 보장하는 판정은 아니다. 나머지37좌표는 아직 운영 검증 전이며 수치를 확보 완료로 바꾸지 않는다.
+
+
+## 실제 실행 결과 — 2026-11-14 KST
+
+#419의 최초 적용 후 #422에서 주소 출처 충돌 1건을 정정하고 immutable revision2를 사용했다. #422의 변경 한도는 누적 HTTP300·R2 put/get각46·기존ADMIN 임시세션 최대2이며 실제 HTTP229·put/get각46·ADMIN1·guest1·NAVER1(불일치 뒤 자동retry0)·메일0이다. 100개 좌표는 공식 출처 대상에 결속해 확인했고 외부 신규 provider는 없다.
+
+main `dadb17b` / Worker `afeaa57e-1255-459e-b5d5-a39bcb2c8a31` 100% 배포. 0042~0044 적용·pending0, 비공개 백업102,761,605bytes, 기존 역할/학생권한/초대 digest 동일. 신규 공개100개와 사진23개 GET hash/HEAD, 미제공/구배치 사진404, 검색/지도 데이터·상세, guest 저장/조회/취소/조회, ADMIN5경로 no-store/Vary Cookie, 최근인증 없는 회수확정403과 공개 보존, RSI6/6·감사1행·실제 Worker log outcome ok를 확인했다. 신규공개 전656/8에서 장소756/공개108, 기존 리뷰7/사진8/투표119/회원78은 유지됐다.
+
+공개 감사1행·임시trigger 잔존0을 확인했다. 구 revision은 STAGED 상태와 원문/실패 기록을 보존하며, 새23사진 검증 후 구prefix의 정확23key 삭제 응답을 받았다. ADMIN/guest 시험세션 잔존0과 임시자격파일·자체tail 프로세스 정리를 확인했다. 세부 수치·hash·미실행 경계는 [최종 비식별 증거](../evidence/cst-20261210/admin-p0-temp-live-20261114.json)에 고정한다. 실제 운영 역할변경/메일/OAuth/CSV/평가변이, DB복원, 전체T01~08/현장실증은 미실행이다.
+
+**복구 보정:** 새 source allowlist가 필요한 revision2 공개 후 이전 normal version으로 되돌리지 않는다. 최신 source 검증/schema를 유지하는 점검 fence 또는 전진 수정만 사용한다.
