@@ -963,6 +963,19 @@ export const guestTasteBadges = sqliteTable("guest_taste_badges", {
   index("guest_taste_badges_badge_idx").on(table.badgeId),
 ]);
 
+export const guestSavedPlaces = sqliteTable("guest_saved_places", {
+  sessionId: text("session_id").notNull().references(() => guestTasteSessions.id, { onDelete: "cascade" }),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.sessionId, table.placeId] })]);
+
+export const memberSaveChoices = sqliteTable("member_save_choices", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),
+  saved: integer("saved", { mode: "boolean" }).notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.userId, table.placeId] })]);
+
 export const recommendationFeedback = sqliteTable("recommendation_feedback", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   placeId: text("place_id").notNull().references(() => places.id, { onDelete: "cascade" }),

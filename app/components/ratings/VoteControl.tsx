@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Form, useNavigation } from "react-router";
+import { GuestSaveControl } from "../onboarding/GuestSaveControl";
 
 const NEGATIVE_REASONS = [
   { value: "MENU", label: "메뉴" },
@@ -9,7 +10,8 @@ const NEGATIVE_REASONS = [
   { value: "ALREADY_VISITED", label: "이미 가본 곳" },
 ] as const;
 
-export function VoteControl({ vote, saved, signedIn, returnTo }: {
+export function VoteControl({ vote, saved, signedIn, returnTo, placeId }: {
+  placeId: string;
   vote: -1 | 1 | null;
   saved: boolean;
   signedIn: boolean;
@@ -19,7 +21,7 @@ export function VoteControl({ vote, saved, signedIn, returnTo }: {
   const pending = navigation.state !== "idle";
   const [negativeReasonOpen, setNegativeReasonOpen] = useState(vote === -1);
   if (!signedIn) {
-    return <div className="reaction-signin"><a href={`/login?returnTo=${encodeURIComponent(returnTo)}`}>로그인하고 취향 남기기</a></div>;
+    return <div className="reaction-signin"><a href={`/login?returnTo=${encodeURIComponent(returnTo)}`}>로그인하고 취향 남기기</a><GuestSaveControl placeId={placeId} returnTo={returnTo} showLogin={false}/></div>;
   }
   return (
     <div className="reaction-controls">
