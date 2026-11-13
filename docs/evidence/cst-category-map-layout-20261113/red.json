@@ -1,0 +1,27 @@
+{
+  "sourceSha": "6e0d876b21c49d5eb7f049d436befc9bdfc06734",
+  "baseMain": "4c18dd441df6fde0dd068729e8f97545b93677d0",
+  "environment": "LOCAL_SYNTHETIC_PLAYWRIGHT_PIXEL7",
+  "viewport": {
+    "width": 320,
+    "height": 1000
+  },
+  "startedAtUtc": "2026-11-13T13:39:51Z",
+  "verifiedAtUtc": "2026-11-13T13:40:29Z",
+  "result": "FAIL",
+  "productionSourceChanged": false,
+  "cases": [
+    {
+      "case": "search-single-line",
+      "expectedLines": 1,
+      "actualLines": 2
+    },
+    {
+      "case": "sdk-abort-compact-map",
+      "expectedMaxHeightCssPx": 240,
+      "actualHeightCssPx": 733,
+      "sdkRequestsIntercepted": true
+    }
+  ],
+  "scope": "category route only; no production deployment or actual map-provider success claim"
+}

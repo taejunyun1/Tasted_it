@@ -75,10 +75,12 @@ test("category search stays on one line at 320 CSS pixels and 200 percent conten
       const range = document.createRange();
       range.selectNodeContents(element);
       const lines = new Set([...range.getClientRects()].filter(rect => rect.width && rect.height).map(rect => Math.round(rect.top)));
-      return { lines: lines.size, height: element.getBoundingClientRect().height };
+      const bounds = element.getBoundingClientRect();
+      return { lines: lines.size, height: bounds.height, width: bounds.width };
     });
     expect(size.lines).toBe(1);
     expect(size.height).toBeGreaterThanOrEqual(44 * zoom);
+    expect(size.width).toBeGreaterThanOrEqual(44 * zoom);
     expect(await input.evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: testInfo.outputPath(`search-${width}-zoom-${zoom}.png`), fullPage: true });
@@ -88,12 +90,13 @@ test("category search stays on one line at 320 CSS pixels and 200 percent conten
 test("a failed category map stays compact and keeps the list and place detail usable", async ({ page }, testInfo) => {
   const blocked = await blockNaverRequests(page);
   for (const [width, zoom] of [[320, 1], [640, 2]] as const) {
+    const previousBlockedCount = blocked.length;
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(categoryPath());
     if (zoom === 2) await page.addStyleTag({ content: "html { zoom: 2; }" });
     const notice = page.locator(".map-error");
     await expect(notice).toBeVisible();
-    expect(blocked.length).toBeGreaterThan(0);
+    expect(blocked.length).toBeGreaterThan(previousBlockedCount);
     const map = page.getByLabel("장소 지도", { exact: true });
     expect((await map.boundingBox())!.height).toBeLessThanOrEqual(240 * zoom);
     await expect(notice).toContainText("목록");
@@ -104,30 +107,34 @@ test("a failed category map stays compact and keeps the list and place detail us
     expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(overviewBox.y);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: testInfo.outputPath(`map-unavailable-zoom-${zoom}.png`), fullPage: true });
+    const original = new URL(page.url());
+    const listLink = page.getByRole("navigation", { name: "보기 방식" }).getByRole("link", { name: "목록", exact: true });
+    await listLink.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".explore-split")).toHaveAttribute("data-view", "list");
+    for (const key of ["q", "bbox", "selected"]) expect(new URL(page.url()).searchParams.get(key)).toBe(original.searchParams.get(key));
+    const card = page.locator(".result-panel .place-card").first();
+    await expect(card).toBeVisible();
+    await expect(card).toHaveAttribute("data-selected", "true");
+    await card.getByRole("link").click();
+    await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명", exact: true })).toBeVisible();
   }
-
-  const original = new URL(page.url());
-  const listLink = page.getByRole("navigation", { name: "보기 방식" }).getByRole("link", { name: "목록", exact: true });
-  await listLink.focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator(".explore-split")).toHaveAttribute("data-view", "list");
-  for (const key of ["q", "bbox", "selected"]) expect(new URL(page.url()).searchParams.get(key)).toBe(original.searchParams.get(key));
-  const card = page.locator(".result-panel .place-card").first();
-  await expect(card).toBeVisible();
-  await expect(card).toHaveAttribute("data-selected", "true");
-  await card.getByRole("link").click();
-  await expect(page.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명", exact: true })).toBeVisible();
 });
 
 test("a synthetic initialized category map retains its normal viewport area", async ({ page }, testInfo) => {
   const blocked = await blockNaverRequests(page);
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.name));
   await installReadyMap(page);
   await page.goto(categoryPath());
   const map = page.getByLabel("장소 지도", { exact: true });
   await expect(map.locator('[data-synthetic-map="ready"]')).toHaveCount(1);
   await expect(map).not.toHaveAttribute("data-map-unavailable", "true");
   await expect(page.locator(".map-error")).toHaveCount(0);
-  expect((await map.boundingBox())!.height).toBeGreaterThanOrEqual(320);
+  // Preserve the existing native map's 500/520px minimum area, less its border.
+  const minimumMapArea = page.viewportSize()!.width <= 760 ? 498 : 518;
+  expect((await map.boundingBox())!.height).toBeGreaterThanOrEqual(minimumMapArea);
   expect(blocked).toEqual([]);
+  expect(errors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("map-ready-synthetic.png"), fullPage: true });
 });
