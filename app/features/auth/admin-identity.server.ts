@@ -118,6 +118,6 @@ export async function commitAdminIdentityChange(database: D1Database, input: Adm
         .bind(session.id, payload.targetUserId, input.sessionId));
     }
     if (payload.action !== "REVOKE_SESSIONS") statements.push(database.prepare("DELETE FROM sessions WHERE user_id = ? AND id <> ?").bind(payload.targetUserId, input.sessionId));
-    return { checks, statements, result: { action: payload.action, targetUserId: payload.targetUserId, role: payload.nextRole, revokedSessions: selected.length } };
+    return { checks, statements, result: { action: payload.action, targetUserId: payload.targetUserId, beforeRole: payload.expectedRole, role: payload.nextRole, revokedSessions: selected.length } };
   });
 }
