@@ -1,0 +1,2826 @@
+{
+  "platform": "darwin",
+  "testRedSha": "654a849aad01f8a9b8403488b9e100f5c5f439aa",
+  "sourceFixSha": "3bb60e792c6f023c3864d084349ecac59f741653",
+  "result": "2 passed (29.1s)",
+  "measurements": [
+    {
+      "user": "anonymous",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 95.125,
+          "bottom": 48,
+          "width": 81.125,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 61,
+          "y": 197,
+          "right": 309,
+          "bottom": 239,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 190.234375,
+          "bottom": 96,
+          "width": 162.234375,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 122,
+          "y": 394,
+          "right": 618,
+          "bottom": 478,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 109.9375,
+          "bottom": 48,
+          "width": 95.9375,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 61,
+          "y": 197,
+          "right": 309,
+          "bottom": 239,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 219.875,
+          "bottom": 96,
+          "width": 191.875,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 122,
+          "y": 394,
+          "right": 618,
+          "bottom": 478,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 1280,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 20,
+          "y": 19.75,
+          "right": 191.34375,
+          "bottom": 57.25,
+          "width": 171.34375,
+          "height": 37.5,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "25px"
+        },
+        "menu": {
+          "x": 1222,
+          "y": 19.5,
+          "right": 1260,
+          "bottom": 57.5,
+          "width": 38,
+          "height": 38,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 993.515625,
+        "y": 19.5,
+        "right": 1260,
+        "bottom": 57.5,
+        "width": 266.484375,
+        "height": 38,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "14px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 10
+          },
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": []
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 993.515625,
+          "y": 28,
+          "right": 1056.28125,
+          "bottom": 49,
+          "width": 62.765625,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "코스 추천": {
+          "x": 1076.28125,
+          "y": 28,
+          "right": 1127.140625,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "나의 취향": {
+          "x": 1147.140625,
+          "y": 28,
+          "right": 1198,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "로그인": {
+          "x": 1031,
+          "y": 66.5,
+          "right": 1259,
+          "bottom": 108.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 1031,
+          "y": 108.5,
+          "right": 1259,
+          "bottom": 150.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 95.125,
+          "bottom": 48,
+          "width": 81.125,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 61,
+          "y": 281,
+          "right": 309,
+          "bottom": 323,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 190.234375,
+          "bottom": 96,
+          "width": 162.234375,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 122,
+          "y": 562,
+          "right": 618,
+          "bottom": 646,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 109.9375,
+          "bottom": 48,
+          "width": 95.9375,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 61,
+          "y": 281,
+          "right": 309,
+          "bottom": 323,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 219.875,
+          "bottom": 96,
+          "width": 191.875,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 122,
+          "y": 562,
+          "right": 618,
+          "bottom": 646,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 1280,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 20,
+          "y": 19.75,
+          "right": 191.34375,
+          "bottom": 57.25,
+          "width": 171.34375,
+          "height": 37.5,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "25px"
+        },
+        "menu": {
+          "x": 1222,
+          "y": 19.5,
+          "right": 1260,
+          "bottom": 57.5,
+          "width": 38,
+          "height": 38,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 993.515625,
+        "y": 19.5,
+        "right": 1260,
+        "bottom": 57.5,
+        "width": 266.484375,
+        "height": 38,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "14px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 10
+          },
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": []
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 993.515625,
+          "y": 28,
+          "right": 1056.28125,
+          "bottom": 49,
+          "width": 62.765625,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "코스 추천": {
+          "x": 1076.28125,
+          "y": 28,
+          "right": 1127.140625,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "나의 취향": {
+          "x": 1147.140625,
+          "y": 28,
+          "right": 1198,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "장소 제안": {
+          "x": 1031,
+          "y": 108.5,
+          "right": 1259,
+          "bottom": 150.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 1031,
+          "y": 150.5,
+          "right": 1259,
+          "bottom": 192.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 320,
+      "height": 320,
+      "zoom": 1,
+      "shortScreen": true,
+      "unreached": [],
+      "panel": {
+        "x": 60,
+        "y": 64,
+        "right": 310,
+        "bottom": 308,
+        "width": 250,
+        "height": 244,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      }
+    },
+    {
+      "user": "reviewer",
+      "width": 640,
+      "height": 640,
+      "zoom": 2,
+      "shortScreen": true,
+      "unreached": [],
+      "panel": {
+        "x": 120,
+        "y": 128,
+        "right": 620,
+        "bottom": 616,
+        "width": 500,
+        "height": 488,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      }
+    }
+  ],
+  "externalRequestsBlocked": [
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com"
+  ],
+  "desktopMeasurements": [
+    {
+      "user": "anonymous",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 95.125,
+          "bottom": 48,
+          "width": 81.125,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 61,
+          "y": 197,
+          "right": 309,
+          "bottom": 239,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 190.234375,
+          "bottom": 96,
+          "width": 162.234375,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 122,
+          "y": 394,
+          "right": 618,
+          "bottom": 478,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 109.9375,
+          "bottom": 48,
+          "width": 95.9375,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 61,
+          "y": 197,
+          "right": 309,
+          "bottom": 239,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 219.875,
+          "bottom": 96,
+          "width": 191.875,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "로그인": {
+          "x": 122,
+          "y": 394,
+          "right": 618,
+          "bottom": 478,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 1280,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 20,
+          "y": 19.75,
+          "right": 191.34375,
+          "bottom": 57.25,
+          "width": 171.34375,
+          "height": 37.5,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "25px"
+        },
+        "menu": {
+          "x": 1222,
+          "y": 19.5,
+          "right": 1260,
+          "bottom": 57.5,
+          "width": 38,
+          "height": 38,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 993.515625,
+        "y": 19.5,
+        "right": 1260,
+        "bottom": 57.5,
+        "width": 266.484375,
+        "height": 38,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "14px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 10
+          },
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": []
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 993.515625,
+          "y": 28,
+          "right": 1056.28125,
+          "bottom": 49,
+          "width": 62.765625,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "코스 추천": {
+          "x": 1076.28125,
+          "y": 28,
+          "right": 1127.140625,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "나의 취향": {
+          "x": 1147.140625,
+          "y": 28,
+          "right": 1198,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "로그인": {
+          "x": 1031,
+          "y": 66.5,
+          "right": 1259,
+          "bottom": 108.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "회원가입": {
+          "x": 1031,
+          "y": 108.5,
+          "right": 1259,
+          "bottom": 150.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 95.125,
+          "bottom": 48,
+          "width": 81.125,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 61,
+          "y": 281,
+          "right": 309,
+          "bottom": 323,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 190.234375,
+          "bottom": 96,
+          "width": 162.234375,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 122,
+          "y": 562,
+          "right": 618,
+          "bottom": 646,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 320,
+      "zoom": 1,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 109.9375,
+          "bottom": 48,
+          "width": 95.9375,
+          "height": 33,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 262,
+          "y": 9.5,
+          "right": 306,
+          "bottom": 53.5,
+          "width": 44,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 262,
+        "y": 9.5,
+        "right": 306,
+        "bottom": 53.5,
+        "width": 44,
+        "height": 44,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 109,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 61,
+          "y": 109,
+          "right": 309,
+          "bottom": 153,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 61,
+          "y": 153,
+          "right": 309,
+          "bottom": 197,
+          "width": 248,
+          "height": 44,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 61,
+          "y": 239,
+          "right": 309,
+          "bottom": 281,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 61,
+          "y": 281,
+          "right": 309,
+          "bottom": 323,
+          "width": 248,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 640,
+      "zoom": 2,
+      "fontMode": "monospace-stress",
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 219.875,
+          "bottom": 96,
+          "width": 191.875,
+          "height": 66,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "22px"
+        },
+        "menu": {
+          "x": 524,
+          "y": 19,
+          "right": 612,
+          "bottom": 107,
+          "width": 88,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 524,
+        "y": 19,
+        "right": 612,
+        "bottom": 107,
+        "width": 88,
+        "height": 88,
+        "hit": true,
+        "fontFamily": "monospace",
+        "fontSize": "12px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier-Bold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-Medium",
+            "isCustomFont": false,
+            "glyphCount": 5
+          },
+          {
+            "familyName": "Courier",
+            "postScriptName": "Courier",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ]
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 218,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "코스 추천": {
+          "x": 122,
+          "y": 218,
+          "right": 618,
+          "bottom": 306,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "나의 취향": {
+          "x": 122,
+          "y": 306,
+          "right": 618,
+          "bottom": 394,
+          "width": 496,
+          "height": 88,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "장소 제안": {
+          "x": 122,
+          "y": 478,
+          "right": 618,
+          "bottom": 562,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 122,
+          "y": 562,
+          "right": 618,
+          "bottom": 646,
+          "width": 496,
+          "height": 84,
+          "hit": true,
+          "fontFamily": "monospace",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 1280,
+      "zoom": 1,
+      "fontMode": "default",
+      "closed": {
+        "brand": {
+          "x": 20,
+          "y": 19.75,
+          "right": 191.34375,
+          "bottom": 57.25,
+          "width": 171.34375,
+          "height": 37.5,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "25px"
+        },
+        "menu": {
+          "x": 1222,
+          "y": 19.5,
+          "right": 1260,
+          "bottom": 57.5,
+          "width": 38,
+          "height": 38,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "17px"
+        }
+      },
+      "nav": {
+        "x": 993.515625,
+        "y": 19.5,
+        "right": 1260,
+        "bottom": 57.5,
+        "width": 266.484375,
+        "height": 38,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "14px"
+      },
+      "renderedFonts": {
+        ".site-head .brand": [
+          {
+            "familyName": "Apple SD Gothic Neo",
+            "postScriptName": "AppleSDGothicNeo-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 10
+          },
+          {
+            "familyName": "Pretendard ExtraBold",
+            "postScriptName": "Pretendard-ExtraBold",
+            "isCustomFont": false,
+            "glyphCount": 8
+          }
+        ],
+        ".site-head__primary > a": [
+          {
+            "familyName": "Pretendard Medium",
+            "postScriptName": "Pretendard-Medium",
+            "isCustomFont": false,
+            "glyphCount": 6
+          }
+        ],
+        ".site-menu summary": [
+          {
+            "familyName": "Apple Symbols",
+            "postScriptName": "AppleSymbols",
+            "isCustomFont": false,
+            "glyphCount": 1
+          }
+        ],
+        ".site-menu__primary-link": []
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 993.515625,
+          "y": 28,
+          "right": 1056.28125,
+          "bottom": 49,
+          "width": 62.765625,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "코스 추천": {
+          "x": 1076.28125,
+          "y": 28,
+          "right": 1127.140625,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "나의 취향": {
+          "x": 1147.140625,
+          "y": 28,
+          "right": 1198,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "14px"
+        },
+        "장소 제안": {
+          "x": 1031,
+          "y": 108.5,
+          "right": 1259,
+          "bottom": 150.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        },
+        "리뷰어 평가": {
+          "x": 1031,
+          "y": 150.5,
+          "right": 1259,
+          "bottom": 192.5,
+          "width": 228,
+          "height": 42,
+          "hit": true,
+          "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+          "fontSize": "12px"
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 320,
+      "height": 320,
+      "zoom": 1,
+      "shortScreen": true,
+      "unreached": [],
+      "panel": {
+        "x": 60,
+        "y": 64,
+        "right": 310,
+        "bottom": 308,
+        "width": 250,
+        "height": 244,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      }
+    },
+    {
+      "user": "reviewer",
+      "width": 640,
+      "height": 640,
+      "zoom": 2,
+      "shortScreen": true,
+      "unreached": [],
+      "panel": {
+        "x": 120,
+        "y": 128,
+        "right": 620,
+        "bottom": 616,
+        "width": 500,
+        "height": 488,
+        "hit": true,
+        "fontFamily": "SUIT, Pretendard, \"Apple SD Gothic Neo\", \"Noto Sans KR\", system-ui, sans-serif",
+        "fontSize": "12px"
+      }
+    }
+  ],
+  "linuxProof": "PENDING - coordinated separately on PR393",
+  "postRunTestChange": "Only diagnostic console output moved after the existing opened-menu font query; source, CDP commands, and assertions unchanged"
+}
