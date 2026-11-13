@@ -146,3 +146,30 @@ test("submission approval, owner correction and admin withdrawal govern the same
     expect((await context.request.get(previewUrl!)).status()).toBe(404);
   } finally { await admin.close(); await anon.close(); }
 });
+
+test("SSR reviewer controls wait for the client entry before accepting a place selection", async ({ page, context }) => {
+  await signIn(context, "qa-active-reviewer-session");
+  let releaseEntry!: () => void;
+  const entryBarrier = new Promise<void>((resolve) => { releaseEntry = resolve; });
+  const isEntry = (url: string) => /\/entry\.client\.tsx(?:\?|$)/.test(url);
+  await page.route("**/entry.client.tsx*", async (route) => {
+    await entryBarrier;
+    await route.continue();
+  });
+  const entryRequested = page.waitForRequest((request) => isEntry(request.url()));
+  try {
+    await page.goto("/reviewer/ratings", { waitUntil: "commit" });
+    await entryRequested;
+    const place = page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ });
+    await expect(place).toBeVisible();
+    await expect(place).toBeDisabled();
+    await expect(page.getByPlaceholder("다녀온 장소 검색")).toBeDisabled();
+    releaseEntry();
+    await expect(place).toBeEnabled();
+    await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
+    await place.click();
+    await expect(page.getByRole("button", { name: "다음: 평가" })).toBeEnabled();
+    await page.getByRole("button", { name: "다음: 평가" }).click();
+    await expect(page.getByRole("heading", { name: "이번 방문을 어떻게 판단했나요?" })).toBeVisible();
+  } finally { releaseEntry(); }
+});

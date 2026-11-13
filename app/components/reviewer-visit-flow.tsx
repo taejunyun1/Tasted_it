@@ -305,8 +305,13 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   function continueReview() {
     if (step === 4) {
       const photoStep = document.getElementById("review-step-photo")?.closest("section");
-      const controls = photoStep?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea");
-      for (const control of controls ?? []) if (!control.checkValidity()) { control.reportValidity(); return; }
+      const controls = photoStep?.querySelectorAll("input, select, textarea");
+      for (const control of controls ?? []) {
+        if ("checkValidity" in control && typeof control.checkValidity === "function" && !control.checkValidity()) {
+          if ("reportValidity" in control && typeof control.reportValidity === "function") control.reportValidity();
+          return;
+        }
+      }
     }
     setStep((current) => Math.min(5, current + 1));
   }
@@ -347,15 +352,16 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
 
       {!canSubmit && <p className="reviewer-moderation-notice">새 리뷰 제출과 내용 수정은 활동 리뷰어만 할 수 있어요. 본인이 남긴 자료의 상태 확인과 철회·사진 삭제는 아래 제출 기록에서 할 수 있습니다.</p>}
       {canSubmit && <>
+      {!hydrated && <p className="reviewer-moderation-notice" role="status">화면 준비 중이에요. 준비가 끝나면 장소를 선택해 주세요.</p>}
       <nav className="reviewer-steps" aria-label="리뷰 제출 단계">
         {["1. 장소", "2. 평가", "3. 맛 배지", "4. 사진·Golden", "5. 확인"].map((label, index) => (
-          <button key={label} type="button" aria-current={step === index + 1 ? "step" : undefined} disabled={index + 1 > step || publishing || preparingPhotos} onClick={() => setStep(index + 1)}>
+          <button key={label} type="button" aria-current={step === index + 1 ? "step" : undefined} disabled={!hydrated || index + 1 > step || publishing || preparingPhotos} onClick={() => setStep(index + 1)}>
             {label}
           </button>
         ))}
       </nav>
 
-      <fetcher.Form method="post" className="reviewer-workspace" encType="multipart/form-data" onSubmit={submitReview} aria-busy={publishing || preparingPhotos}>
+      <fetcher.Form method="post" className="reviewer-workspace" encType="multipart/form-data" onSubmit={submitReview} aria-busy={!hydrated || publishing || preparingPhotos}>
         <input type="hidden" name="intent" value="publish-review" />
         <input type="hidden" name="placeId" value={placeId} />
         <input type="hidden" name="categoryId" value={categoryId} />
@@ -367,7 +373,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
 
         {formError && <p className="reviewer-form-error" role="alert">{formError}</p>}
 
-        <fieldset className="reviewer-card-stack" disabled={publishing || preparingPhotos}>
+        <fieldset className="reviewer-card-stack" disabled={!hydrated || publishing || preparingPhotos}>
           <section className="reviewer-step-card" hidden={step !== 1} aria-labelledby="review-step-place">
             <p className="eyebrow">STEP 01 / PLACE</p>
             <h2 id="review-step-place">어디를 다녀오셨나요?</h2>
