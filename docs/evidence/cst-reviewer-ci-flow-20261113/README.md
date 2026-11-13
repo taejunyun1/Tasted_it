@@ -14,13 +14,13 @@
 
 | 조건부 실행 구간 | 누적 시각 | 바로 앞 기록 뒤 경과 |
 | --- | ---: | ---: |
-| 사진 선언 capture 완료 | 3.241초 | 2.203초 |
-| 제출·비공개/owner capture 완료 | 4.571초 | 0.767초 |
-| 보완 후 본인 오류 재시도·수정 완료 | 10.887초 | 3.761초 |
-| 첫 승인과 CAS/Origin 부정 완료 | 12.399초 | 0.063초 |
-| 승인 뒤 본인 수정에 따른 공개 중단 | 15.197초 | 0.316초 |
-| 재승인·관리자 회수 뒤 공개 중단 | 17.129초 | 0.240초 |
-| 본인 사진 삭제·context 종료 | 19.549초 | 마지막 context 종료0.234초 포함 |
+| 사진 선언 capture 완료 | 3.241초 | 시작 뒤3.241초 |
+| 제출·비공개/owner capture 완료 | 4.571초 | 1.330초 |
+| 보완 후 본인 오류 재시도·수정 완료 | 10.887초 | 6.316초 |
+| 첫 승인과 CAS/Origin 부정 완료 | 12.399초 | 1.512초 |
+| 승인 뒤 본인 수정에 따른 공개 중단 | 15.197초 | 2.798초 |
+| 재승인·관리자 회수 뒤 공개 중단 | 17.129초 | 1.932초 |
+| 본인 사진 삭제·context 종료 | 19.549초 | 2.420초 |
 
 CI 콘솔 시각과 로컬 JS 단계 시계의 측정 경계는 다르다. 원본 CI의 정확한 지연 원인을 단정하지 않고, 여러 독립 사용자 과업을 한30초에 누적하는 구조의 위험을 근거로 root와 분할을 조율했다.
 
@@ -39,3 +39,17 @@ CI 콘솔 시각과 로컬 JS 단계 시계의 측정 경계는 다르다. 원�
 요청 version과 실행 뒤 디스크 metadata top-level 비교는 불일치였지만, 실행 당시 in-memory metadata를 직접 관측하지 않았다. Vite의504 세부 분기는 UNKNOWN이다. info 수준의 재최적화 로그가 없다는 사실로 첫 optimization commit을 배제하지 않는다. 기존 #365 또는 과거 local504와 원인이 같다고 결론내리지 않으며, 단순 include/config/timeout 추가를 하지 않는다. 분할이 이 bootstrap 실패를 해결했다고 주장하지 않는다.
 
 원문 trace는 gitignored 비공개 로컬 파일로 보존하고 요청 헤더·쿠키·본문·원문 trace를 업로드하지 않는다. 기존 UI 화면 증거는 [검수 UI 증거](../cst-reviewer-moderation-20261113/README.md)에 있다.
+
+## 분할 후 검증
+
+clean checkpoint `785c92e533a670a4d1fe58afba95561c4959df4d`에서 관련 파일만 desktop5/mobile5, **10 PASS(1.2분)**였다. 새 프로세스와 보존된 optimizer metadata 조건이며, 최초 새 worktree 실패나 원본 CI를 덮는 결과로 사용하지 않는다. 프로세스 완료는 UTC2026-11-13 14:54:22.080861 / KST23:54:22.080861로 명시 계측했다. 전체28건 반복은 하지 않았다. [split-green.json](split-green.json)
+
+| 과업 | Desktop 마지막 phase | Mobile 마지막 phase |
+| --- | ---: | ---: |
+| 실제 wizard 제출·비공개 | 4.178초 | 4.311초 |
+| 보완·재시도·승인 공개 | 9.672초 | 10.607초 |
+| 승인본 수정·회수·삭제 | 8.611초 | 9.462초 |
+
+마지막 phase 값은 finally와 afterEach 전체를 포함한 개별 test 종료 시각과 구분한다. 기존 native POST와 entry barrier도 같은 실행에서 통과했다. 독립 읽기 검토는 document POST의 HTML 계약에 맞게 API 준비의 JSON 해석을 제거한 뒤 추가 P1/P2 finding이 없음을 확인했다. 제품 source 변경이 없으므로 기존 UI 증거를 유지하고, 실제 확장 CI 검증은 새 PR의 정확한 head에서 별도로 확인한다.
+
+수집10건·typecheck·production audit0·diff check를 확인했다. 검증한 source/test checkpoint `785c92e`를 먼저 원격에 고정했고 이후 추가는 이 증거 문서와 JSON뿐이다. 원본 초기 실패 trace/log는 worktree 정리 뒤에도 남는 primary의 ignored operations 디렉터리에0700/0600으로 보존했다.
