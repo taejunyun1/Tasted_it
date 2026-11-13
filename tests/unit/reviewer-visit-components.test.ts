@@ -32,9 +32,9 @@ describe("ReviewerVisitFlow", () => {
     expect(formatReviewerPublishedDate("2026-08-14T18:00:00.000Z")).toBe("2026. 8. 15.");
   });
 
-  it("renders the current app-first publishing contract", () => {
+  it("explains submission and administrator approval before public effects", () => {
     const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, props));
-    expect(html).toContain("방문 리뷰 발행");
+    expect(html).toContain("방문 리뷰 제출");
     expect(html).toContain("1. 장소");
     expect(html).toContain("2. 평가");
     expect(html).toContain("3. 맛 배지");
@@ -43,14 +43,17 @@ describe("ReviewerVisitFlow", () => {
     expect(html).toContain("추천");
     expect(html).toContain("보류");
     expect(html).toContain("비추천");
-    expect(html).toContain("서술형 후기 없이");
+    expect(html).toContain("직접 확인한 방문 근거");
     expect(html).toContain('name="photos"');
-    expect(html).toContain("발행 후 모든 사용자에게 공개됩니다");
+    expect(html).toContain("관리자 승인 전에는 공개되지 않아요");
+    expect(html).toContain("방문일");
+    expect(html).toContain("이해관계");
+    expect(html).not.toContain("발행 후 모든 사용자에게 공개됩니다");
     expect(html).toContain("Golden Pick 선택");
     expect(html).toContain("이번 달 1/3 사용");
   });
 
-  it("renders recent published review history without peer identities", () => {
+  it("shows owner submission status and correction actions without peer identities", () => {
     const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, { ...props, history: [{
       id: "visit-1",
       placeId: "sample-place-1",
@@ -66,14 +69,16 @@ describe("ReviewerVisitFlow", () => {
       publishedAt: "2026-08-12T00:00:00Z",
       photos: [],
     }] }));
-    expect(html).toContain("최근 발행");
+    expect(html).toContain("내 제출 기록");
+    expect(html).toContain("기존 자료 · 보완 필요");
+    expect(html).toContain("수정하고 검수 요청");
     expect(html).toContain('href="/places/sample-dongmyeong-ramen"');
     expect(html).toContain("육수 농도 선명");
     expect(html).not.toContain("동료 리뷰어 이름");
     expect(html).not.toContain("peerUserId");
   });
 
-  it("renders public photo URLs in the reviewer’s own published history", () => {
+  it("renders the provided owner photo preview without leaking storage keys", () => {
     const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, { ...props, history: [{
       id: "visit-photo-1",
       placeId: "sample-place-1",
@@ -87,9 +92,25 @@ describe("ReviewerVisitFlow", () => {
       goldenPickEventId: null,
       version: 1,
       publishedAt: "2026-08-13T00:00:00Z",
-      photos: [{ id: "public-photo-1", url: "/review-photos/public-photo-1" }],
+      photos: [{ id: "public-photo-1", url: "/review-photos/public-photo-1?preview=1" }],
     }] }));
-    expect(html).toContain('src="/review-photos/public-photo-1"');
+    expect(html).toContain('src="/review-photos/public-photo-1?preview=1"');
     expect(html).not.toContain("reviews/visit-photo-1");
   });
+  it("lets a former reviewer inspect and withdraw their own record without offering new submission", () => {
+    const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, { ...props, canSubmit: false, history: [{ id: "former-visit", placeId: "sample-place-1", placeSlug: "sample-dongmyeong-ramen", placeName: "합성 라멘", categoryId: "cat-ramen", categoryName: "라멘", evaluation: "RECOMMEND", badgesJson: "[]", photoCount: 0, goldenPickEventId: null, version: 1, publishedAt: "2026-11-01T00:00:00Z", photos: [] }] }));
+    expect(html).toContain("본인이 남긴 자료의 상태 확인과 철회·사진 삭제");
+    expect(html).toContain('value="withdraw-review"');
+    expect(html).not.toContain('value="publish-review"');
+    expect(html).not.toContain('value="edit-review"');
+  });
+
+  it("treats a submission success as waiting for approval, never an immediate public effect", () => {
+    const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, { ...props, publishedReviewId: "visit-1", notice: "review-submitted" }));
+    expect(html).toContain("검수 요청 완료");
+    expect(html).toContain("아직 추천에 반영되지 않았어요");
+    expect(html).not.toContain("발행 완료");
+    expect(html).not.toContain("이번 방문의 판단이 추천에 반영됐어요");
+  });
+
 });

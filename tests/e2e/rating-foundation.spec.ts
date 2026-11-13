@@ -11,7 +11,7 @@ test("place detail explains the eight-vote threshold and rating groups", async (
 test("active reviewer can open the rating workspace", async ({ page }) => {
   await page.context().addCookies([{ name: "retaste_session", value: "qa-active-reviewer-session", domain: "127.0.0.1", path: "/" }]);
   await page.goto("/reviewer/ratings");
-  await expect(page.getByRole("heading", { name: "방문 리뷰 발행" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "방문 리뷰 제출" })).toBeVisible();
   await expect(page.getByText("1. 장소")).toBeVisible();
   await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
   await page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ }).click();
@@ -29,9 +29,20 @@ test("active reviewer can open the rating workspace", async ({ page }) => {
   await expect(page.locator('input[name="photos"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "Golden Pick 선택" })).toBeDisabled();
   await page.getByRole("button", { name: "다음: 확인" }).click();
-  await expect(page.getByRole("heading", { name: "발행 전 한 번만 확인해 주세요" })).toBeVisible();
-  await page.getByRole("button", { name: "리뷰 발행" }).click();
-  await expect(page.getByText("발행 완료", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "최근 발행" })).toBeVisible();
-  await expect(page.getByRole("article").filter({ hasText: "Re:Taste 샘플 라멘 동명" }).first()).toContainText("추천");
+  await expect(page.getByRole("heading", { name: "제출 전 한 번만 확인해 주세요" })).toBeVisible();
+  const preview = page.locator(".reviewer-preview");
+  await preview.getByLabel("방문일", { exact: true }).fill("2026-11-01");
+  await preview.getByLabel("직접 확인한 방문 근거", { exact: true }).fill("합성 시험용 방문 근거입니다.");
+  await preview.getByLabel("광고·협찬·이해관계", { exact: true }).selectOption("NONE");
+  await page.getByRole("button", { name: "검수 요청", exact: true }).click();
+  await expect(page.getByText("검수 요청 완료", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "내 제출 기록" })).toBeVisible();
+  const row = page.locator(".reviewer-history-row").first();
+  await expect(row).toContainText("추천");
+  await expect(row).toContainText("검수 대기");
+  const withdrawal = row.locator("form").filter({ has: page.locator('input[value="withdraw-review"]') });
+  await withdrawal.getByLabel("철회 사유").fill("합성 시험 종료");
+  await withdrawal.getByLabel("공개 중단과 사진 삭제를 확인했어요.").check();
+  await withdrawal.getByRole("button", { name: "리뷰 철회·사진 삭제" }).click();
+  await expect(page).toHaveURL(/notice=review-withdrawn/);
 });
