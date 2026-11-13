@@ -38,6 +38,8 @@ test("guest save waits for hydration and its initial read, then recovers the cur
     const save = control.getByRole("button", { name: "임시 저장", exact: true });
     await expect(save).toBeVisible();
     await expect(save).toBeDisabled();
+    await control.scrollIntoViewIfNeeded();
+    await page.evaluate(() => document.fonts.ready);
     // Caret hiding mutates input style attributes before React hydrates them.
     await control.screenshot({ path: testInfo.outputPath("guest-ssr-disabled.png"), caret: "initial" });
     releaseEntry();
