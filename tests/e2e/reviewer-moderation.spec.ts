@@ -220,6 +220,8 @@ test("native administrator POST reports validation failures and success while cu
     expect((await invalidResponse).status()).toBe(400);
     await expect(nativePage.getByRole("alert")).toContainText("방문·권리·개인정보·장소 확인을 모두 마쳐 주세요.");
     await expect(nativeCard.locator(".reviewer-moderation-status")).toHaveText("검수 대기");
+    await expect(nativeCard.getByLabel("검수 사유")).toHaveValue("합성 검수: 확인 누락 오류 안내 시험.");
+    await expect(nativeForm.locator('input[type="checkbox"]:checked')).toHaveCount(0);
     await nativeCard.getByLabel("검수 사유").fill("합성 검수: JavaScript 없이 방문·권리·개인정보·장소 확인 완료.");
     for (const name of ["visitVerified", "rightsVerified", "privacyVerified", "placeVerified"]) {
       const checkbox = nativeCard.locator(`input[name="${name}"]`);
@@ -237,6 +239,8 @@ test("native administrator POST reports validation failures and success while cu
     expect((await staleResponse).status()).toBe(409);
     await expect(nativePage.getByRole("alert")).toContainText("다른 변경이 먼저 저장됐어요.");
     await expect(nativeCard.locator(".reviewer-moderation-status")).toHaveText("승인됨");
+    await expect(nativeCard.getByLabel("검수 사유")).toHaveValue("");
+    await expect(nativeForm.locator('input[type="checkbox"]:checked')).toHaveCount(0);
     await nativeCard.getByLabel("검수 사유").fill("합성 검수: JavaScript 없이 정상 공개 회수.");
     await nativeCard.getByRole("button", { name: "공개 회수", exact: true }).press("Enter");
     await expect(nativePage.getByRole("status")).toHaveText("검수 결과를 저장했어요.");

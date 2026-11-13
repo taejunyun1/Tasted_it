@@ -57,3 +57,8 @@ pnpm exec vitest run tests/unit/reviewer-visit-components.test.ts tests/unit/rev
 | 승인 자료와 장소 연결 | [공개 프로필](desktop-approved-profile.png) | [공개 프로필](mobile-approved-profile.png) |
 
 로컬 합성 검증은 실증 사용자 검수나 라이브 Worker의 배포·RSI 확인을 대신하지 않는다. 사진 기능 공개와 운영 자료 재검수는 별도 운영 범위와 실행 증거가 필요하다.
+
+## 리뷰 후 추가 보완
+
+- native 검수 400 뒤 사유가 빈 값이 되는 P2를 기존 사유 보존 기대값으로 RED 재현했다. 서버가 길이를 검증한 동일 리뷰·동일 version의 validation400에만 최대 500자 사유를 React 기본 escaping으로 복원한다. 권한 실패·409·다른 카드·변경 version과 checkbox는 승계하지 않는다. 보완 후 desktop/mobile native 2건 PASS(23.0초), 해당 컴포넌트 단위 5건 PASS(HTML escape·500/501자·다른 카드/version 포함). 기존 pointer 및 #365 원인 미확정 경계는 그대로다.
+- CI의 `synthetic-beta-200.test.ts`는 일반 회원의 본인 자료 조회 허용 전 계약인 GET403을 기대했다. 일반 회원 6명의 GET200에서도 본인 history·장소/카테고리·위조 notice가 비어 있고 실제 존재하는 타인의 PENDING 방문·사진 권리 메타데이터가 반환되지 않음을 확인한다. 정상 입력의 신규 제출403/활동 리뷰어 필수, 타인 철회403/소유자 필수, 전후 리뷰·사진·전이·cleanup·투표·제안 개수와 타인 자료 불변을 검증한다. 강등 소유자 본인 철회 허용과 기존 부정·abuse·viewer 시험은 유지했다. 해당 합성 integration 단독 1건 PASS(10.64초); 이전 CI의 534 PASS를 새 실행 수로 합산하지 않는다.

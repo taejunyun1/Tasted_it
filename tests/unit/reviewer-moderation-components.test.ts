@@ -41,4 +41,19 @@ describe("review moderation controls", () => {
     form.set("reviewerUserId", "forged-identity");
     expect(photoRightsFromForm(form, "photo-2", "photo-2", 1)).toEqual({ photoId: "photo-2", position: 1, takenOn: "2026-11-01", rightsBasis: "PERMISSION", rightsNote: "제공자의 사용 허락 확인", caption: "합성 음식 사진", privacyChecked: true });
   });
+  it("restores only a bounded native validation reason for the same review and version, with escaped HTML", () => {
+    const review = { ...owner, status: "PENDING" as const, placeName: "합성 라멘", placeSlug: "synthetic", reviewerDisplayName: "합성 작성자" };
+    const reason = '</textarea><script>untrusted()</script>';
+    const html = renderToStaticMarkup(createElement(ReviewerModerationCard, { review, retry: { reviewId: review.id, expectedVersion: review.version, reason } }));
+    expect(html).toContain("&lt;/textarea&gt;&lt;script&gt;untrusted()&lt;/script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain('checked=""');
+    for (const retry of [{ reviewId: "another-review", expectedVersion: review.version, reason }, { reviewId: review.id, expectedVersion: review.version - 1, reason }, { reviewId: review.id, expectedVersion: review.version, reason: "x".repeat(501) }]) {
+      const rejected = renderToStaticMarkup(createElement(ReviewerModerationCard, { review, retry }));
+      expect(rejected).not.toContain("untrusted()");
+      expect(rejected).not.toContain("x".repeat(501));
+    }
+    const boundary = renderToStaticMarkup(createElement(ReviewerModerationCard, { review, retry: { reviewId: review.id, expectedVersion: review.version, reason: "x".repeat(500) } }));
+    expect(boundary).toContain("x".repeat(500));
+  });
 });

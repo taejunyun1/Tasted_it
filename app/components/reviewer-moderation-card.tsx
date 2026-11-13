@@ -5,10 +5,13 @@ export type ModerationQueueVisit = OwnerVisit & {
   placeName: string; placeSlug: string; reviewerDisplayName: string;
 };
 
-export function ReviewerModerationCard({ review }: { review: ModerationQueueVisit }) {
+export function ReviewerModerationCard({ review, retry }: { review: ModerationQueueVisit; retry?: unknown }) {
   const fetcher = useFetcher<{ ok: boolean; error?: string }>();
   const status = review.status ?? "LEGACY_UNREVIEWED";
   const canApprove = status === "PENDING" && !review.cleanupPending;
+  const retryReason = retry && typeof retry === "object" && "reviewId" in retry && retry.reviewId === review.id
+    && "expectedVersion" in retry && retry.expectedVersion === review.version
+    && "reason" in retry && typeof retry.reason === "string" && retry.reason.length > 0 && retry.reason.length <= 500 ? retry.reason : "";
   return <article className="reviewer-moderation-card" id={`moderation-${review.id}`}>
     <header><h2>{review.placeName}</h2><span className="reviewer-moderation-status">{reviewerVisitStatusLabels[status]}</span></header>
     <dl>
@@ -36,7 +39,7 @@ export function ReviewerModerationCard({ review }: { review: ModerationQueueVisi
           ["placeVerified", "사진·방문 자료와 대상 장소의 일치를 확인했어요."],
         ] as const).map(([name, label]) => <label className="reviewer-check" key={name}><input name={name} type="checkbox" /><span>{label}</span></label>)}
       </fieldset>
-      <label><span>검수 사유</span><textarea name="reason" required maxLength={500} placeholder="확인 근거와 승인·보완·반려·회수 사유를 남겨 주세요." /></label>
+      <label><span>검수 사유</span><textarea name="reason" required maxLength={500} defaultValue={retryReason} placeholder="확인 근거와 승인·보완·반려·회수 사유를 남겨 주세요." /></label>
       {fetcher.data?.ok === false && <p role="alert">{reviewerModerationErrorMessage(fetcher.data.error ?? "")}</p>}
       {fetcher.data?.ok === true && <p role="status">검수 결과를 저장했어요.</p>}
       <div className="reviewer-moderation-buttons">

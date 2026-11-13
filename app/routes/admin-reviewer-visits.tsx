@@ -17,6 +17,7 @@ const mutationSchema = z.object({
   status: z.enum(["APPROVED", "CHANGES_REQUESTED", "REJECTED", "WITHDRAWN"]),
   reason: z.string().trim().min(1).max(500),
 });
+const reasonRetryCodes = new Set(["REVIEW_REASON_REQUIRED", "REVIEW_VISIT_INVALID", "REVIEW_PHOTO_RIGHTS_INVALID", "REVIEW_APPROVAL_CHECKS_REQUIRED", "REVIEW_DISCLOSURE_REQUIRED", "REVIEW_CHECKS_REQUIRED", "REVIEW_DISCLOSURE_UNRESOLVED"]);
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
 
@@ -81,7 +82,11 @@ export async function action({ request }: Route.ActionArgs) {
   } catch (error) {
     const codes = new Set(["REVIEW_VERSION_CONFLICT", "REVIEW_PHOTO_DELETE_PENDING", "REVIEW_NOT_FOUND", "REVIEW_TRANSITION_INVALID", "REVIEW_REASON_REQUIRED", "REVIEW_VISIT_INVALID", "REVIEW_PHOTO_RIGHTS_INVALID", "REVIEW_APPROVAL_CHECKS_REQUIRED", "REVIEW_DISCLOSURE_REQUIRED", "REVIEW_CHECKS_REQUIRED", "REVIEW_DISCLOSURE_UNRESOLVED", "ACTIVE_REVIEWER_REQUIRED", "PUBLISHED_PLACE_REQUIRED"]);
     const code = error instanceof Error && codes.has(error.message) ? error.message : "REVIEW_MODERATION_FAILED";
-    return Response.json({ ok: false, error: code }, { status: code === "REVIEW_VERSION_CONFLICT" ? 409 : code === "REVIEW_MODERATION_FAILED" ? 503 : 400 });
+    const status = code === "REVIEW_VERSION_CONFLICT" ? 409 : code === "REVIEW_MODERATION_FAILED" ? 503 : 400;
+    const retry = status === 400 && reasonRetryCodes.has(code)
+      ? { reviewId: parsed.data.reviewId, expectedVersion: parsed.data.expectedVersion, reason: parsed.data.reason }
+      : undefined;
+    return Response.json({ ok: false, error: code, retry }, { status });
   }
 }
 
@@ -90,6 +95,7 @@ export function meta() { return [{ title: "방문 리뷰 검수 — Re:Taste Adm
 export default function AdminReviewerVisits({ loaderData, actionData }: Route.ComponentProps) {
   const nativeError = actionData && typeof actionData === "object" && "error" in actionData && typeof actionData.error === "string" ? actionData.error : null;
   const nativeSuccess = actionData && typeof actionData === "object" && "ok" in actionData && actionData.ok === true;
+  const nativeRetry = actionData && typeof actionData === "object" && "retry" in actionData ? actionData.retry : undefined;
   return <main id="main" className="reviewer-moderation-shell">
     <p className="eyebrow">관리자 / 방문 검수</p><h1>방문 리뷰 검수</h1>
     <p className="reviewer-moderation-notice">방문 근거·사진 권리·개인정보·장소 일치를 확인한 현재 버전만 승인하세요. 승인 전 자료와 공개 회수 자료는 공개 평가·사진에 반영되지 않습니다.</p>
@@ -105,6 +111,6 @@ export default function AdminReviewerVisits({ loaderData, actionData }: Route.Co
       {loaderData.hasCursor && <Link to={`?status=${loaderData.status}`}>최근 기록으로</Link>}
       {loaderData.nextHref && <Link to={loaderData.nextHref}>이전 검수 기록</Link>}
     </nav>
-    {loaderData.reviews.length ? loaderData.reviews.map((review) => <ReviewerModerationCard key={`${review.id}-${review.version}`} review={review} />) : <p role="status">이 상태의 방문 리뷰가 없어요.</p>}
+    {loaderData.reviews.length ? loaderData.reviews.map((review) => <ReviewerModerationCard key={`${review.id}-${review.version}`} review={review} retry={nativeRetry} />) : <p role="status">이 상태의 방문 리뷰가 없어요.</p>}
   </main>;
 }

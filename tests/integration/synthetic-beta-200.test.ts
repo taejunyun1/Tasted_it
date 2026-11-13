@@ -15,7 +15,7 @@ import { loader as placeListLoader } from "../../app/routes/place-list";
 import { action as placeDetailAction, loader as placeDetailLoader } from "../../app/routes/place-detail";
 import { action as placeSuggestAction } from "../../app/routes/place-suggest";
 import { loader as reviewerProfileLoader } from "../../app/routes/reviewer-profile";
-import { loader as reviewerRatingsLoader } from "../../app/routes/reviewer-ratings";
+import { action as reviewerRatingsAction, loader as reviewerRatingsLoader } from "../../app/routes/reviewer-ratings";
 import { action as signupAction } from "../../app/routes/signup";
 
 const NOW = "2026-08-18T00:00:00.000Z";
@@ -302,12 +302,49 @@ describe("isolated synthetic beta 200 testers + 100 viewers", () => {
       expect(user?.email).toBe(withdrawnEmailFor(`synth-${pad(n)}`));
     }
 
+    // USER도 본인 자료를 조회·철회할 수 있지만 새 제출과 타인 자료 변경은 허용하지 않는다.
+    const foreignReviewId = "synth-foreign-private-visit";
+    const foreignPhotoId = "synth-foreign-private-photo";
+    const privateVisitNote = "합성 비공개 방문 근거 marker";
+    const privateRightsNote = "합성 비공개 사진 권리 marker";
+    const privateReviewReason = "합성 비공개 검수 사유 marker";
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO reviewer_visit_reviews(id,place_id,reviewer_user_id,category_id,evaluation,badges_json,photo_count,status,is_current,visited_on,visit_note,disclosure,review_reason,published_at,created_at,updated_at) VALUES (?,?,'synth-reviewer-1','cat-gukbap','HOLD','[]',1,'PENDING',1,'2026-08-17',?,'NONE',?,?,?,?)")
+        .bind(foreignReviewId, PLACE_A, privateVisitNote, privateReviewReason, NOW, NOW, NOW),
+      env.DB.prepare("INSERT INTO reviewer_visit_photos(id,review_id,object_key,content_type,byte_size,position,taken_on,rights_basis,rights_note,caption,privacy_checked,created_at,updated_at) VALUES (?,?,?,'image/jpeg',4,0,'2026-08-17','OWN_WORK',?,'합성 비공개 사진 설명',1,?,?)")
+        .bind(foreignPhotoId, foreignReviewId, `reviews/${foreignReviewId}/${foreignPhotoId}.jpg`, privateRightsNote, NOW, NOW),
+    ]);
+    async function reviewerMutationSnapshot() {
+      return {
+        counts: await env.DB.prepare("SELECT (SELECT COUNT(*) FROM reviewer_visit_reviews) AS reviews, (SELECT COUNT(*) FROM reviewer_visit_photos) AS photos, (SELECT COUNT(*) FROM reviewer_review_transitions) AS transitions, (SELECT COUNT(*) FROM reviewer_photo_cleanup_jobs) AS cleanupJobs, (SELECT COUNT(*) FROM vote_events) AS voteEvents, (SELECT COUNT(*) FROM current_votes) AS currentVotes, (SELECT COUNT(*) FROM place_suggestions) AS suggestions").first(),
+        review: await env.DB.prepare("SELECT status,version,content_version,visit_note,review_reason FROM reviewer_visit_reviews WHERE id=?").bind(foreignReviewId).first(),
+        photo: await env.DB.prepare("SELECT review_id,content_version,rights_note,caption,privacy_checked,object_key FROM reviewer_visit_photos WHERE id=?").bind(foreignPhotoId).first(),
+      };
+    }
+    const beforeReviewerReads = await reviewerMutationSnapshot();
+    expect(beforeReviewerReads.review).toMatchObject({ status: "PENDING", visit_note: privateVisitNote });
+    expect(beforeReviewerReads.photo).toMatchObject({ rights_note: privateRightsNote });
     for (let n = 71; n <= 76; n += 1) {
       const cross = await invoke(() => reviewerRatingsLoader({
-        request: getRequest("/reviewer/ratings", memberIp(n), `synth-session-${pad(n)}`),
+        request: getRequest(`/reviewer/ratings?submitted=${foreignReviewId}&notice=review-with-photos-submitted`, memberIp(n), `synth-session-${pad(n)}`),
       } as never), bucket);
-      expect(cross.status).toBe(403);
+      expect(cross.status).toBe(200);
+      const workspace = cross.result as Awaited<ReturnType<typeof reviewerRatingsLoader>>;
+      expect(workspace).toMatchObject({ canSubmit: false, history: [], places: [], categories: [], publishedReviewId: null, notice: null, historyNextHref: null });
+      const serialized = JSON.stringify(workspace);
+      for (const marker of [foreignReviewId, foreignPhotoId, privateVisitNote, privateRightsNote, privateReviewReason]) expect(serialized).not.toContain(marker);
+      const deniedCreate = await invoke(() => reviewerRatingsAction({
+        request: formRequest("/reviewer/ratings", { intent: "publish-review", placeId: PLACE_A, categoryId: "cat-gukbap", categoryName: "국밥·해장국", evaluation: "HOLD", golden: "0", visitedOn: "2026-08-17", visitNote: "합성 일반회원의 유효한 입력으로 신규 제출 권한 확인", disclosure: "NONE", photoMetadata: "[]" }, memberIp(n), `synth-session-${pad(n)}`),
+      } as never), bucket);
+      expect(deniedCreate.status).toBe(403);
+      expect(await (deniedCreate.result as Response).json()).toMatchObject({ ok: false, error: "ACTIVE_REVIEWER_REQUIRED" });
     }
+    const deniedForeignWithdrawal = await invoke(() => reviewerRatingsAction({
+      request: formRequest("/reviewer/ratings", { intent: "withdraw-review", reviewId: foreignReviewId, expectedVersion: "1", reason: "합성 비소유자의 타인 기록 철회 차단 확인" }, memberIp(71), "synth-session-071"),
+    } as never), bucket);
+    expect(deniedForeignWithdrawal.status).toBe(403);
+    expect(await (deniedForeignWithdrawal.result as Response).json()).toMatchObject({ ok: false, error: "REVIEW_OWNER_REQUIRED" });
+    expect(await reviewerMutationSnapshot()).toEqual(beforeReviewerReads);
 
     let signupLast = 0;
     for (let n = 1; n <= 11; n += 1) {
