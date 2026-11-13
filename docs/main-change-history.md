@@ -17,6 +17,8 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Merged | 2026-11-14 #394 모바일 주요링크를 기존 메뉴로 이동하고 짧은 높이 스크롤·동일44px/키보드/hit를 보완했다. 역할별같은30초 분할·자체4CI/독립리뷰, Linux최종27PASS/2SKIP 검증. 원래폭실패·단일case시간초과 보존. | [PR #396](https://github.com/taejunyun1/Tasted_it/pull/396) · `d986d6d` |
+| Merged | 2026-11-14 #395 복수 리뷰어 과업이 누적되던 회귀를 독립3과업으로 나누고 기존30초·권한/사진 회수·cleanup을 보존했다. 관련10PASS·own4CI/리뷰, Linux reviewer5PASS 확인. cold504 원인과 전체CI의 header실패는 분리·보존. | [PR #398](https://github.com/taejunyun1/Tasted_it/pull/398) · `ac01d06` |
 | Merged | 2026-11-13 공통 헤더의 모바일 메뉴 잘림을 DS8줄로 보완하고 normalized44px·hit/Tab·메뉴/목록 Enter를 검증했다. 실제 RED→GREEN2/2·최종4CI·독립 화면/코드 검토, 폰트 fallback/CSS확대/partialT07 범위 명시. | [PR #392](https://github.com/taejunyun1/Tasted_it/pull/392) · `646392c` |
 | Merged | 2026-11-13 #359 방문·사진별 권리 제출→보완/승인→프로필/장소·수정 재심/회수·본인철회를 UI로 연결했다. native400 사유 유실·일반USER 본인기록 권한 회귀를 보완, 최종unit1636/53skip·integration535·smoke16·독립리뷰 통과. 코드 이슈 종료, 운영 미실행. | [PR #390](https://github.com/taejunyun1/Tasted_it/pull/390) · `a95f9ee` |
 | Merged | 2026-11-13 모바일 검색버튼 한 줄/44px·지도 실패 안내/미니맵 겹침과 빈여백을 분류 화면 범위에서 보완했다. 실제 RED2→GREEN8·최종4CI·독립 화면/코드 리뷰, 실제 제공자 지도/전체 T07과 구분. | [PR #389](https://github.com/taejunyun1/Tasted_it/pull/389) · `f0ca8e0` |
