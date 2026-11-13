@@ -1,0 +1,49 @@
+{
+  "status": "PARTIAL_PHOTO_RIGHTS_PENDING",
+  "revision": 2,
+  "checkedAt": "2026-11-13T16:39:46.506Z",
+  "sourceSha": "3e0636f1b5768ea742aec8537dd1cb96be375c89",
+  "datasetSha256": "d949f94c4a760aa42c2894ff220c0203d272da49a793cbe402dc79e38cedc900",
+  "previousSnapshot": {
+    "revision": 1,
+    "datasetSha256": "a6cdb542b630e7e62ea6732ab05b9ef78e97a54010784c6a557e6117a4646bd9",
+    "localPhotoPreviewCount": 3,
+    "preserved": true
+  },
+  "counts": {
+    "candidateCount": 100,
+    "sourceReferenceCount": 100,
+    "photoReferenceCount": 100,
+    "photoRightsEvidencePresent": 23,
+    "photoRightsConfirmed": 0,
+    "photoRightsBlocked": 77,
+    "localPhotoPreviewCount": 23,
+    "externalCurationCount": 100,
+    "externalNumericScoreCount": 0,
+    "internalScoreCount": 0,
+    "publishedCount": 0,
+    "pendingReviewCount": 100,
+    "operatingStatusConfirmed": 0,
+    "chainStatusConfirmed": 0
+  },
+  "preview": {
+    "candidateCards": 100,
+    "imageCount": 23,
+    "loadedImages": 23,
+    "allImagesEmbedded": true,
+    "externalRequests": 0,
+    "pageErrors": 0,
+    "photoMetadataHasCaptureCaveat": 23
+  },
+  "replay": {
+    "checkedAt": "2026-11-13T16:39:46.506Z",
+    "previewBytes": 6251189,
+    "replayUnchanged": true
+  },
+  "boundary": {
+    "knownChainMatches": 0,
+    "normalizedNameAddressDuplicates": 0,
+    "photoSha256Duplicates": 0,
+    "notIndependentBusinessCertification": true
+  }
+}
