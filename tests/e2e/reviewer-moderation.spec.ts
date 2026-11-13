@@ -34,7 +34,8 @@ async function visitEvidence(page: Page, scope = page.locator(".reviewer-preview
   await scope.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill("합성 시험 자료: 직접 방문해 라멘과 제공 상황을 확인했습니다.");
   await scope.getByRole("combobox", { name: "광고·협찬·이해관계", exact: true }).selectOption("NONE");
 }
-async function createPendingVisit(page: Page, outputPath?: (name: string) => string) {
+async function createPendingVisit(page: Page, outputPath?: (name: string) => string, mark: (phase: string) => void = () => {}) {
+  mark("owner-workspace:start");
   await page.goto("/reviewer/ratings");
   await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
   await page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ }).click();
@@ -43,31 +44,39 @@ async function createPendingVisit(page: Page, outputPath?: (name: string) => str
   await page.getByRole("button", { name: "다음: 맛 배지" }).click();
   await page.getByRole("button", { name: "육수 농도 선명" }).click();
   await page.getByRole("button", { name: "다음: 사진·Golden" }).click();
+  mark("owner-wizard:photo-step");
   const image = await page.screenshot({ type: "jpeg" });
   await page.locator('input[name="photos"]').setInputFiles({ name: "synthetic-visit.jpg", mimeType: "image/jpeg", buffer: image });
   await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeVisible();
+  mark("photo-preparation:complete");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 촬영일", { exact: true }).fill("2026-11-01");
   await page.locator(".reviewer-workspace").getByRole("combobox", { name: "사진 1 이용권리", exact: true }).selectOption("OWN_WORK");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 권리 근거", { exact: true }).fill("자동시험을 위해 직접 생성한 합성 이미지입니다.");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 설명", { exact: true }).fill("승인 흐름 검증용 합성 사진");
   await page.locator(".reviewer-workspace").getByLabel("사진 1의 불필요한 인물·차량번호·개인정보 노출을 확인했어요.").check();
   if (outputPath) await page.locator('[aria-labelledby="review-step-photo"]').screenshot({ path: outputPath("photo-declarations.png") });
+  mark("photo-declarations:capture-complete");
   await page.getByRole("button", { name: "다음: 확인" }).click();
   await visitEvidence(page);
   if (outputPath) await page.locator(".reviewer-preview").screenshot({ path: outputPath("visit-declarations.png") });
+  mark("visit-declarations:capture-complete");
   await page.getByRole("button", { name: "검수 요청", exact: true }).click();
   await expect(page).toHaveURL(/notice=review-with-photos-submitted/);
   await expect(page.getByText("검수 요청 완료", { exact: true })).toBeVisible();
   const id = new URL(page.url()).searchParams.get("submitted");
   expect(id).toBeTruthy();
   pendingCleanup.set(page.context(), id!);
+  mark("owner-submission:complete");
   return id!;
 }
 
 // Uses only isolated local fixtures. Technical evidence is separate from user studies.
 test("submission approval, owner correction and admin withdrawal govern the same public visit and photo", async ({ browser, page, context }, testInfo) => {
+  const started = performance.now();
+  const mark = (phase: string) => console.info(`REVIEWER_TIMING ${JSON.stringify({ phase, elapsedMs: Math.round(performance.now() - started), atUtc: new Date().toISOString(), project: testInfo.project.name })}`);
+  mark("core:start");
   await signIn(context, "qa-active-reviewer-session");
-  const reviewId = await createPendingVisit(page, (name) => testInfo.outputPath(name));
+  const reviewId = await createPendingVisit(page, (name) => testInfo.outputPath(name), mark);
   const ownRow = page.locator(`#review-${reviewId}`);
   await expect(ownRow).toContainText("검수 대기");
   const previewUrl = await ownRow.locator(".reviewer-history-thumb").getAttribute("src");
@@ -85,6 +94,7 @@ test("submission approval, owner correction and admin withdrawal govern the same
   await signIn(admin, "qa-admin-session");
   const publicPage = await anon.newPage();
   const adminPage = await admin.newPage();
+  mark("additional-contexts:ready");
   try {
     expect((await anon.request.get(publicUrl)).status()).toBe(404);
     expect((await anon.request.head(publicUrl)).status()).toBe(404);
@@ -94,9 +104,14 @@ test("submission approval, owner correction and admin withdrawal govern the same
     const denied = await context.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "APPROVED", reason: "권한 없는 요청" }, headers: { Origin: new URL(page.url()).origin } });
     expect(denied.status()).toBe(403);
     await ownRow.screenshot({ path: testInfo.outputPath("owner-pending.png") });
+    mark("pending-access-and-owner-capture:complete");
     let checkedApprovalRetry = false;
+    let moderationRound = 0;
     async function moderate(status: "APPROVED" | "CHANGES_REQUESTED" | "WITHDRAWN", reason: string) {
+      const phase = `moderation-${++moderationRound}-${status}`;
+      mark(`${phase}:start`);
       await adminPage.goto("/admin/reviewer-visits?status=ALL");
+      mark(`${phase}:document-ready`);
       const card = adminPage.locator(`#moderation-${reviewId}`);
       await card.getByLabel("검수 사유").fill(reason);
       if (status === "APPROVED" && !checkedApprovalRetry) {
@@ -109,12 +124,17 @@ test("submission approval, owner correction and admin withdrawal govern the same
       if (status === "APPROVED") for (const name of ["visitVerified", "rightsVerified", "privacyVerified", "placeVerified"]) await card.locator(`input[name="${name}"]`).check();
       await card.getByRole("button", { name: status === "APPROVED" ? "승인·공개" : status === "CHANGES_REQUESTED" ? "보완 요청" : "공개 회수", exact: true }).click();
       await expect(card.locator(".reviewer-moderation-status")).toHaveText(status === "APPROVED" ? "승인됨" : status === "CHANGES_REQUESTED" ? "보완 요청" : "공개 회수·철회");
+      mark(`${phase}:complete`);
     }
     await moderate("CHANGES_REQUESTED", "합성 검수: 방문 근거를 더 구체적으로 보완해 주세요.");
     await page.reload();
     await expect(ownRow).toContainText("보완 요청");
     await expect(ownRow).toContainText("방문 근거를 더 구체적으로");
+    mark("owner-sees-change-request:complete");
+    let editRound = 0;
     async function editVisit(reason: string, checkRetry = false) {
+      const phase = `owner-edit-${++editRound}`;
+      mark(`${phase}:start`);
       await ownRow.getByText("내용 보완·다시 제출", { exact: true }).click();
       const edit = ownRow.locator('form').filter({ has: page.locator('input[value="edit-review"]') });
       await edit.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill(`합성 시험 자료: ${reason}`);
@@ -130,6 +150,7 @@ test("submission approval, owner correction and admin withdrawal govern the same
       await edit.getByRole("button", { name: "수정하고 검수 요청" }).click();
       await expect(page).toHaveURL(/notice=review-updated/);
       await expect(ownRow).toContainText("검수 대기");
+      mark(`${phase}:complete`);
     }
     await editVisit("직접 확인한 방문 근거를 보완했습니다.", true);
     await moderate("APPROVED", "합성 검수: 방문·권리·개인정보·장소 확인 완료.");
@@ -138,6 +159,7 @@ test("submission approval, owner correction and admin withdrawal govern the same
     const crossOrigin = await admin.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "WITHDRAWN", reason: "외부 출처 요청" }, headers: { Origin: "https://elsewhere.invalid" } });
     // React Router's document-action CSRF guard rejects this before the route's Origin guard.
     expect(crossOrigin.status()).toBe(400);
+    mark("stale-and-origin-negatives:complete");
     const approved = await anon.request.get(publicUrl);
     expect(approved.status()).toBe(200);
     expect(approved.headers()["cache-control"]).toContain("no-store");
@@ -149,19 +171,23 @@ test("submission approval, owner correction and admin withdrawal govern the same
     const publicVisit = publicPage.locator(".reviewer-public-visit");
     await expect(publicVisit.getByRole("link", { name: "Re:Taste 샘플 라멘 동명" })).toBeVisible();
     await expect(publicVisit.getByRole("img", { name: "승인 흐름 검증용 합성 사진" })).toBeVisible();
+    mark("approved-public-projection:complete");
     await publicPage.screenshot({ path: testInfo.outputPath("approved-profile.png"), fullPage: true });
     await adminPage.locator(`#moderation-${reviewId}`).screenshot({ path: testInfo.outputPath("admin-approved.png") });
+    mark("approved-captures:complete");
     await page.reload();
     await editVisit("공개 이후 내용을 고쳐 다시 검수 요청합니다.");
     expect((await anon.request.get(publicUrl)).status()).toBe(404);
     await publicPage.reload();
     await expect(publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
+    mark("owner-edit-public-removal:complete");
     await moderate("APPROVED", "합성 재검수: 수정한 내용 확인 완료.");
     expect((await anon.request.get(publicUrl)).status()).toBe(200);
     await moderate("WITHDRAWN", "합성 검수: 공개 회수 경계 시험.");
     expect((await anon.request.get(publicUrl)).status()).toBe(404);
     await publicPage.reload();
     await expect(publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
+    mark("admin-withdrawal-public-removal:complete");
     await page.reload();
     const withdrawal = ownRow.locator('form').filter({ has: page.locator('input[value="withdraw-review"]') });
     await withdrawal.getByLabel("철회 사유").fill("합성 시험 종료 후 사진 삭제 요청.");
@@ -170,7 +196,12 @@ test("submission approval, owner correction and admin withdrawal govern the same
     await expect(page).toHaveURL(/notice=review-withdrawn/);
     expect((await context.request.get(previewUrl!)).status()).toBe(404);
     pendingCleanup.delete(context);
-  } finally { await Promise.allSettled([admin.close(), anon.close()]); }
+    mark("owner-withdrawal-photo-removal:complete");
+  } finally {
+    mark("additional-contexts:closing");
+    await Promise.allSettled([admin.close(), anon.close()]);
+    mark("additional-contexts:closed");
+  }
 });
 
 test("native administrator POST reports validation failures and success while cursor navigation preserves the filter", async ({ browser, context, page }, testInfo) => {
