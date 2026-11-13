@@ -5,6 +5,8 @@ import { authEntryHref } from "./features/auth/login";
 import { getOptionalUser } from "./features/auth/session.server";
 import { createDb } from "./db/client.server";
 import { getStudentSeat } from "./features/students/invitations.server";
+import { getGuestChoiceMergeState } from "./features/onboarding/guest-saves.server";
+import { GuestMergeRetry } from "./components/onboarding/GuestMergeRetry";
 import "./app.css";
 import "./styles/design-system.css";
 
@@ -18,7 +20,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const user = await getOptionalUser(request);
   const studentWorkspaceEnabled = env.STUDENT_WORKSPACE_ENABLED === "true";
   const student = user && user.role !== "ADMIN" && studentWorkspaceEnabled ? await getStudentSeat(createDb(env.DB), { userId: user.id, now: new Date().toISOString() }) : null;
-  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student) };
+  const guestMergeState = user && env.ONBOARDING_ENABLED === "true" ? await getGuestChoiceMergeState(createDb(env.DB), request, new Date().toISOString()) : "NONE";
+  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student), guestMergeState };
 }
 export function Layout({ children }: { children: React.ReactNode }) { return <html lang="ko"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><Meta/><Links/></head><body><a className="skip-link" href="#main">본문으로 건너뛰기</a>{children}<ScrollRestoration/><Scripts/></body></html>; }
 export default function App({ loaderData }: Route.ComponentProps) {
@@ -52,6 +55,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
         </details>
       </nav>
     </header>
+    {loaderData.guestMergeState === "PENDING" && <GuestMergeRetry/>}
+    {loaderData.guestMergeState === "EXPIRED" && <p className="shell" role="status">임시 자료 보관기간이 지나 계정에 연결하지 못했습니다. 장소와 취향을 다시 선택해 주세요.</p>}
     <Outlet/>
     <footer className="site-footer"><strong>Re:Taste</strong><span>추천할 만한 한 끼를 기록합니다.</span><nav aria-label="서비스 안내"><Link to="/corrections/new">정보 정정</Link><Link to="/privacy">개인정보 처리방침</Link><Link to="/terms">이용약관</Link></nav></footer>
   </>;

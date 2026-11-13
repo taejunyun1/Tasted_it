@@ -804,10 +804,9 @@ describe("product event route wiring", () => {
 
     await expect(db.select({ id: guestTasteSessions.id }).from(guestTasteSessions))
       .resolves.toHaveLength(sessionsBefore.length);
-    await expect(selectedGuestBadges(db, guestSessionId)).resolves.toEqual(expect.arrayContaining([
-      { badgeId: "food-gukbap" },
-      { badgeId: "style-market" },
-    ]));
+    await expect(selectedGuestBadges(db, guestSessionId)).resolves.toEqual([]);
+    const copied = await env.DB.prepare("SELECT badge_id FROM user_taste_badges WHERE user_id=? AND source='USER' ORDER BY badge_id").bind(userId).all<{ badge_id: string }>();
+    expect(copied.results).toEqual([{ badge_id: "food-gukbap" }, { badge_id: "style-market" }]);
     expect(new Headers(response.init?.headers).get("Set-Cookie")).toBeNull();
   });
 

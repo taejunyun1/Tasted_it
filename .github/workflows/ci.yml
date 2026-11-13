@@ -127,3 +127,12 @@ jobs:
       - name: Playwright smoke
         run: pnpm exec playwright test tests/e2e/release.spec.ts tests/e2e/ci-smoke-places.spec.ts tests/e2e/student-workspace.spec.ts tests/e2e/student-request-session.spec.ts tests/e2e/student-invite-handoff.spec.ts --project=chromium
 
+      - name: Preserve anonymous legal failure metadata
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: public-legal-diagnostic-${{ github.run_attempt }}
+          path: test-results/**/public-legal-diagnostic.json
+          if-no-files-found: ignore
+          retention-days: 3
+

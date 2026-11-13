@@ -3,6 +3,7 @@ import { useFetcher } from "react-router";
 import type { loader as placeDetailLoader } from "../../routes/place-detail";
 import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
 import { safePlaceDetailRequestPath } from "./PlaceCard";
+import { GuestSaveControl } from "../onboarding/GuestSaveControl";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
 
@@ -41,7 +42,7 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
           <dl><div><dt>주소</dt><dd>{data.place.address}</dd></div><div><dt>주차</dt><dd>{data.place.parkingSummary ?? "정보 확인 중"}</dd></div>{data.place.phone && <div><dt>전화</dt><dd>{data.place.phone}</dd></div>}</dl>
           <div className="place-detail-sheet__actions">
-            {data.user ? <save.Form method="post" action={requestPath}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save">{data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></save.Form> : <a className="place-detail-sheet__save" href={`/login?returnTo=${encodeURIComponent(requestPath)}`}>로그인하고 맛집지도에 추가</a>}
+            {data.user ? <save.Form method="post" action={requestPath}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save">{data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></save.Form> : <div><a className="place-detail-sheet__save" href={`/login?returnTo=${encodeURIComponent(requestPath)}`}>로그인하고 맛집지도에 추가</a><GuestSaveControl placeId={data.place.id} returnTo={requestPath} showLogin={false}/></div>}
             <a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
           </div>
         </div>
