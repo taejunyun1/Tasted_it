@@ -37,3 +37,8 @@ main `471a3eb`에서 PDF U01~U09/D01~D06/S01~S08/T01~T08의 코드/시험 존재
 [production-live-20261114.json](./production-live-20261114.json)은 #403 병합 main76dce1e/운영f69c3aa5의 실제 전환·공개/검색·guest저장취소·레거시사진차단·Worker RSI6/6/감사1행·전용 시험 세션 잔존0을 연결한다. 원장 하위5case만 PASS이며 전체8case의 NOT_RUN과 과거실패를 보존한다. 백업 사본의크기/hash/접근모드는 복원 검증이 아니다. 미승인 레거시 리뷰7·사진8은원문보존/비공개이며 새승인0이다. 실제자료/쿠키/초대/백업원문·TimeTravel지점은 공개하지 않는다.
 
 [production-guest-readiness-live-20261114.json](./production-guest-readiness-live-20261114.json)은 #406 병합 main1c63a98/운영f5b49eb9의 후속이다. 새 배포의 SSR/초기 상태 조회→활성화 desktop/mobile, guest 저장/취소, RSI6/6/감사1행·전용 세션 정리 하위3case를 추가했다. 합계는32행(PASS19/FAIL5/NOT_RUN8)이며 전체8case는 미실행으로 유지한다. 초기#402 CI 실패는 Actions 원본에 보존하며 최신main 통합의 PASS를 원인 해결로 주장하지 않는다. #397은 운영 차단 없음으로 HOLD다.
+
+
+[admin-p0-temp-live-20261114.json](./admin-p0-temp-live-20261114.json)은 #419/#422에 따른 P0 운영 전환과 TEMP100 공개를 기록한다. main `dadb17b`/Worker `afeaa57e`에서 ADMIN5경로·최근인증 거절, TEMP정확100개·사진23개·검색/지도/상세·guest저장취소·RSI6/6/감사1행·시험세션/trigger정리를 확인했다. 실제권한변경/재인증메일/운영평가변이/복원·현장실증 및 전체8case는 미실행이다. 최초좌표불일치/주소출처정정/CI실패는 덮지않고 보존한다. 다음행들은 해당부분검증만 PASS이며 전체수용을 뜻하지 않는다.
+
+최신 원장은38행(PASS25/FAIL5/NOT_RUN8)이다. 새6행의 시각은 해당 HTTP 실행 시작 기록이며, 정리 행은 D1 잔존0 확인 응답 파일의 UTC 완료시각을 KST로 변환했다. 전체 수용8행은 NOT_RUN을 유지한다.

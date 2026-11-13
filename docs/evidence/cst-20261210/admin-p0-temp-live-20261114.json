@@ -1,0 +1,169 @@
+{
+  "status": "VERIFIED_LIVE_SCOPED",
+  "dateKST": "2026-11-14",
+  "verifiedAt": "2026-11-13T18:26:32.368Z",
+  "sourceSha": "dadb17be1fdc239c29e63ec9e76f93a8b0f8da73",
+  "workerVersion": "afeaa57e-1255-459e-b5d5-a39bcb2c8a31",
+  "trafficPercent": 100,
+  "approvalPRs": [
+    414,
+    415,
+    416,
+    417,
+    418,
+    419,
+    420,
+    422
+  ],
+  "deploymentHistory": {
+    "previousNormal": "f5b49eb9-a3ee-4367-906d-c22db249d930",
+    "fence": "72bd3668-8d39-44df-bfe3-b734378307ea",
+    "initialP0Normal": "7f7653a3-f98f-43f6-b1a9-94db7789ae13",
+    "correctedSourceNormal": "afeaa57e-1255-459e-b5d5-a39bcb2c8a31",
+    "oldTerminalObserved": true,
+    "minimumDrainSeconds": 60
+  },
+  "migration": {
+    "at": "2026-11-13T18:01:03.386Z",
+    "applied": [
+      "0042_admin_operation_contract.sql",
+      "0043_admin_session_assurance.sql",
+      "0044_temp_public_catalog.sql"
+    ],
+    "pending": 0,
+    "oldCountsPreserved": true,
+    "roleSeatInvitationDigestsPreserved": true,
+    "newTables": [
+      {
+        "operations": 0,
+        "assurances": 0,
+        "temp_batches": 0
+      }
+    ],
+    "fileSha256": {
+      "0042_admin_operation_contract.sql": "6a3d766ac4e606b4aef6eb56625ccac2e22cc40c1f62c7a9447b789ec699ace5",
+      "0043_admin_session_assurance.sql": "d30a1f58583b323ce4a95c00a98c132d6e7e0d36eb121d55b24c4f0fab2bb882",
+      "0044_temp_public_catalog.sql": "3bf1f42550f5a86e4df58944f55310dbff682805df46b6f9687add8ae1f44fd1"
+    }
+  },
+  "backup": {
+    "bytes": 102761605,
+    "sha256": "1026cd719f1c8e61ba9c81922eabb60678bbab71341a2c747e9b9f9d3cd7af3a",
+    "at": "2026-11-13T18:00:56.902Z"
+  },
+  "publication": {
+    "at": "2026-11-13T18:23:03.667Z",
+    "batchId": "temp100-652f4d261db7795b",
+    "manifestSha256": "652f4d261db7795b1148bfa395581a5d0ba40d28f1fd6a892f582e8baf0d494f",
+    "operatorPlanSha256": "e88b98b89292ef705a9c0dcee534a01bc50ae57490ffb215378de6716a1f396a",
+    "count": 100,
+    "matchedCoordinates": 100,
+    "publishedLinkedPlaces": 100,
+    "publicationAuditRows": 1,
+    "temporaryTriggersRemaining": 0,
+    "triggerCleanupVerification": "authenticated Cloudflare D1 console read-only catalog query"
+  },
+  "photos": {
+    "published": 23,
+    "notProvided": 77,
+    "bytes": 4558504,
+    "r2PutGetHashesVerified": true,
+    "publicGetHashesVerified": 23,
+    "publicHead": 1,
+    "emptyAndSupersededGet404": 2,
+    "supersededKeyDeleteAcknowledgements": 23
+  },
+  "live": {
+    "publicListExactIds": 100,
+    "httpDetailChecks": 3,
+    "browserListAndCorrectedDetail": true,
+    "searchAndMapData": true,
+    "adminPages200NoStoreVaryCookie": 5,
+    "anonymousAdmin302NoStoreVaryCookie": 3,
+    "recentAuthAbsentConfirmed": true,
+    "riskCommitError": "ADMIN_RECENT_AUTH_REQUIRED",
+    "publicationUnchangedAfterDeniedWithdraw": true,
+    "guestSaveReadCancelRead": "PASS",
+    "recentAuthMissingCommitStatus": 403
+  },
+  "rsi": {
+    "trigger": "admin",
+    "httpPost": 200,
+    "httpGet": 405,
+    "paths": 6,
+    "passed": 6,
+    "failed": 0,
+    "auditDelta": 1,
+    "workerLogOutcome": "ok",
+    "workerLogVersion": "afeaa57e-1255-459e-b5d5-a39bcb2c8a31"
+  },
+  "cleanup": {
+    "operatorSessionsRemaining": 0,
+    "guestSessionsRemaining": 0,
+    "ownedTailStopped": true,
+    "temporaryCredentialFilesRemoved": true,
+    "supersededDatabaseBatch": "STAGED_PRESERVED"
+  },
+  "preservation": {
+    "rolesSeatsInvitationsDigestsUnchanged": true,
+    "before": {
+      "places": 656,
+      "public": 8,
+      "reviews": 7,
+      "photos": 8,
+      "votes": 119,
+      "users": 78,
+      "guest_sessions": 0
+    },
+    "after": {
+      "places": 756,
+      "public": 108,
+      "reviews": 7,
+      "photos": 8,
+      "votes": 119,
+      "users": 78,
+      "guest_sessions": 0
+    }
+  },
+  "limits": {
+    "manualHttpActual": 229,
+    "manualHttpApprovedMax": 300,
+    "naverCalls": 1,
+    "mailCalls": 0,
+    "newProviderCalls": 0,
+    "operatorSessionsCreated": 1,
+    "guestSessionsCreated": 1,
+    "r2Puts": 46,
+    "r2VerificationGets": 46,
+    "r2OldKeyDeletes": 23
+  },
+  "preservedFailures": [
+    {
+      "stage": "initial_source_revision",
+      "naver": "EXACT_MATCH_REQUIRED",
+      "automaticRetries": 0,
+      "publicCount": 0,
+      "resolution": "official source coordinates for all 100; corrected one conflicting source address via PR422 immutable revision2"
+    },
+    {
+      "stage": "PR419 initial CI",
+      "failure": "protected admin response still expected public cache",
+      "resolution": "corrected test contract; final four required checks PASS"
+    }
+  ],
+  "notRun": [
+    "full T01-T08 acceptance",
+    "actual field pilot",
+    "live password/OAuth/email reauthentication",
+    "live role changes and user session revocation",
+    "live rating job mutation",
+    "live CSV import or vote invalidation",
+    "actual production backup restore"
+  ],
+  "remaining": {
+    "issue397": "HOLD_NO_PRODUCTION_BLOCK; cold bootstrap root cause UNKNOWN",
+    "issue360": "real policy/operator/contact/pilot decisions OPEN",
+    "adminP1P2": "PROPOSED; next B06 read-only audit/receipt cursor"
+  },
+  "rollback": "After revision2 publication use same-source/same-schema maintenance fence or forward fix; pre-correction normal versions are not valid rollback targets."
+}
