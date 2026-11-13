@@ -60,6 +60,8 @@ migration의 레거시 표 분류는 reviewer profile/방문 이력도 사용해
 
 독립 standalone Golden/Flavor 기록도 승인 review/version 결속이 없으면 공개 비적격이다. 새 Golden은 방문 검수 승인 때만 공개 grant를 만든다. 기존 월 quota·원문·회계는 보존하며 임의 승인 매칭하지 않는다. Advanced Flavor 공개·취향그래프 유입은 명시 승인 결속이 생길 때까지 차단하고, 이를 이번 핵심 요구에 끼워 넣어 자동 활성화하지 않는다.
 
+[PR #382](https://github.com/taejunyun1/Tasted_it/pull/382)의 구현 해석: 같은 review/작성자/장소의 아직 유효하고 회수되지 않은 grant를 현재 review가 명시 연결하고 새 내용의 Golden 의도를 다시 승인한 경우, 원래 grant의 version·생성/만료·사유를 유지한다. 추가 grant·quota 소비·기간 연장은 없다. PENDING/회수/만료는 공개 제외하며 만료·회수 후 새 신청은 기존 UTC 월 한도/90일 제한을 적용한다.
+
 ## 5. 집계·추천·회수의 일관성
 
 공통 source/공개 적격 판정을 raw counts, 상세 v1 fallback, v2 snapshot·재계산·리뷰어 신뢰/유사도, HotTake/HiddenGem, Golden relay/history, Flavor·내 취향그래프, 장소 생존보호까지 적용한다. 사진만 가리고 미승인 점수/추천이 남는 결과는 허용하지 않는다.
@@ -67,6 +69,8 @@ migration의 레거시 표 분류는 reviewer profile/방문 이력도 사용해
 per-place vote revision과 global moderation epoch를 현재 입력에 결속한다. 검수 승인/회수·역할/profile 상태·장소 공개/폐업/삭제·원시표 유효성처럼 source 적격성이 달라지는 변경은 신뢰 보정의 영향도 무효화하고, 기존/오래된 epoch snapshot·신뢰/유사도는 재사용하지 않는다. 재계산 중 상태가 바뀐 결과를 새 snapshot으로 공개하지 않는다. 안전한 중립 보정으로 fallback하고 기존 maintenance에서 재계산하며 새 cron을 추가하지 않는다. 저장 불명확성은 PASS나 공개로 바꾸지 않는다.
 
 미공개 상태가 되면 이후 서버 조회에서 즉시 제외한다. 이미 화면에 받은 과거 응답까지 자동 회수됐다고 주장하지 않는다. 홈/목록/상세의 클라이언트 재검증과 오류 상태도 수용시험에 포함한다. global epoch의 보수적 무효화는 정확성 우선 선택이며 실제 처리량·응답 성능은 이후 측정하고 계약상 성능 보장으로 쓰지 않는다.
+
+#382는 REVIEWER 현재표의 생성·교체·철회를 전역 epoch에 결속한다. GENERAL-only의 합의값 변화에 따른 calibration은 기존 maintenance 주기를 유지하며 실시간 재학습을 주장하지 않는다. 일반 반응/취소 후 사용자 추론은 별도 기존 taste versionToken에 결속해 갱신 실패 시 오래된 INFERRED 신호를 재사용하지 않는다. 산식 변경이나 새 cron은 없다.
 
 ## 6. DEC-01~08의 구현 기준과 사실 입력 구분
 

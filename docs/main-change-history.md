@@ -17,6 +17,12 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Merged | 2026-11-13 모바일 검색버튼 한 줄/44px·지도 실패 안내/미니맵 겹침과 빈여백을 분류 화면 범위에서 보완했다. 실제 RED2→GREEN8·최종4CI·독립 화면/코드 리뷰, 실제 제공자 지도/전체 T07과 구분. | [PR #389](https://github.com/taejunyun1/Tasted_it/pull/389) · `f0ca8e0` |
+| Merged | 2026-11-13 #359 관리자 승인·권리/출처·직접사진·집계/추천/신뢰/추론 회수, 레거시·원본event 보존을 backend에 결속했다. 사진 응답유실과 cross-place trust 두 P2·동시 취소/legacy 충돌·101 reviewer 경계 보완, 최종CI integration535·unit1627/53skip·리뷰 통과. UI/운영은 후속, standalone Flavor는LEARNING/0. | [PR #382](https://github.com/taejunyun1/Tasted_it/pull/382) · `3bc7758` |
+| Merged | 2026-11-13 W07 합성local D1 복원 도구·schema/도메인 전체digest 검증을 병합했다. 0040/0041 포함 merged3bc7758 실제12.675초·69table/157row 일치·손상누락 거절 PASS, 원본 D1 authorizer FAIL 보존. 운영/R2 복원은 별도. | [PR #378](https://github.com/taejunyun1/Tasted_it/pull/378) · `a34ce5a` · [실행 증거](./evidence/cst-20261210/d1-local-roundtrip-main-3bc7758.json) |
+| Merged | 2026-11-13 W06의 기존산식67/35/75는 유지하고 9표69·리뷰어만83/98·eligible5·80%간접군집·감쇠→85/79·외부평점 배제의 독립 고정값을 보완했다. 집중unit21/integration18·최종4CI·리뷰, runtime/schema변경0. | [PR #386](https://github.com/taejunyun1/Tasted_it/pull/386) · `1c31bc1` |
+| Merged | 2026-11-13 #359 자료의 수집·승인전 비공개·사진삭제/재시도·관리자회수 보존과 계정 표시정보 대체 후 이력 잔존을 privacy/terms/인벤토리에 맞췄다. 최종4CI·렌더/화면·독립리뷰 통과, 새TTL·법적시행·운영실행0/#360OPEN. | [PR #387](https://github.com/taejunyun1/Tasted_it/pull/387) · `be2236b` |
+| Merged | 2026-11-13 응답유실을 저장실패/원본보존으로 단정하던 안내를 현재상태 재확인으로 한정했다. 실제 batch반영 뒤응답폐기·중복없는재시도·desktop/mobile4·최종4CI/리뷰 통과, 저장/권한 동작변경0. | [PR #381](https://github.com/taejunyun1/Tasted_it/pull/381) · `4c18dd4` |
 | Merged | 2026-11-13 #371 설치 SSR query 정규화와 브라우저 원문의 차이로 생긴 auth href hydration 경고를 검증 이후 직렬화로 해소했다. 실제 desktop/mobile RED→GREEN2/2·최종4CI/독립리뷰 통과, #365 legal 원인 UNKNOWN과 구분. | [PR #373](https://github.com/taejunyun1/Tasted_it/pull/373) · `75a462d` |
 | Merged | 2026-11-13 #377 guest 임시 저장·명시 선택표식·IP 용도 hash와 수명/삭제·응답유실의 실제 코드 설명을 privacy 초안/인벤토리에 맞췄다. desktop/mobile·최종4CI/독립리뷰 통과. 새 수집/보존정책·법적 시행/운영 배포0, 실제 문의처 등 OPEN 유지. | [PR #379](https://github.com/taejunyun1/Tasted_it/pull/379) · `96996a8` |
 | Merged | 2026-11-13 #367 공개 추천/비추천 취소를 action/UI에 연결하고 기존 추천 feedback을 정리한다. 로컬 기본 흐름·최종4CI/독립리뷰 뒤 병합, event pointer/피드백 원자성은 #359 후속이며 운영 배포0. | [PR #369](https://github.com/taejunyun1/Tasted_it/pull/369) · `a01e6e8` |
