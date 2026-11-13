@@ -3,6 +3,7 @@ import { redirect } from "react-router";
 
 import type { Route } from "./+types/auth-naver-callback";
 import { createDb } from "../db/client.server";
+import { handleAdminOAuthReauth } from "../features/auth/admin-reauth-oauth.server";
 import { sendGoogleWelcomeIfNeeded } from "../features/auth/email.server";
 import {
   connectNaverIdentity,
@@ -32,6 +33,8 @@ function errorRedirect(requestUrl: string, target: string, code: NaverFailureCod
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const requestId = readNaverOAuthRequestCookie(request);
+  const adminReauth = await handleAdminOAuthReauth(request, requestId, "NAVER");
+  if (adminReauth) return adminReauth;
   const state = url.searchParams.get("state");
   const db = createDb(env.DB);
   const context = requestId

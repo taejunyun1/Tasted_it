@@ -115,6 +115,7 @@ export async function verifyGoogleIdToken(
     clientId: string;
     nonce: string;
     now?: Date;
+    authenticatedAfter?: Date;
   },
   verifier: GoogleJwtVerifier = verifyWithGoogleKeys,
 ) {
@@ -135,6 +136,11 @@ export async function verifyGoogleIdToken(
       throw new Error("GOOGLE_ID_TOKEN_INVALID");
     }
     if (!payload.email_verified) throw new Error("GOOGLE_EMAIL_UNVERIFIED");
+    if (input.authenticatedAfter && (
+      typeof payload.auth_time !== "number" ||
+      payload.auth_time < Math.floor(input.authenticatedAfter.getTime() / 1000) - 60 ||
+      payload.auth_time > nowSeconds + 60
+    )) throw new Error("GOOGLE_FRESH_AUTH_REQUIRED");
 
     const fallbackName = payload.email.split("@")[0];
     const displayName =
@@ -150,7 +156,7 @@ export async function verifyGoogleIdToken(
   } catch (error) {
     if (
       error instanceof Error &&
-      error.message === "GOOGLE_EMAIL_UNVERIFIED"
+      ["GOOGLE_EMAIL_UNVERIFIED", "GOOGLE_FRESH_AUTH_REQUIRED"].includes(error.message)
     ) {
       throw error;
     }
