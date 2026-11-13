@@ -61,7 +61,7 @@
 | A24 NAVER/지도 | 지역별 사용량·검증·geocode | 지역 pack 예산/사용량 조회, 서버 quota·기능 env 검사, 일부 관리 작업 | 사용량과 실제 청구 구분, 원자적 동시 예약·remaining, 증가 승인/감소 즉시반영 설계 | E03,E13 |
 | A25 AI/부가 공급자 | 모델/호출·비용·실패 관측 | 제한된 AI helper와 과거 token/추정 사용량 컬럼. 통합 비용 콘솔 없음 | 원문 prompt/응답·secret 대신 모델/규칙 버전·건수·추정/실측 구분. 임의 모델/공급자 추가·자동 호출 확대 금지 | E13,E15 |
 | A26 주차/EV·코스 | 데이터 신선도·동기화·fallback | 기존 분기와 정기 주차/EV 동기화, 정해진 page/주기·키 존재 검사 | 소스별 마지막 성공/실패/부분 자료·작업 관측. UI에서 새 공급자나 스케줄 임의 추가 금지 | E11,E13 |
-| A27 feature/kill switch | 값 조회·긴급 중단·재활성화 | env/source flag 소비. CST 점검 fence는 HTTP503과 cron 실행 중단. 전역 flag 편집 UI 없음 | 선언된 key/type/scope allowlist만, 감소/중단과 확대/재개 권한 구분, version·만료·복구·배포값/실효값 구분. 전면 fence 중에는 앱 UI로 우회 해제하지 않음 | E11,E13,E15 |
+| A27 feature/kill switch | 값 조회·긴급 중단·재활성화 | env/source flag 소비. CST 점검 fence는 HTTP503과 새 cron 핸들러 진입 차단이며 이미 실행 중인 작업을 취소하지 않음. 전역 flag 편집 UI 없음 | 선언된 key/type/scope allowlist만, 감소/중단과 확대/재개 권한 구분, version·만료·복구·배포값/실효값 구분. 전면 fence 중에는 앱 UI로 우회 해제하지 않음 | E11,E13,E15 |
 | A28 정기/수동 작업 | 다음 실행·진행·취소·회복 | Worker의 두 cron 분기; maintenance는 여러 작업의 Promise.all. 개별 통제판 없음 | 기존 cron 안의 작업 registry·상태·lease·협조적 취소 설계. 실행 중 외부 효과를 중단 완료로 오표시하지 않음 | E11 |
 | A29 RSI | 고정 공개 경로 점검·결과 조회 | ADMIN POST와 토큰 보호 내부 GET, flag·고정 origin/경로, 로그/일부 audit | 마지막 성공/실패·감사 연결·중복/호출 한도·권한 분리. R4 코드 생성/승격과 공개 경로 self-check 구별 | E14 |
 | A30 경보/장애 | 오류 조회·해결 처리·인계 | ADMIN 운영 경보 조회와 사유로 resolve. 외부 메일 연결은 미확정 | ACK/조사/해결/재개 구분, 해결 근거·담당·연관 job, 버전/CAS, 실제 복구 검사 후 닫기 | E02 |
