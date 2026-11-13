@@ -1,0 +1,59 @@
+import { mkdtempSync, writeFileSync, symlinkSync, chmodSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { assertOptIn, digestBytes, readVerifiedBackup, compareSnapshots } from "../../scripts/cst-local-d1-recovery.mjs";
+
+const directories: string[] = [];
+function workspace() {
+  const directory = mkdtempSync(join(tmpdir(), "cst-recovery-test-"));
+  chmodSync(directory, 0o700);
+  directories.push(directory);
+  return directory;
+}
+afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
+
+describe("local-only D1 recovery rehearsal boundaries", () => {
+  it("requires the exact opt-in and rejects database, file and remote arguments", () => {
+    expect(() => assertOptIn(["--run"])).not.toThrow();
+    for (const args of [[], ["--remote"], ["--run", "--remote"], ["--run", "DB"], ["--run", "--file=unsafe.sql"], ["--run", "--config=wrangler.jsonc"]]) {
+      expect(() => assertOptIn(args)).toThrow("LOCAL_REHEARSAL_EXPLICIT_OPT_IN_REQUIRED");
+    }
+  });
+
+  it("accepts only the exact bounded backup bytes inside the owned directory", () => {
+    const directory = workspace();
+    const file = join(directory, "backup.sql");
+    const bytes = Buffer.from("CREATE TABLE synthetic(id TEXT PRIMARY KEY);\n");
+    writeFileSync(file, bytes, { mode: 0o600 });
+    expect(readVerifiedBackup(directory, file, digestBytes(bytes))).toEqual(bytes);
+    writeFileSync(file, Buffer.concat([bytes, Buffer.from("INVALID SQL")]));
+    expect(() => readVerifiedBackup(directory, file, digestBytes(bytes))).toThrow("BACKUP_DIGEST_MISMATCH");
+  });
+
+  it("rejects missing, outside, symlink and oversized backups before import", () => {
+    const directory = workspace();
+    const other = workspace();
+    const source = join(other, "outside.sql");
+    writeFileSync(source, "SELECT 1;", { mode: 0o600 });
+    expect(() => readVerifiedBackup(directory, join(directory, "missing.sql"), "0".repeat(64))).toThrow("BACKUP_UNAVAILABLE");
+    expect(() => readVerifiedBackup(directory, source, "0".repeat(64))).toThrow("BACKUP_OUTSIDE_WORKSPACE");
+    const link = join(directory, "linked.sql");
+    symlinkSync(source, link);
+    expect(() => readVerifiedBackup(directory, link, "0".repeat(64))).toThrow("BACKUP_UNAVAILABLE");
+    const huge = join(directory, "oversized.sql");
+    writeFileSync(huge, Buffer.alloc(32 * 1024 * 1024 + 1));
+    expect(() => readVerifiedBackup(directory, huge, "0".repeat(64))).toThrow("BACKUP_SIZE_LIMIT");
+  });
+
+  it("fails on integrity, foreign keys, missing rows or changed restored content", () => {
+    const expected = { integrity: "ok", foreignKeys: [], counts: { categories: 1, places: 1, links: 1 }, rows: [{ kind: "place", id: "synthetic", value: "before" }] };
+    expect(() => compareSnapshots(expected, structuredClone(expected))).not.toThrow();
+    for (const changed of [
+      { ...expected, integrity: "corrupt" },
+      { ...expected, foreignKeys: [{ table: "place_categories" }] },
+      { ...expected, counts: { ...expected.counts, places: 0 } },
+      { ...expected, rows: [{ kind: "place", id: "synthetic", value: "after" }] },
+    ]) expect(() => compareSnapshots(expected, changed)).toThrow("RESTORE_VERIFICATION_FAILED");
+  });
+});
