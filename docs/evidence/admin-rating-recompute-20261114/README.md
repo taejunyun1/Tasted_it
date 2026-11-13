@@ -21,7 +21,7 @@
 | 동시 enqueue / 동일 작업 선점 경합 | PASS |
 | 실패 저장 / 자동 재시도 금지 / 설정 변경 작업 오완료 방지 | PASS |
 | 관련 D1 통합 3개 파일 | 15 PASS |
-| typecheck | PASS |
+| typecheck / production build | PASS |
 | `pnpm audit --prod` | 알려진 취약점 0 |
 | 실제 로컬 브라우저, Chromium + Pixel 7 | 6 PASS |
 

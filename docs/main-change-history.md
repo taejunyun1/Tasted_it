@@ -17,6 +17,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| Ready | 2026-11-14 #411 관리자 재계산을 검토한 장소·설정·작업 ID에 결속하고 수락/실제 결과를 분리한다. 원자 enqueue·동일 작업 CAS·실패/UNKNOWN receipt 복구, 관련 D1 15·desktop/mobile 6·typecheck/build 검증. #416 선행·필수 CI/병합/운영 검증 대기. | [PR #418](https://github.com/taejunyun1/Tasted_it/pull/418) · [증거](./evidence/admin-rating-recompute-20261114/README.md) |
 | Merged | 2026-11-14 #394 모바일 주요링크를 기존 메뉴로 이동하고 짧은 높이 스크롤·동일44px/키보드/hit를 보완했다. 역할별같은30초 분할·자체4CI/독립리뷰, Linux최종27PASS/2SKIP 검증. 원래폭실패·단일case시간초과 보존. | [PR #396](https://github.com/taejunyun1/Tasted_it/pull/396) · `d986d6d` |
 | Merged | 2026-11-14 #395 복수 리뷰어 과업이 누적되던 회귀를 독립3과업으로 나누고 기존30초·권한/사진 회수·cleanup을 보존했다. 관련10PASS·own4CI/리뷰, Linux reviewer5PASS 확인. cold504 원인과 전체CI의 header실패는 분리·보존. | [PR #398](https://github.com/taejunyun1/Tasted_it/pull/398) · `ac01d06` |
 | Merged | 2026-11-13 공통 헤더의 모바일 메뉴 잘림을 DS8줄로 보완하고 normalized44px·hit/Tab·메뉴/목록 Enter를 검증했다. 실제 RED→GREEN2/2·최종4CI·독립 화면/코드 검토, 폰트 fallback/CSS확대/partialT07 범위 명시. | [PR #392](https://github.com/taejunyun1/Tasted_it/pull/392) · `646392c` |
