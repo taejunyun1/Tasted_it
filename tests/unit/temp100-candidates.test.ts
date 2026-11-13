@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, chmodSync, writeFileSync, readFileSync, symlinkSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, chmodSync, writeFileSync, readFileSync, symlinkSync, rmSync, statSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArguments, validateReferenceUrl, buildTemp100Artifacts, assertPrivateDirectory, writePrivateArtifacts } from "../../scripts/temp100-candidates.mjs";
@@ -19,7 +19,7 @@ function candidate(n: number) {
 function rows() { return Array.from({ length: 100 }, (_, n) => candidate(n + 1)); }
 const dirs: string[] = [];
 function privateDirectory() {
-  const root = mkdtempSync(join(tmpdir(), "temp100-test-")); dirs.push(root);
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "temp100-test-"))); dirs.push(root);
   const operations = join(root, "operations"); mkdirSync(operations, { mode: 0o700 });
   const directory = join(operations, "temp100-seed-20261114-synthetic"); mkdirSync(directory, { mode: 0o700 });
   return { operations, directory };
