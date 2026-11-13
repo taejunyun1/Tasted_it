@@ -26,5 +26,11 @@
     "allImagesEmbedded": true,
     "externalRequests": 0,
     "pageErrors": 0
+  },
+  "replay": {
+    "checkedAt": "2026-11-13T16:36:15.466974+00:00",
+    "previewBytes": 4050853,
+    "allArtifactsUnchanged": true,
+    "scriptSha256": "b18b7251830dd784d2793774129e131dbe443257a57b67f9c886fca2e600498e"
   }
 }

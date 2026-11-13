@@ -36,7 +36,7 @@ node scripts/temp100-candidates.mjs --prepare --private-dir "$TEMP100_DIR"
 pnpm exec vitest run tests/unit/temp100-candidates.test.ts
 ```
 
-집중 시험 10개가 통과했다. 최초 구현 부재의 compile RED, 추가 파일 경계 runtime RED, 검증 후 원본 교체로 이전 프리뷰가 변하는 runtime RED를 각각 보존했다. 마지막 결함은 바이트 스냅샷 내장으로 수정했다. Node 구문·diff 검사와 production 의존성 audit도 통과했으며 새 의존성·운영 설정 변경은 없다. 전체 suite를 로컬에서 반복하지 않았다.
+집중 시험 11개가 통과했다. 최초 구현 부재의 compile RED, 추가 파일 경계 runtime RED, 검증 후 원본 교체로 이전 프리뷰가 변하는 runtime RED를 각각 보존했다. 사진 내장은 바이트 스냅샷으로 고정했다. 이후 2MiB보다 큰 정상 프리뷰의 동일 재실행이 입력 metadata 상한 때문에 거절되는 결함도 재현하고 파일별 산출물 상한으로 수정했다. 실제 4,050,853바이트 프리뷰를 재실행한 뒤 네 산출물의 SHA가 모두 그대로임을 확인했다. Node 구문·diff 검사와 production 의존성 audit도 통과했으며 새 의존성·운영 설정 변경은 없다. 전체 suite를 로컬에서 반복하지 않았다.
 
 집계의 dataset SHA-256은 비공개 `candidates.json` 전체 내용의 해시다. 실제 dataset·원본/변환 사진·출처/권리 sidecar·브라우저 증거는 0700/0600 private operations 폴더에 있다. 이전 후보와 제외 사진의 근거도 그 안에서 분리 보존했다.
 

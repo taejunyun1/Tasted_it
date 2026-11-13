@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_PREVIEW_PHOTO_BYTES = 25 * 1024 * 1024;
+const MAX_JSON_ARTIFACT_BYTES = 16 * 1024 * 1024;
+const MAX_PREVIEW_DOCUMENT_BYTES = 4 * Math.ceil(MAX_PREVIEW_PHOTO_BYTES / 3) + MAX_JSON_ARTIFACT_BYTES;
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const SHA = /^[a-f0-9]{64}$/;
 const PHOTO_LICENSES = new Set(["KOGL-0", "KOGL-1", "CC0", "CC-BY-4.0", "CC-BY-SA-4.0"]);
@@ -144,13 +146,17 @@ function readPrivateFile(file, limit = MAX_BYTES) {
 export function writePrivateArtifacts(directory, artifacts) {
   assertOwned(directory, true);
   const outputs = { "candidates.json": json(artifacts.dataset), "aggregate.json": json(artifacts.aggregate), "import-plan.json": json(artifacts.importPlan), "preview.html": artifacts.previewHtml };
+  const limits = { "candidates.json": MAX_JSON_ARTIFACT_BYTES, "aggregate.json": MAX_BYTES, "import-plan.json": MAX_BYTES, "preview.html": MAX_PREVIEW_DOCUMENT_BYTES };
   for (const [name, content] of Object.entries(outputs)) {
-    try { if (hash(readPrivateFile(join(directory, name))) !== hash(content)) fail("TEMP100_ARTIFACT_CONFLICT"); }
+    if (Buffer.byteLength(content) > limits[name]) fail("TEMP100_ARTIFACT_SIZE_LIMIT");
+  }
+  for (const [name, content] of Object.entries(outputs)) {
+    try { if (hash(readPrivateFile(join(directory, name), limits[name])) !== hash(content)) fail("TEMP100_ARTIFACT_CONFLICT"); }
     catch (error) { if (error.message === "TEMP100_ARTIFACT_CONFLICT") throw error; try { lstatSync(join(directory, name)); fail("TEMP100_ARTIFACT_CONFLICT"); } catch (e) { if (e.code !== "ENOENT") throw e; } }
   }
   for (const [name, content] of Object.entries(outputs)) {
     try { writeFileSync(join(directory, name), content, { flag: "wx", mode: 0o600 }); }
-    catch (error) { if (error.code !== "EEXIST") throw error; if (hash(readPrivateFile(join(directory, name))) !== hash(content)) fail("TEMP100_ARTIFACT_CONFLICT"); }
+    catch (error) { if (error.code !== "EEXIST") throw error; if (hash(readPrivateFile(join(directory, name), limits[name])) !== hash(content)) fail("TEMP100_ARTIFACT_CONFLICT"); }
   }
 }
 
