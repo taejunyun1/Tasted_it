@@ -1,0 +1,36 @@
+{
+  "run": "https://github.com/taejunyun1/Tasted_it/actions/runs/43443028545",
+  "job": "https://github.com/taejunyun1/Tasted_it/actions/runs/43443028545/job/131945254711",
+  "checkoutSha": "3bcabadbd48ed2fe039999c6125a731d442d0223",
+  "overall": {
+    "passed": 22,
+    "skipped": 2,
+    "failed": 2
+  },
+  "ownedFailure": {
+    "test": "header-layout.spec.ts",
+    "project": "chromium",
+    "caseCount": 1,
+    "roles": [
+      "anonymous",
+      "reviewer"
+    ],
+    "bounds": [
+      {
+        "width": 320,
+        "zoom": 1,
+        "menuRight": 334.921875,
+        "hit": false
+      },
+      {
+        "width": 640,
+        "zoom": 2,
+        "menuRight": 669.828125,
+        "hit": false
+      }
+    ],
+    "actualRenderedFonts": "UNKNOWN - not recorded in original CI",
+    "otherFailedCase": "reviewer flow is outside this header fix"
+  },
+  "originalPr392Preserved": true
+}
