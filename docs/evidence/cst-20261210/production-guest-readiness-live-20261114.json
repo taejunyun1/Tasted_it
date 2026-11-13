@@ -1,0 +1,78 @@
+{
+  "status": "PASS_PARTIAL_SCOPES",
+  "source_sha": "1c63a981e5d6bb888318e34d226fa1f5a6b05347",
+  "production_version": "f5b49eb9-a3ee-4367-906d-c22db249d930",
+  "traffic_percent": 100,
+  "migration_changes": 0,
+  "public6_detail_built_asset_pass": true,
+  "browser_readiness": {
+    "completed_at_utc": "2026-11-13T16:44:17.886Z",
+    "results": [
+      {
+        "viewport": "desktop",
+        "ssr_disabled": true,
+        "verified_initial_state_enabled": true,
+        "initial_saved": false,
+        "dynamicRequests": 5,
+        "external_requests_blocked": true,
+        "mutations": 0
+      },
+      {
+        "viewport": "mobile",
+        "ssr_disabled": true,
+        "verified_initial_state_enabled": true,
+        "initial_saved": false,
+        "dynamicRequests": 5,
+        "external_requests_blocked": true,
+        "mutations": 0
+      }
+    ]
+  },
+  "guest_save_cancel_pass": true,
+  "dedicated_canary_guest_sessions_remaining": 0,
+  "worker_rsi_paths": [
+    {
+      "path": "/",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/places",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/admin",
+      "status": 302,
+      "ok": true
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "ok": true
+    }
+  ],
+  "rsi_audit_rows": 1,
+  "rsi_post_count": 1,
+  "rsi_retries": 0,
+  "temporary_admin_sessions_remaining": 0,
+  "operator_cleanup_at_utc": "2026-11-13T16:45:54.754Z",
+  "completed_at_utc": "2026-11-13T16:46:20.204Z",
+  "manual_http_count": 24,
+  "manual_http_limit": 25,
+  "static_browser_assets_excluded": true,
+  "internal_worker_rsi_gets_excluded": 6,
+  "whole_T01_T08": "NOT_RUN",
+  "actual_account_login_verification": "NOT_RUN",
+  "raw_evidence": "PRIVATE_0700_0600_NOT_COMMITTED"
+}
