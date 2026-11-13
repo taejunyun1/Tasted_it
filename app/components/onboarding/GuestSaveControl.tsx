@@ -4,7 +4,13 @@ import { useFetcher } from "react-router";
 import { safeReturnTo } from "../../features/auth/login";
 
 type GuestSaveResult = { ok: boolean; saved?: boolean; signedIn?: boolean; expired?: boolean; message?: string };
-export function GuestSaveControl({ placeId, returnTo, showLogin = true }: { placeId: string; returnTo: string; showLogin?: boolean }) {
+type GuestSaveControlProps = { placeId: string; returnTo: string; showLogin?: boolean };
+export function GuestSaveControl(props: GuestSaveControlProps) {
+  // A sheet can change its place without unmounting. Scope all hook/fetcher state
+  // to that identity so a failed new read cannot reuse another place's choice.
+  return <GuestSaveControlForPlace key={props.placeId} {...props} />;
+}
+function GuestSaveControlForPlace({ placeId, returnTo, showLogin = true }: GuestSaveControlProps) {
   const fetcher = useFetcher<GuestSaveResult>();
   useEffect(() => { void fetcher.load(`/resources/guest-saves?placeId=${encodeURIComponent(placeId)}`); }, [placeId]);
   const [saved, setSaved] = useState(false);
