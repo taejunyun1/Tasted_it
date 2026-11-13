@@ -174,11 +174,11 @@ async function seedConcentricCandidates(input: {
   return { candidates, db, request };
 }
 
-async function seedHomeCurationFixtures(input: { farTail: boolean }) {
+async function seedHomeCurationFixtures(input: { farTail: boolean; fixed?: { id: string; latitude: number } }) {
   const db = createDb(env.DB);
-  const suffix = crypto.randomUUID();
+  const suffix = input.fixed?.id ?? crypto.randomUUID();
   const now = "2026-08-11T03:00:00.000Z";
-  const baseLatitude = 34.2 + homeFixtureIndex * .2;
+  const baseLatitude = input.fixed?.latitude ?? 34.2 + homeFixtureIndex * .2;
   homeFixtureIndex += 1;
   const userId = `home-user-${suffix}`;
   const reviewerId = `home-reviewer-${suffix}`;
@@ -427,7 +427,9 @@ it("공개 후보와 평가·취향·Golden Pick을 결합해 Golden 추천을 �
 });
 
 it("모드별 홈 5곳 ID 순서와 공개 Page 계약을 유지한다", async () => {
-  const fixture = await seedHomeCurationFixtures({ farTail: false });
+  // Variation hashes place ID, center and history. Exact order needs fixed inputs
+  // and a center outside the other fixtures' 34.2+ / 36+ latitude ranges.
+  const fixture = await seedHomeCurationFixtures({ farTail: false, fixed: { id: "home-mode-order-contract-v1", latitude: 34 } });
   const expectedOrder = {
     now: [0, 3, 1, 2, 4],
     taste: [0, 3, 1, 5, 2],
@@ -442,6 +444,7 @@ it("모드별 홈 5곳 ID 순서와 공개 Page 계약을 유지한다", async (
       center: fixture.center,
       mode,
       now: fixture.now,
+      history: { sessionSeed: "home-mode-order-contract-v1", recentFirst: [], recentShown: [], previousMode: null, previousIds: [] },
     });
     expect(page.places.map((place) => fixture.placeIds.indexOf(place.id))).toEqual(expectedOrder[mode]);
     expect(page.algorithmVersion).toBe("home-curation-v2");
