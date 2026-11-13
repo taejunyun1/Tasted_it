@@ -261,7 +261,7 @@ describe("mergeGuestTasteSessionFromRequest", () => {
     const rows = await db.select().from(userTasteBadges)
       .where(and(eq(userTasteBadges.userId, userId), eq(userTasteBadges.badgeId, "food-gukbap")));
     expect(rows).toEqual(expect.arrayContaining([
-      expect.objectContaining({ source: "USER", score: 0.95 }),
+      expect.objectContaining({ source: "USER", score: 0.95, evidenceJson: "{\"source\":\"PROFILE\"}", updatedAt: CREATED_AT }),
       expect.objectContaining({ source: "GOOGLE", score: 0.7, evidenceJson: "{\"source\":\"GOOGLE\"}" }),
     ]));
   });

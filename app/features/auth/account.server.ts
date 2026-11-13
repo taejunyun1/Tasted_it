@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
-import { accountTokens, authIdentities, oauthRequests, reviewerApplications, reviewerProfiles, savedPlaces, sessions, users } from "../../db/schema";
+import { memberSaveChoices, accountTokens, authIdentities, oauthRequests, reviewerApplications, reviewerProfiles, savedPlaces, sessions, users } from "../../db/schema";
 import { DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT, hashPassword, verifyPassword } from "./password.server";
 import { isWithdrawnEmail, WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "./withdraw";
 
@@ -99,6 +99,7 @@ export async function withdrawAccount(db: AppDb, input: { userId: string; now: D
   await db.delete(accountTokens).where(eq(accountTokens.userId, user.id));
   await db.delete(oauthRequests).where(eq(oauthRequests.userId, user.id));
   await db.delete(savedPlaces).where(eq(savedPlaces.userId, user.id));
+  await db.delete(memberSaveChoices).where(eq(memberSaveChoices.userId, user.id));
   await db.update(reviewerApplications).set({
     statement: "-",
     occupation: "-",
