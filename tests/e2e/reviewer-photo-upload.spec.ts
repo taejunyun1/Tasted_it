@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+test.skip(Boolean(process.env.BASE_URL), "사진 제출 시험은 격리한 로컬 합성 자료에서만 실행합니다.");
+
+test.beforeEach(async ({ page }) => {
+  // 방문 검수 시험은 외부 지도 공급자를 호출하지 않는다.
+  await page.route("https://oapi.map.naver.com/**", (route) => route.abort());
+});
+
 function withExifApp1(jpeg: Buffer) {
   // Minimal APP1/Exif marker. A browser canvas re-encode must strip it before
   // this becomes a public reviewer photo.
@@ -28,7 +35,28 @@ async function completeReviewBeforePhotoStep(page: import("@playwright/test").Pa
   await page.getByRole("button", { name: "다음: 사진·Golden" }).click();
 }
 
-test("reviewer publishes a prepared EXIF JPEG and everyone can load the metadata-free public image", async ({ page }, testInfo) => {
+async function fillVisitEvidence(page: import("@playwright/test").Page) {
+  const preview = page.locator(".reviewer-preview");
+  await preview.getByLabel("방문일", { exact: true }).fill("2026-11-01");
+  await preview.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill("자동시험 합성 방문 기록입니다.");
+  await preview.getByRole("combobox", { name: "광고·협찬·이해관계", exact: true }).selectOption("NONE");
+}
+async function fillPhotoRights(page: import("@playwright/test").Page) {
+  await page.locator(".reviewer-workspace").getByLabel("사진 1 촬영일", { exact: true }).fill("2026-11-01");
+  await page.locator(".reviewer-workspace").getByRole("combobox", { name: "사진 1 이용권리", exact: true }).selectOption("OWN_WORK");
+  await page.locator(".reviewer-workspace").getByLabel("사진 1 권리 근거", { exact: true }).fill("직접 만든 자동시험 합성 이미지입니다.");
+  await page.locator(".reviewer-workspace").getByLabel("사진 1 설명", { exact: true }).fill("합성 사진");
+  await page.locator(".reviewer-workspace").getByLabel("사진 1의 불필요한 인물·차량번호·개인정보 노출을 확인했어요.").check();
+}
+async function withdrawSubmitted(page: import("@playwright/test").Page, row: import("@playwright/test").Locator) {
+  const form = row.locator("form").filter({ has: page.locator('input[value="withdraw-review"]') });
+  await form.getByLabel("철회 사유").fill("합성 시험 종료");
+  await form.getByLabel("공개 중단과 사진 삭제를 확인했어요.").check();
+  await form.getByRole("button", { name: "리뷰 철회·사진 삭제" }).click();
+  await expect(page).toHaveURL(/notice=review-withdrawn/);
+}
+
+test("reviewer submits a metadata-free JPEG that remains private pending moderation", async ({ page }, testInfo) => {
   await completeReviewBeforePhotoStep(page);
   const exifJpegFixture = withExifApp1(await page.screenshot({ type: "jpeg" }));
   expect(exifJpegFixture.includes(Buffer.from([0xff, 0xe1]))).toBe(true);
@@ -38,41 +66,52 @@ test("reviewer publishes a prepared EXIF JPEG and everyone can load the metadata
     mimeType: "image/jpeg",
     buffer: exifJpegFixture,
   });
-  await expect(page.getByRole("status")).toContainText("1장 사진을 발행 준비했어요.");
+  await expect(page.getByRole("status")).toContainText("1장 사진을 제출 준비했어요.");
+  await fillPhotoRights(page);
   await page.locator('input[name="photos"]').setInputFiles({
     name: "camera-original-2.jpg",
     mimeType: "image/jpeg",
     buffer: exifJpegFixture,
   });
-  await expect(page.getByRole("status")).toContainText("1장 사진을 발행 준비했어요.");
-  await expect(page.getByRole("img", { name: "발행 전 사진 1" })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("1장 사진을 제출 준비했어요.");
+  await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeVisible();
+
+  await expect(page.locator(".reviewer-workspace").getByLabel("사진 1 촬영일", { exact: true })).toHaveValue("");
+  await expect(page.locator(".reviewer-workspace").getByRole("combobox", { name: "사진 1 이용권리", exact: true })).toHaveValue("");
+  await expect(page.locator(".reviewer-workspace").getByLabel("사진 1의 불필요한 인물·차량번호·개인정보 노출을 확인했어요.")).not.toBeChecked();
 
   // Replacing a choice revokes only discarded previews; the current photo still
   // renders and is the exact file sent during final publication.
   await page.getByRole("button", { name: "제거" }).click();
-  await expect(page.getByRole("img", { name: "발행 전 사진 1" })).toBeHidden();
+  await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeHidden();
 
   await page.locator('input[name="photos"]').setInputFiles({
     name: "camera-original-final.jpg",
     mimeType: "image/jpeg",
     buffer: exifJpegFixture,
   });
-  await expect(page.getByRole("img", { name: "발행 전 사진 1" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeVisible();
   const removeBox = await page.getByRole("button", { name: "제거" }).boundingBox();
   expect(removeBox?.width).toBeGreaterThanOrEqual(44);
   expect(removeBox?.height).toBeGreaterThanOrEqual(44);
 
+  await fillPhotoRights(page);
   await page.getByRole("button", { name: "다음: 확인" }).click();
-  await page.getByRole("button", { name: "리뷰 발행" }).click();
+  await fillVisitEvidence(page);
+  await page.getByRole("button", { name: "검수 요청", exact: true }).click();
 
-  await expect(page).toHaveURL(/notice=review-with-photos-published/);
-  await expect(page.getByRole("status")).toContainText("사진과 리뷰를 발행했어요.");
+  await expect(page).toHaveURL(/notice=review-with-photos-submitted/);
+  await expect(page.getByRole("status")).toContainText("사진과 리뷰를 검수 요청했어요.");
   const publicPhoto = page.locator('img[src^="/review-photos/"]').first();
   await expect(publicPhoto).toBeVisible();
   await expect(publicPhoto).toHaveJSProperty("complete", true);
   expect(await publicPhoto.evaluate((image: HTMLImageElement) => image.naturalWidth > 0)).toBe(true);
   const publicBytes = Buffer.from(await (await page.request.get(await publicPhoto.getAttribute("src") ?? "")).body());
   expect(publicBytes.includes(Buffer.from([0xff, 0xe1]))).toBe(false);
+  const anonymous = await page.context().browser()!.newContext();
+  const publicPath = new URL(await publicPhoto.getAttribute("src") ?? "", page.url()).pathname;
+  expect((await anonymous.request.get(new URL(publicPath, page.url()).href)).status()).toBe(404);
+  await anonymous.close();
 
   const historyList = page.locator(".reviewer-history-list");
   await expect(historyList).toBeVisible();
@@ -81,7 +120,7 @@ test("reviewer publishes a prepared EXIF JPEG and everyone can load the metadata
   await expect(historyPlaceLink).toHaveCount(1);
   await expect(historyPlaceLink).toHaveAttribute("href", /^\/places\/[^/]+$/);
   await expect(historyRow.locator("a")).toHaveCount(1);
-  await expect(historyRow.locator("button, [role=button]")).toHaveCount(0);
+  await expect(historyRow.getByText("내용 보완·다시 제출", { exact: true })).toBeVisible();
   await expect(historyRow).toContainText("사진 1장");
   await expect(historyRow.locator(".reviewer-history-badges i")).toHaveCount(2);
   await expect(page.locator(".reviewer-history-rail")).toHaveCount(0);
@@ -89,11 +128,12 @@ test("reviewer publishes a prepared EXIF JPEG and everyone can load the metadata
   const historyPlaceLinkBox = await historyPlaceLink.boundingBox();
   expect(historyPlaceLinkBox?.height).toBeGreaterThanOrEqual(44);
   await page.screenshot({
-    path: `docs/evidence/2026-08-13-reviewer-photo-upload-${testInfo.project.name}.png`,
+    path: testInfo.outputPath("reviewer-private-photo.png"),
     fullPage: true,
   });
-  await historyPlaceLink.focus();
-  await page.keyboard.press("Enter");
+  const target = await historyPlaceLink.getAttribute("href");
+  await withdrawSubmitted(page, historyRow);
+  await page.goto(target!);
   await expect(page).toHaveURL(/\/places\//);
 });
 
@@ -106,7 +146,7 @@ test("rejects a source that is too large before it tries to prepare or publish i
   });
 
   await expect(page.locator(".reviewer-form-error")).toContainText("원본 사진 용량이 너무 커요.");
-  await expect(page.getByRole("img", { name: "발행 전 사진 1" })).toBeHidden();
+  await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeHidden();
 });
 
 test("unsupported photo keeps the review in place and exposes an accessible retry message", async ({ page }) => {
@@ -125,14 +165,16 @@ test("unsupported photo keeps the review in place and exposes an accessible retr
   await expect(page.getByRole("button", { name: "Golden Pick 선택" })).toHaveCSS("cursor", "not-allowed");
 });
 
-test("double-clicking publish creates one review only", async ({ page }, testInfo) => {
+test("double-clicking submit creates one pending review only", async ({ page }, testInfo) => {
   await completeReviewBeforePhotoStep(page);
   await page.getByRole("button", { name: "다음: 확인" }).click();
-  const before = await page.locator(".reviewer-history article").count();
+  await fillVisitEvidence(page);
+  const beforeIds = await page.locator(".reviewer-history article").evaluateAll((rows) => rows.map((row) => row.id));
 
-  await page.getByRole("button", { name: "리뷰 발행" }).dblclick();
-  await expect(page).toHaveURL(/notice=review-published/);
-  await expect(page.locator(".reviewer-history article")).toHaveCount(before + 1);
+  await page.getByRole("button", { name: "검수 요청", exact: true }).dblclick();
+  await expect(page).toHaveURL(/notice=review-submitted/);
+  const afterIds = await page.locator(".reviewer-history article").evaluateAll((rows) => rows.map((row) => row.id));
+  expect(afterIds.filter((id) => !beforeIds.includes(id))).toHaveLength(1);
 
   // The newly published review is sorted first. A no-photo publication must
   // not reserve the thumbnail column or turn the row into a general action.
@@ -144,7 +186,7 @@ test("double-clicking publish creates one review only", async ({ page }, testInf
   await expect(historyPlaceLink).toHaveCount(1);
   await expect(historyPlaceLink).toHaveAttribute("href", /^\/places\/[^/]+$/);
   await expect(historyRow.locator("a")).toHaveCount(1);
-  await expect(historyRow.locator("button, [role=button]")).toHaveCount(0);
+  await expect(historyRow.getByText("내용 보완·다시 제출", { exact: true })).toBeVisible();
 
   const gridTemplateColumns = await historyRow.evaluate((row) => getComputedStyle(row).gridTemplateColumns);
   if (testInfo.project.name.includes("mobile")) {
@@ -152,6 +194,7 @@ test("double-clicking publish creates one review only", async ({ page }, testInf
   } else {
     expect(gridTemplateColumns).not.toMatch(/^44px\b/);
   }
+  await withdrawSubmitted(page, historyRow);
 });
 
 test("reviewer can move through the review flow by keyboard", async ({ page }) => {
@@ -163,5 +206,38 @@ test("reviewer can move through the review flow by keyboard", async ({ page }) =
   const next = page.getByRole("button", { name: "다음: 평가" });
   await next.focus();
   await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "이번 방문을 어떻게 판단했나요?" })).toBeVisible();
+});
+
+test("choosing a different place clears the previous visit and photo declarations", async ({ page }) => {
+  await completeReviewBeforePhotoStep(page);
+  await page.locator('input[name="photos"]').setInputFiles({ name: "synthetic.jpg", mimeType: "image/jpeg", buffer: await page.screenshot({ type: "jpeg" }) });
+  await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeVisible();
+  await fillPhotoRights(page);
+  await page.getByRole("button", { name: "다음: 확인" }).click();
+  await fillVisitEvidence(page);
+  await page.getByRole("button", { name: "1. 장소", exact: true }).click();
+  await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 전대");
+  await page.getByRole("button", { name: /Re:Taste 샘플 라멘 전대/ }).click();
+  const workspace = page.locator(".reviewer-workspace");
+  await expect(workspace.locator('input[name="placeId"]')).toHaveValue("sample-place-5");
+  await expect(workspace.locator('input[name="evaluation"]')).toHaveValue("");
+  await expect(workspace.locator(".reviewer-photo-list img")).toHaveCount(0);
+  await expect(workspace.locator('input[name="visitedOn"]')).toHaveValue("");
+  await expect(workspace.locator('textarea[name="visitNote"]')).toHaveValue("");
+  await expect(workspace.locator('select[name="disclosure"]')).toHaveValue("");
+});
+
+
+test("reviewer workspace stays usable when optional draft storage is blocked", async ({ page }) => {
+  await page.context().addCookies([REVIEWER_SESSION]);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new DOMException("Storage blocked", "SecurityError"); } });
+  });
+  await page.goto("/reviewer/ratings");
+  await expect(page.getByRole("heading", { name: "방문 리뷰 제출" })).toBeVisible();
+  await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
+  await page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ }).click();
+  await page.getByRole("button", { name: "다음: 평가" }).click();
   await expect(page.getByRole("heading", { name: "이번 방문을 어떻게 판단했나요?" })).toBeVisible();
 });
