@@ -19,6 +19,7 @@ import {
   type FeedbackReason,
 } from "../../app/features/members/taste-learning.server";
 import { getMemberTasteProfile } from "../../app/features/members/profile-taste.server";
+import { getPublicationEpoch } from "../../app/features/ratings/reviewer-publication.server";
 import { getSaved, setSaved, setSavedAndRefreshTaste } from "../../app/features/saves/save.server";
 
 const now = "2026-08-10T00:00:00Z";
@@ -279,12 +280,13 @@ describe("recommendation feedback learning", () => {
 
   it("does not infer the same activity again when a stored inferred vector exists", async () => {
     const db = createDb(env.DB);
+    await env.DB.prepare("INSERT INTO taste_learning_states(user_id,version_token,created_at,updated_at) VALUES(?,?,?,?)").bind(userId,"valid-inference-token",now,now).run();
     await db.insert(userTasteBadges).values({
       userId,
       badgeId: "food-gukbap",
       source: "INFERRED",
       score: 0.4,
-      evidenceJson: "{\"algorithm\":\"activity-v1\"}",
+      evidenceJson: JSON.stringify({ algorithm: "activity-v1", moderationEpoch: await getPublicationEpoch(db),versionToken:"valid-inference-token" }),
       createdAt: now,
       updatedAt: now,
     });

@@ -5,6 +5,8 @@ import { createDb } from "../../app/db/client.server";
 import { currentVotes, integrityCases, invalidatedVoteEvents, places, ratingRecomputeJobs, ratingSnapshots, users, voteEvents } from "../../app/db/schema";
 import { enqueueRatingRecompute, getLatestRatingSnapshot, processRatingJobs, recomputePlaceRating } from "../../app/features/ratings/recompute.server";
 
+import { publicationSnapshotStamp, seedApprovedReviewerVote } from "./reviewer-public-fixtures";
+
 const now = "2026-08-06T00:00:00.000Z";
 const placeId = "rating-recompute-place";
 
@@ -25,8 +27,12 @@ async function seedVotes() {
       id: userId, email: `${userId}@example.com`, displayName: userId,
       role: index < 6 ? "USER" : "REVIEWER", createdAt: now, updatedAt: now,
     }).onConflictDoNothing();
-    await db.insert(voteEvents).values({ id: eventId, placeId, userId, value: index === 7 ? -1 : 1, eventType: "CREATE", createdAt: now }).onConflictDoNothing();
-    await db.insert(currentVotes).values({ placeId, userId, eventId, value: index === 7 ? -1 : 1, updatedAt: now }).onConflictDoNothing();
+    if (index >= 6) {
+      await seedApprovedReviewerVote(db, { reviewerId: userId, placeId, eventId, value: index === 7 ? -1 : 1, now });
+    } else {
+      await db.insert(voteEvents).values({ id: eventId, placeId, userId, value: 1, eventType: "CREATE", createdAt: now }).onConflictDoNothing();
+      await db.insert(currentVotes).values({ placeId, userId, eventId, value: 1, updatedAt: now }).onConflictDoNothing();
+    }
   }
 }
 
@@ -101,6 +107,7 @@ describe("rating recomputation", () => {
       updatedAt: now,
     }).onConflictDoNothing();
     await db.insert(ratingSnapshots).values({
+      ...(await publicationSnapshotStamp(db, placeId)),
       id: `${placeId}-fresh`,
       placeId,
       configId: "rating-config-v2",

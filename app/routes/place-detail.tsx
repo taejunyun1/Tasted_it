@@ -4,16 +4,15 @@ import { z } from "zod";
 import type { Route } from "./+types/place-detail";
 import { createDb } from "../db/client.server";
 import { getPlaceBySlug, resolvePlaceSlugRedirect } from "../features/places/place.server";
-import { calculateRating } from "../features/ratings/rating-v1";
 import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
-import { castVote, getCurrentVote, withdrawVote } from "../features/ratings/vote.server";
+import { castVote, getCurrentVoteState, withdrawVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
-import { clearRecommendationFeedback, recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
+import { refreshInferredTasteSignals } from "../features/members/taste-learning.server";
 import { recordProductEvent, type ProductEventMetadata, type ProductEventName } from "../features/onboarding/onboarding-events.server";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import {
@@ -30,7 +29,7 @@ const actionSchema = z.discriminatedUnion("intent", [
     value: z.coerce.number().refine((value): value is -1 | 1 => value === -1 || value === 1),
     reason: z.enum(["MENU", "DISTANCE", "PRICE", "ATMOSPHERE", "ALREADY_VISITED"]).nullable().default(null),
   }),
-  z.object({ intent: z.literal("withdraw") }),
+  z.object({ intent: z.literal("withdraw"), expectedEventId: z.string().min(1).max(128) }),
   z.object({ intent: z.literal("save"), saved: z.enum(["true", "false"]).transform((value) => value === "true") }),
 ]);
 
@@ -84,8 +83,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const now = new Date().toISOString();
   const provenance = recommendationProvenance(request);
   const guest = provenance && !user ? await getGuestOnboardingFromRequest(db, request, now) : null;
-  const [vote, saved] = user ? await Promise.all([
-    getCurrentVote(db, { placeId: place.id, userId: user.id }),
+  const [voteState, saved] = user ? await Promise.all([
+    getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
   const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
@@ -95,7 +94,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getHiddenGemStatus(db, { placeId: place.id, now }),
     listPublishedPlaceReviewPhotos(db, place.id, 12),
   ]);
-  const legacy = calculateRating(place);
   const rating = snapshot ? {
     overallScore: snapshot.overallScore,
     userScore: snapshot.userScore,
@@ -106,14 +104,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     isStale: snapshot.isStale,
     algorithmVersion: "rating-v2.0",
   } : {
-    overallScore: legacy.sampleStatus === "VISIBLE" ? legacy.displayScore : null,
+    overallScore: null,
     userScore: null,
     reviewerScore: null,
     overallSampleCount: place.positive + place.negative,
-    userSampleCount: place.positive + place.negative,
-    reviewerSampleCount: 0,
-    isStale: false,
-    algorithmVersion: "rating-v1-fallback",
+    userSampleCount: (place.userPositive ?? 0) + (place.userNegative ?? 0),
+    reviewerSampleCount: (place.reviewerPositive ?? 0) + (place.reviewerNegative ?? 0),
+    isStale: true,
+    algorithmVersion: "rating-recomputing",
   };
   if (provenance) {
     await recordPlaceProductEvent(db, {
@@ -131,7 +129,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const returnTo = provenance
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
-  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote, saved, returnTo };
+  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -146,15 +144,8 @@ export async function action({ request, params }: Route.ActionArgs) {
   const now = new Date().toISOString();
   const provenance = recommendationProvenance(request);
   if (parsed.data.intent === "vote") {
-    await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now });
+    await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now, feedback: { reason: parsed.data.reason } });
     try {
-      await recordRecommendationFeedback(db, {
-        placeId: place.id,
-        userId: user.id,
-        value: parsed.data.value,
-        reason: parsed.data.reason,
-        now,
-      });
       await refreshInferredTasteSignals(db, user.id, now);
     } catch {
       console.error("TASTE_LEARNING_REFRESH_FAILED");
@@ -170,9 +161,12 @@ export async function action({ request, params }: Route.ActionArgs) {
       occurredAt: now,
     });
   } else if (parsed.data.intent === "withdraw") {
-    // Remove feedback first: failed cleanup must keep the visible vote retryable.
-    await clearRecommendationFeedback(db, { userId: user.id, placeId: place.id });
-    await withdrawVote(db, { placeId: place.id, userId: user.id, eventId: crypto.randomUUID(), now });
+    try {
+      await withdrawVote(db, { placeId: place.id, userId: user.id, eventId: crypto.randomUUID(), now, clearFeedback: true, expectedEventId: parsed.data.expectedEventId });
+    } catch (error) {
+      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, error: "VOTE_VERSION_CONFLICT", message: "반응이 변경되었습니다. 새로고침한 뒤 다시 시도해 주세요." }, { status: 409 });
+      throw error;
+    }
     try {
       await refreshInferredTasteSignals(db, user.id, now);
     } catch {
@@ -222,7 +216,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
-          <VoteControl placeId={loaderData.place.id} vote={loaderData.vote} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
+          <VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
           <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
           {reviewPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="review-photo-gallery-title">
