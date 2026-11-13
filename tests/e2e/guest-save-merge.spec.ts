@@ -81,3 +81,38 @@ test("mobile detail sheet offers the same temporary save without leaving the lis
   expect(new URL(page.url()).pathname).toBe("/places");
   await page.screenshot({ path: "docs/evidence/cst-guest-save-20261113/mobile-sheet-saved.png", fullPage: true });
 });
+
+test("switching a saved mobile sheet to another place with a failed load does not reuse the previous save choice", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "The quick sheet is the mobile presentation");
+  await page.goto("/places?bbox=126.80,35.10,127.00,35.25");
+  const cards = page.locator("section.discovery-all").getByRole("link", { name: /상세 보기$/ });
+  const secondHref = await cards.nth(1).getAttribute("href");
+  expect(secondHref).toBeTruthy();
+  await cards.first().click();
+  const dialog = page.getByRole("dialog", { name: /상세 정보$/ });
+  await dialog.getByRole("button", { name: "임시 저장", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "임시 저장 해제", exact: true })).toBeEnabled();
+  const firstPlaceId = await dialog.locator('input[name="placeId"]').inputValue();
+  await page.route("**/resources/guest-saves*", async (route) => {
+    if (route.request().method() === "GET" && new URL(route.request().url()).searchParams.get("placeId") !== firstPlaceId) {
+      return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, message: "합성 상태 조회 실패" }) });
+    }
+    return route.continue();
+  });
+  // Browser history can switch the sheet's route data without unmounting its slot.
+  const next = new URL(page.url()); next.searchParams.set("place", secondHref!);
+  await page.evaluate((url) => {
+    const previous = window.history.state;
+    window.history.pushState({ ...previous, idx: (previous?.idx ?? 0) + 1 }, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+  }, next.href);
+  await expect(dialog.locator('input[name="placeId"]')).not.toHaveValue(firstPlaceId);
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  const secondSave = dialog.getByRole("button", { name: "임시 저장", exact: true });
+  await expect(secondSave).toBeEnabled();
+  const nextWrite = page.waitForRequest((request) => request.method() === "POST" && request.url().includes("/resources/guest-saves"));
+  await secondSave.click();
+  const fields = new URLSearchParams((await nextWrite).postData()!);
+  expect(fields.get("saved")).toBe("true");
+  expect(fields.get("placeId")).not.toBe(firstPlaceId);
+});
