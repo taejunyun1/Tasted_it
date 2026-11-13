@@ -41,6 +41,8 @@ pnpm exec playwright test tests/e2e/release.spec.ts --project=chromium
 
 [execution-log.csv](../evidence/cst-20261210/execution-log.csv)에 한 실행당 한 행을 추가한다. `case_id/run_id/source_sha/environment/decision_refs/executed_at_kst/executor/result/evidence_ref/defect_ref/retest_of`를 기록한다. 결과는 `NOT_RUN / BLOCKED / FAIL / PASS / SKIP`로 제한한다. PASS에는 실행시각·SHA·환경·증거가 필요하며 SKIP/BLOCKED는 분모에 숨기지 않는다. 기존 행을 덮어쓰지 않고 재시험을 새 run으로 연결한다.
 
+부분 실행은 `T03.GUEST_MERGE_SERVER`처럼 하위 case로 기록한다. 해당 PASS를 T03 전체 합격으로 합산하지 않는다. CI는 로그의 실제 checkout SHA·시험 종료시각을 남기고, PR source head/병합 SHA와 구분한다. 원래 T01~08 행의 NOT_RUN은 전체 절차 완료 전까지 보존한다.
+
 결함은 요구/T번호·재현·기대/실제·영향/우선순위·소유·수정 PR·회귀명·재시험 결과를 기록한다. 계약/정책 값의 미확정은 결함과 구분해 SSOT DEC에 연결한다. 개인정보/비공개 자료 접근/권한/중복집계·복구 불가 같은 안전 실패는 실제 실증/공개를 차단한다.
 
 ## 5. 연구팀 실증·최종 수용

@@ -53,7 +53,14 @@
 - [#358](https://github.com/taejunyun1/Tasted_it/issues/358): 운영 Zod 보안 최소 패치·경계 회귀·audit, PR #361 `64898aa` 병합(필수4CI/독립검토), production0/dev포함46 유지.
 - [#359](https://github.com/taejunyun1/Tasted_it/issues/359): 리뷰어 관리자 승인·권리·직접 사진 URL gate·집계 계약(관련 기능 공개의 P0). 구현 정책 v1로 제출/승인·레거시/출처·회수·cache epoch 기준을 확정하고 backend→UI 순으로 구현·검증한다.
 - [#360](https://github.com/taejunyun1/Tasted_it/issues/360): DEC-01~08은 구현 정책의 ADOPTED_IMPLEMENTATION과 실제 사실 OPEN을 구분한다. 기술 기준은 새 권한/값을 무작정 보류하지 않고 구현하며, 미제공 연락처·실증/계약·운영 사실을 생성하지 않는다.
-- 추천 취소·비회원 저장승계·상세정정/리뷰어 연결은 W03~05로 분리 구현. 모바일 검색버튼 줄바꿈/지도 빈여백은 T07 수정·재검수 대상으로 기록한다.
+- 추천 취소 [#367/PR #369](https://github.com/taejunyun1/Tasted_it/pull/369) `a01e6e8`, 비회원 저장·계정 명시 선택 우선 승계/실패 재시도 [#368/PR #372](https://github.com/taejunyun1/Tasted_it/pull/372) `b469063`은 독립 리뷰·최종 필수4CI 후 병합했다. 장소 전환 중 조회 실패의 저장 상태 P2는 실제 모바일 RED→GREEN 뒤 재검토했다. 운영 반영·전체 T02/T03 완료와 구분한다.
+- 상세 정정 대상 유지 [#370/PR #374](https://github.com/taejunyun1/Tasted_it/pull/374) `3a1090c`는 최종4CI/독립리뷰 후 병합했다. 반복 legal smoke의 익명 공개 실패 메타 보존 [#365/PR #376](https://github.com/taejunyun1/Tasted_it/pull/376) `3ab7256`도 병합했으나 실제 원인은 UNKNOWN이다. 인증 href의 SSR/브라우저 표현 일치 [#371/PR #373](https://github.com/taejunyun1/Tasted_it/pull/373)은 최신 main 통합 후 최종4CI/독립리뷰를 통과해 `75a462d`로 병합했다. #375는 합성 local D1 복원 예행, #377/PR #379는 이미 구현된 guest 수집·수명 설명을 대조해 `96996a8`로 병합했으며 출시 전 검토본·실제 사실 OPEN을 유지한다. 모바일 검색버튼 줄바꿈/지도 빈여백은 T07 수정·재검수 대상으로 유지한다.
+
+### 부분 검증과 남은 판정
+
+현재 갱신 기준은 병합 main `96996a8`이다. W03의 기본 취소, W04의 로컬 저장/승계 코드는 들어왔지만 T01~08 전체의 최초 NOT_RUN을 부분 시험으로 덮어쓰지 않는다. [증거 원장](../evidence/cst-20261210/README.md)에 `T02.CANCEL_SERVER`, `T03.GUEST_MERGE_SERVER`처럼 하위 case를 별도로 추가한다. CI 원본 checkout SHA·실행 종료시각과 PR head/병합 SHA를 구분한다.
+
+다음 구현 순서는 #359 공개 승인/권리·직접 사진/모든 집계·추천 소비처 gate → 리뷰어/관리자 UI 연결 및 역할별 desktop/mobile 검증 → W06 산식·분리/상한·재계산 대조 → W07 복원/삭제 및 W08 통합이다. 병렬로 독립 가능한 W03~05 결함·W07 합성 예행을 진행한다. 실제 콘텐츠/권리 원자료·운영주체/문의처·계약/이전·실증 인원/동의·운영 배포/복구 증거는 OPEN이며 생성하지 않는다. #360은 이 실제 사실의 추적을 위해 유지한다.
 
 ### 이용자 요구사항 추적
 
@@ -61,10 +68,10 @@
 | --- | --- | --- | --- |
 | U01 p2 | `app/routes/home.tsx`, `tests/e2e/home-curation.spec.ts`: 홈 큐레이션·장소 진입 코드 존재 | 공개 적격 집합/지역·음식종류, 빈 목록, 실제 콘텐츠 재확인 | T01/T04, 11/20 |
 | U02 p2 | `app/routes/place-list.tsx`, `app/features/places/place.server.ts`: q/category/bbox 검색 | 지역 필터·초기화·0건·뒤로가기 조합 시험 | T01/T07, 11/20 |
-| U03 p2 | `app/routes/map-category.tsx`, `app/features/maps/map-state.ts`: 보기 전환·공통 상태 | query 소실 최소 수정, 동일 장소 ID집합·실패 시 목록·복귀 위치 확인 | T01/T07, 11/16~20 |
-| U04 p2 | `app/routes/place-detail.tsx`: 공개 상세·평가·사진·외부 링크 | 확인일/미확인 영업정보, 상세에서 대상 지정 정정, 사진 미제공 상태 | T04/T05/T07, 11/23 |
-| U05 p2 | `app/features/ratings/vote.server.ts`, `tests/integration/vote.server.test.ts`: 중복/변경/취소 backend | 공개 action/UI 취소 연결, 리뷰어/일반 반응 분리 표시, 인증조건 DEC-04 | T02/T06, 11/20 |
-| U06 p2 | `app/routes/me.tsx`, `app/features/onboarding/guest-merge.server.ts`: 로그인 저장·guest badge 승계 | 임시 저장·취향 승계의 누락/중복·실패 유지·재시도 구현 범위 확정(DEC-04) | T02/T03, 11/24 |
+| U03 p2 | #356 지도/목록 query·선택 보존 병합 | 동일 장소 ID집합·지도실패 목록·뒤로가기/복귀 위치·전체 T01/T07 확인 | T01/T07, 11/16~20 |
+| U04 p2 | 공개 상세·평가·사진·외부 링크, #374 상세 대상 지정 정정 병합 | 확인일/미확인 영업정보·사진 미제공 상태, 전체 S07 접수/검수·운영 재확인 | T04/T05/T07, 11/23 |
+| U05 p2 | `vote.server.ts`, #369 기본 공개 action/UI 취소 병합 | #359 동시 취소의 event pointer·일반/리뷰어 출처 분리·집계 회귀, 전체 T02/T06 | T02/T06, 11/20 |
+| U06 p2 | #372 guest 저장·원자 승계/회원 명시 선택 우선·실패 유지/재시도 병합 | 외부 인증 조합·만료/탈퇴/권한 통합 및 운영 상태 재확인, #377 수집 설명 정합 | T02/T03, 11/24 |
 | U07 p2 | `app/routes/reviewer-profile.tsx`, `reviewer-ratings.tsx`, reviewer visit/photo 코드 | 기존 즉시 평가 발행·직접 사진 URL의 공개 gate 공백을 우선 계약/설계로 해결, 승인 방문·평가·사진 연결 | T04/T06, 11/25 |
 | U08 p2 | `app/routes/course-recommendation.tsx`, course/parking 서비스·시험 | 영업시간/거리·주차/충전 제공/미제공. v2 false와 사진 업로드 false는 활성 증거 아님. DEC-05 결정 후 한정 검증 | T08, 11/26 |
 | U09 p2 | login/signup/verify-email/Google/NAVER route, auth guards | 역할별 서버권한·복귀·만료·탈퇴/삭제, 소셜 개발제한 실제 확인 | T03/T04, 11/24 |
@@ -223,5 +230,5 @@
 | 날짜 | 변경·근거 |
 | --- | --- |
 | 2026-11-13 | 사용자 요청/PDF v1.0과 main471a3eb 조사로 첫 SSOT 수립. 12/10 내부 검수·실증 준비 목표 확정. 개발 실행은 Jay/Codex, 외부 인력 가용성에 의존하지 않음. 수량/정책/성능·실증 입력은 DEC-01~08 OPEN으로 유지 |
-
 | 2026-11-13 후속 | 사용자 후속 요청으로 #359/360 구현 정책 v1 채택. 기존 베타 기준/PDF의 사전승인·권리/출처와 실제 미제공 사실을 구분하고 backend→UI→SSOT W03~05 순서로 진행 |
+| 2026-11-13 진행 | #366 정책 `8431113`, #369 기본 취소 `a01e6e8`, #372 guest 저장/승계 `b469063` 병합. 실제 CI checkout과 부분 case를 원장에 추가하며 전체 NOT_RUN·#359 공개 게이트·#360 실제 사실 OPEN을 유지 |
