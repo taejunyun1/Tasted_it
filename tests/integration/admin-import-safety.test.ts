@@ -18,7 +18,7 @@ async function fixture() {
   ]);
   const row = { name: "CSV 검수 장소", slug: `csv-${crypto.randomUUID()}`, address: "광주광역시 동구", neighborhood: "동명동", latitude: 35.14, longitude: 126.92, primaryCategory: category, phone: null, parkingSummary: null, kakaoPlaceId: null, heroImageUrl: null, status: "DRAFT" as const, searchText: "csv 검수" };
   const context = { actorUserId: id, sessionId: sid, kind: "CSV_IMPORT" as const, now };
-  const prepare = async (rows = [row]) => prepareAdminOperation(env.DB, { ...context, payload: await snapshotPlaceImport(createDb(env.DB), rows), summary: { title: "가져오기", count: rows.length } });
+  const prepare = async (rows = [row]) => prepareAdminOperation(env.DB, { ...context, payload: await snapshotPlaceImport(createDb(env.DB), rows), summary: { title: "장소 CSV 가져오기", count: rows.length } });
   const commit = async (operationId: string) => commitAdminOperation(env.DB, { ...context, operationId }, (op) => buildPlaceImportBatch(env.DB, op.id, op.payload, now));
   return { id, sid, category, row, now, prepare, commit };
 }
@@ -68,4 +68,15 @@ describe("admin CSV confirmation", () => {
     await expect(prepare()).rejects.toThrow("PUBLISHED_PLACE_REQUIRES_REVIEW");
     expect(await createDb(env.DB).query.places.findFirst({ where: eq(places.slug, row.slug) })).toMatchObject({ name: "기존 공개 내용", status: "PUBLISHED" });
   });
+  it("fits an ordinary 200-place manifest in the bounded receipt and audit", async () => {
+    const { row, prepare, commit } = await fixture();
+    const rows = Array.from({ length: 200 }, (_, index) => ({ ...row, slug: `csv-limit-${crypto.randomUUID()}-${index}` }));
+    const prepared = await prepare(rows);
+    const receipt = await commit(prepared.operationId);
+    expect(receipt.result).toMatchObject({ imported: 200, placeIds: expect.any(Array) });
+    expect((receipt.result as { placeIds: string[] }).placeIds).toHaveLength(200);
+    const audit = await env.DB.prepare("SELECT after_state FROM admin_audit_logs WHERE target_id=?").bind(prepared.operationId).first<{ after_state: string }>();
+    expect(new TextEncoder().encode(audit!.after_state).byteLength).toBeLessThanOrEqual(8192);
+  });
+
 });
