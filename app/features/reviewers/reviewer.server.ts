@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, like, ne, or } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
@@ -80,7 +80,7 @@ export async function reviewReviewerApplication(db: AppDb, input: {
       regionCode: application.regionCode, specialtySlugs: application.specialtySlugs, lastActivityAt: input.now,
       approvedAt: input.now, approvedBy: input.actorUserId, statusReason: override ? reason : null, createdAt: input.now, updatedAt: input.now,
     }).onConflictDoUpdate({ target: reviewerProfiles.userId, set: { slug, status: "ACTIVE", occupation: application.occupation, tasteDirection: application.tasteDirection, regionCode: application.regionCode, specialtySlugs: application.specialtySlugs, lastActivityAt: input.now, approvedAt: input.now, approvedBy: input.actorUserId, statusReason: override ? reason : null, updatedAt: input.now } }),
-    db.update(users).set({ role: "REVIEWER", updatedAt: input.now }).where(eq(users.id, user.id)),
+    db.update(users).set({ role: "REVIEWER", updatedAt: input.now }).where(and(eq(users.id, user.id), ne(users.role, "ADMIN"))),
     audit(db, input.actorUserId, override ? "OVERRIDE_APPROVE_REVIEWER" : "APPROVE_REVIEWER", application.id, application.status, "APPROVED", input.now),
   ]);
   return { status: "APPROVED" as const, slug };
@@ -93,7 +93,7 @@ export async function changeReviewerStatus(db: AppDb, input: { userId: string; a
   if (!reason) throw new Error("REVIEW_REASON_REQUIRED");
   await db.batch([
     db.update(reviewerProfiles).set({ status: input.status, statusReason: reason, lastActivityAt: input.status === "ACTIVE" ? input.now : profile.lastActivityAt, updatedAt: input.now }).where(eq(reviewerProfiles.userId, input.userId)),
-    db.update(users).set({ role: input.status === "ACTIVE" ? "REVIEWER" : "USER", updatedAt: input.now }).where(eq(users.id, input.userId)),
+    db.update(users).set({ role: input.status === "ACTIVE" ? "REVIEWER" : "USER", updatedAt: input.now }).where(and(eq(users.id, input.userId), ne(users.role, "ADMIN"))),
     audit(db, input.actorUserId, `SET_REVIEWER_${input.status}`, input.userId, profile.status, input.status, input.now),
   ]);
 }
