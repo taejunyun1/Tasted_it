@@ -10,6 +10,15 @@ CREATE TABLE admin_reauth_challenges (
 );
 CREATE INDEX admin_reauth_challenges_session_idx ON admin_reauth_challenges(session_id, expires_at);
 
+-- Keep admin limits separate: legacy login cleanup prunes the shared table by
+-- its own shorter window and must not reset the administrator mail budget.
+CREATE TABLE admin_reauth_rate_windows (
+  bucket_hash TEXT NOT NULL,
+  window_started_at TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL CHECK (attempt_count > 0),
+  PRIMARY KEY (bucket_hash, window_started_at)
+);
+
 CREATE TABLE admin_role_restorations (
   user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   previous_role TEXT NOT NULL CHECK (previous_role IN ('USER', 'REVIEWER'))
