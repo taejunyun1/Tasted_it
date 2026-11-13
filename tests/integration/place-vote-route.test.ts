@@ -72,6 +72,16 @@ describe("public place vote withdrawal", () => {
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM vote_events WHERE user_id=? AND place_id=? AND event_type='WITHDRAW'").bind(userId, slug).first()).toEqual({ n: 1 });
   });
 
+  it("removes withdrawn inferred taste while preserving manually selected taste", async () => {
+    await env.DB.prepare("INSERT INTO user_taste_badges(user_id,badge_id,source,score,evidence_json,created_at,updated_at) VALUES(?,'food-gukbap','USER',0.9,'{}',?,?)")
+      .bind(userId, now, now).run();
+    await submit({ intent: "vote", value: "1" });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM user_taste_badges WHERE user_id=? AND source='INFERRED'").bind(userId).first<{ n: number }>())!.n).toBeGreaterThan(0);
+    await submit({ intent: "withdraw" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM user_taste_badges WHERE user_id=? AND source='INFERRED'").bind(userId).first()).toEqual({ n: 0 });
+    expect(await env.DB.prepare("SELECT score FROM user_taste_badges WHERE user_id=? AND source='USER'").bind(userId).first()).toEqual({ score: 0.9 });
+  });
+
   it("requires authentication and the current origin before changing a vote", async () => {
     await submit({ intent: "vote", value: "1" });
     await expect(submit({ intent: "withdraw" }, { session: null })).rejects.toMatchObject({ status: 302 });

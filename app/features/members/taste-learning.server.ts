@@ -61,6 +61,16 @@ export async function recordRecommendationFeedback(db: AppDb, input: {
   });
 }
 
+export async function clearRecommendationFeedback(db: AppDb, input: {
+  userId: string;
+  placeId: string;
+}): Promise<void> {
+  await db.delete(recommendationFeedback).where(and(
+    eq(recommendationFeedback.userId, input.userId),
+    eq(recommendationFeedback.placeId, input.placeId),
+  ));
+}
+
 function applyFoodPenalties(inferred: TasteBadgeScore[], foodBadgeIds: string[], penalty: number) {
   const penaltyCounts = new Map<string, number>();
   for (const badgeId of foodBadgeIds) {
