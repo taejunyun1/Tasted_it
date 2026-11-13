@@ -1,0 +1,235 @@
+{
+  "checkoutSha": "72fb86c3e8aa5b239c969612575d6d2c278de60b",
+  "checkoutDirty": false,
+  "environment": "LOCAL_SYNTHETIC_OPTIMIZER_METADATA_PRESENT",
+  "optimizerMetadataExistedBeforeProcess": true,
+  "newProcess": true,
+  "pageReloadWorkaround": false,
+  "testTimeoutMs": 30000,
+  "retries": 0,
+  "command": [
+    "pnpm",
+    "exec",
+    "playwright",
+    "test",
+    "tests/e2e/reviewer-moderation.spec.ts",
+    "--project=chromium",
+    "-g",
+    "submission approval"
+  ],
+  "exitCode": 0,
+  "startedAtUtc": "2026-11-13T14:43:57.669637+00:00",
+  "endedAtUtc": "2026-11-13T14:44:35.057307+00:00",
+  "endedAtKst": "2026-11-13T23:44:35.057307+09:00",
+  "timeSource": "process_completion_measured",
+  "phases": [
+    {
+      "phase": "core:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:44:15.378Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-workspace:start",
+      "elapsedMs": 6,
+      "atUtc": "2026-11-13T14:44:15.384Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-wizard:photo-step",
+      "elapsedMs": 959,
+      "atUtc": "2026-11-13T14:44:16.337Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "photo-preparation:complete",
+      "elapsedMs": 1038,
+      "atUtc": "2026-11-13T14:44:16.415Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "photo-declarations:capture-complete",
+      "elapsedMs": 3241,
+      "atUtc": "2026-11-13T14:44:18.619Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "visit-declarations:capture-complete",
+      "elapsedMs": 3496,
+      "atUtc": "2026-11-13T14:44:18.874Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-submission:complete",
+      "elapsedMs": 3728,
+      "atUtc": "2026-11-13T14:44:19.106Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "additional-contexts:ready",
+      "elapsedMs": 3804,
+      "atUtc": "2026-11-13T14:44:19.181Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "pending-access-and-owner-capture:complete",
+      "elapsedMs": 4571,
+      "atUtc": "2026-11-13T14:44:19.948Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-1-CHANGES_REQUESTED:start",
+      "elapsedMs": 4571,
+      "atUtc": "2026-11-13T14:44:19.949Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-1-CHANGES_REQUESTED:document-ready",
+      "elapsedMs": 5220,
+      "atUtc": "2026-11-13T14:44:20.598Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-1-CHANGES_REQUESTED:complete",
+      "elapsedMs": 6698,
+      "atUtc": "2026-11-13T14:44:22.075Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-sees-change-request:complete",
+      "elapsedMs": 7126,
+      "atUtc": "2026-11-13T14:44:22.504Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-edit-1:start",
+      "elapsedMs": 7126,
+      "atUtc": "2026-11-13T14:44:22.504Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-edit-1:complete",
+      "elapsedMs": 10887,
+      "atUtc": "2026-11-13T14:44:26.265Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-2-APPROVED:start",
+      "elapsedMs": 10888,
+      "atUtc": "2026-11-13T14:44:26.265Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-2-APPROVED:document-ready",
+      "elapsedMs": 11201,
+      "atUtc": "2026-11-13T14:44:26.578Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-2-APPROVED:complete",
+      "elapsedMs": 12336,
+      "atUtc": "2026-11-13T14:44:27.714Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "stale-and-origin-negatives:complete",
+      "elapsedMs": 12399,
+      "atUtc": "2026-11-13T14:44:27.776Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "approved-public-projection:complete",
+      "elapsedMs": 12740,
+      "atUtc": "2026-11-13T14:44:28.118Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "approved-captures:complete",
+      "elapsedMs": 12848,
+      "atUtc": "2026-11-13T14:44:28.226Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-edit-2:start",
+      "elapsedMs": 13228,
+      "atUtc": "2026-11-13T14:44:28.605Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-edit-2:complete",
+      "elapsedMs": 14881,
+      "atUtc": "2026-11-13T14:44:30.259Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-edit-public-removal:complete",
+      "elapsedMs": 15197,
+      "atUtc": "2026-11-13T14:44:30.575Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-3-APPROVED:start",
+      "elapsedMs": 15197,
+      "atUtc": "2026-11-13T14:44:30.575Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-3-APPROVED:document-ready",
+      "elapsedMs": 15563,
+      "atUtc": "2026-11-13T14:44:30.941Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-3-APPROVED:complete",
+      "elapsedMs": 16400,
+      "atUtc": "2026-11-13T14:44:31.778Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-4-WITHDRAWN:start",
+      "elapsedMs": 16433,
+      "atUtc": "2026-11-13T14:44:31.811Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-4-WITHDRAWN:document-ready",
+      "elapsedMs": 16708,
+      "atUtc": "2026-11-13T14:44:32.086Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "moderation-4-WITHDRAWN:complete",
+      "elapsedMs": 16889,
+      "atUtc": "2026-11-13T14:44:32.267Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "admin-withdrawal-public-removal:complete",
+      "elapsedMs": 17129,
+      "atUtc": "2026-11-13T14:44:32.507Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-withdrawal-photo-removal:complete",
+      "elapsedMs": 19315,
+      "atUtc": "2026-11-13T14:44:34.692Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "additional-contexts:closing",
+      "elapsedMs": 19315,
+      "atUtc": "2026-11-13T14:44:34.692Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "additional-contexts:closed",
+      "elapsedMs": 19549,
+      "atUtc": "2026-11-13T14:44:34.927Z",
+      "project": "chromium"
+    }
+  ],
+  "observedTestElapsedMs": 19549,
+  "observedOriginNegativeCompletedMs": 12399,
+  "remainingTasksAfterOriginMs": 7150,
+  "scopeNote": "동일 소스의 최적화 metadata 생성 뒤 조건부 1회 PASS이며 최초 실패나 원본 CI를 덮지 않는다."
+}
