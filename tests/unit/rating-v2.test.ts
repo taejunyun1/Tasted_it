@@ -6,7 +6,7 @@ import {
 } from "../../app/features/ratings/rating-v2";
 
 describe("rating-v2", () => {
-  it("keeps a seven-vote result private and reveals the eighth", () => {
+  it("keeps seven votes private and pins the eighth and ninth Beta(2,2) scores", () => {
     const seven = calculateRatingV2({
       userVotes: [1, 1, 1, 1, 1, -1, -1],
       reviewerVotes: [],
@@ -15,9 +15,14 @@ describe("rating-v2", () => {
       userVotes: [1, 1, 1, 1, 1, 1, -1, -1],
       reviewerVotes: [],
     });
+    const nine = calculateRatingV2({
+      userVotes: [1, 1, 1, 1, 1, 1, 1, -1, -1],
+      reviewerVotes: [],
+    });
 
     expect(seven.overall).toMatchObject({ sampleCount: 7, sampleStatus: "INSUFFICIENT", displayScore: null });
     expect(eight.overall).toMatchObject({ sampleCount: 8, sampleStatus: "VISIBLE", displayScore: 67 });
+    expect(nine.overall).toMatchObject({ sampleCount: 9, sampleStatus: "VISIBLE", displayScore: 69 });
   });
 
   it("reveals each subgroup only after that subgroup has eight votes", () => {
@@ -53,6 +58,24 @@ describe("rating-v2", () => {
     expect(result.overall.displayScore).toBe(35);
   });
 
+  it("keeps full reviewer mass when no general reaction exists", () => {
+    const result = calculateRatingV2({
+      userVotes: [],
+      reviewerVotes: Array.from({ length: 8 }, (_, index) => ({
+        reviewerId: `reviewer-only-${index}`,
+        value: 1 as const,
+        reliabilityWeight: 1,
+        similarityDamping: 1,
+      })),
+    });
+
+    expect(result.overall).toMatchObject({ sampleCount: 8, displayScore: 83 });
+    expect(result.users).toMatchObject({ sampleCount: 0, displayScore: null });
+    expect(result.reviewers).toMatchObject({ rawEffectiveWeight: 8, combinedEffectiveWeight: 8, displayScore: 83 });
+    expect(result.reviewerWeightShare).toBe(1);
+    expect(result.reasons).toEqual([]);
+  });
+
   it("uses neutral trust while calibrating and bounded posterior trust afterward", () => {
     expect(calculateReviewerReliability({ eligible: 4, correct: 4 })).toEqual({
       status: "CALIBRATING",
@@ -61,6 +84,10 @@ describe("rating-v2", () => {
       posteriorAccuracy: 0.75,
       weight: 1,
     });
+    const firstActive = calculateReviewerReliability({ eligible: 5, correct: 5 });
+    expect(firstActive).toMatchObject({ status: "ACTIVE", eligible: 5, correct: 5 });
+    expect(firstActive.posteriorAccuracy).toBeCloseTo(0.7777777777777778, 8);
+    expect(firstActive.weight).toBeCloseTo(1.2222222222222223, 8);
     const mature = calculateReviewerReliability({ eligible: 6, correct: 6 });
     expect(mature).toMatchObject({ status: "ACTIVE", posteriorAccuracy: 0.8 });
     expect(mature.weight).toBeCloseTo(1.24, 8);
