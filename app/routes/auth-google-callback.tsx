@@ -3,6 +3,7 @@ import { redirect } from "react-router";
 
 import type { Route } from "./+types/auth-google-callback";
 import { createDb } from "../db/client.server";
+import { handleAdminOAuthReauth } from "../features/auth/admin-reauth-oauth.server";
 import { sendGoogleWelcomeIfNeeded } from "../features/auth/email.server";
 import { resolveGoogleAccount } from "../features/auth/google-account.server";
 import {
@@ -32,6 +33,8 @@ function errorRedirect(
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const requestId = readOAuthRequestCookie(request);
+  const adminReauth = await handleAdminOAuthReauth(request, requestId, "GOOGLE");
+  if (adminReauth) return adminReauth;
   const state = url.searchParams.get("state");
   const providerError = url.searchParams.get("error");
   const now = new Date();

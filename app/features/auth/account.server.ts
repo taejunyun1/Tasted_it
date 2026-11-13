@@ -40,7 +40,7 @@ export async function registerAccount(db: AppDb, input: { email: string; display
   if (existing?.emailVerifiedAt) throw new Error("ACCOUNT_EXISTS");
   const password = await hashPassword(input.password);
   const userId = existing?.id ?? crypto.randomUUID();
-  const values = { displayName: input.displayName.trim(), role: input.adminEmail?.trim().toLowerCase() === email ? "ADMIN" as const : "USER" as const, passwordHash: password.hash, passwordSalt: password.salt, emailVerifiedAt: null, updatedAt: input.now.toISOString() };
+  const values = { displayName: input.displayName.trim(), role: existing?.role ?? (input.adminEmail?.trim().toLowerCase() === email ? "ADMIN" as const : "USER" as const), passwordHash: password.hash, passwordSalt: password.salt, emailVerifiedAt: null, updatedAt: input.now.toISOString() };
   if (existing) await db.update(users).set(values).where(eq(users.id, existing.id));
   else await db.insert(users).values({ id: userId, email, ...values, createdAt: input.now.toISOString() });
   return { userId, email, ...(await issueToken(db, userId, "VERIFY_EMAIL", input.now)) };
