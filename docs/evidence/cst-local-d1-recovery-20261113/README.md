@@ -8,3 +8,5 @@
 - source의 합성 이름 변경 뒤에도 백업시점 원래 값을 복원했고, 손상/누락 백업은 import 전에 거절했다. 실제 운영/개인정보·R2·외부 API·요금 발생 없음.
 - 범위 unit 5개(명시 opt-in/실행 entry 원격 인자 거절, 소유경로·regular/symlink/상한/해시, 복원 불일치 거절). 같은 branch에서 RED(module 미구현)→GREEN, Node syntax/diff-check 검증.
 - 최초 actual의 migration 목록은 0041 포함·0040 미포함이다. backend 병합 뒤 최신 main에서 재검증할 필요를 유지한다. 이 증거는 종합 T08·운영 복구/백업 SLA 완료가 아니다.
+
+- 후속 경계 보강: 최초 export read 전에 크기를 검사하도록 추가하고 executable-entry 원격 인자 거절 시험을 보강했다. 최종 코드 `8c6584f`에서 새 합성 run을 1회 수행해 동일 수용조건 PASS를 확인했다(`bounded-export-final-run.json`). 기존 실패·성공 JSON은 유지하며 migration 목록은 이전 성공 JSON과 동일 digest로 참조한다.
