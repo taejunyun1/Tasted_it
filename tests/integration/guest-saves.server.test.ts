@@ -87,3 +87,50 @@ describe("guest saves and atomic member merge", () => {
     expect((await env.DB.prepare("SELECT count(*) n FROM guest_saved_places WHERE session_id=?").bind(id).first<{n: number}>())?.n).toBe(0);
   });
 });
+
+describe("merge serialisation with explicit member choices", () => {
+  it("does not resurrect a member unsave that commits before the merge batch", async () => {
+    const { db, id, placeIds: [placeId], userId } = await fixture();
+    await setGuestSavedPlace(db, { sessionId: id, placeId, saved: true, now });
+    const racedDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === "batch") return async (...input: Parameters<typeof db.batch>) => {
+          await setSaved(target, { userId, placeId, saved: false, now });
+          return target.batch(...input);
+        };
+        return Reflect.get(target, property, receiver);
+      },
+    }) as typeof db;
+    expect((await mergeGuestTasteSessionFromRequest(racedDb, request(id), userId, now)).merged).toBe(true);
+    expect(await db.select().from(savedPlaces).where(eq(savedPlaces.userId, userId))).toHaveLength(0);
+  });
+  it("does not copy a temporary place hidden before merge and preserves a low member badge score", async () => {
+    const { db, id, placeIds: [placeId], userId } = await fixture();
+    await setGuestSavedPlace(db, { sessionId: id, placeId, saved: true, now });
+    await env.DB.prepare("UPDATE places SET status='HIDDEN' WHERE id=?").bind(placeId).run();
+    await env.DB.prepare("INSERT INTO guest_taste_badges (session_id,badge_id,selected_at) VALUES (?,'food-gukbap',?)").bind(id, now).run();
+    await db.insert(userTasteBadges).values({ userId, badgeId: "food-gukbap", source: "USER", score: 0.1, evidenceJson: "{}", createdAt: now, updatedAt: now });
+    expect((await mergeGuestTasteSessionFromRequest(db, request(id), userId, now)).merged).toBe(true);
+    expect(await db.select().from(savedPlaces).where(eq(savedPlaces.userId, userId))).toHaveLength(0);
+    expect((await db.select().from(userTasteBadges).where(eq(userTasteBadges.userId, userId)))[0]?.score).toBe(0.1);
+  });
+});
+
+describe("guest merge notices and write limits", () => {
+  it("does not create data for notices and distinguishes expired pending choices", async () => {
+    const { getGuestChoiceMergeState } = await import("../../app/features/onboarding/guest-saves.server");
+    const { db, id, placeIds: [placeId] } = await fixture();
+    expect(await getGuestChoiceMergeState(db, new Request("https://example.test"), now)).toBe("NONE");
+    await setGuestSavedPlace(db, { sessionId: id, placeId, saved: true, now });
+    expect(await getGuestChoiceMergeState(db, request(id), now)).toBe("PENDING");
+    expect(await getGuestChoiceMergeState(db, request(id), "2026-12-14T00:00:00.000Z")).toBe("EXPIRED");
+  });
+  it("bounds anonymous writes using a hashed existing rate-limit window", async () => {
+    const { consumeGuestSaveWriteLimit } = await import("../../app/features/onboarding/guest-saves.server");
+    const db = createDb(env.DB), ip = "203.0.113.44";
+    for (let i = 0; i < 120; i++) await consumeGuestSaveWriteLimit(db, ip, now);
+    await expect(consumeGuestSaveWriteLimit(db, ip, now)).rejects.toThrow("GUEST_SAVE_RATE_LIMIT");
+    await expect(consumeGuestSaveWriteLimit(db, ip, "2026-11-13T00:15:00.000Z")).resolves.toBeUndefined();
+    expect((await env.DB.prepare("SELECT count(*) n FROM rate_limit_windows WHERE bucket_hash=?").bind(ip).first<{n: number}>())?.n).toBe(0);
+  });
+});
