@@ -67,6 +67,8 @@ export async function action({ request }: Route.ActionArgs) {
   if (env.ONBOARDING_ENABLED !== "true") return json({ ok: false, message: "임시 저장을 현재 사용할 수 없습니다." }, 404);
   try {
     const form = await readGuestSaveForm(request);
+    const valid = form.intent === "merge" ? mergeSchema.safeParse(form) : saveSchema.safeParse(form);
+    if (!valid.success) return json({ ok: false, message: "요청 내용을 확인해 주세요." }, 400);
     const db = createDb(env.DB); const now = new Date().toISOString();
     const user = await getOptionalUser(request);
     await consumeGuestSaveWriteLimit(db, request.headers.get("CF-Connecting-IP"), now);
