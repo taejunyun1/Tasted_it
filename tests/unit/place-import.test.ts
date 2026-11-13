@@ -28,4 +28,17 @@ describe("parsePlaceCsv", () => {
     expect(result.rows).toEqual([]);
     expect(result.errors[0]).toMatchObject({ row: 2, field: "latitude" });
   });
+  it("bounds admin upload bytes and rows and rejects duplicate slugs", () => {
+    expect(parsePlaceCsv(validCsv, { maxBytes: 10 }).errors[0].field).toBe("csv");
+    const lines = validCsv.split("\n");
+    expect(parsePlaceCsv([...lines, lines[1]].join("\n"), { maxRows: 1 }).errors[0].field).toBe("csv");
+    expect(parsePlaceCsv([...lines, lines[1]].join("\n")).errors[0].field).toBe("slug");
+  });
+
+  it("requires the publication workflow for admin CSV while preserving offline seed parsing", () => {
+    const csv = validCsv.replace("hero_image_url\n", "hero_image_url,status\n") + ",PUBLISHED";
+    expect(parsePlaceCsv(csv).rows[0].status).toBe("PUBLISHED");
+    expect(parsePlaceCsv(csv, { allowPublished: false }).errors[0].field).toBe("status");
+  });
+
 });
