@@ -11,6 +11,8 @@
 	"triggers": { "crons": ["17 18 * * *", "47 */6 * * *"] },
 	"preview_urls": false,
 	"vars": {
+		// 0040 전환/장애 때 HTTP·cron을 DB 접근 전 차단. 정상값은 "false".
+		"CST_MAINTENANCE": "false",
 		// 운영자가 지정한 도메인 하나만 복구. 기본 비활성, 복구 후 다시 비운다.
 		"EMAIL_DOMAIN_REPAIR_TARGET": "",
 		"STUDENT_WORKSPACE_ENABLED": "true",
