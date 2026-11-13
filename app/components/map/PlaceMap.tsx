@@ -28,6 +28,7 @@ const GWANGJU_OVERVIEW_BOUNDS = {
 } as const;
 const MUDEUNGSAN_OVERVIEW_ICON_POINT = { x: 95, y: 63 } as const;
 const YEONGSAN_RIVER_OVERVIEW_LINE = "44,3 35,24 22,41 16,62 12,88";
+const MAP_UNAVAILABLE_MESSAGE = "지도를 불러오지 못했습니다. 목록에서 장소를 계속 확인해 주세요.";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -153,7 +154,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     let zoomListener: unknown;
 
     if (!initialClientId.current) {
-      setError("NAVER Maps Client ID가 설정되지 않았습니다.");
+      setError(MAP_UNAVAILABLE_MESSAGE);
       return;
     }
 
@@ -207,7 +208,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       });
       zoomRef.current(created.getZoom());
     }).catch(() => {
-      if (!disposed) setError("네이버 지도를 불러오지 못했습니다. 등록 URL과 Client ID를 확인해주세요.");
+      if (!disposed) setError(MAP_UNAVAILABLE_MESSAGE);
     });
 
     return () => {
@@ -365,7 +366,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     })}
   </div>;
 
-  return <div className="map-canvas" aria-label="장소 지도" data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
+  return <div className="map-canvas" aria-label="장소 지도" data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
     <div className="map-canvas__host" ref={host} aria-hidden="true" />
     {(error || locationNotice) && <p className="map-error" role="status" aria-live="polite">{error || locationNotice}</p>}
     {selectedOverview}

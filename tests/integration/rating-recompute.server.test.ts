@@ -37,7 +37,7 @@ async function seedVotes() {
 }
 
 describe("rating recomputation", () => {
-  it("writes a deterministic role-separated snapshot and reuses the same input", async () => {
+  it("writes a deterministic source-separated snapshot and reuses the same input", async () => {
     const db = createDb(env.DB);
     await seedVotes();
 
@@ -46,6 +46,8 @@ describe("rating recomputation", () => {
     const rows = await db.select().from(ratingSnapshots);
 
     expect(first).toMatchObject({ overallSampleCount: 8, userSampleCount: 6, reviewerSampleCount: 2, overallScore: 75, userScore: null, reviewerScore: null, isStale: false });
+    expect(first).toMatchObject({ reviewerRawWeight: 2, reviewerCombinedWeight: 2, reviewerWeightShare: 0.25 });
+    expect(second).toMatchObject({ id: first.id, overallSampleCount: 8, userSampleCount: 6, reviewerSampleCount: 2, overallScore: 75, userScore: null, reviewerScore: null, isStale: false });
     expect(first.inputHash).toBe(second.inputHash);
     expect(rows.filter((row) => row.placeId === placeId)).toHaveLength(1);
     expect(JSON.parse(first.reasonsJson)).toMatchObject({ algorithmVersion: "rating-v2.0" });
