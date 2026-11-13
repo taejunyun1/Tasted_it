@@ -54,6 +54,24 @@ describe("local-only D1 recovery rehearsal boundaries", () => {
     expect(() => readVerifiedBackup(directory, huge, "0".repeat(64))).toThrow("BACKUP_SIZE_LIMIT");
   });
 
+  it("rejects a missing domain table, trigger or domain row even when the fixture survived", () => {
+    const project = {
+      schemaObjects: [
+        { type: "table", name: "domain", tableName: "domain", sqlSha256: digestBytes("domain schema") },
+        { type: "trigger", name: "domain_guard", tableName: "domain", sqlSha256: digestBytes("trigger schema") },
+      ],
+      tables: [{ name: "domain", rowCount: 1, rowDigest: digestBytes("domain row") }],
+    };
+    const expected = { quickCheck: "ok", foreignKeys: [], counts: { categories: 1, places: 1, links: 1 }, rows: [{ id: "category" }, { id: "place" }, { id: "link" }], project };
+    expect(() => compareSnapshots(expected, structuredClone(expected))).not.toThrow();
+    for (const changed of [
+      { ...project, schemaObjects: project.schemaObjects.filter((object) => object.type !== "table") },
+      { ...project, schemaObjects: project.schemaObjects.filter((object) => object.type !== "trigger") },
+      { ...project, tables: [{ ...project.tables[0], rowCount: 0, rowDigest: digestBytes("empty") }] },
+      { ...project, tables: [{ ...project.tables[0], rowDigest: digestBytes("changed row") }] },
+    ]) expect(() => compareSnapshots(expected, { ...expected, project: changed })).toThrow("RESTORE_VERIFICATION_FAILED");
+  });
+
   it("fails on integrity, foreign keys, missing rows or changed restored content", () => {
     const expected = { quickCheck: "ok", foreignKeys: [], counts: { categories: 1, places: 1, links: 1 }, rows: [{ kind: "category", id: "category", value: "synthetic" }, { kind: "link", id: "synthetic", value: "category" }, { kind: "place", id: "synthetic", value: "before" }] };
     expect(() => compareSnapshots(expected, structuredClone(expected))).not.toThrow();
