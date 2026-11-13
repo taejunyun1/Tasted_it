@@ -10,9 +10,10 @@ const NEGATIVE_REASONS = [
   { value: "ALREADY_VISITED", label: "이미 가본 곳" },
 ] as const;
 
-export function VoteControl({ vote, saved, signedIn, returnTo, placeId }: {
+export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEventId }: {
   placeId: string;
   vote: -1 | 1 | null;
+  voteEventId?: string | null;
   saved: boolean;
   signedIn: boolean;
   returnTo: string;
@@ -53,9 +54,10 @@ export function VoteControl({ vote, saved, signedIn, returnTo, placeId }: {
           <button type="submit" disabled={pending}>비추천 반영</button>
         </Form>
       )}
-      {vote !== null && (
+      {vote !== null && voteEventId && (
         <Form method="post" onSubmit={() => setNegativeReasonOpen(false)}>
           <input type="hidden" name="intent" value="withdraw" />
+          <input type="hidden" name="expectedEventId" value={voteEventId} />
           <button type="submit" disabled={pending}>평가 취소</button>
         </Form>
       )}

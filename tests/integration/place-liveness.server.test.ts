@@ -15,6 +15,8 @@ import {
   places,
   placeSourceLinks,
   reviewerVisitReviews,
+  reviewerVisitPhotos,
+  reviewerProfiles,
   savedPlaces,
   users,
   voteEvents,
@@ -26,6 +28,8 @@ import {
   type LivenessTarget,
 } from "../../app/features/places/place-liveness.server";
 import type { LivenessDecision } from "../../app/features/places/place-liveness";
+
+import { REVIEWER_PUBLICATION_RULE } from "../../app/features/ratings/reviewer-publication.server";
 
 const NOW = "2026-08-13T12:00:00.000Z";
 const OLD = "2026-07-01T12:00:00.000Z";
@@ -216,11 +220,15 @@ describe("place liveness server", () => {
       { id: reviewerId, email: `${reviewerId}@example.com`, displayName: "리뷰어", role: "REVIEWER", createdAt: NOW, updatedAt: NOW },
       { id: memberId, email: `${memberId}@example.com`, displayName: "회원", role: "USER", createdAt: NOW, updatedAt: NOW },
     ]);
+    const adminId=`${prefix}-admin`;
+    await db.insert(users).values({id:adminId,email:`${adminId}@example.com`,displayName:"합성 관리자",role:"ADMIN",createdAt:NOW,updatedAt:NOW});
+    await db.insert(reviewerProfiles).values({userId:reviewerId,slug:reviewerId,status:"ACTIVE",occupation:"합성시험",tasteDirection:"균형",regionCode:"GWANGJU",specialtySlugs:"[]",lastActivityAt:NOW,approvedAt:NOW,approvedBy:adminId,createdAt:NOW,updatedAt:NOW});
     await db.insert(reviewerVisitReviews).values([
-      { id: `${prefix}-review-recent-photo`, placeId, reviewerUserId: reviewerId, categoryId, evaluation: "RECOMMEND", badgesJson: "[]", photoCount: 2, publishedAt: "2026-08-12T12:00:00.000Z", createdAt: NOW, updatedAt: NOW },
+      { id: `${prefix}-review-recent-photo`, placeId, reviewerUserId: reviewerId, categoryId, evaluation: "RECOMMEND", badgesJson: "[]", photoCount: 2, status:"APPROVED",isCurrent:true,contentVersion:1,approvedContentVersion:1,visitedOn:"2026-08-12",visitNote:"합성 현장 방문",disclosure:"NONE",reviewedBy:adminId,reviewedAt:NOW,ruleVersion:REVIEWER_PUBLICATION_RULE,publishedAt: "2026-08-12T12:00:00.000Z", createdAt: NOW, updatedAt: NOW },
       { id: `${prefix}-review-recent-no-photo`, placeId, reviewerUserId: reviewerId, categoryId, evaluation: "RECOMMEND", badgesJson: "[]", photoCount: 0, publishedAt: "2026-08-13T11:00:00.000Z", createdAt: NOW, updatedAt: NOW },
       { id: `${prefix}-review-old-photo`, placeId, reviewerUserId: reviewerId, categoryId, evaluation: "RECOMMEND", badgesJson: "[]", photoCount: 1, publishedAt: "2026-05-01T12:00:00.000Z", createdAt: NOW, updatedAt: NOW },
     ]);
+    await db.insert(reviewerVisitPhotos).values([0,1].map(position=>({id:`${prefix}-approved-photo-${position}`,reviewId:`${prefix}-review-recent-photo`,contentVersion:1,takenOn:"2026-08-12",rightsBasis:"OWN_WORK" as const,rightsNote:"",caption:`합성 현장 사진 ${position}`,privacyChecked:true,objectKey:`reviews/${prefix}-review-recent-photo/photo-${position}.jpg`,contentType:"image/jpeg" as const,byteSize:4,position,createdAt:NOW,updatedAt:NOW})));
     await db.insert(voteEvents).values({ id: `${prefix}-vote-event`, placeId, userId: memberId, value: 1, eventType: "CREATE", createdAt: NOW });
     await db.insert(currentVotes).values({ placeId, userId: memberId, eventId: `${prefix}-vote-event`, value: 1, updatedAt: "2026-08-11T12:00:00.000Z" });
     await db.insert(savedPlaces).values({ placeId, userId: memberId, createdAt: "2026-08-10T12:00:00.000Z" });

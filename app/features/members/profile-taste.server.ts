@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { userTasteBadges } from "../../db/schema";
+import { currentTasteSignalCondition } from "./taste-publication.server";
 import {
   buildTasteProfile,
   inferTasteBadges,
@@ -28,10 +29,11 @@ export async function getMemberTasteProfile(db: AppDb, input: {
     score: userTasteBadges.score,
     source: userTasteBadges.source,
     evidenceJson: userTasteBadges.evidenceJson,
-  }).from(userTasteBadges).where(eq(userTasteBadges.userId, input.userId));
-  const hasStoredActivityInference = stored.some((row) => (
-    row.source === "INFERRED" && row.evidenceJson === JSON.stringify({ algorithm: "activity-v1" })
+  }).from(userTasteBadges).where(and(
+    eq(userTasteBadges.userId, input.userId),
+    currentTasteSignalCondition(),
   ));
+  const hasStoredActivityInference = stored.some((row) => row.source === "INFERRED");
   const inferred = inferTasteBadges({
     saved: hasStoredActivityInference ? [] : input.saved,
     rated: hasStoredActivityInference ? [] : input.rated,

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -8,9 +8,10 @@ import {
   placeCategories,
   placeDailyMetrics,
   places,
-  ratingSnapshots,
-  users,
+  voteEvents,
 } from "../../db/schema";
+import { getLatestRatingSnapshot } from "./recompute.server";
+import { eligibleVoteCondition } from "./reviewer-publication.server";
 import { evaluateHiddenGem, evaluateHotTake } from "./rating-badges";
 
 function dateOnly(value: string) { return value.slice(0, 10); }
@@ -45,7 +46,7 @@ export async function getHiddenGemStatus(db: AppDb, input: { placeId: string; no
     .where(and(inArray(placeDailyMetrics.placeId, peerIds), gte(placeDailyMetrics.metricDate, dateOnly(cutoff.toISOString())))) : [];
   const viewsByPlace = new Map(peerIds.map((placeId) => [placeId, 0]));
   for (const metric of metrics) viewsByPlace.set(metric.placeId, (viewsByPlace.get(metric.placeId) ?? 0) + metric.detailViews);
-  const snapshot = await db.query.ratingSnapshots.findFirst({ where: eq(ratingSnapshots.placeId, input.placeId), orderBy: [desc(ratingSnapshots.computedAt)] });
+  const snapshot = await getLatestRatingSnapshot(db, input.placeId);
   const openCase = await db.query.integrityCases.findFirst({ where: and(
     eq(integrityCases.subjectType, "PLACE"), eq(integrityCases.subjectId, input.placeId),
     ne(integrityCases.status, "DISMISSED"), ne(integrityCases.status, "CONFIRMED"),
@@ -69,8 +70,9 @@ export async function listReviewerHotTakes(db: AppDb, reviewerUserId: string) {
     placeId: currentVotes.placeId, userId: currentVotes.userId, value: currentVotes.value,
     invalidatedEventId: invalidatedVoteEvents.voteEventId,
   }).from(currentVotes)
-    .innerJoin(users, and(eq(users.id, currentVotes.userId), eq(users.role, "REVIEWER")))
+    .innerJoin(voteEvents, eq(voteEvents.id, currentVotes.eventId))
     .leftJoin(invalidatedVoteEvents, eq(invalidatedVoteEvents.voteEventId, currentVotes.eventId))
+    .where(and(eq(voteEvents.source, "REVIEWER"), eligibleVoteCondition()))
     .orderBy(asc(currentVotes.placeId), asc(currentVotes.userId))
     .limit(50_000);
   const active = rows.filter((row) => !row.invalidatedEventId && (row.value === 1 || row.value === -1));

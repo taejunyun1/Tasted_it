@@ -3,8 +3,11 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { categories, goldenPickEvents, placeCategories, places, ratingSnapshots, userTasteBadges, users } from "../../app/db/schema";
+import { categories, goldenPickEvents, placeCategories, places, ratingSnapshots, reviewerVisitReviews, userTasteBadges, users } from "../../app/db/schema";
 import { getPlaceRecommendationPage } from "../../app/features/places/place-recommendation.server";
+
+import { publicationSnapshotStamp, seedApprovedReviewerVote } from "./reviewer-public-fixtures";
+import { getPublicationEpoch } from "../../app/features/ratings/reviewer-publication.server";
 
 describe("place recommendation server", () => {
   it("keeps exploration and diversity safeguards after service fallback", async () => {
@@ -63,8 +66,10 @@ describe("place recommendation server", () => {
         isPrimary: true,
       })),
     ]);
+    const snapshotEpoch = await getPublicationEpoch(db);
     const snapshotValues = trustedExplorationIds.map((placeId, index) => ({
       id: `recommend-final-snapshot-${suffix}-${index}`,
+      moderationEpoch: snapshotEpoch, voteRevision: 0,
       placeId,
       configId: "rating-config-v2",
       inputHash: `${suffix}-${index}`,
@@ -185,10 +190,6 @@ describe("place recommendation server", () => {
       createdAt: now,
       updatedAt: now,
     });
-    await db.insert(userTasteBadges).values([
-      { userId, badgeId: "food-gukbap", source: "USER", score: 0.8, evidenceJson: "{}", createdAt: now, updatedAt: now },
-      { userId, badgeId: "food-ramen", source: "INFERRED", score: 0.8, evidenceJson: "{}", createdAt: now, updatedAt: now },
-    ]);
     await db.insert(places).values([
       {
         id: directPlaceId,
@@ -220,6 +221,11 @@ describe("place recommendation server", () => {
     await db.insert(placeCategories).values([
       { placeId: directPlaceId, categoryId: category!.id, isPrimary: true },
       { placeId: inferredPlaceId, categoryId: category!.id, isPrimary: true },
+    ]);
+    await env.DB.prepare("INSERT INTO taste_learning_states(user_id,version_token,created_at,updated_at) VALUES(?,?,?,?)").bind(userId,"ranking-inference-token",now,now).run();
+    await db.insert(userTasteBadges).values([
+      { userId, badgeId: "food-gukbap", source: "USER", score: 0.8, evidenceJson: "{}", createdAt: now, updatedAt: now },
+      { userId, badgeId: "food-ramen", source: "INFERRED", score: 0.8, evidenceJson: JSON.stringify({ algorithm: "activity-v1", moderationEpoch: await getPublicationEpoch(db), versionToken:"ranking-inference-token" }), createdAt: now, updatedAt: now },
     ]);
 
     const result = await getPlaceRecommendationPage(db, {
@@ -257,15 +263,17 @@ describe("place recommendation server", () => {
       { placeId: trustedId, categoryId: category.id, isPrimary: true },
       { placeId: goldenId, categoryId: category.id, isPrimary: true },
     ]);
+    const {reviewId: goldenReviewId} = await seedApprovedReviewerVote(db,{reviewerId,placeId:goldenId,eventId:`recommend-golden-review-${suffix}`,value:1,now,projectVote:false,withPhoto:true});
+    await db.insert(goldenPickEvents).values({
+      id: `recommend-golden-event-${suffix}`, reviewId:goldenReviewId, reviewVersion:1, reviewerUserId: reviewerId, placeId: goldenId, eventType: "GRANT",
+      previousEventId: null, reason: null, effectiveAt: now, expiresAt: "2026-09-09T00:00:00.000Z", createdAt: now,
+    });
+    await db.update(reviewerVisitReviews).set({goldenRequested:true,goldenPickEventId:`recommend-golden-event-${suffix}`}).where(eq(reviewerVisitReviews.id,goldenReviewId));
     await db.insert(ratingSnapshots).values({
-      id: `recommend-snapshot-${suffix}`, placeId: trustedId, configId: "rating-config-v2", inputHash: suffix,
+      ...(await publicationSnapshotStamp(db,trustedId)), id: `recommend-snapshot-${suffix}`, placeId: trustedId, configId: "rating-config-v2", inputHash: suffix,
       overallScore: 91, userScore: 90, reviewerScore: 94, overallSampleCount: 42, userSampleCount: 32, reviewerSampleCount: 10,
       reviewerRawWeight: 10, reviewerCombinedWeight: 10, reviewerWeightShare: 0.24, reasonsJson: "{}", isStale: false,
       computedAt: now, createdAt: now, updatedAt: now,
-    });
-    await db.insert(goldenPickEvents).values({
-      id: `recommend-golden-event-${suffix}`, reviewerUserId: reviewerId, placeId: goldenId, eventType: "GRANT",
-      previousEventId: null, reason: null, effectiveAt: now, expiresAt: "2026-09-09T00:00:00.000Z", createdAt: now,
     });
 
     const result = await getPlaceRecommendationPage(db, {
