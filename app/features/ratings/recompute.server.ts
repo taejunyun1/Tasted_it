@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { loadInD1Chunks } from "../../db/d1-query-chunks";
@@ -38,11 +38,21 @@ export async function enqueueRatingRecompute(
   },
 ) {
   const config = await getActiveRatingConfig(db, input.now);
+  if (input.jobId) {
+    const existing = await db.query.ratingRecomputeJobs.findFirst({
+      where: eq(ratingRecomputeJobs.id, input.jobId),
+    });
+    if (existing) {
+      if (existing.placeId !== input.placeId || existing.configId !== config.id)
+        throw new Error("RATING_JOB_SCOPE_MISMATCH");
+      return existing;
+    }
+  }
   const pending = await db.query.ratingRecomputeJobs.findFirst({
     where: and(
       eq(ratingRecomputeJobs.placeId, input.placeId),
       eq(ratingRecomputeJobs.configId, config.id),
-      eq(ratingRecomputeJobs.status, "PENDING"),
+      inArray(ratingRecomputeJobs.status, ["PENDING", "RUNNING"]),
     ),
   });
   if (pending) return pending;
@@ -57,8 +67,24 @@ export async function enqueueRatingRecompute(
     createdAt: input.now,
     updatedAt: input.now,
   };
-  await db.insert(ratingRecomputeJobs).values(job);
-  return job;
+  // The guard and winner read share a D1 transaction. An admin/cron enqueue
+  // cannot slip between the initial lookup and insertion or complete before
+  // we identify the job which won the race.
+  const activeScope = and(
+    eq(ratingRecomputeJobs.placeId, input.placeId),
+    eq(ratingRecomputeJobs.configId, config.id),
+    inArray(ratingRecomputeJobs.status, ["PENDING", "RUNNING"]),
+  );
+  const [, winners] = await db.batch([
+    db.insert(ratingRecomputeJobs).select(sql`SELECT ${job.id}, ${job.placeId}, ${job.configId}, 'PLACE', 'PENDING', ${job.reason}, 0, NULL, NULL, NULL, ${job.createdAt}, ${job.updatedAt}
+      WHERE NOT EXISTS(SELECT 1 FROM rating_recompute_jobs WHERE place_id=${input.placeId} AND config_id=${config.id} AND status IN ('PENDING','RUNNING'))`).onConflictDoNothing(),
+    db.select().from(ratingRecomputeJobs).where(or(eq(ratingRecomputeJobs.id, job.id), activeScope))
+      .orderBy(desc(sql`${ratingRecomputeJobs.id}=${job.id}`)).limit(1),
+  ]);
+  const existing = winners[0];
+  if (!existing || existing.placeId !== input.placeId || existing.configId !== config.id)
+    throw new Error("RATING_JOB_SCOPE_MISMATCH");
+  return existing;
 }
 
 async function sha256(value: string) {
@@ -73,7 +99,7 @@ async function sha256(value: string) {
 
 export async function recomputePlaceRating(
   db: AppDb,
-  input: { placeId: string; now: string },
+  input: { placeId: string; now: string; expectedConfigId?: string },
 ) {
   // Capture before reading inputs. A concurrent change leaves this snapshot
   // bound to the old revision/epoch and public reads reject it.
@@ -82,6 +108,8 @@ export async function recomputePlaceRating(
     getPublicationEpoch(db),
     getPlaceVoteRevision(db, input.placeId),
   ]);
+  if (input.expectedConfigId && config.id !== input.expectedConfigId)
+    throw new Error("RATING_CONFIG_CHANGED");
   const rows = await db
     .select({
       userId: currentVotes.userId,
@@ -233,6 +261,75 @@ export async function recomputePlaceRating(
   return snapshot;
 }
 
+export type RatingRecomputeJob = typeof ratingRecomputeJobs.$inferSelect;
+
+export type RatingJobResult = {
+  jobId: string;
+  job: RatingRecomputeJob | null;
+  status: RatingRecomputeJob["status"] | "UNKNOWN";
+  claimed: boolean;
+};
+
+export async function getRatingJobResult(
+  db: AppDb,
+  jobId: string,
+): Promise<RatingJobResult> {
+  const job = await db.query.ratingRecomputeJobs.findFirst({
+    where: eq(ratingRecomputeJobs.id, jobId),
+  });
+  return { jobId, job: job ?? null, status: job?.status ?? "UNKNOWN", claimed: false };
+}
+
+/** Claim only the requested persisted job; the cron uses this same guard. */
+export async function processRatingJob(
+  db: AppDb,
+  input: {
+    jobId: string;
+    placeId: string | null;
+    configId: string;
+    now: string;
+    retryFailedAtAttempt?: number;
+  },
+): Promise<RatingJobResult> {
+  const existing = await getRatingJobResult(db, input.jobId);
+  const job = existing.job;
+  if (!job) return existing;
+  if (job.placeId !== input.placeId || job.configId !== input.configId)
+    throw new Error("RATING_JOB_SCOPE_MISMATCH");
+  const retry = job.status === "FAILED" && input.retryFailedAtAttempt === job.attempts;
+  if (job.status !== "PENDING" && !retry) return existing;
+  const [claimed] = await db.update(ratingRecomputeJobs).set({
+    status: "RUNNING", attempts: job.attempts + 1, startedAt: input.now,
+    finishedAt: null, errorSummary: null, updatedAt: input.now,
+  }).where(and(
+    eq(ratingRecomputeJobs.id, job.id),
+    eq(ratingRecomputeJobs.status, job.status),
+    eq(ratingRecomputeJobs.attempts, job.attempts),
+  )).returning();
+  if (!claimed) return getRatingJobResult(db, job.id);
+  const ownedAttempt = and(
+    eq(ratingRecomputeJobs.id, job.id),
+    eq(ratingRecomputeJobs.status, "RUNNING"),
+    eq(ratingRecomputeJobs.attempts, claimed.attempts),
+  );
+  try {
+    if (!input.placeId || job.scope !== "PLACE") throw new Error("PLACE_JOB_MISSING_PLACE");
+    await recomputePlaceRating(db, {
+      placeId: input.placeId, now: input.now, expectedConfigId: job.configId,
+    });
+    await db.update(ratingRecomputeJobs).set({
+      status: "COMPLETED", finishedAt: input.now, errorSummary: null, updatedAt: input.now,
+    }).where(ownedAttempt);
+  } catch (error) {
+    await db.update(ratingRecomputeJobs).set({
+      status: "FAILED", finishedAt: input.now, updatedAt: input.now,
+      errorSummary: error instanceof Error && error.message === "RATING_CONFIG_CHANGED"
+        ? "RATING_CONFIG_CHANGED" : "RATING_RECOMPUTE_FAILED",
+    }).where(ownedAttempt);
+  }
+  return { ...await getRatingJobResult(db, job.id), claimed: true };
+}
+
 export async function processRatingJobs(
   db: AppDb,
   input: { now: string; limit: number },
@@ -266,46 +363,17 @@ export async function processRatingJobs(
     .limit(Math.max(0, Math.min(input.limit, 100)));
   let completed = 0;
   let failed = 0;
+  let processed = 0;
   for (const job of jobs) {
-    await db
-      .update(ratingRecomputeJobs)
-      .set({
-        status: "RUNNING",
-        attempts: job.attempts + 1,
-        startedAt: input.now,
-        updatedAt: input.now,
-      })
-      .where(eq(ratingRecomputeJobs.id, job.id));
-    try {
-      if (!job.placeId) throw new Error("PLACE_JOB_MISSING_PLACE");
-      await recomputePlaceRating(db, { placeId: job.placeId, now: input.now });
-      await db
-        .update(ratingRecomputeJobs)
-        .set({
-          status: "COMPLETED",
-          finishedAt: input.now,
-          errorSummary: null,
-          updatedAt: input.now,
-        })
-        .where(eq(ratingRecomputeJobs.id, job.id));
-      completed += 1;
-    } catch (error) {
-      await db
-        .update(ratingRecomputeJobs)
-        .set({
-          status: "FAILED",
-          finishedAt: input.now,
-          errorSummary:
-            error instanceof Error
-              ? error.message.slice(0, 500)
-              : "UNKNOWN_ERROR",
-          updatedAt: input.now,
-        })
-        .where(eq(ratingRecomputeJobs.id, job.id));
-      failed += 1;
-    }
+    const result = await processRatingJob(db, {
+      jobId: job.id, placeId: job.placeId, configId: job.configId, now: input.now,
+    });
+    if (!result.claimed) continue;
+    processed += 1;
+    if (result.status === "COMPLETED") completed += 1;
+    if (result.status === "FAILED") failed += 1;
   }
-  return { processed: jobs.length, completed, failed };
+  return { processed, completed, failed };
 }
 
 function currentSnapshotCondition() {
