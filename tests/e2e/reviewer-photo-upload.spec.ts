@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  // 방문 검수 시험은 외부 지도 공급자를 호출하지 않는다.
+  await page.route("https://oapi.map.naver.com/**", (route) => route.abort());
+});
+
 function withExifApp1(jpeg: Buffer) {
   // Minimal APP1/Exif marker. A browser canvas re-encode must strip it before
   // this becomes a public reviewer photo.
@@ -219,4 +224,18 @@ test("choosing a different place clears the previous visit and photo declaration
   await expect(workspace.locator('input[name="visitedOn"]')).toHaveValue("");
   await expect(workspace.locator('textarea[name="visitNote"]')).toHaveValue("");
   await expect(workspace.locator('select[name="disclosure"]')).toHaveValue("");
+});
+
+
+test("reviewer workspace stays usable when optional draft storage is blocked", async ({ page }) => {
+  await page.context().addCookies([REVIEWER_SESSION]);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new DOMException("Storage blocked", "SecurityError"); } });
+  });
+  await page.goto("/reviewer/ratings");
+  await expect(page.getByRole("heading", { name: "방문 리뷰 제출" })).toBeVisible();
+  await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
+  await page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ }).click();
+  await page.getByRole("button", { name: "다음: 평가" }).click();
+  await expect(page.getByRole("heading", { name: "이번 방문을 어떻게 판단했나요?" })).toBeVisible();
 });

@@ -23,6 +23,7 @@ describe("review moderation controls", () => {
   it("preserves a retry action for pending file deletion after owner withdrawal", () => {
     const html = renderToStaticMarkup(createElement(OwnerVisitActions, { review: { ...owner, status: "WITHDRAWN", isCurrent: false, cleanupPending: true } }));
     expect(html).toContain("사진 삭제 다시 확인");
+    expect(html).not.toContain('value="edit-review"');
     const complete = renderToStaticMarkup(createElement(OwnerVisitActions, { review: { ...owner, status: "WITHDRAWN", isCurrent: false, cleanupPending: false } }));
     expect(complete).not.toContain('value="withdraw-review"');
   });

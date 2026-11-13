@@ -70,6 +70,9 @@ type Draft = {
 };
 
 const DRAFT_KEY = "retaste:reviewer-visit:v3";
+function removeStoredDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* 저장소 사용 여부와 본인 기록 접근은 분리한다. */ }
+}
 const evaluationLabels: Record<ReviewerEvaluation, string> = {
   RECOMMEND: "추천",
   HOLD: "보류",
@@ -149,7 +152,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
         }
       }
     } catch {
-      localStorage.removeItem(DRAFT_KEY);
+      removeStoredDraft();
     }
     setHydrated(true);
   }, [places]);
@@ -157,7 +160,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   useEffect(() => {
     if (!hydrated || (publishedReviewId && !placeId)) return;
     const draft: Draft = { step, placeId, categoryId, evaluation, badges };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* 입력은 메모리에 유지하고 제출을 막지 않는다. */ }
   }, [badges, categoryId, evaluation, hydrated, placeId, publishedReviewId, step]);
 
   useEffect(() => {
@@ -224,7 +227,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   }
 
   function discardDraft() {
-    localStorage.removeItem(DRAFT_KEY);
+    removeStoredDraft();
     setStep(1);
     setPlaceId("");
     setCategoryId("");
@@ -506,6 +509,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
               <div className="reviewer-history-main">
                 <div className="reviewer-history-meta">
                   <span className="reviewer-moderation-status">{reviewerVisitStatusLabels[review.status ?? "LEGACY_UNREVIEWED"]}</span>
+                  <span>{review.isCurrent ? "현재 제출 기록" : "이전 방문 기록"}</span>
                   <span className="reviewer-history-evaluation">{evaluationLabels[review.evaluation]}</span>
                   {review.goldenPickEventId ? <span className="reviewer-history-golden">Golden Pick</span> : null}
                 </div>

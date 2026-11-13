@@ -15,7 +15,7 @@ import {
 import {
   listReviewerVisitHistory,
 } from "../features/ratings/reviewer-visit.server";
-import { eligibleReviewPlaceCondition } from "../features/ratings/reviewer-publication.server";
+import { reviewerSubmissionPlaceCondition } from "../features/ratings/reviewer-publication.server";
 import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit-publish.server";
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
@@ -43,7 +43,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     }).from(places)
       .innerJoin(placeCategories, and(eq(placeCategories.placeId, places.id), eq(placeCategories.isPrimary, true)))
       .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
-      .where(eligibleReviewPlaceCondition(places.id))
+      .where(reviewerSubmissionPlaceCondition())
       .orderBy(asc(places.name)) : [],
     canSubmit ? db.select({ id: categories.id, name: categories.name, emoji: categories.emoji })
       .from(categories)

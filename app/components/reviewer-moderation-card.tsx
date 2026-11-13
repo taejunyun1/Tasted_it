@@ -8,7 +8,7 @@ export type ModerationQueueVisit = OwnerVisit & {
 export function ReviewerModerationCard({ review }: { review: ModerationQueueVisit }) {
   const fetcher = useFetcher<{ ok: boolean; error?: string }>();
   const status = review.status ?? "LEGACY_UNREVIEWED";
-  const canApprove = status === "PENDING";
+  const canApprove = status === "PENDING" && !review.cleanupPending;
   return <article className="reviewer-moderation-card" id={`moderation-${review.id}`}>
     <header><h2>{review.placeName}</h2><span className="reviewer-moderation-status">{reviewerVisitStatusLabels[status]}</span></header>
     <dl>

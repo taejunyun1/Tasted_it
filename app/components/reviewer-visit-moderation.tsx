@@ -21,11 +21,13 @@ export function reviewerModerationErrorMessage(code: string) {
   const messages: Record<string, string> = {
     ACTIVE_REVIEWER_REQUIRED: "현재 계정은 새 리뷰를 제출하거나 수정할 수 없어요. 본인 기록의 철회·사진 삭제는 계속할 수 있습니다.",
     PUBLISHED_PLACE_REQUIRED: "장소 공개 상태가 바뀌었어요. 장소 정보를 다시 확인해 주세요.",
+    REVIEW_PHOTO_DELETE_PENDING: "사진 삭제가 아직 끝나지 않았어요. 비공개 상태에서 사진 삭제를 다시 확인한 뒤 수정해 주세요.",
     REVIEW_VERSION_CONFLICT: "다른 변경이 먼저 저장됐어요. 새로고침 후 최신 내용을 확인하고 다시 시도해 주세요.",
     REVIEW_MODERATION_CONFLICT: "다른 검수나 수정이 먼저 처리됐어요. 최신 상태를 확인해 주세요.",
     REVIEW_OWNER_REQUIRED: "본인이 작성한 방문 리뷰만 수정할 수 있어요.",
     REVIEW_NOT_FOUND: "변경할 방문 리뷰를 찾지 못했어요.",
-    REVIEW_CURRENT_EXISTS: "이 장소에 이미 제출한 리뷰가 있어요. 아래 제출 기록에서 수정해 주세요.",
+    REVIEW_ID_EXISTS: "이미 처리한 요청이에요. 제출 기록을 다시 확인해 주세요.",
+    REVIEW_CURRENT_EXISTS: "이 장소에 현재 제출 기록이 있어요. 해당 기록을 수정하거나 철회한 뒤 다른 방문 기록을 보완해 주세요.",
     REVIEW_METADATA_INVALID: "방문일·방문 근거·이해관계와 사진별 권리 정보를 확인해 주세요.",
     REVIEW_BADGE_LIMIT: "맛 배지는 최대 2개까지 선택해 주세요.",
     REVIEW_BADGE_INVALID: "선택한 음식 카테고리의 맛 배지를 다시 확인해 주세요.",
@@ -88,7 +90,8 @@ export function OwnerVisitActions({ review, canEdit = true }: { review: OwnerVis
     edit.submit(form, { method: "post", action: "/reviewer/ratings" });
   }
   return <div className="reviewer-owner-actions">
-    {canEdit && <details><summary>내용 보완·다시 제출</summary>
+    {review.cleanupPending && <p role="status">사진 삭제가 아직 끝나지 않았어요. 비공개 상태를 유지하며 삭제 완료 후 내용을 수정할 수 있습니다.</p>}
+    {canEdit && !review.cleanupPending && <details><summary>내용 보완·다시 제출</summary>
       <p>수정하면 이전 승인과 사진 공개가 중단되고 다시 검수해요. 기존 기록은 보존됩니다.</p>
       <edit.Form method="post" action="/reviewer/ratings" onSubmit={submitEdit} aria-label={`방문 리뷰 ${review.id} 수정`}>
         <input type="hidden" name="intent" value="edit-review" /><input type="hidden" name="reviewId" value={review.id} /><input type="hidden" name="expectedVersion" value={review.version} />

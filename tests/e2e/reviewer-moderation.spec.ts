@@ -1,5 +1,10 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  // 방문 검수 시험은 외부 지도 공급자를 호출하지 않는다.
+  await page.route("https://oapi.map.naver.com/**", (route) => route.abort());
+});
+
 async function signIn(context: BrowserContext, session: string) {
   await context.addCookies([{ name: "retaste_session", value: session, domain: "127.0.0.1", path: "/" }]);
 }

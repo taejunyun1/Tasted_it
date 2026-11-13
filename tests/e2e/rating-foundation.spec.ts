@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.route("https://oapi.map.naver.com/**", (route) => route.abort());
+});
+
 test("place detail explains the eight-vote threshold and rating groups", async ({ page }) => {
   await page.goto("/places/sample-dongmyeong-ramen");
   await expect(page.getByText(/표본 수집 중 · [0-7]\/8/)).toBeVisible();
