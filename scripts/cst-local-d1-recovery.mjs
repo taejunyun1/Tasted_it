@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants, chmodSync, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, readdirSync, writeFileSync } from "node:fs";
+import { constants, chmodSync, copyFileSync, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,7 @@ INSERT INTO places(id,slug,name,status,address,neighborhood,latitude,longitude,s
 INSERT INTO place_categories(place_id,category_id,is_primary) VALUES('${FIXTURE_ID}','${CATEGORY_ID}',1);
 `;
 const SNAPSHOT_SQL = `
-PRAGMA integrity_check;
+PRAGMA quick_check;
 PRAGMA foreign_key_check;
 SELECT (SELECT count(*) FROM categories WHERE id='${CATEGORY_ID}') AS categories,
        (SELECT count(*) FROM places WHERE id='${FIXTURE_ID}') AS places,
@@ -63,7 +63,7 @@ export function readVerifiedBackup(ownedDirectory, file, expectedDigest) {
 }
 
 export function compareSnapshots(expected, restored) {
-  const valid = (snapshot) => snapshot?.integrity === "ok"
+  const valid = (snapshot) => snapshot?.quickCheck === "ok"
     && Array.isArray(snapshot.foreignKeys) && snapshot.foreignKeys.length === 0
     && snapshot.counts?.categories === 1 && snapshot.counts?.places === 1 && snapshot.counts?.links === 1
     && Array.isArray(snapshot.rows) && snapshot.rows.length === 3;
@@ -82,14 +82,43 @@ function snapshotFromJson(output) {
   const blocks = JSON.parse(output);
   if (!Array.isArray(blocks) || blocks.length !== 4 || blocks.some((block) => block.success !== true || !Array.isArray(block.results))) throw new Error("LOCAL_QUERY_RESULT_INVALID");
   return {
-    integrity: Object.values(blocks[0].results[0] ?? {})[0],
+    quickCheck: Object.values(blocks[0].results[0] ?? {})[0],
     foreignKeys: blocks[1].results,
     counts: blocks[2].results[0],
     rows: blocks[3].results,
   };
 }
 
-export function runRehearsal() {
+// The D1 authorizer rejects integrity_check. Check only an owned scratch copy;
+// the original generated database is never opened by the SQLite API.
+async function copiedIntegrity(directory, runDirectory, label) {
+  const databaseDirectory = join(directory, ".wrangler/state/v3/d1/miniflare-D1DatabaseObject");
+  const files = readdirSync(databaseDirectory).filter((file) => /^[0-9a-f]{64}\.sqlite$/u.test(file));
+  if (files.length !== 1) throw new Error("LOCAL_DATABASE_FILE_AMBIGUOUS");
+  const scratch = join(runDirectory, `integrity-${label}`);
+  mkdirSync(scratch, { mode: 0o700 });
+  let copiedBytes = 0;
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const source = join(databaseDirectory, `${files[0]}${suffix}`);
+    if (!existsSync(source)) continue;
+    const stat = lstatSync(source);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("LOCAL_DATABASE_FILE_INVALID");
+    copiedBytes += stat.size;
+    if (copiedBytes > 64 * 1024 * 1024) throw new Error("LOCAL_DATABASE_COPY_LIMIT");
+    const destination = join(scratch, `${files[0]}${suffix}`);
+    copyFileSync(source, destination, constants.COPYFILE_EXCL);
+    chmodSync(destination, 0o600);
+  }
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(join(scratch, files[0]), { readOnly: true });
+  try {
+    const rows = database.prepare("PRAGMA integrity_check").all();
+    if (rows.length !== 1 || Object.values(rows[0])[0] !== "ok") throw new Error("COPIED_DATABASE_INTEGRITY_FAILED");
+    return { status: "ok", mode: "READ_ONLY_SCRATCH_COPY", copiedBytes };
+  } finally { database.close(); }
+}
+
+export async function runRehearsal() {
   const wrangler = join(PROJECT_ROOT, "node_modules/wrangler/bin/wrangler.js");
   if (!existsSync(wrangler)) throw new Error("LOCAL_WRANGLER_NOT_INSTALLED");
   const runDirectory = mkdtempSync(join(realpathSync(tmpdir()), "cst-local-d1-recovery-"));
@@ -136,6 +165,7 @@ export function runRehearsal() {
     local(sourceDirectory, "SEED_SOURCE", ["d1", "execute", "DB", "--local", "--file", seed]);
     const expected = snapshot(sourceDirectory, "SNAPSHOT_SOURCE");
     compareSnapshots(expected, expected);
+    const sourceIntegrity = await copiedIntegrity(sourceDirectory, runDirectory, "source");
     const backup = join(runDirectory, "backup.sql");
     local(sourceDirectory, "EXPORT_BACKUP", ["d1", "export", "DB", "--local", "--output", backup]);
     chmodSync(backup, 0o600);
@@ -151,6 +181,7 @@ export function runRehearsal() {
     local(destinationDirectory, "IMPORT_RESTORED", ["d1", "execute", "DB", "--local", "--file", importFile]);
     const restored = snapshot(destinationDirectory, "SNAPSHOT_RESTORED");
     compareSnapshots(expected, restored);
+    const restoredIntegrity = await copiedIntegrity(destinationDirectory, runDirectory, "restored");
     const corrupt = join(runDirectory, "corrupt-backup.sql");
     writeNew(corrupt, Buffer.concat([backupBytes, Buffer.from("\nINVALID SYNTHETIC BACKUP;\n")]));
     const guards = [];
@@ -158,7 +189,7 @@ export function runRehearsal() {
       try { readVerifiedBackup(runDirectory, file, backupSha256); throw new Error("INVALID_BACKUP_ACCEPTED"); }
       catch (error) { if (error.message !== code) throw error; guards.push({ name, status: "REJECTED_BEFORE_IMPORT", code }); }
     }
-    Object.assign(report, { status: "PASS", backupSha256, backupBytes: backupBytes.length, sourceRowDigest: digestBytes(JSON.stringify(expected.rows)), restoredRowDigest: digestBytes(JSON.stringify(restored.rows)), counts: restored.counts, integrity: restored.integrity, foreignKeyViolations: restored.foreignKeys.length, sourceMutationObserved: true, guards });
+    Object.assign(report, { status: "PASS", backupSha256, backupBytes: backupBytes.length, sourceRowDigest: digestBytes(JSON.stringify(expected.rows)), restoredRowDigest: digestBytes(JSON.stringify(restored.rows)), counts: restored.counts, quickCheck: restored.quickCheck, physicalIntegrity: { source: sourceIntegrity, restored: restoredIntegrity }, foreignKeyViolations: restored.foreignKeys.length, sourceMutationObserved: true, guards });
   } catch (error) {
     Object.assign(report, { status: "FAIL", failureCode: /^([A-Z0-9_]+)$/u.test(error.message) ? error.message : "LOCAL_REHEARSAL_FAILED" });
   }
@@ -169,7 +200,7 @@ export function runRehearsal() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     assertOptIn(process.argv.slice(2));
-    const report = runRehearsal();
+    const report = await runRehearsal();
     console.log(JSON.stringify(report, null, 2));
     if (report.status !== "PASS") process.exitCode = 1;
   } catch (error) {
