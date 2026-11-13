@@ -9,11 +9,11 @@ import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
-import { castVote, getCurrentVote } from "../features/ratings/vote.server";
+import { castVote, getCurrentVote, withdrawVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
-import { recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
+import { clearRecommendationFeedback, recordRecommendationFeedback, refreshInferredTasteSignals } from "../features/members/taste-learning.server";
 import { recordProductEvent, type ProductEventMetadata, type ProductEventName } from "../features/onboarding/onboarding-events.server";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import {
@@ -30,6 +30,7 @@ const actionSchema = z.discriminatedUnion("intent", [
     value: z.coerce.number().refine((value): value is -1 | 1 => value === -1 || value === 1),
     reason: z.enum(["MENU", "DISTANCE", "PRICE", "ATMOSPHERE", "ALREADY_VISITED"]).nullable().default(null),
   }),
+  z.object({ intent: z.literal("withdraw") }),
   z.object({ intent: z.literal("save"), saved: z.enum(["true", "false"]).transform((value) => value === "true") }),
 ]);
 
@@ -168,6 +169,15 @@ export async function action({ request, params }: Route.ActionArgs) {
       },
       occurredAt: now,
     });
+  } else if (parsed.data.intent === "withdraw") {
+    // Remove feedback first: failed cleanup must keep the visible vote retryable.
+    await clearRecommendationFeedback(db, { userId: user.id, placeId: place.id });
+    await withdrawVote(db, { placeId: place.id, userId: user.id, eventId: crypto.randomUUID(), now });
+    try {
+      await refreshInferredTasteSignals(db, user.id, now);
+    } catch {
+      console.error("TASTE_LEARNING_REFRESH_FAILED");
+    }
   } else {
     await setSavedAndRefreshTaste(db, { placeId: place.id, userId: user.id, saved: parsed.data.saved, now });
     if (parsed.data.saved && provenance) {
@@ -212,7 +222,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
-          <VoteControl vote={loaderData.vote} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
+          <VoteControl placeId={loaderData.place.id} vote={loaderData.vote} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
           {reviewPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="review-photo-gallery-title">
             <div><p className="eyebrow">REVIEWER / PHOTO</p><h2 id="review-photo-gallery-title">리뷰어가 남긴 사진</h2></div>

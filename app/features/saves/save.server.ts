@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { savedPlaces } from "../../db/schema";
+import { memberSaveChoices, savedPlaces } from "../../db/schema";
 import {
   advanceTasteLearningVersion,
   refreshInferredTasteSignals,
@@ -25,7 +25,11 @@ export async function setSaved(db: AppDb, input: SaveInput): Promise<void> {
       eq(savedPlaces.userId, input.userId),
       eq(savedPlaces.placeId, input.placeId),
     ));
-  await mutation;
+  await db.batch([
+    mutation,
+    db.insert(memberSaveChoices).values({ userId: input.userId, placeId: input.placeId, saved: input.saved, updatedAt: input.now })
+      .onConflictDoUpdate({ target: [memberSaveChoices.userId, memberSaveChoices.placeId], set: { saved: input.saved, updatedAt: input.now } }),
+  ]);
 }
 
 export async function setSavedAndRefreshTaste(

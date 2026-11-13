@@ -17,6 +17,7 @@
 
 | 상태 | 변경과 영향 | 근거 |
 | --- | --- | --- |
+| 구현 정책 | 2026-11-13 #359/360 후속: PDF의 관리자 사전승인·사진 권리·평가 출처/레거시 보존·회수/epoch 및 DEC01~08 구현 기준을 확정한다. 실제 운영/계약/실증 사실 미입력은 유지하며 코드·원격·배포 변경0. | [#359](https://github.com/taejunyun1/Tasted_it/issues/359) · [정책 v1](./decisions/2026-11-13-cst-implementation-policy.md) |
 | Merged | 2026-11-13 #328의11/05 병합d690b3d·필수CI를 재확인했다. 현재 실제 재검증은 앱 의존성 변경 후 native artifact mismatch로 실행 전 차단됐고, 원본 package/lock fixture 분리·앱/fixture closure 결속을 보존한 #362 actual checkpoint903b918에서18.34초·두 세대 PROMOTED·총8콜/16,743 합성/실비0로 통과했다. 원본 image/pin·판정 불변, 과거 실패·unused plan 보존, R5/운영 효과와 구분한다. 최종083efd8 필수4CI·독립리뷰 뒤 `2bf0f48` 병합(#364 시험입력 안정화 포함). | [#357 / PR #362](https://github.com/taejunyun1/Tasted_it/pull/362) · [RSI 런북](./operations/rsi-research.md) |
 | Merged | 2026-11-13 운영 Zod4.4.3→4.6.6 최소 보안 패치, 과대입력 RED→GREEN·unit1608/integration445·필수4CI·독립리뷰 통과. Production audit0·개발포함46건 유지, 운영 배포/라이브RSI 미실행. | [#358 / PR #361](https://github.com/taejunyun1/Tasted_it/pull/361) · `64898aa` |
 | Merged | 2026-11-13 지도/목록 전환 시 q/bbox/selected를 보존한다. desktop/mobile 로컬2/2·필수4CI·독립리뷰 통과. 전체T01/운영반영은 별도 검증. | [#355 / PR #356](https://github.com/taejunyun1/Tasted_it/pull/356) · `b1bc5b7` |

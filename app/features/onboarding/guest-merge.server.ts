@@ -2,6 +2,10 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
+  guestSavedPlaces,
+  memberSaveChoices,
+  places,
+  savedPlaces,
   guestTasteBadges,
   guestTasteSessions,
   userTasteBadges,
@@ -52,22 +56,30 @@ export async function mergeGuestTasteSessionFromRequest(
         activeSessionConditions(sessionId, now),
         sql`${guestTasteBadges.badgeId} in (select value from json_each(${VALID_BADGE_IDS_JSON}))`,
       )),
-  ).onConflictDoUpdate({
-    target: [
-      userTasteBadges.userId,
-      userTasteBadges.badgeId,
-      userTasteBadges.source,
-    ],
-    set: {
-      score: sql`max(${userTasteBadges.score}, excluded.score)`,
-      evidenceJson: ONBOARDING_EVIDENCE,
-      updatedAt: now,
-    },
-  });
+  ).onConflictDoNothing();
+  const copyCurrentSaves = db.insert(savedPlaces).select(
+    db.select({
+      userId: sql<string>`${userId}`.as("user_id"),
+      placeId: guestSavedPlaces.placeId,
+      createdAt: sql<string>`${now}`.as("created_at"),
+    }).from(guestSavedPlaces)
+      .innerJoin(guestTasteSessions, eq(guestTasteSessions.id, guestSavedPlaces.sessionId))
+      .innerJoin(places, eq(places.id, guestSavedPlaces.placeId))
+      .where(and(activeSessionConditions(sessionId, now), eq(places.status, "PUBLISHED"),
+        sql`not exists (select 1 from ${memberSaveChoices} where ${memberSaveChoices.userId}=${userId} and ${memberSaveChoices.placeId}=${guestSavedPlaces.placeId})`,
+      )),
+  ).onConflictDoNothing();
   const markMerged = db.update(guestTasteSessions)
     .set({ mergedUserId: userId, updatedAt: now })
     .where(activeSessionConditions(sessionId, now));
-  const [, sessionUpdate] = await db.batch([copyCurrentBadges, markMerged]);
+  const claimed = sql`exists (select 1 from ${guestTasteSessions} where ${guestTasteSessions.id}=${sessionId} and ${guestTasteSessions.mergedUserId}=${userId})`;
+  const [, , sessionUpdate] = await db.batch([
+    copyCurrentBadges,
+    copyCurrentSaves,
+    markMerged,
+    db.delete(guestSavedPlaces).where(and(eq(guestSavedPlaces.sessionId, sessionId), claimed)),
+    db.delete(guestTasteBadges).where(and(eq(guestTasteBadges.sessionId, sessionId), claimed)),
+  ]);
   if (sessionUpdate?.meta?.changes !== 1) {
     return { merged: false, expireCookie: null };
   }
