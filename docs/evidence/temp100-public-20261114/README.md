@@ -11,6 +11,8 @@
 - 단위: 외부 출처·숫자점수 유입·사진 key·좌표 0·사진 metadata 거절.
 - D1 통합: 조회 실패 시 중단/무재시도와 공식 출처 보완, 100행 공개·원자적 실패·중복 영수증, 기존 canonical 보존, 사진 회수와 일반 관리자 재공개 차단, 일회성 operator trigger의 실패 rollback·재실행·정확한 cleanup.
 - `pnpm run typecheck`, `pnpm audit --prod`(알려진 취약점 0).
-- 로컬 실제 SSR의 합성 3행을 사용해 1440px/390px 목록·상세 TEMP 배지/출처/영업 미확인/사진 미제공/noindex를 확인했다. 가로 overflow 0. 화면 이미지는 private이며 실제 데이터/운영 배포 증거와 구분한다.
+- 로컬 실제 SSR의 합성 3행을 사용해 1440px/390px 목록·상세 TEMP 배지/출처/영업 미확인/사진 미제공/noindex를 확인했다. 가로 overflow 0. 아래 합성 화면과 실제 데이터/운영 배포 증거를 구분한다. 실제 사진·원문 증거는 private에 보존한다.
+
+화면: [desktop 목록](list-desktop.png), [mobile 목록](list-mobile.png), [desktop 상세](detail-desktop.png), [mobile 상세](detail-mobile.png).
 
 PR 필수 CI, main 병합, 원격 migration, 100행 입력, R2 23개, live 페이지와 RSI는 운영 담당자가 실제 결과를 확인한 뒤 SSOT에 별도로 기록한다.
