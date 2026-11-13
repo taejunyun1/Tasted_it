@@ -1,7 +1,7 @@
 # ADMIN 전역 운영 통제 계획
 
 - 상태: **PROPOSED / 문서 계획**. 기능 구현·운영 설정 변경·추가 권한 부여 승인이 아니다.
-- 작성·코드 대조: 2026-11-14, `origin/main@4ae8abf75554d9b4360118c7e57353209dd9c464`.
+- 작성·코드 대조: 2026-11-14, `origin/main@76dce1e071581c4ff6d8b40f84412d2bff2a3052`. 최초 목록 대조 후 #403의 전면 점검 차단과 스키마 전환 복구 경계를 반영했다.
 - 추적: [#399](https://github.com/taejunyun1/Tasted_it/issues/399). 계획 작성·후속 개발 주담당은 Jay/Codex, 범위·정책 수용은 사용자, 운영 실행은 승인된 PR이 지정한 담당자다.
 - 이번 소유: 이 파일만. 애플리케이션·DB·인프라·공급자·운영 데이터는 변경하지 않는다.
 
@@ -61,12 +61,12 @@
 | A24 NAVER/지도 | 지역별 사용량·검증·geocode | 지역 pack 예산/사용량 조회, 서버 quota·기능 env 검사, 일부 관리 작업 | 사용량과 실제 청구 구분, 원자적 동시 예약·remaining, 증가 승인/감소 즉시반영 설계 | E03,E13 |
 | A25 AI/부가 공급자 | 모델/호출·비용·실패 관측 | 제한된 AI helper와 과거 token/추정 사용량 컬럼. 통합 비용 콘솔 없음 | 원문 prompt/응답·secret 대신 모델/규칙 버전·건수·추정/실측 구분. 임의 모델/공급자 추가·자동 호출 확대 금지 | E13,E15 |
 | A26 주차/EV·코스 | 데이터 신선도·동기화·fallback | 기존 분기와 정기 주차/EV 동기화, 정해진 page/주기·키 존재 검사 | 소스별 마지막 성공/실패/부분 자료·작업 관측. UI에서 새 공급자나 스케줄 임의 추가 금지 | E11,E13 |
-| A27 feature/kill switch | 값 조회·긴급 중단·재활성화 | env/source flag 소비. 전역 flag 편집 UI 없음 | 선언된 key/type/scope allowlist만, 감소/중단과 확대/재개 권한 구분, version·만료·rollback·배포값/실효값 구분 | E11,E13 |
+| A27 feature/kill switch | 값 조회·긴급 중단·재활성화 | env/source flag 소비. CST 점검 fence는 HTTP503과 cron 실행 중단. 전역 flag 편집 UI 없음 | 선언된 key/type/scope allowlist만, 감소/중단과 확대/재개 권한 구분, version·만료·복구·배포값/실효값 구분. 전면 fence 중에는 앱 UI로 우회 해제하지 않음 | E11,E13,E15 |
 | A28 정기/수동 작업 | 다음 실행·진행·취소·회복 | Worker의 두 cron 분기; maintenance는 여러 작업의 Promise.all. 개별 통제판 없음 | 기존 cron 안의 작업 registry·상태·lease·협조적 취소 설계. 실행 중 외부 효과를 중단 완료로 오표시하지 않음 | E11 |
 | A29 RSI | 고정 공개 경로 점검·결과 조회 | ADMIN POST와 토큰 보호 내부 GET, flag·고정 origin/경로, 로그/일부 audit | 마지막 성공/실패·감사 연결·중복/호출 한도·권한 분리. R4 코드 생성/승격과 공개 경로 self-check 구별 | E14 |
 | A30 경보/장애 | 오류 조회·해결 처리·인계 | ADMIN 운영 경보 조회와 사유로 resolve. 외부 메일 연결은 미확정 | ACK/조사/해결/재개 구분, 해결 근거·담당·연관 job, 버전/CAS, 실제 복구 검사 후 닫기 | E02 |
 | A31 백업/복구 | 백업 상태·복원 계획·정합 검증 | 운영 런북과 local D1 복구 rehearsal 도구. 운영 백업 콘솔/복구 성공 증거 아님 | 백업 소유/기한/무결성·복구 대상 확인·격리 rehearsal·RPO/RTO 결정. 운영 덮어쓰기는 별도 PR 실행 | E15 |
-| A32 배포/환경 | 변경 승인·배포/rollback 상태 추적 | feature PR→main→지정 운영 도구. 앱 내 배포/secret 편집 경로 없음 | PR/commit/Worker/schema/실효 flag·live RSI 증거 연결. UI 임의 deploy·migration·secret 읽기 금지 | E15 |
+| A32 배포/환경 | 변경 승인·배포/복구 상태 추적 | feature PR→main→지정 운영 도구. 앱 내 배포/secret 편집 경로 없음. 0040 이후 구 Worker 단순 rollback 금지 | PR/commit/Worker/schema/실효 flag·live RSI 증거 연결. 전면 fence 또는 같은 스키마 전진 수정. UI 임의 deploy·migration·secret 읽기 금지 | E15 |
 | A33 서비스 문안/신고 | 법적 문안·안내·문의 접수 | privacy/terms는 코드·PR 변경, 일부 제안/정정 접수 | 버전·검토자·시행일·미확정 표시. 필요하면 제한된 안내 draft/preview/publish 검토; 임의 HTML/CMS 추가는 별도 판단 | E16 |
 | A34 메일 도메인 | 지정 발신 도메인 상태·생성·검증 | ADMIN GET/동일 origin POST, 설정된 단일 도메인·허용 action, 외부 변경 전 REQUESTED audit | 제공자 결과/재시도·최근인증·실제 발신 가능 검증 연결. 임의 DNS 편집·외부 도메인 관리·API key 표시 금지 | E17 |
 
@@ -170,6 +170,6 @@ B08/B09/B11/B15의 읽기·설계·합성 비교는 선행할 수 있지만, 권
 | E12 | [read-only audit](../../app/routes/admin-audit.tsx), [audit source](../../app/features/audit/record-audit.server.ts), [schema](../../app/db/schema.ts) |
 | E13 | [region quota](../../app/features/places/naver-region-quota.server.ts), [region pack](../../app/features/regions/region-pack.ts), [declared env keys](../../app/cloudflare-env.d.ts), [AI helper](../../app/features/candidates/ai-category-verifier-v2.server.ts), [historical usage fields](../../drizzle/0008_ai_usage_quota.sql) |
 | E14 | [admin RSI](../../app/routes/admin-rsi-check.ts), [self-check](../../app/features/operations/rsi-self-check.server.ts), [fixed paths](../../app/features/operations/rsi-self-check.ts), [RSI promotion](../../scripts/rsi/promotion.ts) |
-| E15 | [local recovery tool](../../scripts/cst-local-d1-recovery.mjs), [local runbook](../operations/cst-local-d1-recovery.md), [deployment runbook](../operations/cloudflare-deploy.md), [package scripts](../../package.json) |
+| E15 | [local recovery tool](../../scripts/cst-local-d1-recovery.mjs), [local runbook](../operations/cst-local-d1-recovery.md), [deployment runbook](../operations/cloudflare-deploy.md), [CST rollout](../operations/2026-11-14-cst-production-rollout.md), [deployment fence](../../app/features/operations/deployment-fence.ts), [package scripts](../../package.json) |
 | E16 | [privacy](../../app/routes/privacy.tsx), [terms](../../app/routes/terms.tsx), [data inventory](../legal/privacy-data-inventory.md), [actual facts #360](https://github.com/taejunyun1/Tasted_it/issues/360) |
 | E17 | [email domain admin](../../app/routes/admin-email-domain.ts), [domain service](../../app/features/auth/email-domain.server.ts) |
