@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "date": "2026-11-13",
+  "scope": "CST 방문 리뷰 검수 UI의 로컬 합성 증거",
+  "runs": [
+    {
+      "name": "moderation-final6",
+      "environment": "LOCAL_DIRTY_SYNTHETIC",
+      "result": "PASS",
+      "tests": 6,
+      "actualCheckoutSha": "7a252a41e392dedc17e46247a1d0eadda9aaf292",
+      "checkoutDirty": true,
+      "postExecutionSourceCheckpointSha": "ad9a12321572590d773b2e0e787b72f0a64508cb",
+      "sourceCheckpointKind": "ui_and_e2e_source_preserved_after_execution",
+      "completedLogMtimeUtc": "2026-11-13T13:52:35.644984+00:00",
+      "completedLogMtimeKst": "2026-11-13T22:52:35.644984+09:00",
+      "timeSource": "result_log_final_mtime_not_process_exit_measurement"
+    },
+    {
+      "name": "native-reason-red",
+      "environment": "LOCAL_DIRTY_SYNTHETIC",
+      "result": "EXPECTED_FAIL",
+      "tests": 1,
+      "actualCheckoutSha": "ad9a12321572590d773b2e0e787b72f0a64508cb",
+      "checkoutDirty": true,
+      "postExecutionSourceCheckpointSha": "ad9a12321572590d773b2e0e787b72f0a64508cb",
+      "sourceCheckpointKind": "runtime_source_only_test_assertion_was_uncommitted",
+      "completedLogMtimeUtc": "2026-11-13T14:03:46.817061+00:00",
+      "completedLogMtimeKst": "2026-11-13T23:03:46.817061+09:00",
+      "timeSource": "result_log_final_mtime_not_process_exit_measurement",
+      "expectedFailure": {
+        "responseStatus": 400,
+        "field": "reason",
+        "expected": "직전에 입력한 유효한 사유 보존",
+        "actual": "빈 값",
+        "privateIgnoredTraceRetained": true
+      }
+    },
+    {
+      "name": "native-reason-green",
+      "environment": "LOCAL_DIRTY_SYNTHETIC",
+      "result": "PASS",
+      "tests": 2,
+      "actualCheckoutSha": "ad9a12321572590d773b2e0e787b72f0a64508cb",
+      "checkoutDirty": true,
+      "postExecutionSourceCheckpointSha": "23991c7f6e0125d7eb7b88a24afca281e7c49931",
+      "sourceCheckpointKind": "ui_and_e2e_source_preserved_after_execution",
+      "completedLogMtimeUtc": "2026-11-13T14:05:47.173432+00:00",
+      "completedLogMtimeKst": "2026-11-13T23:05:47.173432+09:00",
+      "timeSource": "result_log_final_mtime_not_process_exit_measurement"
+    },
+    {
+      "name": "synthetic-contract-green",
+      "environment": "LOCAL_DIRTY_SYNTHETIC",
+      "result": "PASS",
+      "tests": 1,
+      "actualCheckoutSha": "ad9a12321572590d773b2e0e787b72f0a64508cb",
+      "checkoutDirty": true,
+      "postExecutionSourceCheckpointSha": "23991c7f6e0125d7eb7b88a24afca281e7c49931",
+      "sourceCheckpointKind": "integration_source_preserved_after_execution",
+      "completedLogMtimeUtc": "2026-11-13T14:08:04.947119+00:00",
+      "completedLogMtimeKst": "2026-11-13T23:08:04.947119+09:00",
+      "timeSource": "result_log_final_mtime_not_process_exit_measurement"
+    }
+  ],
+  "notes": [
+    "각 실행은 격리한 로컬 합성 자료만 사용했다. 운영 배포·원격 DB·실제 학생 자료·메일·유료 요청은 없다.",
+    "result log의 최종 mtime은 종료 결과가 기록된 시각이며 해당 E2E/integration의 프로세스 exit를 독립 계측한 값이 아니다.",
+    "과거 실행 당시 checkout은 dirty였다. 후속 동일 소스 보존 commit을 실제 실행 checkout으로 해석하지 않는다.",
+    "native 사유 유실 RED trace는 비공개 gitignored 로컬 자료로만 보존했다. 원문 trace·요청 헤더·쿠키·본문은 커밋하지 않는다.",
+    "앞선 관련 E2E 28 PASS와 후속 집중 실행은 중복되며 최종 push head의 단일 전체 실행이 아니다."
+  ],
+  "compileRuns": [
+    {
+      "name": "typecheck",
+      "checkoutSha": "a61050f69d2d1a2d3899260ad97789171cd743f0",
+      "checkoutDirty": false,
+      "exitCode": 0,
+      "startedAtUtc": "2026-11-13T14:11:24.483852+00:00",
+      "endedAtUtc": "2026-11-13T14:11:28.469656+00:00",
+      "endedAtKst": "2026-11-13T23:11:28.469656+09:00",
+      "timeSource": "process_completion_measured"
+    },
+    {
+      "name": "build",
+      "checkoutSha": "a61050f69d2d1a2d3899260ad97789171cd743f0",
+      "checkoutDirty": false,
+      "exitCode": 0,
+      "startedAtUtc": "2026-11-13T14:11:28.470246+00:00",
+      "endedAtUtc": "2026-11-13T14:11:31.027653+00:00",
+      "endedAtKst": "2026-11-13T23:11:31.027653+09:00",
+      "timeSource": "process_completion_measured"
+    }
+  ]
+}
