@@ -1,0 +1,25 @@
+{
+  "source": "root가 직접 읽은 실제 job 로그의 정규화 관측",
+  "jobUrl": "https://github.com/taejunyun1/Tasted_it/actions/runs/43443028545/job/131945254711",
+  "actualCheckoutSha": "3bcabadbd48ed2fe039999c6125a731d442d0223",
+  "scenario": "reviewer-moderation core lifecycle",
+  "testBodyDeadlineMs": 30000,
+  "reportedTestStartUtc": "2026-11-13T14:30:55.250+00:00",
+  "expectedOrigin400LogUtc": "2026-11-13T14:31:18.400+00:00",
+  "timeoutReportedUtc": "2026-11-13T14:31:26.580+00:00",
+  "originLogElapsedFromTestStartMs": 23150,
+  "jobResults": {
+    "passed": 22,
+    "skipped": 2,
+    "failed": 2
+  },
+  "nativePostScenario": "PASS",
+  "entryBarrierScenario": "PASS",
+  "otherHeaderFailure": "다른 담당자가 별도 처리",
+  "traceZipTruncated": true,
+  "truncatedTraceIsEstablishedCause": false,
+  "rawLogsUploaded": false,
+  "appAndScenarioSourceMatchMain646392c": true,
+  "causalEquivalenceWithInitialLocalBootstrap504": "UNKNOWN",
+  "timeSource": "실제 CI 콘솔 로그 시각이며 단계별 instrumentation 또는 별도 process exit 계측은 아니다."
+}

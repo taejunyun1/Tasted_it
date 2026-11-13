@@ -1,0 +1,88 @@
+{
+  "checkoutSha": "72fb86c3e8aa5b239c969612575d6d2c278de60b",
+  "checkoutDirty": false,
+  "environment": "LOCAL_SYNTHETIC",
+  "command": [
+    "pnpm",
+    "exec",
+    "playwright",
+    "test",
+    "tests/e2e/reviewer-moderation.spec.ts",
+    "--project=chromium",
+    "-g",
+    "submission approval"
+  ],
+  "exitCode": 1,
+  "startedAtUtc": "2026-11-13T14:39:54.142321+00:00",
+  "endedAtUtc": "2026-11-13T14:40:39.823587+00:00",
+  "endedAtKst": "2026-11-13T23:40:39.823587+09:00",
+  "timeSource": "process_completion_measured",
+  "phases": [
+    {
+      "phase": "core:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:40:09.748Z",
+      "project": "chromium"
+    },
+    {
+      "phase": "owner-workspace:start",
+      "elapsedMs": 4,
+      "atUtc": "2026-11-13T14:40:09.752Z",
+      "project": "chromium"
+    }
+  ],
+  "optimizerMetadataPreRunState": "NOT_RECORDED",
+  "failure": {
+    "testBodyDeadlineMs": 30000,
+    "stage": "owner-search-fill",
+    "reasonClass": "SSR_CONTROL_REMAINED_DISABLED",
+    "mainDocumentStatus": 200,
+    "clientEntryStatus": 200,
+    "rootModuleStatus": 200,
+    "viteClientStatus": 200,
+    "optimizedModules": [
+      {
+        "dependency": "react-router",
+        "status": 504,
+        "errorClass": "OUTDATED_OPTIMIZE_DEP",
+        "durationMs": 4.03
+      },
+      {
+        "dependency": "react/jsx-dev-runtime",
+        "status": 504,
+        "errorClass": "OUTDATED_OPTIMIZE_DEP",
+        "durationMs": 3.68
+      }
+    ],
+    "routerGlobals": "NOT_INSTRUMENTED",
+    "inMemoryOptimizerFailureBranch": "UNKNOWN",
+    "priorIncidentsSameCause": "UNKNOWN",
+    "traceArchiveValid": true,
+    "rawTraceUploaded": false,
+    "postRunDiskTopLevelHashMatchesRequestedVersions": [
+      false,
+      false
+    ],
+    "diskHashComparisonLimit": "실행 뒤 디스크와 비교했으며 요청 당시 memory metadata 불일치 분기를 특정하지 않는다."
+  },
+  "externalFontObservation": {
+    "stylesheetStatuses": [
+      200,
+      200
+    ],
+    "stylesheetDurationMs": [
+      464.99,
+      652.31
+    ],
+    "fontStatuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "maxFontDurationMs": 336.6,
+    "fontRootCauseSupportedByThisRun": false
+  }
+}
