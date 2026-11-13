@@ -127,4 +127,24 @@ describe("TEMP100 private candidate boundaries", () => {
     expect(() => temp100.preparePrivateDataset(directory, operations, asOf)).toThrow("TEMP100_PHOTO_BYTES_INVALID");
     expect(readFileSync(join(directory, "preview.html"), "utf8")).toBe(savedHtml);
   });
+  it("reuses snapshots larger than metadata limits but preserves a changed existing preview", () => {
+    const { operations, directory } = privateDirectory();
+    mkdirSync(join(directory, "shards"), { mode: 0o700 });
+    mkdirSync(join(directory, "photos"), { mode: 0o700 });
+    const input = rows();
+    // Padded synthetic PNG bytes exercise artifact size, not image decoding.
+    const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(2 * 1024 * 1024)]);
+    Object.assign(input[0].photo, { licenseStatus: "PERMITTED", licenseType: "KOGL-1", licenseUrl: "https://www.kogl.or.kr/info/license.do", assetSpecificEvidenceUrl: input[0].sourceUrl, creator: "합성 권리자", localAssetRelativePath: "photos/synthetic-large.png", photoSha256: createHash("sha256").update(png).digest("hex") });
+    writeFileSync(join(directory, "photos/synthetic-large.png"), png, { mode: 0o600 });
+    writeFileSync(join(directory, "shards/gwangju.json"), JSON.stringify(input.slice(0, 40)), { mode: 0o600 });
+    writeFileSync(join(directory, "shards/jeonnam.json"), JSON.stringify(input.slice(40)), { mode: 0o600 });
+    const first = temp100.preparePrivateDataset(directory, operations, asOf);
+    expect(Buffer.byteLength(first.previewHtml)).toBeGreaterThan(2 * 1024 * 1024);
+    expect(() => temp100.preparePrivateDataset(directory, operations, asOf)).not.toThrow();
+    const changed = first.previewHtml.replace("TEMP100 관리자 로컬 검수", "changed synthetic preview");
+    writeFileSync(join(directory, "preview.html"), changed, { mode: 0o600 });
+    expect(() => temp100.preparePrivateDataset(directory, operations, asOf)).toThrow("TEMP100_ARTIFACT_CONFLICT");
+    expect(createHash("sha256").update(readFileSync(join(directory, "preview.html"))).digest("hex"))
+      .toBe(createHash("sha256").update(changed).digest("hex"));
+  });
 });
