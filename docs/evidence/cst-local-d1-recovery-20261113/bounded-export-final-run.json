@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "mode": "LOCAL_SYNTHETIC",
+  "status": "PASS",
+  "createdAt": "2026-11-13T12:59:44.004Z",
+  "sourceSha": "8c6584f9226c6d58370a870c4b9c687c4200b100",
+  "stages": [
+    "MIGRATE_SOURCE",
+    "SEED_SOURCE",
+    "SNAPSHOT_SOURCE",
+    "EXPORT_BACKUP",
+    "MUTATE_SOURCE",
+    "SNAPSHOT_CHANGED_SOURCE",
+    "IMPORT_RESTORED",
+    "SNAPSHOT_RESTORED"
+  ],
+  "scriptSha256": "8123e1205e7896ca28f161342f934a5003521162602f9a4baa93b88423c17265",
+  "backupSha256": "18a026f5b425a664220946314fdedd9ca53320209882da6581d494048928b125",
+  "backupBytes": 88045,
+  "sourceRowDigest": "bf02f90d8d64d7d7d0bc31110a1852690ec679c6f68261e825160dfc9078243d",
+  "restoredRowDigest": "bf02f90d8d64d7d7d0bc31110a1852690ec679c6f68261e825160dfc9078243d",
+  "counts": {
+    "categories": 1,
+    "places": 1,
+    "links": 1
+  },
+  "quickCheck": "ok",
+  "physicalIntegrity": {
+    "source": {
+      "status": "ok",
+      "mode": "READ_ONLY_SCRATCH_COPY",
+      "copiedBytes": 2611896
+    },
+    "restored": {
+      "status": "ok",
+      "mode": "READ_ONLY_SCRATCH_COPY",
+      "copiedBytes": 1141056
+    }
+  },
+  "foreignKeyViolations": 0,
+  "sourceMutationObserved": true,
+  "guards": [
+    {
+      "name": "CORRUPT_BACKUP",
+      "status": "REJECTED_BEFORE_IMPORT",
+      "code": "BACKUP_DIGEST_MISMATCH"
+    },
+    {
+      "name": "MISSING_BACKUP",
+      "status": "REJECTED_BEFORE_IMPORT",
+      "code": "BACKUP_UNAVAILABLE"
+    }
+  ],
+  "migrationsSha256": "9a04fc0c89eacc679201a1a93b066da64882599d07ea0a621c0d77dedb99d386",
+  "migrationsRef": "./verified-local-round-trip.json#migrations"
+}
