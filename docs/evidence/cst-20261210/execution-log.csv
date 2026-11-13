@@ -1,0 +1,9 @@
+case_id,run_id,source_sha,environment,decision_refs,executed_at_kst,executor,result,evidence_ref,defect_ref,retest_of
+T01,baseline-not-run,,,,,,NOT_RUN,,,
+T02,baseline-not-run,,,,,,NOT_RUN,,,
+T03,baseline-not-run,,,,,,NOT_RUN,,,
+T04,baseline-not-run,,,,,,NOT_RUN,,,
+T05,baseline-not-run,,,,,,NOT_RUN,,,
+T06,baseline-not-run,,,,,,NOT_RUN,,,
+T07,baseline-not-run,,,,,,NOT_RUN,,,
+T08,baseline-not-run,,,,,,NOT_RUN,,,
