@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 // CST U03/T01: changing the representation must not change the search or selection.
 test("category view switches retain search, bounds and selected place", async ({ page }, testInfo) => {
+  // Category fixtures exercise navigation independently of the external map SDK.
+  await page.route(/https:\/\/[^/]*(?:naver\.com|naver\.net|pstatic\.net)\//, route => route.abort());
   const query = new URLSearchParams({
     q: "라멘",
     bbox: "126.90,35.14,126.93,35.16",
