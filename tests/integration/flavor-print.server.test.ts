@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { categories, currentVotes, placeCategories, places, reviewerProfiles, users, voteEvents } from "../../app/db/schema";
+import { categories, currentVotes, flavorRatings, placeCategories, places, reviewerProfiles, users, voteEvents } from "../../app/db/schema";
 import { getMemberTasteGraph, getPlaceFlavorPrint, saveFlavorTemplate, submitFlavorRating } from "../../app/features/ratings/flavor-print.server";
 
 const now = "2026-08-06T00:00:00.000Z";
@@ -25,7 +25,7 @@ async function seedReviewer(db: ReturnType<typeof createDb>, id: string) {
 }
 
 describe("Flavor Print", () => {
-  it("validates five to seven unique dimensions and publishes after three reviewer ratings", async () => {
+  it("preserves standalone flavor inputs without public approval provenance", async () => {
     const prefix = `flavor-place-${crypto.randomUUID()}`;
     const { db, placeIds, template } = await seedFlavor(prefix);
     await expect(saveFlavorTemplate(db, { id: `${prefix}-bad`, categoryId: `${prefix}-category`, version: "bad", dimensions: ["하나"], actorUserId: null, now, activate: false })).rejects.toThrow("FLAVOR_DIMENSION_COUNT");
@@ -35,11 +35,11 @@ describe("Flavor Print", () => {
       await submitFlavorRating(db, { id: crypto.randomUUID(), reviewerUserId: reviewerId, placeId: placeIds[0], templateId: template.id, values: Object.fromEntries(dimensions.map((dimension, dimensionIndex) => [dimension, 2 + ((dimensionIndex + index) % 3)])), confidence: "HIGH", now });
     }
     const print = await getPlaceFlavorPrint(db, placeIds[0]);
-    expect(print).toMatchObject({ status: "VISIBLE", ratingCount: 3, templateVersion: "v1" });
-    expect(print.dimensions[0]).toEqual({ key: "국물 농도", median: 3, q1: 2, q3: 4 });
+    expect(print).toEqual({ status: "LEARNING", ratingCount: 0, dimensions: [] });
+    expect((await db.select().from(flavorRatings)).filter((row) => row.placeId === placeIds[0])).toHaveLength(3);
   });
 
-  it("keeps member taste learning until five recommended places have visible prints", async () => {
+  it("keeps member taste learning when standalone flavor inputs have no approved provenance", async () => {
     const prefix = `flavor-member-${crypto.randomUUID()}`;
     const { db, placeIds, template } = await seedFlavor(prefix, 5);
     for (let index = 0; index < 3; index += 1) {
@@ -56,6 +56,6 @@ describe("Flavor Print", () => {
       await db.insert(voteEvents).values({ id: eventId, placeId, userId: memberId, value: 1, eventType: "CREATE", createdAt: now });
       await db.insert(currentVotes).values({ placeId, userId: memberId, eventId, value: 1, updatedAt: now });
     }
-    expect(await getMemberTasteGraph(db, memberId)).toMatchObject({ status: "VISIBLE", placeCount: 5 });
+    expect(await getMemberTasteGraph(db, memberId)).toMatchObject({ status: "LEARNING", placeCount: 0 });
   });
 });

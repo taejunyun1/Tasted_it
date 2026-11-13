@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { categories, currentVotes, placeCategories, places, savedPlaces } from "../../db/schema";
+import { eligibleVoteCondition } from "../ratings/reviewer-publication.server";
 
 const fields = {
   id: places.id, slug: places.slug, name: places.name, neighborhood: places.neighborhood,
@@ -17,6 +18,6 @@ export async function listMemberTaste(db: AppDb, userId: string) {
     .innerJoin(places, eq(places.id, currentVotes.placeId))
     .innerJoin(placeCategories, and(eq(placeCategories.placeId, places.id), eq(placeCategories.isPrimary, true)))
     .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
-    .where(and(eq(currentVotes.userId, userId), eq(places.status, "PUBLISHED"))).orderBy(desc(currentVotes.updatedAt));
+    .where(and(eq(currentVotes.userId, userId), eq(places.status, "PUBLISHED"), eligibleVoteCondition())).orderBy(desc(currentVotes.updatedAt));
   return { saved, rated };
 }

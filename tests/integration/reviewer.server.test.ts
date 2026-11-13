@@ -62,7 +62,10 @@ describe("reviewer management service", () => {
     const db = createDb(env.DB);
     const application = await submitReviewerApplication(db, { userId: "review-user", ...input, now: "2026-04-01T00:00:00.000Z" });
     await reviewReviewerApplication(db, { applicationId: application.id, actorUserId: "review-admin", decision: "OVERRIDE_APPROVE", reason: "초기 리뷰어", now: "2026-04-01T00:00:00.000Z" });
+    const activeProfile = await db.query.reviewerProfiles.findFirst({where:(table,{eq})=>eq(table.userId,"review-user")});
+    expect(await getPublicReviewerProfile(db,activeProfile!.slug)).not.toBeNull();
     expect(await applyReviewerDormancy(db, { actorUserId: "review-admin", now })).toEqual({ changed: 1 });
+    expect(await getPublicReviewerProfile(db,activeProfile!.slug)).toBeNull();
     expect(await db.query.users.findFirst({ where: (table, { eq }) => eq(table.id, "review-user") })).toMatchObject({ role: "USER" });
     await expect(submitReviewerApplication(db, { userId: "review-user", ...input, now })).rejects.toThrow("REVIEWER_PROFILE_EXISTS");
     await changeReviewerStatus(db, { userId: "review-user", actorUserId: "review-admin", status: "ACTIVE", reason: "활동 재개 확인", now });

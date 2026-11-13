@@ -1,6 +1,8 @@
+import { buildReviewerPhotoDeletionPlan, deleteReviewerPhotoObjectsForUser } from "../ratings/reviewer-photo-deletion.server";
+import type { PhotoObjectStore } from "../ratings/reviewer-photo.server";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
-import { memberSaveChoices, accountTokens, authIdentities, oauthRequests, reviewerApplications, reviewerProfiles, savedPlaces, sessions, users } from "../../db/schema";
+import { memberSaveChoices, accountTokens, authIdentities, oauthRequests, reviewerApplications, reviewerProfiles, reviewerVisitReviews, savedPlaces, sessions, users } from "../../db/schema";
 import { DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT, hashPassword, verifyPassword } from "./password.server";
 import { isWithdrawnEmail, WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "./withdraw";
 
@@ -87,40 +89,41 @@ export async function resetPassword(db: AppDb, input: { token: string; password:
   return { userId };
 }
 
-export async function withdrawAccount(db: AppDb, input: { userId: string; now: Date }) {
+export async function withdrawAccount(db: AppDb, input: { userId: string; now: Date; bucket?: Pick<PhotoObjectStore, "delete"> }) {
   const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
   if (!user) throw new Error("ACCOUNT_NOT_FOUND");
   if (user.role === "ADMIN") throw new Error("WITHDRAW_ADMIN_FORBIDDEN");
   if (isWithdrawnEmail(user.email)) throw new Error("ACCOUNT_ALREADY_WITHDRAWN");
 
   const timestamp = input.now.toISOString();
-  await db.delete(sessions).where(eq(sessions.userId, user.id));
-  await db.delete(authIdentities).where(eq(authIdentities.userId, user.id));
-  await db.delete(accountTokens).where(eq(accountTokens.userId, user.id));
-  await db.delete(oauthRequests).where(eq(oauthRequests.userId, user.id));
-  await db.delete(savedPlaces).where(eq(savedPlaces.userId, user.id));
-  await db.delete(memberSaveChoices).where(eq(memberSaveChoices.userId, user.id));
-  await db.update(reviewerApplications).set({
-    statement: "-",
-    occupation: "-",
-    tasteDirection: "-",
-    updatedAt: timestamp,
-  }).where(eq(reviewerApplications.userId, user.id));
-  await db.update(reviewerProfiles).set({
-    slug: `withdrawn-${user.id}`,
-    status: "SUSPENDED",
-    occupation: "-",
-    tasteDirection: "-",
-    statusReason: "WITHDRAWN",
-    updatedAt: timestamp,
-  }).where(eq(reviewerProfiles.userId, user.id));
-  await db.update(users).set({
-    email: withdrawnEmailFor(user.id),
-    displayName: WITHDRAWN_DISPLAY_NAME,
-    passwordHash: null,
-    passwordSalt: null,
-    emailVerifiedAt: null,
-    updatedAt: timestamp,
-  }).where(eq(users.id, user.id));
+
+  const reviews = await db.select({ id: reviewerVisitReviews.id }).from(reviewerVisitReviews)
+    .where(eq(reviewerVisitReviews.reviewerUserId, user.id));
+  // The identity/publication gate and exact-key deletion plans commit together.
+  // R2 failures afterwards must not restore the withdrawn identity or its data.
+  await db.batch([
+    db.update(reviewerProfiles).set({
+      slug: `withdrawn-${user.id}`, status: "SUSPENDED", occupation: "-", tasteDirection: "-",
+      statusReason: "WITHDRAWN", updatedAt: timestamp,
+    }).where(eq(reviewerProfiles.userId, user.id)),
+    db.update(users).set({
+      email: withdrawnEmailFor(user.id), displayName: WITHDRAWN_DISPLAY_NAME,
+      passwordHash: null, passwordSalt: null, emailVerifiedAt: null, updatedAt: timestamp,
+    }).where(eq(users.id, user.id)),
+    db.delete(sessions).where(eq(sessions.userId, user.id)),
+    db.delete(authIdentities).where(eq(authIdentities.userId, user.id)),
+    db.delete(accountTokens).where(eq(accountTokens.userId, user.id)),
+    db.delete(oauthRequests).where(eq(oauthRequests.userId, user.id)),
+    db.delete(savedPlaces).where(eq(savedPlaces.userId, user.id)),
+    db.delete(memberSaveChoices).where(eq(memberSaveChoices.userId, user.id)),
+    db.update(reviewerApplications).set({ statement: "-", occupation: "-", tasteDirection: "-", updatedAt: timestamp })
+      .where(eq(reviewerApplications.userId, user.id)),
+    ...reviews.map((review) => buildReviewerPhotoDeletionPlan(db, { reviewId: review.id, now: timestamp })),
+  ]);
+  if (input.bucket) {
+    try { await deleteReviewerPhotoObjectsForUser(db, input.bucket, user.id); }
+    catch { console.error("ACCOUNT_PHOTO_DELETE_PENDING"); }
+  }
+
   return { userId: user.id };
 }

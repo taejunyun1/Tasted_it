@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { currentVotes, flavorRatings, flavorTemplates, places, reviewerProfiles } from "../../db/schema";
@@ -41,27 +41,15 @@ export async function submitFlavorRating(db: AppDb, input: {
   return rating;
 }
 
-function percentile(sorted: number[], fraction: number) {
-  const position = (sorted.length - 1) * fraction;
-  const index = fraction < 0.5 ? Math.floor(position) : fraction > 0.5 ? Math.ceil(position) : Math.round(position);
-  return sorted[index];
-}
-
-export async function getPlaceFlavorPrint(db: AppDb, placeId: string) {
-  const rows = await db.select({ rating: flavorRatings, template: flavorTemplates }).from(flavorRatings)
-    .innerJoin(flavorTemplates, eq(flavorTemplates.id, flavorRatings.templateId))
-    .where(and(eq(flavorRatings.placeId, placeId), eq(flavorRatings.status, "ACTIVE"), eq(flavorTemplates.status, "ACTIVE")));
-  if (rows.length < 3) return { status: "LEARNING" as const, ratingCount: rows.length, dimensions: [] as FlavorDimensionResult[] };
-  const dimensions = JSON.parse(rows[0].template.dimensionsJson) as string[];
-  return {
-    status: "VISIBLE" as const,
-    ratingCount: rows.length,
-    templateVersion: rows[0].template.version,
-    dimensions: dimensions.map((key) => {
-      const values = rows.map(({ rating }) => (JSON.parse(rating.valuesJson) as Record<string, number>)[key]).sort((a, b) => a - b);
-      return { key, median: percentile(values, 0.5), q1: percentile(values, 0.25), q3: percentile(values, 0.75) };
-    }),
-  };
+// Standalone flavor rows have no approved review/revision provenance. Preserve
+// their private data, but do not infer publication from author/place/timestamps.
+export async function getPlaceFlavorPrint(_db: AppDb, _placeId: string): Promise<{
+  status: "LEARNING" | "VISIBLE";
+  ratingCount: number;
+  dimensions: FlavorDimensionResult[];
+  templateVersion?: string;
+}> {
+  return { status: "LEARNING", ratingCount: 0, dimensions: [] };
 }
 
 export async function getMemberTasteGraph(db: AppDb, userId: string) {

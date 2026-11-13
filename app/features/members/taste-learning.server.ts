@@ -13,6 +13,7 @@ import {
 import { listMemberTaste } from "./member.server";
 import { inferTasteBadges, type TasteBadgeScore } from "./profile-taste-badges";
 import { tastePenaltyForFeedback } from "../places/recommendation-action-values";
+import { currentPublicationEpochSql, getPublicationEpoch } from "../ratings/reviewer-publication.server";
 
 export type FeedbackReason = "MENU" | "DISTANCE" | "PRICE" | "ATMOSPHERE" | "ALREADY_VISITED";
 
@@ -91,6 +92,7 @@ export async function refreshInferredTasteSignals(
     observedVersion?: string;
   } = {},
 ): Promise<void> {
+  const moderationEpoch = await getPublicationEpoch(db);
   const observedVersion = options.observedVersion
     ?? await advanceTasteLearningVersion(db, userId, now);
 
@@ -139,11 +141,12 @@ export async function refreshInferredTasteSignals(
   await options.afterSnapshot?.();
 
   const leaseToken = crypto.randomUUID();
-  const leaseIsCurrent = sql`exists (
+  const publicationIsCurrent = sql`${currentPublicationEpochSql()}=${moderationEpoch}`;
+  const leaseIsCurrent = sql`(${publicationIsCurrent} and exists (
     select 1 from ${tasteLearningStates}
     where ${tasteLearningStates.userId} = ${userId}
       and ${tasteLearningStates.versionToken} = ${leaseToken}
-  )`;
+  ))`;
   const badgeIds = adjusted.map((badge) => badge.badgeId);
   const claimVersion = db.update(tasteLearningStates).set({
     versionToken: leaseToken,
@@ -151,6 +154,7 @@ export async function refreshInferredTasteSignals(
   }).where(and(
     eq(tasteLearningStates.userId, userId),
     eq(tasteLearningStates.versionToken, observedVersion),
+    publicationIsCurrent,
   ));
   const deleteStaleInferred = db.delete(userTasteBadges).where(and(
     eq(userTasteBadges.userId, userId),
@@ -158,7 +162,7 @@ export async function refreshInferredTasteSignals(
     badgeIds.length > 0 ? notInArray(userTasteBadges.badgeId, badgeIds) : undefined,
     leaseIsCurrent,
   ));
-  const evidenceJson = JSON.stringify({ algorithm: "activity-v1" });
+  const evidenceJson = JSON.stringify({ algorithm: "activity-v1", moderationEpoch, versionToken: leaseToken });
   const upserts = adjusted.map((badge) => db.insert(userTasteBadges).select(
     db.select({
       userId: sql<string>`${userId}`.as("user_id"),
@@ -171,6 +175,7 @@ export async function refreshInferredTasteSignals(
     }).from(tasteLearningStates).where(and(
       eq(tasteLearningStates.userId, userId),
       eq(tasteLearningStates.versionToken, leaseToken),
+      publicationIsCurrent,
     )),
   ).onConflictDoUpdate({
     target: [userTasteBadges.userId, userTasteBadges.badgeId, userTasteBadges.source],

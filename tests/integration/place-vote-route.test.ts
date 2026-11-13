@@ -30,8 +30,12 @@ beforeEach(async () => {
   }
 });
 
-function submit(fields: Record<string, string>, options: { session?: string | null; origin?: string; placeSlug?: string } = {}) {
+async function submit(fields: Record<string, string>, options: { session?: string | null; origin?: string; placeSlug?: string } = {}) {
   const placeSlug = options.placeSlug ?? slug;
+  if (fields.intent === "withdraw" && !fields.expectedEventId) {
+    const current = await env.DB.prepare("SELECT event_id FROM current_votes WHERE user_id=? AND place_id=?").bind(userId, placeSlug).first<{event_id:string}>();
+    fields = { ...fields, expectedEventId: current?.event_id ?? "already-withdrawn" };
+  }
   const session = options.session === undefined ? sid : options.session;
   return action({
     request: new Request(`https://retaste.test/places/${placeSlug}`, {
@@ -67,8 +71,8 @@ describe("public place vote withdrawal", () => {
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM recommendation_feedback WHERE user_id=? AND place_id=?").bind(otherUserId, slug).first()).toEqual({ n: 1 });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM recommendation_feedback WHERE user_id=? AND place_id=?").bind(userId, otherSlug).first()).toEqual({ n: 1 });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM saved_places WHERE user_id=? AND place_id=?").bind(userId, slug).first()).toEqual({ n: 1 });
-    // A repeated request is an idempotent no-op, rather than a second WITHDRAW event.
-    expect(await submit({ intent: "withdraw" })).toEqual({ ok: true });
+    // Replaying an old pointer cannot affect a newer choice or append another event.
+    expect(await submit({ intent: "withdraw" })).toMatchObject({ status: 409 });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM vote_events WHERE user_id=? AND place_id=? AND event_type='WITHDRAW'").bind(userId, slug).first()).toEqual({ n: 1 });
   });
 
@@ -109,4 +113,35 @@ describe("public place vote withdrawal", () => {
     expect(await submit({ intent: "withdraw" })).toEqual({ ok: true });
     expect(await value()).toBeNull();
   });
+  it("rejects a stale displayed event pointer while preserving the newer vote and feedback", async () => {
+    await submit({ intent: "vote", value: "1" });
+    const previous = await env.DB.prepare("SELECT event_id FROM current_votes WHERE user_id=? AND place_id=?").bind(userId, slug).first<{event_id:string}>();
+    await submit({ intent: "vote", value: "-1", reason: "MENU" });
+    expect(await submit({ intent: "withdraw", expectedEventId: previous!.event_id })).toMatchObject({ status: 409 });
+    expect(await value()).toEqual({ value: -1 });
+    expect(await env.DB.prepare("SELECT value,reason FROM recommendation_feedback WHERE user_id=? AND place_id=?").bind(userId,slug).first()).toEqual({ value:-1,reason:"MENU" });
+  });
+
+  it("rolls back vote and event creation if the feedback write fails", async () => {
+    await env.DB.exec("CREATE TRIGGER fail_feedback_insert BEFORE INSERT ON recommendation_feedback BEGIN SELECT RAISE(ABORT, 'synthetic insert failure'); END;");
+    try {
+      await expect(submit({ intent: "vote", value: "1" })).rejects.toBeDefined();
+      expect(await value()).toBeNull();
+      expect(await env.DB.prepare("SELECT count(*) n FROM vote_events WHERE user_id=? AND place_id=?").bind(userId,slug).first()).toEqual({n:0});
+    } finally { await env.DB.exec("DROP TRIGGER fail_feedback_insert"); }
+  });
+
+  it("invalidates old inferred preference in the withdrawal batch even if rebuilding fails",async()=>{
+    await submit({intent:"vote",value:"1"});
+    const {createDb}=await import("../../app/db/client.server");
+    const {getMemberTasteProfile}=await import("../../app/features/members/profile-taste.server");
+    const db=createDb(env.DB);
+    expect((await getMemberTasteProfile(db,{userId,displayName:"합성",saved:[],rated:[],tasteGraph:{status:"LEARNING",placeCount:0,dimensions:[]}})).vector.length>0).toBe(true);
+    await env.DB.exec("CREATE TRIGGER fail_taste_refresh BEFORE UPDATE ON taste_learning_states WHEN NEW.version_token<>OLD.version_token BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM current_votes WHERE user_id=NEW.user_id) AND EXISTS(SELECT 1 FROM user_taste_badges WHERE user_id=NEW.user_id AND source='INFERRED' AND json_extract(evidence_json,'$.versionToken')<>OLD.version_token) THEN RAISE(ABORT,'synthetic refresh failure') END; END;");
+    try {expect(await submit({intent:"withdraw"})).toEqual({ok:true});}
+    finally {await env.DB.exec("DROP TRIGGER fail_taste_refresh");}
+    expect(await value()).toBeNull();
+    expect((await getMemberTasteProfile(db,{userId,displayName:"합성",saved:[],rated:[],tasteGraph:{status:"LEARNING",placeCount:0,dimensions:[]}})).vector.length>0).toBe(false);
+  });
+
 });

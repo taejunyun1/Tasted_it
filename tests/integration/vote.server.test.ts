@@ -161,3 +161,15 @@ describe("castVote", () => {
     ).bind(`no-op-withdraw-${suffix}`).first()).toBeNull();
   });
 });
+
+it("does not cancel a vote or feedback replaced after the initial withdrawal read",async()=>{
+  const db=createDb(env.DB);const id=crypto.randomUUID();const now="2026-11-13T00:00:00.000Z";
+  await env.DB.prepare("INSERT INTO users(id,email,display_name,role,created_at,updated_at) VALUES(?,?,?,'USER',?,?)").bind(id,`${id}@example.test`,"합성 회원",now,now).run();
+  await castVote(db,{userId:id,placeId,value:1,eventId:`${id}-old`,feedback:{reason:null},now});
+  const originalBatch=db.batch.bind(db);let intercept=true;
+  const wrapped=new Proxy(db,{get(object,key){if(key==="batch")return async(statements:Parameters<typeof db.batch>[0])=>{if(intercept){intercept=false;await castVote(db,{userId:id,placeId,value:-1,eventId:`${id}-new`,feedback:{reason:"MENU"},now});}return originalBatch(statements);};return Reflect.get(object,key);}});
+  await expect(withdrawVote(wrapped,{userId:id,placeId,eventId:`${id}-withdraw`,expectedEventId:`${id}-old`,clearFeedback:true,now})).rejects.toThrow("VOTE_VERSION_CONFLICT");
+  expect(await env.DB.prepare("SELECT event_id,value FROM current_votes WHERE user_id=? AND place_id=?").bind(id,placeId).first()).toEqual({event_id:`${id}-new`,value:-1});
+  expect(await env.DB.prepare("SELECT value,reason FROM recommendation_feedback WHERE user_id=? AND place_id=?").bind(id,placeId).first()).toEqual({value:-1,reason:"MENU"});
+  expect(await env.DB.prepare("SELECT count(*) n FROM vote_events WHERE id=?").bind(`${id}-withdraw`).first()).toEqual({n:0});
+});

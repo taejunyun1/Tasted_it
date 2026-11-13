@@ -4,17 +4,16 @@ import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
 import {
-  businessLicenseExclusions,
-  businessLicenses,
   categories,
   currentVotes,
+  voteEvents,
   placeCategories,
   placeLivenessStates,
-  placeSourceLinks,
   placeSlugRedirects,
   places,
 } from "../../db/schema";
 import { attachLatestNonStaleRatingSnapshots } from "../ratings/recompute.server";
+import { eligibleVoteCondition } from "../ratings/reviewer-publication.server";
 import type {
   AdminPlaceSummary,
   PlaceDetail,
@@ -22,12 +21,7 @@ import type {
   PlaceImportRow,
   PlaceSummary,
 } from "./place.types";
-import {
-  CU_CONVENIENCE_PREFIX,
-  NON_RESTAURANT_PUBLIC_NAME_TERMS,
-  NON_RESTAURANT_PUBLIC_NAME_PREFIXES,
-  NON_RESTAURANT_SOURCE_SUBTYPE_TERMS,
-} from "./food-venue-policy";
+import { publicVenueVisibilityCondition } from "./public-venue-visibility.server";
 
 interface UpsertPlaceInput {
   id: string;
@@ -35,9 +29,7 @@ interface UpsertPlaceInput {
   now: string;
 }
 
-export async function listAdminPlaces(
-  db: AppDb,
-): Promise<AdminPlaceSummary[]> {
+export async function listAdminPlaces(db: AppDb): Promise<AdminPlaceSummary[]> {
   return db
     .select({
       id: places.id,
@@ -70,7 +62,8 @@ export async function importPlaceRows(
         where: eq(categories.slug, row.primaryCategory),
       }),
     ]);
-    if (!category) throw new Error(`PRIMARY_CATEGORY_NOT_FOUND:${row.primaryCategory}`);
+    if (!category)
+      throw new Error(`PRIMARY_CATEGORY_NOT_FOUND:${row.primaryCategory}`);
 
     const id = existing?.id ?? input.ids[index];
     const values = {
@@ -112,9 +105,14 @@ export async function importPlaceRows(
             updatedAt: values.updatedAt,
           },
         }),
-      ...(existing ? [
-        db.update(placeCategories).set({ isPrimary: false }).where(eq(placeCategories.placeId, id)),
-      ] : []),
+      ...(existing
+        ? [
+            db
+              .update(placeCategories)
+              .set({ isPrimary: false })
+              .where(eq(placeCategories.placeId, id)),
+          ]
+        : []),
       db
         .insert(placeCategories)
         .values({ placeId: id, categoryId: category.id, isPrimary: true })
@@ -127,85 +125,6 @@ export async function importPlaceRows(
 
   const [first, ...rest] = statements;
   if (first) await db.batch([first, ...rest]);
-}
-
-function normalizedPublicVenueText(column: typeof places.name | typeof businessLicenses.businessName | typeof businessLicenses.businessSubtype) {
-  let normalized = sql<string>`coalesce(${column}, '')`;
-  // Keep this expression shallow enough for D1's SQLite expression-depth limit.
-  // These cover ordinary imported spacing plus the common NBSP/ideographic variants;
-  // the ingestion policy still performs full Unicode NFKC + whitespace normalization.
-  for (const codePoint of [9, 10, 13, 32, 160, 12288]) {
-    normalized = sql<string>`replace(${normalized}, char(${sql.raw(String(codePoint))}), '')`;
-  }
-  return sql<string>`lower(${normalized})`;
-}
-
-function hasAnyNormalizedVenueTerm(column: ReturnType<typeof normalizedPublicVenueText>, terms: readonly string[]) {
-  // A json_each subquery stays shallow when the venue vocabulary grows. Chaining
-  // one LIKE per term exceeds D1's SQLite expression-depth limit in list/detail
-  // queries, especially after whitespace normalization.
-  return sql<boolean>`exists (
-    select 1 from json_each(${JSON.stringify(terms)})
-    where instr(${column}, json_each.value) > 0
-  )`;
-}
-
-function hasAnyNormalizedVenuePrefix(column: ReturnType<typeof normalizedPublicVenueText>, prefixes: readonly string[]) {
-  return sql<boolean>`exists (
-    select 1 from json_each(${JSON.stringify(prefixes)})
-    where ${column} like json_each.value || '%'
-  )`;
-}
-
-function hasCuConveniencePrefix(column: ReturnType<typeof normalizedPublicVenueText>) {
-  // CU branch names are normally `CU + Korean branch name` or `CU + number`.
-  // Do not turn a broad `cu%` match into a false positive for Curry-like names.
-  return sql<boolean>`(
-    ${column} = ${CU_CONVENIENCE_PREFIX}
-    or (
-      substr(${column}, 1, 2) = ${CU_CONVENIENCE_PREFIX}
-      and (
-        (substr(${column}, 3, 1) >= '가' and substr(${column}, 3, 1) <= '힣')
-        or (substr(${column}, 3, 1) >= '0' and substr(${column}, 3, 1) <= '9')
-      )
-    )
-  )`;
-}
-
-function publicVenueVisibilityCondition() {
-  const normalizedPlaceName = normalizedPublicVenueText(places.name);
-  const normalizedSourceName = normalizedPublicVenueText(businessLicenses.businessName);
-  const normalizedSourceSubtype = normalizedPublicVenueText(businessLicenses.businessSubtype);
-  const placeMatchesNonRestaurantRule = or(
-    hasAnyNormalizedVenueTerm(normalizedPlaceName, NON_RESTAURANT_PUBLIC_NAME_TERMS),
-    hasAnyNormalizedVenuePrefix(normalizedPlaceName, NON_RESTAURANT_PUBLIC_NAME_PREFIXES),
-    hasCuConveniencePrefix(normalizedPlaceName),
-  )!;
-  const nameDoesNotMatch = sql<boolean>`not (${placeMatchesNonRestaurantRule})`;
-  const sourceMatch = or(
-    hasAnyNormalizedVenueTerm(normalizedSourceName, NON_RESTAURANT_PUBLIC_NAME_TERMS),
-    hasAnyNormalizedVenuePrefix(normalizedSourceName, NON_RESTAURANT_PUBLIC_NAME_PREFIXES),
-    hasCuConveniencePrefix(normalizedSourceName),
-    hasAnyNormalizedVenueTerm(normalizedSourceSubtype, NON_RESTAURANT_SOURCE_SUBTYPE_TERMS),
-  )!;
-  const hasAdminOverride = sql<boolean>`exists (
-    select 1 from ${placeSourceLinks}
-    inner join ${businessLicenseExclusions}
-      on ${businessLicenseExclusions.businessLicenseId} = ${placeSourceLinks.businessLicenseId}
-    where ${placeSourceLinks.placeId} = ${places.id}
-      and ${businessLicenseExclusions.status} = 'OVERRIDDEN'
-  )`;
-  const hasNoUnapprovedSourceMatch = sql<boolean>`not exists (
-    select 1 from ${placeSourceLinks}
-    inner join ${businessLicenses}
-      on ${businessLicenses.id} = ${placeSourceLinks.businessLicenseId}
-    left join ${businessLicenseExclusions}
-      on ${businessLicenseExclusions.businessLicenseId} = ${businessLicenses.id}
-    where ${placeSourceLinks.placeId} = ${places.id}
-      and (${businessLicenseExclusions.status} is null or ${businessLicenseExclusions.status} <> 'OVERRIDDEN')
-      and (${sourceMatch})
-  )`;
-  return and(or(nameDoesNotMatch, hasAdminOverride), hasNoUnapprovedSourceMatch)!;
 }
 
 function publicConditions(filters: PlaceFilters, slug?: string) {
@@ -221,7 +140,9 @@ function publicConditions(filters: PlaceFilters, slug?: string) {
   }
   if (filters.query?.trim()) {
     const value = `%${filters.query.trim().toLocaleLowerCase("ko-KR")}%`;
-    conditions.push(or(like(places.searchText, value), like(places.name, value))!);
+    conditions.push(
+      or(like(places.searchText, value), like(places.name, value))!,
+    );
   }
   if (filters.bbox) {
     const [west, south, east, north] = filters.bbox;
@@ -248,7 +169,11 @@ async function selectPublicPlaces(
   db: AppDb,
   filters: PlaceFilters,
   slug?: string,
-  options: { maxLimit?: number; recommendationCandidates?: boolean; recommendationOrder?: boolean } = {},
+  options: {
+    maxLimit?: number;
+    recommendationCandidates?: boolean;
+    recommendationOrder?: boolean;
+  } = {},
 ): Promise<PlaceDetail[]> {
   const conditions = [publicConditions(filters, slug)];
   if (options.recommendationCandidates) {
@@ -273,16 +198,26 @@ async function selectPublicPlaces(
       categoryEmoji: categories.emoji,
       positive: sql<number>`coalesce(sum(case when ${currentVotes.value} = 1 then 1 else 0 end), 0)`,
       negative: sql<number>`coalesce(sum(case when ${currentVotes.value} = -1 then 1 else 0 end), 0)`,
+      userPositive: sql<number>`coalesce(sum(case when ${voteEvents.source} = 'GENERAL' and ${currentVotes.value} = 1 then 1 else 0 end), 0)`,
+      userNegative: sql<number>`coalesce(sum(case when ${voteEvents.source} = 'GENERAL' and ${currentVotes.value} = -1 then 1 else 0 end), 0)`,
+      reviewerPositive: sql<number>`coalesce(sum(case when ${voteEvents.source} = 'REVIEWER' and ${currentVotes.value} = 1 then 1 else 0 end), 0)`,
+      reviewerNegative: sql<number>`coalesce(sum(case when ${voteEvents.source} = 'REVIEWER' and ${currentVotes.value} = -1 then 1 else 0 end), 0)`,
     })
     .from(places)
     .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
     .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
-    .leftJoin(currentVotes, eq(currentVotes.placeId, places.id))
+    .leftJoin(
+      currentVotes,
+      and(eq(currentVotes.placeId, places.id), eligibleVoteCondition()),
+    )
+    .leftJoin(voteEvents, eq(voteEvents.id, currentVotes.eventId))
     .where(and(...conditions))
     .groupBy(places.id, categories.id)
-    .orderBy(...(options.recommendationOrder
-      ? [desc(places.lastVerifiedAt), desc(places.updatedAt), asc(places.id)]
-      : [asc(places.name), asc(places.id)]))
+    .orderBy(
+      ...(options.recommendationOrder
+        ? [desc(places.lastVerifiedAt), desc(places.updatedAt), asc(places.id)]
+        : [asc(places.name), asc(places.id)]),
+    )
     .limit(slug ? 1 : Math.min(filters.limit ?? 100, options.maxLimit ?? 100));
 
   return rows.map((row) => ({
@@ -305,6 +240,10 @@ async function selectPublicPlaces(
     },
     positive: Number(row.positive),
     negative: Number(row.negative),
+    userPositive: Number(row.userPositive),
+    userNegative: Number(row.userNegative),
+    reviewerPositive: Number(row.reviewerPositive),
+    reviewerNegative: Number(row.reviewerNegative),
   }));
 }
 
@@ -312,42 +251,116 @@ export async function listPlaces(
   db: AppDb,
   filters: PlaceFilters = {},
 ): Promise<PlaceSummary[]> {
-  return attachLatestNonStaleRatingSnapshots(db, await selectPublicPlaces(db, filters));
+  return attachLatestNonStaleRatingSnapshots(
+    db,
+    await selectPublicPlaces(db, filters),
+  );
 }
 
 export async function listRecommendationCandidates(
   db: AppDb,
   filters: PlaceFilters = {},
 ): Promise<PlaceSummary[]> {
-  return attachLatestNonStaleRatingSnapshots(db, await selectPublicPlaces(db, { ...filters, limit: Math.min(filters.limit ?? 500, 500) }, undefined, {
-    maxLimit: 500,
-    recommendationCandidates: true,
-    recommendationOrder: true,
-  }));
+  return attachLatestNonStaleRatingSnapshots(
+    db,
+    await selectPublicPlaces(
+      db,
+      { ...filters, limit: Math.min(filters.limit ?? 500, 500) },
+      undefined,
+      {
+        maxLimit: 500,
+        recommendationCandidates: true,
+        recommendationOrder: true,
+      },
+    ),
+  );
 }
 
 export async function listPublicCategoryGroups(db: AppDb) {
   const parents = alias(categories, "category_parents");
-  const rows = await db.select({
-    parentId: parents.id, parentSlug: parents.slug, parentName: parents.name, parentEmoji: parents.emoji, parentSort: parents.sortOrder,
-    id: categories.id, slug: categories.slug, name: categories.name, emoji: categories.emoji, sortOrder: categories.sortOrder,
-    count: sql<number>`count(distinct ${places.id})`,
-  }).from(categories)
+  const rows = await db
+    .select({
+      parentId: parents.id,
+      parentSlug: parents.slug,
+      parentName: parents.name,
+      parentEmoji: parents.emoji,
+      parentSort: parents.sortOrder,
+      id: categories.id,
+      slug: categories.slug,
+      name: categories.name,
+      emoji: categories.emoji,
+      sortOrder: categories.sortOrder,
+      count: sql<number>`count(distinct ${places.id})`,
+    })
+    .from(categories)
     .innerJoin(parents, eq(parents.id, categories.parentId))
-    .innerJoin(placeCategories, and(eq(placeCategories.categoryId, categories.id), eq(placeCategories.isPrimary, true)))
-    .innerJoin(places, and(eq(places.id, placeCategories.placeId), eq(places.status, "PUBLISHED")))
-    .where(and(
-      eq(categories.isActive, true),
-      eq(parents.isActive, true),
-      publicVenueVisibilityCondition(),
-    ))
-    .groupBy(categories.id, parents.id).orderBy(asc(parents.sortOrder), asc(categories.sortOrder));
-  const groups = new Map<string, { id: string; slug: string; name: string; emoji: string; children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }> }>();
+    .innerJoin(
+      placeCategories,
+      and(
+        eq(placeCategories.categoryId, categories.id),
+        eq(placeCategories.isPrimary, true),
+      ),
+    )
+    .innerJoin(
+      places,
+      and(
+        eq(places.id, placeCategories.placeId),
+        eq(places.status, "PUBLISHED"),
+      ),
+    )
+    .where(
+      and(
+        eq(categories.isActive, true),
+        eq(parents.isActive, true),
+        publicVenueVisibilityCondition(),
+      ),
+    )
+    .groupBy(categories.id, parents.id)
+    .orderBy(asc(parents.sortOrder), asc(categories.sortOrder));
+  const groups = new Map<
+    string,
+    {
+      id: string;
+      slug: string;
+      name: string;
+      emoji: string;
+      children: Array<{
+        id: string;
+        slug: string;
+        name: string;
+        emoji: string;
+        count: number;
+      }>;
+    }
+  >();
   for (const row of rows) {
-    if (!groups.has(row.parentId)) groups.set(row.parentId, { id: row.parentId, slug: row.parentSlug, name: row.parentName, emoji: row.parentEmoji, children: [] });
-    groups.get(row.parentId)!.children.push({ id: row.id, slug: row.slug, name: row.name, emoji: row.emoji, count: Number(row.count) });
+    if (!groups.has(row.parentId))
+      groups.set(row.parentId, {
+        id: row.parentId,
+        slug: row.parentSlug,
+        name: row.parentName,
+        emoji: row.parentEmoji,
+        children: [],
+      });
+    groups
+      .get(row.parentId)!
+      .children.push({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        emoji: row.emoji,
+        count: Number(row.count),
+      });
   }
   return [...groups.values()];
+}
+
+export async function listCorrectionPlaces(db: AppDb): Promise<Array<Pick<PlaceDetail, "id" | "name" | "address">>> {
+  return db.select({ id: places.id, name: places.name, address: places.address }).from(places)
+    .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
+    .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
+    .where(and(publicConditions({}), sql`${places.closedAt} is null`))
+    .orderBy(asc(places.name), asc(places.id)).limit(1_000);
 }
 
 export async function getPlaceBySlug(
@@ -364,10 +377,27 @@ export async function getPlaceBySlug(
   return place;
 }
 
-export async function resolvePlaceSlugRedirect(db: AppDb, oldSlug: string): Promise<string | null> {
-  const [result] = await db.select({ slug: places.slug }).from(placeSlugRedirects)
-    .innerJoin(places, and(eq(places.id, placeSlugRedirects.placeId), eq(places.status, "PUBLISHED")))
-    .where(and(eq(placeSlugRedirects.oldSlug, oldSlug), publicVenueVisibilityCondition())).limit(1);
+export async function resolvePlaceSlugRedirect(
+  db: AppDb,
+  oldSlug: string,
+): Promise<string | null> {
+  const [result] = await db
+    .select({ slug: places.slug })
+    .from(placeSlugRedirects)
+    .innerJoin(
+      places,
+      and(
+        eq(places.id, placeSlugRedirects.placeId),
+        eq(places.status, "PUBLISHED"),
+      ),
+    )
+    .where(
+      and(
+        eq(placeSlugRedirects.oldSlug, oldSlug),
+        publicVenueVisibilityCondition(),
+      ),
+    )
+    .limit(1);
   return result?.slug ?? null;
 }
 
@@ -434,3 +464,5 @@ export async function upsertPlace(
 
   return { id };
 }
+
+/** The correction chooser uses the same public-place contract as discovery. */
