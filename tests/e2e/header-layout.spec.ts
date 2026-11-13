@@ -52,6 +52,10 @@ test("header controls fit and remain keyboard reachable at 320px, CSS enlargemen
       expect.soft(closed.menu.x).toBeGreaterThanOrEqual(0);
       expect.soft(closed.menu.right).toBeLessThanOrEqual(width);
       expect.soft(closed.menu.hit).toBe(true);
+      if (width <= 760) {
+        expect.soft(closed.menu.width / zoom).toBeGreaterThanOrEqual(44);
+        expect.soft(closed.menu.height / zoom).toBeGreaterThanOrEqual(44);
+      }
       const reached = await tabToMenu(page);
       await expect(menu).toBeFocused();
       await page.keyboard.press("Enter");
