@@ -170,16 +170,21 @@ function validatedLocalAssets(directory, rows) {
   return verified;
 }
 
+export function preparePrivateDataset(directory, operationsRoot, asOf) {
+  assertPrivateDirectory(directory, operationsRoot); assertOwned(join(directory, "shards"), true);
+  const rows = ["gwangju.json", "jeonnam.json"].flatMap((name) => JSON.parse(readPrivateFile(join(directory, "shards", name)).toString("utf8")));
+  buildTemp100Artifacts(rows, asOf); // Validate all paths/claims before reading any optional image.
+  const artifacts = buildTemp100Artifacts(rows, asOf, validatedLocalAssets(directory, rows));
+  writePrivateArtifacts(directory, artifacts);
+  return artifacts;
+}
+
 function main() {
   const directory = parseArguments(process.argv.slice(2));
   const commonGit = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: ROOT, encoding: "utf8" }).trim();
   const operationsRoot = join(dirname(commonGit), ".superpowers", "operations");
-  assertPrivateDirectory(directory, operationsRoot); assertOwned(join(directory, "shards"), true);
-  const rows = ["gwangju.json", "jeonnam.json"].flatMap((name) => JSON.parse(readPrivateFile(join(directory, "shards", name)).toString("utf8")));
   const asOf = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  buildTemp100Artifacts(rows, asOf); // Validate all paths/claims before reading any optional image.
-  const artifacts = buildTemp100Artifacts(rows, asOf, validatedLocalAssets(directory, rows));
-  writePrivateArtifacts(directory, artifacts);
+  const artifacts = preparePrivateDataset(directory, operationsRoot, asOf);
   process.stdout.write(json(artifacts.aggregate));
 }
 
