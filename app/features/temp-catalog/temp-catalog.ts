@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const TEMP_SOURCE_HASH = "d949f94c4a760aa42c2894ff220c0203d272da49a793cbe402dc79e38cedc900";
-const sourceHosts = new Set(["tour.gwangju.go.kr", "www.yeosu.go.kr", "m.xn--o39a81gi2cv0je9ktug.kr"]);
+const sourceHosts = new Set(["tour.gwangju.go.kr", "www.yeosu.go.kr", "m.xn--o39a81gi2cv0je9ktug.kr", "www.hwasun.go.kr"]);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const shortText = z.string().trim().min(1).max(240).refine((v) => !/[\u0000-\u001f<>]/u.test(v));
 function safeUrl(value: string, hosts: Set<string>) {
