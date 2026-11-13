@@ -18,7 +18,7 @@
 
 ## 확정과 회수
 
-관리자 화면의 공개/회수는 B02의 세션 결속 미리보기·10분 이내 최근 인증·현재 권한·버전·감사·중복 실행 영수증을 사용한다. 100행 좌표 완료와 사진 23장의 지정 R2 key/hash/content-type 확인 없이는 공개 미리보기를 만들 수 없다. 공개는 전체 100행을 원자적으로 적용한다.
+관리자 화면의 공개/회수는 B02의 세션 결속 미리보기·10분 이내 최근 인증·현재 권한·버전·감사·중복 실행 영수증을 사용한다. 100행 좌표 완료와 사진 23장의 지정 R2 key/content-type 및 실제 저장 바이트의 SHA-256 확인 없이는 공개 미리보기를 만들 수 없다. 파일당 8MiB, 전체 25MiB를 상한으로 읽는다. custom metadata는 필요하지 않으며 해시 검증을 대체하지 않는다. 공개 사진 응답도 실제 바이트 해시를 확인한다. 공개는 전체 100행을 원자적으로 적용한다.
 
 베타 초기 1회 운영 반입은 머지된 운영 PR이 지정한 manifest/hash/기존 관리자/100행 범위만 허용한다. `scripts/temp100-publication-sql.mjs`는 공개 manifest와 최신 D1 snapshot·사진 확인 결과를 대조해 private SQL 세 파일을 만든다. 고정된 audit marker에만 동작하는 임시 trigger에서 권한·버전·100행 현재값 확인·변경·감사를 하나의 INSERT 문장으로 처리한다. 실패하면 변경과 감사가 함께 rollback된다. 동일 marker 재실행은 무변경이다. 실행자는 성공/실패와 관계없이 `finally`에서 **생성된 정확한 trigger**를 DROP하고 잔존 여부를 조회한다. 최근 인증 데이터를 조작하거나 런타임 우회 endpoint를 만들지 않는다.
 
@@ -30,8 +30,8 @@
 2. `build-temp100-public.mjs <원본 private 디렉터리> <새 private 디렉터리>`로 source SHA 고정·사진 SHA 검증. 원본은 덮어쓰지 않는다.
 3. manifest를 ADMIN 전용 stage에 제출. 기존 canonical 참조와 충돌 수를 확인한다.
 4. 공식 좌표 증거를 `coordinate-source`로 반영하고, 남은 행만 `geocode` 한 번씩 실행한다. 실패가 있으면 원문을 확인하고 중단 원인을 기록한다.
-5. 승인된 `photo-upload-plan.json`의 23 key에만 업로드하며 `sha256` custom metadata와 content type을 확인한다.
-6. canonical version을 먼저 읽고 batch/100 entries/기존 장소 및 R2 head 결과를 private snapshot으로 저장한 뒤 version을 다시 읽어 같음을 확인한다. 다르면 재수집한다. SQL 생성 입력은 `{canonicalVersion,batch,entries,places,photos}`이며 `photos`는 `{key,sha256,contentType}`의 검증 결과다.
+5. 승인된 `photo-upload-plan.json`의 23 key에만 표준 CLI로 업로드하며 content type을 지정한다. custom metadata 옵션은 사용하지 않는다.
+6. canonical version을 먼저 읽고 batch/100 entries/기존 장소 및 R2에서 내려받은 실제 바이트 해시 결과를 private snapshot으로 저장한 뒤 version을 다시 읽어 같음을 확인한다. 다르면 재수집한다. SQL 생성 입력은 `{canonicalVersion,batch,entries,places,photos}`이며 `photos`는 `{key,sha256,contentType}`의 실제 바이트 검증 결과다. 사진 확인 합계는 25MiB/23개 이내로 제한한다.
 7. 운영 PR의 승인 범위에서 install → apply → 현재상태·audit 확인 → finally cleanup → 임시 trigger 잔존 0 확인. 기본 UI 확정은 최근 인증 절차를 사용한다.
 8. 실제 `/places?temp=1` 100곳, 검색·상세, 사진 있음/없음, 비로그인 관리자 거절, Worker RSI를 확인하고 SSOT에 실제 결과를 기록한다.
 

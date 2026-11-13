@@ -9,7 +9,7 @@
 ## 최소 코드 검증
 
 - 단위: 외부 출처·숫자점수 유입·사진 key·좌표 0·사진 metadata 거절.
-- D1 통합: 조회 실패 시 중단/무재시도와 공식 출처 보완, 100행 공개·원자적 실패·중복 영수증, 기존 canonical 보존, 사진 회수와 일반 관리자 재공개 차단, 일회성 operator trigger의 실패 rollback·재실행·정확한 cleanup.
+- D1 통합: 조회 실패 시 중단/무재시도와 공식 출처 보완, 100행 공개·원자적 실패·중복 영수증, 기존 canonical 보존, 사진 회수와 일반 관리자 재공개 차단, 일회성 operator trigger의 실패 rollback·재실행·정확한 cleanup. R2 사진은 custom metadata 없는 실제 바이트를 해시 검증하며, 같은 주장 해시에 다른 바이트를 넣으면 공개 준비·사진 응답 모두 거절한다. 파일당 8MiB/전체 25MiB 읽기 상한을 적용한다.
 - `pnpm run typecheck`, `pnpm audit --prod`(알려진 취약점 0).
 - 로컬 실제 SSR의 합성 3행을 사용해 1440px/390px 목록·상세 TEMP 배지/출처/영업 미확인/사진 미제공/noindex를 확인했다. 가로 overflow 0. 아래 합성 화면과 실제 데이터/운영 배포 증거를 구분한다. 실제 사진·원문 증거는 private에 보존한다.
 

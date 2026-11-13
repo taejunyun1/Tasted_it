@@ -136,13 +136,46 @@ export async function confirmTempCoordinateEvidence(database: D1Database, input:
 }
 
 async function assertPhotos(bucket: R2Bucket, rows: EntryRow[]) {
+  let remainingBytes = 25 * 1024 * 1024;
   for (const row of rows) {
     const entry = tempEntrySchema.parse(JSON.parse(row.payload_json));
     const key = photoObjectKey(row.batch_id, entry);
     if (!key) continue;
-    const object = await bucket.head(key);
-    if (!object || object.customMetadata?.sha256 !== entry.photo!.sha256 || object.httpMetadata?.contentType !== entry.photo!.contentType) throw new Error("TEMP_PHOTO_NOT_READY");
+    const bytes = await readVerifiedTempPhoto(bucket, { key, contentType: entry.photo!.contentType, sha256: entry.photo!.sha256 }, remainingBytes);
+    remainingBytes -= bytes.byteLength;
   }
+}
+
+/** Content hash is authoritative; CLI uploads need no custom metadata. */
+export async function readVerifiedTempPhoto(bucket: R2Bucket, photo: { key: string; contentType: string; sha256: string }, byteBudget = 8 * 1024 * 1024) {
+  const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as Record<string, string>)[photo.contentType];
+  if (!Number.isSafeInteger(byteBudget) || byteBudget <= 0 || !extension || !/^temp100\/temp100-[a-f0-9]{16}\/temp100-\d{3}-[a-f0-9]{64}\.(jpg|png|webp)$/.test(photo.key)
+    || !photo.key.endsWith(`-${photo.sha256}.${extension}`)) throw new Error("TEMP_PHOTO_NOT_READY");
+  const object = await bucket.get(photo.key);
+  const limit = Math.min(8 * 1024 * 1024, byteBudget);
+  if (!object) throw new Error("TEMP_PHOTO_NOT_READY");
+  if (object.size <= 0 || object.size > limit || object.httpMetadata?.contentType !== photo.contentType) {
+    await object.body.cancel();
+    throw new Error("TEMP_PHOTO_NOT_READY");
+  }
+  const reader = object.body.getReader(), chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > limit) { await reader.cancel(); throw new Error("TEMP_PHOTO_NOT_READY"); }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  if (length !== object.size) throw new Error("TEMP_PHOTO_NOT_READY");
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  if (digest !== photo.sha256) throw new Error("TEMP_PHOTO_NOT_READY");
+  return bytes;
 }
 export async function prepareTempPublication(database: D1Database, bucket: R2Bucket, input: { actorUserId: string; sessionId: string; batchId: string; now: string; publish: boolean }) {
   const { batch, rows } = await batchRows(database, input.batchId);

@@ -2,20 +2,22 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { getPlaceBySlug, listPlaces } from "../../app/features/places/place.server";
-import { commitTempPublication, confirmTempCoordinateEvidence, geocodeNextTempEntry, getTempPhoto, prepareTempPublication, stageTempCatalog, tempCatalogStatus } from "../../app/features/temp-catalog/temp-catalog.server";
+import { commitTempPublication, confirmTempCoordinateEvidence, geocodeNextTempEntry, getTempPhoto, prepareTempPublication, readVerifiedTempPhoto, sha256, stageTempCatalog, tempCatalogStatus } from "../../app/features/temp-catalog/temp-catalog.server";
 import { photoObjectKey, TEMP_SOURCE_HASH, type TempManifest } from "../../app/features/temp-catalog/temp-catalog";
 import { buildTemp100PublicationSql } from "../../scripts/temp100-publication-sql.mjs";
 import { loader as tempAdminLoader } from "../../app/routes/admin-temp-catalog";
+import { loader as tempPhotoLoader } from "../../app/routes/temp-photo";
 
 const now = "2026-11-14T01:00:00.000Z";
 async function fixture() {
   const key = crypto.randomUUID(), actorUserId = `admin-${key}`, sessionId = `session-${key}`;
+  const photoHash = await sha256("synthetic image");
   await env.DB.prepare("INSERT INTO users(id,email,display_name,role,created_at,updated_at) VALUES(?,?,?,'ADMIN',?,?)").bind(actorUserId, `${key}@example.com`, "합성 관리자", now, now).run();
   await env.DB.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES(?,?,?,?)").bind(sessionId, actorUserId, "2026-11-15T01:00:00.000Z", now).run();
   const manifest: TempManifest = { schemaVersion: 1, sourceHash: TEMP_SOURCE_HASH, entries: Array.from({ length: 100 }, (_, i) => ({
     sourceId: `temp100-${String(i + 1).padStart(3, "0")}`, name: `합성 ${key} 식당 ${i}`, address: `광주 동구 합성길 ${i}`, region: "광주 동구", cuisine: "한식", summary: "합성 테스트용 독자 설명이며 실제 업소가 아닙니다.", sourceUrl: `https://tour.gwangju.go.kr/example?id=${i}`, sourceTitle: "공식 소개", checkedAt: now,
     evaluation: { kind: "OFFICIAL_CURATION", provider: "공식 관광", sourceUrl: `https://tour.gwangju.go.kr/example?id=${i}` },
-    photo: i < 23 ? { sha256: "a".repeat(64), contentType: "image/jpeg", licenseType: "KOGL-1", licenseUrl: "https://www.kogl.or.kr/info/license.do", attribution: "합성 사진 저작자", creator: "합성", evidenceUrl: `https://www.yeosu.go.kr/example?id=${i}` } : null,
+    photo: i < 23 ? { sha256: photoHash, contentType: "image/jpeg", licenseType: "KOGL-1", licenseUrl: "https://www.kogl.or.kr/info/license.do", attribution: "합성 사진 저작자", creator: "합성", evidenceUrl: `https://www.yeosu.go.kr/example?id=${i}` } : null,
   })) };
   return { actorUserId, sessionId, manifest };
 }
@@ -76,7 +78,12 @@ describe("TEMP catalog publication", () => {
     await geocodeNextTempEntry(env.DB, { ...input, batchId: staged.batchId, now, adapter: { search: async () => [{ name: second.name, address: second.address, category: "음식점", latitude: 35.1, longitude: 126.9 }] } });
     // Remaining coordinates are synthetic fixtures, never source data or a live repair.
     await env.DB.prepare("UPDATE temp_catalog_entries SET latitude=35.1,longitude=126.9,geo_status='MATCHED' WHERE batch_id=?").bind(staged.batchId).run();
-    for (const entry of input.manifest.entries.filter((e) => e.photo)) await env.REVIEW_PHOTOS.put(photoObjectKey(staged.batchId, entry)!, "synthetic image", { customMetadata: { sha256: entry.photo!.sha256 }, httpMetadata: { contentType: entry.photo!.contentType } });
+    for (const entry of input.manifest.entries.filter((e) => e.photo)) await env.REVIEW_PHOTOS.put(photoObjectKey(staged.batchId, entry)!, "synthetic image", { httpMetadata: { contentType: entry.photo!.contentType } });
+    const firstPhotoKey = photoObjectKey(staged.batchId, first)!;
+    await env.REVIEW_PHOTOS.put(firstPhotoKey, "different bytes", { customMetadata: { sha256: first.photo!.sha256 }, httpMetadata: { contentType: "image/jpeg" } });
+    await expect(prepareTempPublication(env.DB, env.REVIEW_PHOTOS, { ...input, batchId: staged.batchId, now, publish: true })).rejects.toThrow("TEMP_PHOTO_NOT_READY");
+    await env.REVIEW_PHOTOS.put(firstPhotoKey, "synthetic image", { httpMetadata: { contentType: "image/jpeg" } });
+    await expect(readVerifiedTempPhoto(env.REVIEW_PHOTOS, { key: firstPhotoKey, sha256: first.photo!.sha256, contentType: "image/jpeg" }, 1)).rejects.toThrow("TEMP_PHOTO_NOT_READY");
     const preview = await prepareTempPublication(env.DB, env.REVIEW_PHOTOS, { ...input, batchId: staged.batchId, now, publish: true });
     const commitInput = { ...input, now, operationId: preview.operationId, kind: "TEMP_PUBLISH" as const };
     await expect(commitTempPublication(env.DB, env.REVIEW_PHOTOS, commitInput)).rejects.toThrow("ADMIN_RECENT_AUTH_REQUIRED");
@@ -87,6 +94,13 @@ describe("TEMP catalog publication", () => {
     commitInput.operationId = refreshed.operationId;
     await commitTempPublication(env.DB, env.REVIEW_PHOTOS, commitInput);
     expect((await commitTempPublication(env.DB, env.REVIEW_PHOTOS, commitInput)).replayed).toBe(true);
+    const photoArgs = { request: new Request("https://example.com/temp-photos/test"), params: { entryId: `${staged.batchId}-temp100-001` } } as never;
+    const photoResponse = await tempPhotoLoader(photoArgs);
+    expect(photoResponse.status).toBe(200);
+    expect(new TextDecoder().decode(await photoResponse.arrayBuffer())).toBe("synthetic image");
+    await env.REVIEW_PHOTOS.put(firstPhotoKey, "tampered", { customMetadata: { sha256: first.photo!.sha256 }, httpMetadata: { contentType: "image/jpeg" } });
+    expect((await tempPhotoLoader(photoArgs)).status).toBe(404);
+    await env.REVIEW_PHOTOS.put(firstPhotoKey, "synthetic image", { httpMetadata: { contentType: "image/jpeg" } });
     const resumed = await tempAdminLoader({ request: new Request(`https://example.com/admin/temp-catalog?batch=${staged.batchId}&operation=${commitInput.operationId}&operationKind=TEMP_PUBLISH`, { headers: { Cookie: `retaste_session=${input.sessionId}` } }) } as never);
     expect(resumed.operationKind).toBe("TEMP_PUBLISH");
     expect(resumed.operation?.status).toBe("COMMITTED");
