@@ -44,4 +44,22 @@ describe("reviewer similarity", () => {
       damping: 1 / Math.sqrt(3),
     });
   });
+
+  it("includes exact eighty-percent edges and damps a three-reviewer chain", () => {
+    const votes = Array.from({ length: 10 }, (_, index) => [
+      { reviewerId: "a", placeId: `chain-${index}`, value: 1 as const },
+      { reviewerId: "b", placeId: `chain-${index}`, value: index < 8 ? 1 as const : -1 as const },
+      { reviewerId: "c", placeId: `chain-${index}`, value: index < 6 ? 1 as const : -1 as const },
+    ]).flat();
+
+    expect(buildReviewerClusters(votes)).toEqual([{
+      clusterId: "cluster:a|b|c",
+      reviewerIds: ["a", "b", "c"],
+      damping: 0.5773502691896258,
+      edges: [
+        { leftReviewerId: "a", rightReviewerId: "b", overlap: 10, agreement: 0.8 },
+        { leftReviewerId: "b", rightReviewerId: "c", overlap: 10, agreement: 0.8 },
+      ],
+    }]);
+  });
 });
