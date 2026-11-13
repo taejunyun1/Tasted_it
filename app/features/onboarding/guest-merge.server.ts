@@ -52,18 +52,7 @@ export async function mergeGuestTasteSessionFromRequest(
         activeSessionConditions(sessionId, now),
         sql`${guestTasteBadges.badgeId} in (select value from json_each(${VALID_BADGE_IDS_JSON}))`,
       )),
-  ).onConflictDoUpdate({
-    target: [
-      userTasteBadges.userId,
-      userTasteBadges.badgeId,
-      userTasteBadges.source,
-    ],
-    set: {
-      score: sql`max(${userTasteBadges.score}, excluded.score)`,
-      evidenceJson: ONBOARDING_EVIDENCE,
-      updatedAt: now,
-    },
-  });
+  ).onConflictDoNothing();
   const markMerged = db.update(guestTasteSessions)
     .set({ mergedUserId: userId, updatedAt: now })
     .where(activeSessionConditions(sessionId, now));
