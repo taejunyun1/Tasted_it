@@ -35,6 +35,31 @@ describe("auth entry href and field retention", () => {
     expect(authEntryHref("/login", "/")).toBe("/login");
   });
 
+  it("canonicalizes equivalent SSR and browser queries without losing values or duplicates", () => {
+    const raw = "?bbox=126.80,35.10,127.00,35.25&q=라멘%20가게&badge=food-ramen&badge=style-market&literal=a%2Bb&space=a+b";
+    const serialized = `?${new URLSearchParams(raw)}`;
+    for (const entry of ["/login", "/signup"] as const) {
+      expect(authEntryHref(entry, "/places", raw)).toBe(authEntryHref(entry, "/places", serialized));
+      const href = new URL(authEntryHref(entry, "/places", raw), "https://retaste.test");
+      const returnTo = new URL(href.searchParams.get("returnTo")!, href);
+      expect(returnTo.pathname).toBe("/places");
+      expect([...returnTo.searchParams]).toEqual([...new URLSearchParams(raw)]);
+      expect(returnTo.searchParams.get("literal")).toBe("a+b");
+      expect(returnTo.searchParams.get("space")).toBe("a b");
+    }
+  });
+
+  it("keeps unsafe return paths rejected and data endpoints canonicalized", () => {
+    for (const path of ["//evil.test/places", "/places/%252e%252e/admin", "/auth/callback", "/places/%255c%255cevil"]) {
+      expect(authEntryHref("/login", path, "?bbox=1,2,3,4")).toBe("/login");
+    }
+    const entry = new URL(authEntryHref("/login", "/places.data", "?bbox=1,2,3,4&_routes=routes%2Fplace-list"), "https://retaste.test");
+    const destination = new URL(entry.searchParams.get("returnTo")!, entry);
+    expect(destination.pathname).toBe("/places");
+    expect(destination.searchParams.get("bbox")).toBe("1,2,3,4");
+    expect(destination.searchParams.has("_routes")).toBe(false);
+  });
+
   it("keeps submitted login and signup fields on 400", () => {
     expect(retainedAuthFields({ email: "keep@example.test", displayName: "보관" })).toEqual({
       email: "keep@example.test",
