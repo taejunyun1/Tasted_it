@@ -173,5 +173,5 @@ it("chunks calibration reads for 101 reviewer identities within the D1 binding l
   }
   const {refreshReviewerTrust}=await import("../../app/features/ratings/reviewer-trust.server");
   await refreshReviewerTrust(db,{now});
-  expect(await recomputePlaceRating(db,{placeId,now})).toMatchObject({reviewerSampleCount:101,reviewerRawWeight:101});
+  expect(await recomputePlaceRating(db,{placeId,now})).toMatchObject({userSampleCount:0,reviewerSampleCount:101,reviewerRawWeight:101,reviewerCombinedWeight:101,reviewerWeightShare:1,overallScore:98});
 });
