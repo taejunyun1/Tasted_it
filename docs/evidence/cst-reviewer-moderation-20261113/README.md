@@ -62,3 +62,18 @@ pnpm exec vitest run tests/unit/reviewer-visit-components.test.ts tests/unit/rev
 
 - native 검수 400 뒤 사유가 빈 값이 되는 P2를 기존 사유 보존 기대값으로 RED 재현했다. 서버가 길이를 검증한 동일 리뷰·동일 version의 validation400에만 최대 500자 사유를 React 기본 escaping으로 복원한다. 권한 실패·409·다른 카드·변경 version과 checkbox는 승계하지 않는다. 보완 후 desktop/mobile native 2건 PASS(23.0초), 해당 컴포넌트 단위 5건 PASS(HTML escape·500/501자·다른 카드/version 포함). 기존 pointer 및 #365 원인 미확정 경계는 그대로다.
 - CI의 `synthetic-beta-200.test.ts`는 일반 회원의 본인 자료 조회 허용 전 계약인 GET403을 기대했다. 일반 회원 6명의 GET200에서도 본인 history·장소/카테고리·위조 notice가 비어 있고 실제 존재하는 타인의 PENDING 방문·사진 권리 메타데이터가 반환되지 않음을 확인한다. 정상 입력의 신규 제출403/활동 리뷰어 필수, 타인 철회403/소유자 필수, 전후 리뷰·사진·전이·cleanup·투표·제안 개수와 타인 자료 불변을 검증한다. 강등 소유자 본인 철회 허용과 기존 부정·abuse·viewer 시험은 유지했다. 해당 합성 integration 단독 1건 PASS(10.64초); 이전 CI의 534 PASS를 새 실행 수로 합산하지 않는다.
+
+## 실행 checkpoint와 시각 출처
+
+[verification.json](verification.json)에 실행 당시 checkout의 전체 SHA·dirty 여부·후속 동일 소스 보존 SHA·UTC/KST 시각을 각각 기록했다. 다음 과거 실행의 환경은 모두 `LOCAL_DIRTY_SYNTHETIC`이다. 후속 보존 commit이 당시 checkout이었다거나 최종 push head를 한 번에 전체 검증한 것으로 해석하지 않는다.
+
+| 실행 | 실제 checkout SHA (dirty=true) | 후속 소스 보존 SHA | 종료 결과 로그 시각 UTC / KST |
+| --- | --- | --- | --- |
+| 당시 검수 6 PASS | `7a252a41e392dedc17e46247a1d0eadda9aaf292` | UI/E2E: `ad9a12321572590d773b2e0e787b72f0a64508cb` | 2026-11-13 13:52:35.644984 / 22:52:35.644984 |
+| 사유 보존 RED 1 | `ad9a12321572590d773b2e0e787b72f0a64508cb` | runtime은 해당 SHA, 보존 기대값을 추가한 시험 변경은 미커밋 상태 | 2026-11-13 14:03:46.817061 / 23:03:46.817061 |
+| 사유 보완 native 2 PASS | `ad9a12321572590d773b2e0e787b72f0a64508cb` | UI/E2E: `23991c7f6e0125d7eb7b88a24afca281e7c49931` | 2026-11-13 14:05:47.173432 / 23:05:47.173432 |
+| 합성 계약 integration 1 PASS | `ad9a12321572590d773b2e0e787b72f0a64508cb` | 시험: `23991c7f6e0125d7eb7b88a24afca281e7c49931` | 2026-11-13 14:08:04.947119 / 23:08:04.947119 |
+
+위 시각은 결과 로그의 마지막 mtime이며 프로세스 exit 별도 계측값이 아니다. 첫 RED는 비공개 ignored trace와 로컬 결과 로그로 보존했으며 `verification.json`에는 비민감 실패 조건만 남겼다. 보완 후 두 UI 단위 파일은 합계 11 PASS였다.
+
+최신 main #389 `f0ca8e0`까지 보존 통합한 clean checkpoint `a61050f69d2d1a2d3899260ad97789171cd743f0`에서는 typecheck/build를 별도로 완료했다. 이 두 명령은 프로세스 완료 시각을 계측했으며 build 종료는 UTC 2026-11-13 14:11:31.027653 / KST 23:11:31.027653이다. JSON의 `compileRuns`에 시작/종료·exitCode·clean 여부를 기록했다. 이 뒤 증거 문서 추가는 제품 소스 변경이 아니다.
