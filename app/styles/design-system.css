@@ -937,6 +937,14 @@
   padding-inline:max(var(--layout-gutter),calc((100vw - var(--layout-max))/2));
 }
 
+@media(max-width:760px){
+  .site-head{gap:var(--space-1)}
+  .site-head .site-head__nav{width:auto;overflow:visible;white-space:nowrap;padding-bottom:0;gap:var(--space-1);flex:none}
+  .site-head .site-head__primary{gap:var(--space-1)}
+  .site-head .brand,.site-head .site-menu{flex:none}
+  .site-head .site-menu summary{width:var(--control-height);height:var(--control-height)}
+}
+
 .site-footer{
   padding:var(--space-8) max(var(--layout-gutter),calc((100vw - var(--layout-max))/2));
 }
