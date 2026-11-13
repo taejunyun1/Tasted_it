@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { identityKey, photoObjectKey, tempEntrySchema, verifiedCoordinates } from "../../app/features/temp-catalog/temp-catalog";
 import { assertNoImageMetadata } from "../../scripts/build-temp100-public.mjs";
+import { readTempForm } from "../../app/features/temp-catalog/temp-catalog-http";
 
 describe("TEMP public boundary", () => {
+  it("bounds unadvertised body bytes and rejects duplicated controls", async () => {
+    const oversized = new Request("https://example.test", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `intent=${"x".repeat(2 * 1024 * 1024)}` });
+    expect(oversized.headers.has("Content-Length")).toBe(false);
+    await expect(readTempForm(oversized)).rejects.toThrow("TEMP_REQUEST_TOO_LARGE");
+    await expect(readTempForm(new Request("https://example.test", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "intent=stage&intent=publish" }))).rejects.toThrow("TEMP_FORM_INVALID");
+  });
   it("matches normalized identity while refusing fake coordinates", () => {
     expect(identityKey({ name: "식 당", address: "광주광역시 동구 길 1" })).toBe(identityKey({ name: "식당", address: "광주 동구 길 1" }));
     expect(identityKey({ name: "식당", address: "전남광주통합특별시 여수시 길 1" })).toBe(identityKey({ name: "식당", address: "전라남도 여수시 길 1" }));

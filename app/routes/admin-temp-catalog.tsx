@@ -4,6 +4,7 @@ import type { Route } from "./+types/admin-temp-catalog";
 import { requireAdmin, readSessionId } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getAdminOperation } from "../features/operations/admin-operation.server";
+import { readTempForm } from "../features/temp-catalog/temp-catalog-http";
 import { createNaverLocalSearchAdapter } from "../features/candidates/naver-local-search.server";
 import { commitTempPublication, confirmTempCoordinateEvidence, geocodeNextTempEntry, prepareTempPublication, stageTempCatalog, tempCatalogStatus } from "../features/temp-catalog/temp-catalog.server";
 
@@ -23,8 +24,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const admin = await requireAdmin(request);
   if (!isSameOriginMutation(request)) return data({ ok: false, error: "동일 사이트에서 다시 실행해 주세요." }, { status: 403 });
-  if (Number(request.headers.get("Content-Length") ?? 0) > 2 * 1024 * 1024) return data({ ok: false, error: "파일은 2MiB 이하여야 합니다." }, { status: 413 });
-  const form = await request.formData();
+  let form: FormData;
+  try { form = await readTempForm(request); }
+  catch (error) { return data({ ok: false, error: error instanceof Error && error.message === "TEMP_REQUEST_TOO_LARGE" ? "요청은 2MiB 이하여야 합니다." : "입력 형식을 확인해 주세요." }, { status: error instanceof Error && error.message === "TEMP_REQUEST_TOO_LARGE" ? 413 : 400 }); }
   const intent = String(form.get("intent") ?? "");
   const now = new Date().toISOString(), batchId = String(form.get("batchId") ?? "");
   try {
