@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("admin CSV validates, previews a server operation and imports a draft", async ({ context, page }, testInfo) => {
+test("admin CSV previews validated rows and requires recent authentication to commit", async ({ context, page }, testInfo) => {
   const base = process.env.BASE_URL ?? "http://127.0.0.1:5173";
   await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: base }]);
   await page.goto("/admin/import");
@@ -18,6 +18,6 @@ test("admin CSV validates, previews a server operation and imports a draft", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: `docs/evidence/admin-csv-p0-20261114/${testInfo.project.name}-preview.png`, fullPage: true });
   await page.getByRole("button", { name: "전체 반영하기" }).click();
-  await expect(page.getByText("1개 장소를 반영했습니다.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "관리자 재인증 후 계속" })).toBeVisible();
   expect((await page.request.get(`/places/${slug}`)).status()).toBe(404);
 });

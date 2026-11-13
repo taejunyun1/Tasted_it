@@ -9,7 +9,7 @@
 - `vitest run --config vitest.workers.config.ts tests/integration/admin-import-safety.test.ts tests/integration/integrity.server.test.ts`: 16 passed. 교차 출처·변조 confirm, 공개 우회, 장소/분류/연결 stale, 전체 rollback, replay 단일 감사, 다른 사건의 표, 동시 사건 종결, B02 snapshot을 검증.
 - `vitest run tests/unit/place-import.test.ts tests/unit/week1-data.test.ts tests/unit/design-system-contract.test.ts tests/unit/h1-scale-contract.test.ts`: 12 passed. CSV 한도·중복·admin 공개 거절, 기존 offline seed와 화면 계약 보존.
 - `tsc -b`: passed.
-- `BASE_URL=http://127.0.0.1:5185 playwright test tests/e2e/admin-import-safety.spec.ts`: desktop/mobile 2 passed. 로컬 Worker의 격리된 synthetic DB에서 invalid CSV → 서버 preview → DRAFT 반영 → 공개 경로 404를 확인.
+- `BASE_URL=http://127.0.0.1:5185 playwright test tests/e2e/admin-import-safety.spec.ts`: desktop/mobile 2 passed. 로컬 Worker의 격리된 synthetic DB에서 invalid CSV → 서버 preview → 기존 세션의 재인증 요구 및 공개 경로 404를 확인. 별도 fresh-assurance fixture에서도 DRAFT 반영 → 공개 404를 확인했다.
 - 화면을 직접 확인했고 horizontal overflow 없음. [desktop](./chromium-preview.png), [mobile](./mobile-chromium-preview.png).
 - `pnpm audit`: 기존 lockfile 기준 critical 1 / high 15 / moderate 26 / low 4. 이 변경은 의존성·lockfile을 변경하지 않는다.
 
