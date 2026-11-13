@@ -24,10 +24,31 @@ function readCookie(request: Request, name: string): string | null {
 
   for (const part of cookie.split(";")) {
     const [key, ...value] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(value.join("="));
+    if (key === name) {
+      try { return decodeURIComponent(value.join("=")); } catch { return null; }
+    }
   }
 
   return null;
+}
+
+// Server-only bearer identifier. Never serialize it into loader data or audit payloads.
+export function readSessionId(request: Request): string | null {
+  return readCookie(request, SESSION_COOKIE);
+}
+
+export async function requireAdminSession(request: Request) {
+  let user: SessionUser;
+  try { user = await requireAdmin(request); } catch (error) {
+    if (error instanceof Response) {
+      error.headers.set("Cache-Control", "private, no-store");
+      error.headers.set("Vary", "Cookie");
+    }
+    throw error;
+  }
+  const sessionId = readSessionId(request);
+  if (!sessionId) throw redirect("/login", { headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
+  return { user, sessionId };
 }
 
 function sessionCookie(id: string, secure: boolean): string {
