@@ -936,11 +936,14 @@
 .site-head{
   padding-inline:max(var(--layout-gutter),calc((100vw - var(--layout-max))/2));
 }
+.site-head .site-menu__primary-link{display:none}
 
 @media(max-width:760px){
   .site-head{gap:var(--space-1)}
   .site-head .site-head__nav{width:auto;overflow:visible;white-space:nowrap;padding-bottom:0;gap:var(--space-1);flex:none}
-  .site-head .site-head__primary{gap:var(--space-1)}
+  .site-head .site-head__primary{display:none}
+  .site-head .site-menu__primary-link{display:flex;min-height:var(--control-height)}
+  .site-head .site-menu__panel{max-height:calc(100% - 64px - var(--space-3));overflow-y:auto}
   .site-head .brand,.site-head .site-menu{flex:none}
   .site-head .site-menu summary{width:var(--control-height);height:var(--control-height)}
 }

@@ -39,6 +39,9 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <details className="site-menu" key={location.pathname}>
           <summary role="button" aria-label="메뉴"><span aria-hidden="true">☰</span></summary>
           <div className="site-menu__panel">
+            <Link className="site-menu__primary-link" to="/places">맛집 리스트</Link>
+            <Link className="site-menu__primary-link" to="/courses">코스 추천</Link>
+            <Link className="site-menu__primary-link" to="/me">나의 취향</Link>
             {user ? <>
               <span className="session-status" aria-label={`로그인됨 · ${user.displayName}`}><i aria-hidden="true" />로그인됨 · {user.displayName}</span>
               <Link to="/suggestions/new">장소 제안</Link>

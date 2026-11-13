@@ -59,7 +59,6 @@ test("header controls fit and remain keyboard reachable at 320px, CSS enlargemen
         renderedFonts[selector] = (await cdp.send("CSS.getPlatformFontsForNode", { nodeId })).fonts;
       }
       const nav = await bounds(header.locator(".site-head__nav"));
-      console.log("HEADER_LAYOUT_DIAGNOSTIC", JSON.stringify({ platform: process.platform, user, width, zoom, fontMode, closed, nav, renderedFonts }));
       expect.soft(closed.brand.x).toBeGreaterThanOrEqual(0);
       expect.soft(closed.brand.right).toBeLessThanOrEqual(width);
       expect.soft(closed.menu.x).toBeGreaterThanOrEqual(0);
@@ -75,6 +74,7 @@ test("header controls fit and remain keyboard reachable at 320px, CSS enlargemen
       await expect(header.locator("details")).toHaveAttribute("open", "");
       const { nodeId: mobileLinkNode } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: ".site-menu__primary-link" });
       if (mobileLinkNode) renderedFonts[".site-menu__primary-link"] = (await cdp.send("CSS.getPlatformFontsForNode", { nodeId: mobileLinkNode })).fonts;
+      console.log("HEADER_LAYOUT_DIAGNOSTIC", JSON.stringify({ platform: process.platform, user, width, zoom, fontMode, closed, nav, renderedFonts }));
       const names = ["맛집 리스트", "코스 추천", "나의 취향", ...(user === "anonymous" ? ["로그인", "회원가입"] : ["장소 제안", "리뷰어 평가"])];
       const open: Record<string, Awaited<ReturnType<typeof bounds>>> = {};
       for (const name of names) {
