@@ -21,7 +21,7 @@
 
 기존 감사기록이 지정한 별도 운영ADMIN만 임시30분세션1개로 ADMIN홈/재인증안내/권한목록/TEMP목록 읽기와 RSI단1회를 확인한다. 실제 로그인대체·가짜권한상승·메일발송·새ADMIN생성0. 이 세션에는 최근인증을부여하지않아위험확정이거절되는지도확인한다. 성공/실패모두exact세션과전용guest를정리하고잔존0을확인한다. 세션/쿠키/이메일원문은출력하지않는다.
 
-총 수동HTTP160회 이내(좌표100포함, browser정적자산/Worker내부RSI6GET별도), D1 read60회이내, backup1·migration3·R2upload23/검증read23·공개대상100·RSI1·임시ADMIN1·guest1. NAVER호출비용은기존quota에서최대100회이며한도증액/WorkersAI/메일발송0. 실패하면자동재시도·범위확대하지않고같은대상의실제상태를조회한다.
+총 수동HTTP160회 이내(좌표100포함, browser정적자산/Worker내부RSI6GET별도), 운영자 D1 read명령60회이내(Worker 내부 쿼리는 별도), backup1·migration3·R2upload23/실제 바이트 검증read23·공개대상100·RSI1·임시ADMIN1·guest1. NAVER호출비용은기존quota에서최대100회이며한도증액/WorkersAI/메일발송0. 실패하면자동재시도·범위확대하지않고같은대상의실제상태를조회한다.
 
 ## 복구·보존
 
