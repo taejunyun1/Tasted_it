@@ -49,7 +49,7 @@
 ### 선행 작업 연결
 
 - [#355 / PR #356](https://github.com/taejunyun1/Tasted_it/pull/356): 지도/목록 조건 보존 RED→GREEN과 desktop/mobile2/2, 필수4CI·독립검토 후 `b1bc5b7` 병합. 운영 반영은 별도 검증.
-- [#357](https://github.com/taejunyun1/Tasted_it/issues/357): R4 앱 의존성 변경으로 고정 native artifact 거절, [PR #362](https://github.com/taejunyun1/Tasted_it/pull/362) 원본 이미지·핀을 유지한 재현 fixture 분리. 최종903b918 actual 두 세대 PROMOTED·실비0. 고정 합성기전이며 운영 효과 아님.
+- [#357](https://github.com/taejunyun1/Tasted_it/issues/357): R4 앱 의존성 변경으로 고정 native artifact 거절, [PR #362](https://github.com/taejunyun1/Tasted_it/pull/362) 원본 이미지·핀을 유지한 재현 fixture 분리. actual checkpoint903b918 actual 두 세대 PROMOTED·실비0. 고정 합성기전이며 운영 효과 아님.
 - [#358](https://github.com/taejunyun1/Tasted_it/issues/358): 운영 Zod 보안 최소 패치·경계 회귀·audit, PR #361 `64898aa` 병합(필수4CI/독립검토), production0/dev포함46 유지.
 - [#359](https://github.com/taejunyun1/Tasted_it/issues/359): 리뷰어 관리자 승인·권리·직접 사진 URL gate·집계 계약(관련 기능 공개의 P0).
 - [#360](https://github.com/taejunyun1/Tasted_it/issues/360): DEC-01~08 정책/수용 입력 및 기술 적용 기록.
