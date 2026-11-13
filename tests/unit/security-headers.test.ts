@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applySecurityHeaders, CONTENT_SECURITY_POLICY, SECURITY_HEADERS } from "../../app/features/http/security-headers";
+import { applySecurityHeaders, CONTENT_SECURITY_POLICY, SECURITY_HEADERS, withSecurityHeaders } from "../../app/features/http/security-headers";
 
 describe("applySecurityHeaders", () => {
   it("adds baseline headers without overwriting an existing nosniff", () => {
@@ -24,6 +24,18 @@ describe("applySecurityHeaders", () => {
     expect(csp).not.toContain("nelo.navercorp.com");
     expect(headers.get("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
     expect(headers.get("Permissions-Policy")).toContain("geolocation=()");
+  });
+
+  it("prevents shared caching of every admin HTML, data, redirect and error response", () => {
+    for (const path of ["/admin", "/admin.data", "/admin/identities", "/admin/import.data", "/admin/reauth", "/admin/%ZZ", "/student/tasks/1"]) {
+      for (const status of [200, 302, 403, 500]) {
+        const response = withSecurityHeaders(new Response(null, { status, headers: { "Cache-Control": "public, max-age=86400", Vary: "Accept-Encoding" } }), new Request(`https://example.test${path}`));
+        expect(response.headers.get("Cache-Control")).toContain("no-store");
+        expect(response.headers.get("Vary")).toBe("Accept-Encoding, Cookie");
+      }
+    }
+    const publicResponse = withSecurityHeaders(new Response(null, { headers: { "Cache-Control": "public, max-age=60" } }), new Request("https://example.test/places"));
+    expect(publicResponse.headers.get("Cache-Control")).toBe("public, max-age=60");
   });
 });
 

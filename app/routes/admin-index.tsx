@@ -58,7 +58,7 @@ export default function AdminIndex({ loaderData }: Route.ComponentProps) {
   return <main id="main" className="admin-home">
     <header className="admin-home__header">
       <div><p className="admin-home__eyebrow">RE:TASTE / ADMIN</p><h1>운영 홈</h1><p>현재 집계와 관리 가능한 작업을 한곳에서 확인합니다.</p></div>
-      <Link className="admin-home__primary" to="/admin/place-operations">장소 검수 열기 <span aria-hidden="true">↗</span></Link>
+      <div><Link className="admin-home__primary" to="/admin/place-operations">장소 검수 열기 <span aria-hidden="true">↗</span></Link><p><Link to="/admin/temp-catalog">TEMP100 관리</Link> · <Link to="/admin/identities">관리자·세션 관리</Link></p></div>
     </header>
     <section className="admin-home__snapshot" aria-labelledby="snapshot-title">
       <div className="admin-home__section-heading"><div><h2 id="snapshot-title">현재 운영 집계</h2><p>출처: 서비스 DB의 장소·검수 대기열·운영 경보</p></div><span className={`admin-home__state${state === "UNAVAILABLE" ? " admin-home__state--unknown" : ""}`}>{state === "AVAILABLE" ? "집계 조회 완료" : "집계 미확인"}</span></div>

@@ -22,6 +22,7 @@ describe("student response privacy at the Worker boundary", () => {
     "/Admin/Students",
     "/Student.data",
     "/Admin/%53tudents.data",
+    "/admin/students-report",
   ])("overrides cacheable login redirects for %s", (path) => {
     const response = new Response(null, {
       status: 302,
@@ -48,7 +49,7 @@ describe("student response privacy at the Worker boundary", () => {
     expect(result.headers.get("Cache-Control")).toBe("no-store, private");
   });
 
-  test.each(["/places", "/students", "/student-guide", "/admin/students-report"])(
+  test.each(["/places", "/students", "/student-guide", "/admin-tools"])(
     "preserves unrelated cache policy for %s",
     (path) => {
       const result = withSecurityHeaders(
