@@ -46,7 +46,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
               <span className="session-status" aria-label={`로그인됨 · ${user.displayName}`}><i aria-hidden="true" />로그인됨 · {user.displayName}</span>
               <Link to="/suggestions/new">장소 제안</Link>
               {user.role === "REVIEWER" && <Link to="/reviewer/ratings">리뷰어 평가</Link>}
-              {user.role === "ADMIN" && <Link to="/admin/place-operations">어드민</Link>}
+              {user.role === "ADMIN" && <Link to="/admin">어드민</Link>}
               {user.role === "ADMIN" && loaderData.studentWorkspaceEnabled && <Link to="/admin/students">학생 계정과 업무</Link>}
               {loaderData.hasStudentWorkspace && <Link to="/student">학생 작업공간</Link>}
               <Form method="post" action="/logout"><button type="submit">로그아웃</button></Form>
