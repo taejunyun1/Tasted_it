@@ -3,7 +3,7 @@
 - 담당: Jay/Codex
 - 추적: [Issue #319](https://github.com/taejunyun1/Tasted_it/issues/319), [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320), [설계 PR #305](https://github.com/taejunyun1/Tasted_it/pull/305)
 - 범위: R1 사건·계보·원장·기억, R2 고정 평가, R3 로컬 합성 격리·broker·수신자 오류 한 건의 복구 감독기, R4 고정 두 세대 감독기
-- 상태: R4의 실제 두 세대 수용은 현재 **HOLD**다. 아래 두 실제 실패와 단위 검증을 구분한다. R1의 승인 기준은 [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320)의 병합 범위다. R3 로컬 합성 구현은 아래 별도 절에 기록하며 운영 GO나 자기개선 효과로 승격하지 않는다. 각 후속 단계의 승인 기준은 해당 병합 PR이다.
+- 상태: R4는 [PR #328](https://github.com/taejunyun1/Tasted_it/pull/328) `d690b3d`로 2026-11-05 02:33 KST 병합됐다. 아래 10/23 HOLD는 당시 실패 이력이다. 현재 재검증과 앱 의존성 변경 후의 native artifact 분리 작업은 아래 11/13 기록·[PR #362](https://github.com/taejunyun1/Tasted_it/pull/362)를 따른다. R1의 승인 기준은 [구현 PR #320](https://github.com/taejunyun1/Tasted_it/pull/320)의 병합 범위다. R3 로컬 합성 구현은 아래 별도 절에 기록하며 운영 GO나 자기개선 효과로 승격하지 않는다. 각 후속 단계의 승인 기준은 해당 병합 PR이다.
 
 ## 이번 단계에서 만드는 것
 
@@ -184,3 +184,14 @@ R5는 실모델과 서로 다른 개발 사건의 F1/F2 대조 효과, 고정 �
 각 흐름의 합성 정산을 별도로 보존하며 합계14,987은 실제 계정 예산이나 원격 통합 원장의 검증이 아니다. 두 흐름 모두 같은 원본 pin·빈 K/lesson0·고정 corpus를 사용했고 실제 지출0이다. 각 코드 버전의 controller15·evaluator16, 합집합21 실파일 SHA를 별도 읽기로 대조했다. 이 closure 일치는 실패한 두 세대 수용을 성공으로 바꾸지 않는다.
 
 `450dd93`의 별도 검증은 unit1회 1,561 PASS/52 SKIP(167파일), typecheck/build 통과, production audit0/dev포함 기존35건이다. 실제 opt-in을 건너뛴 기본 단위 결과를 실제 컨테이너 성공으로 해석하지 않는다. 두 번째 actual은 01:17:05 KST 시작/24.64초, default unit은 01:17:37 시작/31.55초로 실행 시간이 겹치지 않았다. 이 시각 관계만으로 시간 초과의 원인을 단정하지 않는다.
+
+
+### 2026-11-13 재검증과 고정 native 의존성 분리
+
+기존 [#328](https://github.com/taejunyun1/Tasted_it/pull/328)의 PR 최종 CI `41863632717`과 병합 main CI `41878572018`은 모두4잡 성공이다. 11/04 보고된 `COMPLETED/TWO_GENERATIONS_PROMOTED`와 과거 Docker context·FP64 경계 해결은 Issue #327/#334 및 PR 본문에 남아 있다. 당시 `/private/tmp`의 c9 원자료는 이번 확인에서 찾지 못했으므로 현재 직접 검증과 구분한다.
+
+현재 main471a3eb에서 controller/self-improve/promotion 회귀116 PASS/6 opt-in SKIP를 확인했다. 이어 사전 선언한 단일 actual은 `BLOCKED/GENERATION_FAILED/RSI_NATIVE_ARTIFACT_MISMATCH`로 실행 전 차단됐다(1.00초, 세대0·모델호출0·합성정산0·재시도0). #333에서 추가된 **앱 의존성**이 package/lock bytes를 바꾼 것이 원본 native manifest와 불일치했다. 죽은 Docker socket이나 CLOCK 재발이 아니며 변조 검증이 정상 거절한 것이다. 이 실패 자료는 primary checkout의 gitignored `.superpowers/operations/rsi-r4-verify-20261113-75e6daf0-2b7c-4070-8fad-e672f5fd4588`에 보존했다.
+
+[후속 #357 / PR #362](https://github.com/taejunyun1/Tasted_it/pull/362)은 원본 git741e919의 package/lock을 `scripts/rsi/fixtures/native-runtime/`에 byte 그대로 보존하고, 원본 manifest의 SHA와 별도 내부 고정 SHA를 모두 확인한다. canonical/no-follow·정규파일·bounded read·identity 검증은 Docker verify/build보다 먼저 수행한다. 앱 package/lock과 fixture2개는 controller/evaluator closure에 각각 계속 결속한다. 원본 image·manifest·runtime/oracle·판정/자원한도는 그대로이며 pull/rebuild·유료모델·운영변경은0이다. 원본 고정 이미지 안의 역사적 의존성 위험은 유지보수 대상으로 남으며 앱 production Zod 패치(#361)와 혼동하지 않는다.
+
+최종 코드 `903b918`(#356/#361 main 통합, 운영 Zod4.6.6 독립 frozen/offline 설치)에서 새 run-plan을 사전 선언한 **단일 actual**이 18.34초에 `COMPLETED/TWO_GENERATIONS_PROMOTED`로 통과했다. gen1 5콜·10,635 합성 MICRO_USD CONFIRMED → fresh exact g1 → gen2 3콜·6,108 CONFIRMED, 총8콜·16,743 합성·실비0, 두 세대 PROMOTED·failureCode null·receiptUncertain false다. 이 최종 버전 실행은1회이며 앞선 실패와 실행하지 않은 중간 plan을 별도로 보존했다. primary `.superpowers/operations/rsi-r4-native-fixture-final-20261113-dbe8ef77-273c-4233-ac8d-cc7fa5ab2082`에 원장·run-plan/digests·receipt를 지속 보관한다. 수정 버전 집중215 PASS/53 SKIP·전체1613 PASS/53 SKIP(maxWorkers2), typecheck/build·독립 보안 리뷰를 확인했다. 최종 통합 뒤 집중215/53·typecheck를 다시 확인했다. 파일/fixture/시계·권한·핀을 바꿔 통과시키지 않고 실패는 원장·receipt와 함께 보존한다. `LOCAL_SYNTHETIC` 고정 fixture 성공은 R5 실모델 자기개선 효과나 R6 운영 자율복구의 증거가 아니다.
