@@ -85,5 +85,5 @@ export function buildPlaceImportBatch(database: D1Database, operationId: string,
     statements.push(database.prepare("UPDATE place_categories SET is_primary=0 WHERE place_id=?").bind(placeId));
     statements.push(database.prepare("INSERT INTO place_categories (place_id,category_id,is_primary) VALUES (?,?,1) ON CONFLICT (place_id,category_id) DO UPDATE SET is_primary=1").bind(placeId, category.id));
   }
-  return { checks, statements, result: { imported: snapshot.entries.length } };
+  return { checks, statements, result: { imported: snapshot.entries.length, placeIds: snapshot.entries.map((entry) => entry.placeId) } };
 }
