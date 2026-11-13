@@ -28,11 +28,10 @@ export async function upsertBetaUser(
       .update(users)
       .set({
         displayName: input.displayName.trim(),
-        role,
         updatedAt: input.now,
       })
       .where(eq(users.id, existing.id));
-    return { id: existing.id, role };
+    return { id: existing.id, role: existing.role };
   }
 
   await db.insert(users).values({
