@@ -1,0 +1,116 @@
+{
+  "baseMainSha": "4ae8abf75554d9b4360118c7e57353209dd9c464",
+  "runs": [
+    {
+      "checkoutSha": "1f58392d4fc60bd7f968a3239361734b70865dc1",
+      "checkoutDirty": false,
+      "environment": "LOCAL_SYNTHETIC",
+      "exitCode": 1,
+      "startedAtUtc": "2026-11-13T16:26:56.162055+00:00",
+      "endedAtUtc": "2026-11-13T16:27:16.950625+00:00",
+      "endedAtKst": "2026-11-14T01:27:16.950625+09:00",
+      "command": [
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "tests/e2e/guest-save-merge.spec.ts",
+        "--project=chromium",
+        "-g",
+        "waits for hydration"
+      ],
+      "timeSource": "process_completion_measured",
+      "name": "red",
+      "result": {
+        "expectedFailure": 1
+      }
+    },
+    {
+      "checkoutSha": "8ecade0189c15e282fcab62a5684210e01159387",
+      "checkoutDirty": false,
+      "environment": "LOCAL_SYNTHETIC",
+      "exitCode": 0,
+      "startedAtUtc": "2026-11-13T16:28:38.781262+00:00",
+      "endedAtUtc": "2026-11-13T16:29:08.436003+00:00",
+      "endedAtKst": "2026-11-14T01:29:08.436003+09:00",
+      "command": [
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "tests/e2e/guest-save-merge.spec.ts",
+        "-g",
+        "waits for hydration|guest saves survive|switching a saved"
+      ],
+      "timeSource": "process_completion_measured",
+      "name": "focused-green",
+      "result": {
+        "passed": 5,
+        "skipped": 1
+      }
+    },
+    {
+      "checkoutSha": "394618a74a179c423216600ef4897fcb4c1954b3",
+      "checkoutDirty": false,
+      "environment": "LOCAL_SYNTHETIC",
+      "exitCode": 0,
+      "startedAtUtc": "2026-11-13T16:30:48.204401+00:00",
+      "endedAtUtc": "2026-11-13T16:31:06.494563+00:00",
+      "endedAtKst": "2026-11-14T01:31:06.494563+09:00",
+      "command": [
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "tests/e2e/guest-save-merge.spec.ts",
+        "--grep",
+        "waits for hydration"
+      ],
+      "timeSource": "process_completion_measured",
+      "name": "capture-green",
+      "result": {
+        "passed": 2
+      }
+    },
+    {
+      "checkoutSha": "1dd5da59576c1360e772827e0acdae617005e7a3",
+      "checkoutDirty": true,
+      "environment": "LOCAL_SYNTHETIC",
+      "exitCode": 0,
+      "startedAtUtc": "2026-11-13T16:32:43.825021+00:00",
+      "endedAtUtc": "2026-11-13T16:33:04.291638+00:00",
+      "endedAtKst": "2026-11-14T01:33:04.291638+09:00",
+      "command": [
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "tests/e2e/guest-save-merge.spec.ts",
+        "--grep",
+        "waits for hydration"
+      ],
+      "timeSource": "process_completion_measured",
+      "name": "visual-final",
+      "result": {
+        "passed": 2
+      },
+      "dirtyScope": "전용 증거 파일만 untracked이며 app/test source는 모두commit된상태"
+    }
+  ],
+  "applicationSourceSha": "8ecade0189c15e282fcab62a5684210e01159387",
+  "typecheck": {
+    "result": "PASS",
+    "sourceEquivalentSha": "8ecade0189c15e282fcab62a5684210e01159387",
+    "note": "컴포넌트 수정 후 commit 전에 실행했고 이후 application source 변경은 없다."
+  },
+  "productionAuditVulnerabilities": 0,
+  "notes": [
+    "SSR entry 보류 상태에서 버튼 enabled인 기존 경계를 RED로 재현했다. #402 CI의 실제 native POST 여부는 UNKNOWN으로 유지한다.",
+    "초기 GET실패는 저장을 잠그고 별도 조회 재시도한다. 성공 saved/signedIn과ready를 함께 반영한다.",
+    "이후 POST실패나 응답유실은 현재선택을 보존하며, 실제서버 저장해제 뒤 응답을유실해도 동일unsave의도를 재시도했다.",
+    "첫 prehydration screenshot의 기본caret-hide가 남긴style속성 경고는caret initial로DOM을보존한 뒤 신규2case에서재발하지않았다.",
+    "각 실행은 별도 checkpoint이며 최종 문서 head의 단일 전체 suite 실행이 아니다.",
+    "운영 배포·원격 DB·실제 학생자료·메일·유료요청·의존성 변경은 없다. 원문trace는비공개ignored파일로만보존한다.",
+    "최종 SSR 화면은 entry를계속보류한채 실제font준비후촬영했다. caret initial을유지했고최종2case에서도hydration warning0을확인했다."
+  ]
+}
