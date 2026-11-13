@@ -66,10 +66,13 @@ export function compareSnapshots(expected, restored) {
   const valid = (snapshot) => snapshot?.quickCheck === "ok"
     && Array.isArray(snapshot.foreignKeys) && snapshot.foreignKeys.length === 0
     && snapshot.counts?.categories === 1 && snapshot.counts?.places === 1 && snapshot.counts?.links === 1
-    && Array.isArray(snapshot.rows) && snapshot.rows.length === 3;
+    && Array.isArray(snapshot.rows) && snapshot.rows.length === 3
+    && Array.isArray(snapshot.project?.schemaObjects) && snapshot.project.schemaObjects.length > 0
+    && Array.isArray(snapshot.project?.tables) && snapshot.project.tables.length > 0;
   if (!valid(expected) || !valid(restored)
     || JSON.stringify(expected.counts) !== JSON.stringify(restored.counts)
-    || digestBytes(JSON.stringify(expected.rows)) !== digestBytes(JSON.stringify(restored.rows))) {
+    || digestBytes(JSON.stringify(expected.rows)) !== digestBytes(JSON.stringify(restored.rows))
+    || JSON.stringify(expected.project) !== JSON.stringify(restored.project)) {
     throw new Error("RESTORE_VERIFICATION_FAILED");
   }
 }
@@ -87,6 +90,37 @@ function snapshotFromJson(output) {
     counts: blocks[2].results[0],
     rows: blocks[3].results,
   };
+}
+
+function projectManifest(database) {
+  const excluded = (name) => name.startsWith("sqlite_") || name.startsWith("_cf_") || name === "d1_migrations";
+  const objects = database.prepare("SELECT type,name,tbl_name AS tableName,sql FROM sqlite_schema WHERE type IN ('table','index','view','trigger') ORDER BY type,name,tbl_name").all()
+    .filter((object) => !excluded(object.name) && !excluded(object.tableName));
+  const schemaObjects = objects.map((object) => ({ type: object.type, name: object.name, tableName: object.tableName, sqlSha256: digestBytes(object.sql ?? "") }));
+  let canonicalBytes = 0;
+  const canonicalValue = (value) => {
+    if (value === null) return ["null"];
+    if (typeof value === "bigint") return ["integer", value.toString()];
+    if (typeof value === "number" && Number.isFinite(value)) return ["real", String(value)];
+    if (typeof value === "string") return ["text", value];
+    if (ArrayBuffer.isView(value)) return ["blob", Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString("base64")];
+    throw new Error("DOMAIN_VALUE_UNSUPPORTED");
+  };
+  const tables = objects.filter((object) => object.type === "table").sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0).map((table) => {
+    const quoted = `"${table.name.replaceAll('"', '""')}"`;
+    const statement = database.prepare(`SELECT * FROM ${quoted} LIMIT 100001`);
+    statement.setReadBigInts(true);
+    const rows = statement.all();
+    if (rows.length > 100000) throw new Error("DOMAIN_ROW_LIMIT");
+    const canonicalRows = rows.map((row) => {
+      const canonical = JSON.stringify(Object.keys(row).sort().map((key) => [key, canonicalValue(row[key])]));
+      canonicalBytes += Buffer.byteLength(canonical);
+      if (canonicalBytes > MAX_BACKUP_BYTES) throw new Error("DOMAIN_CANONICAL_BYTES_LIMIT");
+      return canonical;
+    }).sort();
+    return { name: table.name, rowCount: rows.length, rowDigest: digestBytes(JSON.stringify(canonicalRows)) };
+  });
+  return { excludedObjectNames: ["sqlite_*", "_cf_*", "d1_migrations (including owned indexes/triggers)"], schemaObjects, tables };
 }
 
 // The D1 authorizer rejects integrity_check. Check only an owned scratch copy;
@@ -114,7 +148,7 @@ async function copiedIntegrity(directory, runDirectory, label) {
   try {
     const rows = database.prepare("PRAGMA integrity_check").all();
     if (rows.length !== 1 || Object.values(rows[0])[0] !== "ok") throw new Error("COPIED_DATABASE_INTEGRITY_FAILED");
-    return { status: "ok", mode: "READ_ONLY_SCRATCH_COPY", copiedBytes };
+    return { status: "ok", mode: "READ_ONLY_SCRATCH_COPY", copiedBytes, project: projectManifest(database) };
   } finally { database.close(); }
 }
 
@@ -164,8 +198,10 @@ export async function runRehearsal() {
     writeNew(seed, SEED_SQL);
     local(sourceDirectory, "SEED_SOURCE", ["d1", "execute", "DB", "--local", "--file", seed]);
     const expected = snapshot(sourceDirectory, "SNAPSHOT_SOURCE");
-    compareSnapshots(expected, expected);
     const sourceIntegrity = await copiedIntegrity(sourceDirectory, runDirectory, "source");
+    expected.project = sourceIntegrity.project;
+    compareSnapshots(expected, expected);
+    writeNew(join(runDirectory, "project-source.json"), JSON.stringify(expected.project, null, 2), 0o400);
     const backup = join(runDirectory, "backup.sql");
     local(sourceDirectory, "EXPORT_BACKUP", ["d1", "export", "DB", "--local", "--output", backup]);
     chmodSync(backup, 0o600);
@@ -184,8 +220,10 @@ export async function runRehearsal() {
     writeNew(importFile, readVerifiedBackup(runDirectory, backup, backupSha256), 0o400);
     local(destinationDirectory, "IMPORT_RESTORED", ["d1", "execute", "DB", "--local", "--file", importFile]);
     const restored = snapshot(destinationDirectory, "SNAPSHOT_RESTORED");
-    compareSnapshots(expected, restored);
     const restoredIntegrity = await copiedIntegrity(destinationDirectory, runDirectory, "restored");
+    restored.project = restoredIntegrity.project;
+    compareSnapshots(expected, restored);
+    writeNew(join(runDirectory, "project-restored.json"), JSON.stringify(restored.project, null, 2), 0o400);
     const corrupt = join(runDirectory, "corrupt-backup.sql");
     writeNew(corrupt, Buffer.concat([backupBytes, Buffer.from("\nINVALID SYNTHETIC BACKUP;\n")]));
     const guards = [];
@@ -193,7 +231,16 @@ export async function runRehearsal() {
       try { readVerifiedBackup(runDirectory, file, backupSha256); throw new Error("INVALID_BACKUP_ACCEPTED"); }
       catch (error) { if (error.message !== code) throw error; guards.push({ name, status: "REJECTED_BEFORE_IMPORT", code }); }
     }
-    Object.assign(report, { status: "PASS", backupSha256, backupBytes: backupBytes.length, sourceRowDigest: digestBytes(JSON.stringify(expected.rows)), restoredRowDigest: digestBytes(JSON.stringify(restored.rows)), counts: restored.counts, quickCheck: restored.quickCheck, physicalIntegrity: { source: sourceIntegrity, restored: restoredIntegrity }, foreignKeyViolations: restored.foreignKeys.length, sourceMutationObserved: true, guards });
+    Object.assign(report, { status: "PASS", backupSha256, backupBytes: backupBytes.length, sourceRowDigest: digestBytes(JSON.stringify(expected.rows)), restoredRowDigest: digestBytes(JSON.stringify(restored.rows)), counts: restored.counts, quickCheck: restored.quickCheck, physicalIntegrity: {
+      source: { status: sourceIntegrity.status, mode: sourceIntegrity.mode, copiedBytes: sourceIntegrity.copiedBytes },
+      restored: { status: restoredIntegrity.status, mode: restoredIntegrity.mode, copiedBytes: restoredIntegrity.copiedBytes },
+    }, projectVerification: {
+      status: "MATCH", excludedObjectNames: expected.project.excludedObjectNames,
+      schemaObjectCount: expected.project.schemaObjects.length, domainTableCount: expected.project.tables.length,
+      sourceSchemaDigest: digestBytes(JSON.stringify(expected.project.schemaObjects)), restoredSchemaDigest: digestBytes(JSON.stringify(restored.project.schemaObjects)),
+      sourceDomainDataDigest: digestBytes(JSON.stringify(expected.project.tables)), restoredDomainDataDigest: digestBytes(JSON.stringify(restored.project.tables)),
+      domainRows: expected.project.tables.reduce((sum, table) => sum + table.rowCount, 0),
+    }, foreignKeyViolations: restored.foreignKeys.length, sourceMutationObserved: true, guards });
   } catch (error) {
     Object.assign(report, { status: "FAIL", failureCode: /^([A-Z0-9_]+)$/u.test(error.message) ? error.message : "LOCAL_REHEARSAL_FAILED" });
   }

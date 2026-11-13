@@ -73,7 +73,7 @@ describe("local-only D1 recovery rehearsal boundaries", () => {
   });
 
   it("fails on integrity, foreign keys, missing rows or changed restored content", () => {
-    const expected = { quickCheck: "ok", foreignKeys: [], counts: { categories: 1, places: 1, links: 1 }, rows: [{ kind: "category", id: "category", value: "synthetic" }, { kind: "link", id: "synthetic", value: "category" }, { kind: "place", id: "synthetic", value: "before" }] };
+    const expected = { quickCheck: "ok", foreignKeys: [], counts: { categories: 1, places: 1, links: 1 }, rows: [{ kind: "category", id: "category", value: "synthetic" }, { kind: "link", id: "synthetic", value: "category" }, { kind: "place", id: "synthetic", value: "before" }], project: { schemaObjects: [{ type: "table", name: "domain", tableName: "domain", sqlSha256: digestBytes("schema") }], tables: [{ name: "domain", rowCount: 1, rowDigest: digestBytes("data") }] } };
     expect(() => compareSnapshots(expected, structuredClone(expected))).not.toThrow();
     for (const changed of [
       { ...expected, quickCheck: "corrupt" },
