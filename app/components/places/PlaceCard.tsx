@@ -122,12 +122,13 @@ export function PlaceCard({ place, selected = false, distanceMeters, goldenPickA
         }
       }}>
         <div className="place-image">
-          {place.heroImageUrl ? <img src={place.heroImageUrl} alt="" /> : <span className="place-image__fallback"><i>{place.primaryCategory.emoji}</i>RE:TASTE PICK</span>}
+          {place.heroImageUrl ? <img src={place.heroImageUrl} alt="" /> : <span className="place-image__fallback"><i>{place.primaryCategory.emoji}</i>{place.tempCatalog ? "TEMP · 사진 미제공" : "RE:TASTE PICK"}</span>}
           <b>{place.primaryCategory.emoji} {place.primaryCategory.name}</b>
           {relayIndex && <em className="place-relay-index">{String(relayIndex).padStart(2, "0")}</em>}
         </div>
         <div className="place-copy">
-          <p>{place.neighborhood}</p><h3>{place.name}</h3>
+          <p>{place.tempCatalog && <strong>TEMP · </strong>}{place.neighborhood}</p><h3>{place.name}</h3>
+          {place.tempCatalog && <small>공식 출처 기반 임시 정보 · 현재 영업 미확인</small>}
           {(place.recommendationReasons?.length || recommendationLabel) && <div className="place-reason-list">
             {place.recommendationReasons?.slice(0, 2).map((reason) => <small className="place-reason" key={reason}>{reason}</small>)}
             {!place.recommendationReasons?.length && recommendationLabel && <small className="place-reason">{recommendationLabel}</small>}

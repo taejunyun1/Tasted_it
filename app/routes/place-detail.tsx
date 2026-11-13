@@ -22,6 +22,7 @@ import {
 } from "../components/places/PlaceCard";
 import { VoteControl } from "../components/ratings/VoteControl";
 import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
+import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
 
 const actionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -189,7 +190,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   return { ok: true };
 }
 
-export function meta({ params }: Route.MetaArgs) {
+export function meta({ params, loaderData }: Route.MetaArgs) {
   const name = params.placeSlug ?? "장소 상세";
   return [
     { title: `${name} — Re:Taste` },
@@ -197,6 +198,7 @@ export function meta({ params }: Route.MetaArgs) {
     { property: "og:title", content: `${name} — Re:Taste` },
     { property: "og:description", content: "광주·전남 맛 지도" },
     { property: "og:type", content: "article" },
+    ...(loaderData?.place.tempCatalog ? [{ name: "robots", content: "noindex,follow" }] : []),
   ];
 }
 
@@ -210,6 +212,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
         <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>
         <article className="detail-copy">
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
+          {place.tempCatalog && <TempCatalogNotice info={place.tempCatalog} />}
           {loaderData.hasGoldenPick && <span className="rating-badge">GOLDEN PICK · 90일</span>}
           {loaderData.hiddenGem.eligible && <span className="rating-badge rating-badge-hidden">HIDDEN GEM · 노출 대비 높은 평가</span>}
           <div className="score"><strong>{rating.overallScore === null ? `표본 수집 중 · ${rating.overallSampleCount}/8` : `${rating.overallScore}%`}</strong><span>{rating.isStale ? "새 평가 반영 중" : "검증된 최신 결과"}</span></div>

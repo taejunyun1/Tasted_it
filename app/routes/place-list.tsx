@@ -23,6 +23,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const state = parseMapState(url.search);
   const categorySlug = url.searchParams.get("category") || undefined;
+  const tempOnly = url.searchParams.get("temp") === "1";
   const [west, south, east, north] = state.bbox;
   const center = { latitude: (south + north) / 2, longitude: (west + east) / 2 };
   const db = createDb(env.DB);
@@ -33,7 +34,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     : null;
   const selectedBadges = url.searchParams.getAll("badge");
   const [places, groups, recommendations] = await Promise.all([
-    listPlaces(db, { categorySlug, query: state.query, bbox: state.bbox }),
+    listPlaces(db, { categorySlug, query: state.query, bbox: tempOnly ? undefined : state.bbox, tempOnly }),
     listPublicCategoryGroups(db),
     getPlaceRecommendationPage(db, {
       userId: user?.id,
@@ -46,7 +47,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     }),
   ]);
   const category = groups.flatMap((group) => group.children).find((child) => child.slug === categorySlug);
-  return { places, recommendations, state, category: category ?? null, search: url.search };
+  return { places, recommendations, state, category: category ?? null, search: url.search, tempOnly };
 }
 
 export default function PlaceList({ loaderData }: Route.ComponentProps) {
@@ -86,7 +87,8 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
       <div>
         <p className="eyebrow">PLACES / DISCOVERY</p>
         <h1>좋아하는 맛과<br />낯선 한 끼 사이.</h1>
-        <p>광주·전남의 검수된 장소를 취향, 평가 신뢰도, 리뷰어 선택으로 다시 엮었습니다.</p>
+        <p>광주·전남의 장소를 취향, 평가 신뢰도, 리뷰어 선택으로 다시 엮었습니다. 임시 정보는 TEMP로 표시합니다.</p>
+        <Link to={loaderData.tempOnly ? "/places" : "/places?temp=1"}>{loaderData.tempOnly ? "전체 장소 보기" : "TEMP 100 베타 목록"}</Link>
       </div>
       <Link className="discovery-map-link" to={`/${loaderData.search}`}>지도에서 보기</Link>
     </header>
@@ -109,14 +111,15 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
 
     <section className="discovery-section discovery-all" aria-labelledby="all-places">
       <header className="discovery-heading">
-        <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places">전체 장소</h2></div>
-        <p>검수 승인된 영업 장소만 표시합니다.</p>
+        <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places">{loaderData.tempOnly ? "TEMP 베타 전체 장소" : "전체 장소"}</h2></div>
+        <p>공식 출처 기반 임시 정보는 TEMP로 구분하며 현재 영업 여부는 확인 중입니다.</p>
       </header>
       <Form action="/places" className="discovery-search">
         <label htmlFor="place-query">장소 검색</label>
         <input id="place-query" name="q" defaultValue={loaderData.state.query} placeholder="장소 이름이나 주소 검색" />
         <input type="hidden" name="category" value={loaderData.category?.slug ?? ""} />
         <input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} />
+        {loaderData.tempOnly && <input type="hidden" name="temp" value="1" />}
         <button>찾기</button>
       </Form>
       <p className="discovery-count">{loaderData.places.length} PLACES · {categoryName}</p>

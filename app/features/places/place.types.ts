@@ -46,6 +46,7 @@ export interface PlaceSummary {
   reviewerNegative?: number;
   ratingScore?: number | null;
   ratingSampleCount?: number;
+  tempCatalog?: import("../temp-catalog/temp-catalog").TempPublicInfo;
 }
 
 export interface PlaceDetail extends PlaceSummary {
@@ -55,6 +56,7 @@ export interface PlaceDetail extends PlaceSummary {
 }
 
 export interface PlaceFilters {
+  tempOnly?: boolean;
   categorySlug?: string;
   query?: string;
   bbox?: [west: number, south: number, east: number, north: number];

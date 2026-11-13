@@ -4,6 +4,7 @@ import type { loader as placeDetailLoader } from "../../routes/place-detail";
 import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
 import { safePlaceDetailRequestPath } from "./PlaceCard";
 import { GuestSaveControl } from "../onboarding/GuestSaveControl";
+import { TempCatalogNotice } from "../../features/temp-catalog/TempCatalogNotice";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
 
@@ -34,8 +35,9 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
       {!data ? <p className="place-detail-sheet__loading">장소 정보를 불러오는 중…</p> : <>
         <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>
         <div className="place-detail-sheet__body">
-          <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">검수 완료</span></div>
+          <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "검수 완료"}</span></div>
           <h2>{data.place.name}</h2>
+          {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
           <address>{data.place.address}</address>
           <div className="place-detail-sheet__score"><strong>{data.rating.overallScore === null ? `${data.rating.overallSampleCount}/8` : `${data.rating.overallScore}%`}</strong><span>{data.rating.overallScore === null ? "평가 공개까지" : "추천 지표"}</span></div>
           <div className="place-detail-sheet__breakdown"><span>일반 회원 <b>{data.rating.userScore ?? `${data.rating.userSampleCount}/8`}</b></span><span>리뷰어 <b>{data.rating.reviewerScore ?? `${data.rating.reviewerSampleCount}/8`}</b></span></div>
