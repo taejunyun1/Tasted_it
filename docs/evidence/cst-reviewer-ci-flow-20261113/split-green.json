@@ -1,0 +1,514 @@
+{
+  "checkoutSha": "785c92e533a670a4d1fe58afba95561c4959df4d",
+  "checkoutDirty": false,
+  "environment": "LOCAL_SYNTHETIC_OPTIMIZER_METADATA_PRESENT",
+  "newProcess": true,
+  "pageReloadWorkaround": false,
+  "testTimeoutMs": 30000,
+  "retries": 0,
+  "command": [
+    "pnpm",
+    "exec",
+    "playwright",
+    "test",
+    "tests/e2e/reviewer-moderation.spec.ts"
+  ],
+  "exitCode": 0,
+  "startedAtUtc": "2026-11-13T14:53:10.941498+00:00",
+  "endedAtUtc": "2026-11-13T14:54:22.080861+00:00",
+  "endedAtKst": "2026-11-13T23:54:22.080861+09:00",
+  "timeSource": "process_completion_measured",
+  "optimizerMetadataExistsAfterProcess": true,
+  "optimizerCacheCondition": "이전 조건부 실행의 metadata를 보존한 새 프로세스. 이 runner의 exists 값은 실행 뒤 기록했다.",
+  "collectedCases": {
+    "chromium": 5,
+    "mobile-chromium": 5
+  },
+  "result": {
+    "passed": 10,
+    "skipped": 0,
+    "failed": 0,
+    "reportedWallDuration": "1.2m"
+  },
+  "phases": [
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "task:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:53:26.706Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "owner-workspace:start",
+      "elapsedMs": 4,
+      "atUtc": "2026-11-13T14:53:26.710Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "owner-wizard:photo-step",
+      "elapsedMs": 1017,
+      "atUtc": "2026-11-13T14:53:27.723Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "photo-preparation:complete",
+      "elapsedMs": 1116,
+      "atUtc": "2026-11-13T14:53:27.822Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "photo-declarations:capture-complete",
+      "elapsedMs": 2815,
+      "atUtc": "2026-11-13T14:53:29.521Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "visit-declarations:capture-complete",
+      "elapsedMs": 3067,
+      "atUtc": "2026-11-13T14:53:29.773Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "owner-submission:complete",
+      "elapsedMs": 3304,
+      "atUtc": "2026-11-13T14:53:30.010Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "pending-access-and-owner-capture:complete",
+      "elapsedMs": 4178,
+      "atUtc": "2026-11-13T14:53:30.884Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "task:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:53:31.058Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "pending-fixture:ready",
+      "elapsedMs": 791,
+      "atUtc": "2026-11-13T14:53:31.849Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-1-CHANGES_REQUESTED:start",
+      "elapsedMs": 1430,
+      "atUtc": "2026-11-13T14:53:32.488Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-1-CHANGES_REQUESTED:document-ready",
+      "elapsedMs": 2058,
+      "atUtc": "2026-11-13T14:53:33.117Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-1-CHANGES_REQUESTED:complete",
+      "elapsedMs": 3532,
+      "atUtc": "2026-11-13T14:53:34.591Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "owner-sees-change-request:complete",
+      "elapsedMs": 3952,
+      "atUtc": "2026-11-13T14:53:35.010Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "owner-edit-with-retry:complete",
+      "elapsedMs": 7727,
+      "atUtc": "2026-11-13T14:53:38.785Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-2-APPROVED:start",
+      "elapsedMs": 7727,
+      "atUtc": "2026-11-13T14:53:38.785Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-2-APPROVED:document-ready",
+      "elapsedMs": 8072,
+      "atUtc": "2026-11-13T14:53:39.130Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-2-APPROVED:complete",
+      "elapsedMs": 9171,
+      "atUtc": "2026-11-13T14:53:40.230Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "stale-and-origin-negatives:complete",
+      "elapsedMs": 9231,
+      "atUtc": "2026-11-13T14:53:40.289Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "approved-captures:complete",
+      "elapsedMs": 9672,
+      "atUtc": "2026-11-13T14:53:40.731Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "task:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:53:41.028Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "approved-fixture:ready",
+      "elapsedMs": 1572,
+      "atUtc": "2026-11-13T14:53:42.600Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "owner-edit-public-removal:complete",
+      "elapsedMs": 3435,
+      "atUtc": "2026-11-13T14:53:44.463Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-1-APPROVED:start",
+      "elapsedMs": 3436,
+      "atUtc": "2026-11-13T14:53:44.463Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-1-APPROVED:document-ready",
+      "elapsedMs": 4053,
+      "atUtc": "2026-11-13T14:53:45.081Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-1-APPROVED:complete",
+      "elapsedMs": 5340,
+      "atUtc": "2026-11-13T14:53:46.368Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-2-WITHDRAWN:start",
+      "elapsedMs": 5359,
+      "atUtc": "2026-11-13T14:53:46.386Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-2-WITHDRAWN:document-ready",
+      "elapsedMs": 5628,
+      "atUtc": "2026-11-13T14:53:46.656Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-2-WITHDRAWN:complete",
+      "elapsedMs": 6089,
+      "atUtc": "2026-11-13T14:53:47.117Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "admin-withdrawal-public-removal:complete",
+      "elapsedMs": 6426,
+      "atUtc": "2026-11-13T14:53:47.454Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "owner-withdrawal-photo-removal:complete",
+      "elapsedMs": 8611,
+      "atUtc": "2026-11-13T14:53:49.639Z",
+      "project": "chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "task:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:53:52.910Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "owner-workspace:start",
+      "elapsedMs": 1,
+      "atUtc": "2026-11-13T14:53:52.912Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "owner-wizard:photo-step",
+      "elapsedMs": 1935,
+      "atUtc": "2026-11-13T14:53:54.845Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "photo-preparation:complete",
+      "elapsedMs": 2119,
+      "atUtc": "2026-11-13T14:53:55.029Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "photo-declarations:capture-complete",
+      "elapsedMs": 2246,
+      "atUtc": "2026-11-13T14:53:55.157Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "visit-declarations:capture-complete",
+      "elapsedMs": 3164,
+      "atUtc": "2026-11-13T14:53:56.074Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "owner-submission:complete",
+      "elapsedMs": 3419,
+      "atUtc": "2026-11-13T14:53:56.329Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "submission-and-private-access",
+      "phase": "pending-access-and-owner-capture:complete",
+      "elapsedMs": 4311,
+      "atUtc": "2026-11-13T14:53:57.221Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "task:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:53:57.518Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "pending-fixture:ready",
+      "elapsedMs": 886,
+      "atUtc": "2026-11-13T14:53:58.404Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-1-CHANGES_REQUESTED:start",
+      "elapsedMs": 1499,
+      "atUtc": "2026-11-13T14:53:59.017Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-1-CHANGES_REQUESTED:document-ready",
+      "elapsedMs": 2135,
+      "atUtc": "2026-11-13T14:53:59.653Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-1-CHANGES_REQUESTED:complete",
+      "elapsedMs": 3720,
+      "atUtc": "2026-11-13T14:54:01.238Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "owner-sees-change-request:complete",
+      "elapsedMs": 4172,
+      "atUtc": "2026-11-13T14:54:01.690Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "owner-edit-with-retry:complete",
+      "elapsedMs": 9030,
+      "atUtc": "2026-11-13T14:54:06.548Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-2-APPROVED:start",
+      "elapsedMs": 9030,
+      "atUtc": "2026-11-13T14:54:06.548Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-2-APPROVED:document-ready",
+      "elapsedMs": 9395,
+      "atUtc": "2026-11-13T14:54:06.913Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "moderation-2-APPROVED:complete",
+      "elapsedMs": 10025,
+      "atUtc": "2026-11-13T14:54:07.543Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "stale-and-origin-negatives:complete",
+      "elapsedMs": 10103,
+      "atUtc": "2026-11-13T14:54:07.622Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "correction-and-publication",
+      "phase": "approved-captures:complete",
+      "elapsedMs": 10607,
+      "atUtc": "2026-11-13T14:54:08.125Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "task:start",
+      "elapsedMs": 0,
+      "atUtc": "2026-11-13T14:54:08.380Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "approved-fixture:ready",
+      "elapsedMs": 1500,
+      "atUtc": "2026-11-13T14:54:09.880Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "owner-edit-public-removal:complete",
+      "elapsedMs": 3366,
+      "atUtc": "2026-11-13T14:54:11.746Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-1-APPROVED:start",
+      "elapsedMs": 3366,
+      "atUtc": "2026-11-13T14:54:11.746Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-1-APPROVED:document-ready",
+      "elapsedMs": 3999,
+      "atUtc": "2026-11-13T14:54:12.379Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-1-APPROVED:complete",
+      "elapsedMs": 5257,
+      "atUtc": "2026-11-13T14:54:13.637Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-2-WITHDRAWN:start",
+      "elapsedMs": 5274,
+      "atUtc": "2026-11-13T14:54:13.654Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-2-WITHDRAWN:document-ready",
+      "elapsedMs": 5553,
+      "atUtc": "2026-11-13T14:54:13.932Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "moderation-2-WITHDRAWN:complete",
+      "elapsedMs": 6221,
+      "atUtc": "2026-11-13T14:54:14.601Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "admin-withdrawal-public-removal:complete",
+      "elapsedMs": 6662,
+      "atUtc": "2026-11-13T14:54:15.042Z",
+      "project": "mobile-chromium"
+    },
+    {
+      "scenario": "approved-correction-and-withdrawal",
+      "phase": "owner-withdrawal-photo-removal:complete",
+      "elapsedMs": 9462,
+      "atUtc": "2026-11-13T14:54:17.842Z",
+      "project": "mobile-chromium"
+    }
+  ],
+  "lastObservedPhasePerScenario": [
+    {
+      "project": "chromium",
+      "scenario": "submission-and-private-access",
+      "elapsedMs": 4178
+    },
+    {
+      "project": "chromium",
+      "scenario": "correction-and-publication",
+      "elapsedMs": 9672
+    },
+    {
+      "project": "chromium",
+      "scenario": "approved-correction-and-withdrawal",
+      "elapsedMs": 8611
+    },
+    {
+      "project": "mobile-chromium",
+      "scenario": "submission-and-private-access",
+      "elapsedMs": 4311
+    },
+    {
+      "project": "mobile-chromium",
+      "scenario": "correction-and-publication",
+      "elapsedMs": 10607
+    },
+    {
+      "project": "mobile-chromium",
+      "scenario": "approved-correction-and-withdrawal",
+      "elapsedMs": 9462
+    }
+  ],
+  "measurementLimit": "마지막 phase는 finally context종료와 afterEach 전체를 포함한 개별 시험 종료 시각이 아니다.",
+  "unchangedContracts": {
+    "testBodyDeadlineMs": 30000,
+    "retries": 0,
+    "nativeAndEntryBarrierSourceUnchanged": true,
+    "baseUrlGuardPreserved": true,
+    "naverBlockAllActorsPreserved": true,
+    "ownerGeneratedIdCleanupPreserved": true,
+    "runtimeSourceChanged": false,
+    "workflowChanged": false,
+    "rawSqlFixture": false,
+    "rawTraceUploaded": false
+  }
+}

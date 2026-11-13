@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 test.skip(Boolean(process.env.BASE_URL), "방문 검수 시험은 격리한 로컬 합성 자료에서만 실행합니다.");
 const pendingCleanup = new WeakMap<BrowserContext, string>();
@@ -34,7 +34,8 @@ async function visitEvidence(page: Page, scope = page.locator(".reviewer-preview
   await scope.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill("합성 시험 자료: 직접 방문해 라멘과 제공 상황을 확인했습니다.");
   await scope.getByRole("combobox", { name: "광고·협찬·이해관계", exact: true }).selectOption("NONE");
 }
-async function createPendingVisit(page: Page, outputPath?: (name: string) => string) {
+async function createPendingVisit(page: Page, outputPath?: (name: string) => string, mark: (phase: string) => void = () => {}) {
+  mark("owner-workspace:start");
   await page.goto("/reviewer/ratings");
   await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
   await page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ }).click();
@@ -43,134 +44,232 @@ async function createPendingVisit(page: Page, outputPath?: (name: string) => str
   await page.getByRole("button", { name: "다음: 맛 배지" }).click();
   await page.getByRole("button", { name: "육수 농도 선명" }).click();
   await page.getByRole("button", { name: "다음: 사진·Golden" }).click();
+  mark("owner-wizard:photo-step");
   const image = await page.screenshot({ type: "jpeg" });
   await page.locator('input[name="photos"]').setInputFiles({ name: "synthetic-visit.jpg", mimeType: "image/jpeg", buffer: image });
   await expect(page.getByRole("img", { name: "제출 전 사진 1" })).toBeVisible();
+  mark("photo-preparation:complete");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 촬영일", { exact: true }).fill("2026-11-01");
   await page.locator(".reviewer-workspace").getByRole("combobox", { name: "사진 1 이용권리", exact: true }).selectOption("OWN_WORK");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 권리 근거", { exact: true }).fill("자동시험을 위해 직접 생성한 합성 이미지입니다.");
   await page.locator(".reviewer-workspace").getByLabel("사진 1 설명", { exact: true }).fill("승인 흐름 검증용 합성 사진");
   await page.locator(".reviewer-workspace").getByLabel("사진 1의 불필요한 인물·차량번호·개인정보 노출을 확인했어요.").check();
   if (outputPath) await page.locator('[aria-labelledby="review-step-photo"]').screenshot({ path: outputPath("photo-declarations.png") });
+  mark("photo-declarations:capture-complete");
   await page.getByRole("button", { name: "다음: 확인" }).click();
   await visitEvidence(page);
   if (outputPath) await page.locator(".reviewer-preview").screenshot({ path: outputPath("visit-declarations.png") });
+  mark("visit-declarations:capture-complete");
   await page.getByRole("button", { name: "검수 요청", exact: true }).click();
   await expect(page).toHaveURL(/notice=review-with-photos-submitted/);
   await expect(page.getByText("검수 요청 완료", { exact: true })).toBeVisible();
   const id = new URL(page.url()).searchParams.get("submitted");
   expect(id).toBeTruthy();
   pendingCleanup.set(page.context(), id!);
+  mark("owner-submission:complete");
   return id!;
 }
 
-// Uses only isolated local fixtures. Technical evidence is separate from user studies.
-test("submission approval, owner correction and admin withdrawal govern the same public visit and photo", async ({ browser, page, context }, testInfo) => {
-  await signIn(context, "qa-active-reviewer-session");
-  const reviewId = await createPendingVisit(page, (name) => testInfo.outputPath(name));
-  const ownRow = page.locator(`#review-${reviewId}`);
-  await expect(ownRow).toContainText("검수 대기");
-  const previewUrl = await ownRow.locator(".reviewer-history-thumb").getAttribute("src");
-  expect(previewUrl).toContain("preview=1");
-  const publicUrl = new URL(previewUrl!, page.url()).pathname;
-  const contextOptions = {
+// Each task starts with its own visit through the real submission/moderation gates.
+function taskTiming(testInfo: TestInfo, scenario: string) {
+  const started = performance.now();
+  return (phase: string) => console.info(`REVIEWER_TIMING ${JSON.stringify({ scenario, phase, elapsedMs: Math.round(performance.now() - started), atUtc: new Date().toISOString(), project: testInfo.project.name })}`);
+}
+
+async function createActors(browser: Browser, page: Page, testInfo: TestInfo) {
+  const options = {
     baseURL: String(testInfo.project.use.baseURL), viewport: page.viewportSize(),
     isMobile: testInfo.project.name.includes("mobile"), hasTouch: testInfo.project.name.includes("mobile"),
     userAgent: await page.evaluate(() => navigator.userAgent),
     deviceScaleFactor: await page.evaluate(() => window.devicePixelRatio),
   };
-  const anon = await browser.newContext(contextOptions);
-  const admin = await browser.newContext(contextOptions);
+  const anon = await browser.newContext(options);
+  const admin = await browser.newContext(options);
   for (const scopedContext of [anon, admin]) await scopedContext.route("https://oapi.map.naver.com/**", (route) => route.abort());
   await signIn(admin, "qa-admin-session");
-  const publicPage = await anon.newPage();
-  const adminPage = await admin.newPage();
+  return {
+    anon, admin, publicPage: await anon.newPage(), adminPage: await admin.newPage(),
+    close: () => Promise.allSettled([admin.close(), anon.close()]),
+  };
+}
+
+async function preparePhotoVisit(page: Page, context: BrowserContext, origin: string) {
+  // A browser-generated blank JPEG is a synthetic fixture, not a real visit photo.
+  const image = await page.screenshot({ type: "jpeg" });
+  const response = await context.request.post("/reviewer/ratings", { maxRedirects: 0, headers: { Origin: origin }, multipart: {
+    intent: "publish-review", placeId: "sample-place-1", categoryId: "cat-ramen", categoryName: "라멘", evaluation: "RECOMMEND", golden: "0",
+    badges: "육수 농도 선명", visitedOn: "2026-11-01", visitNote: "합성 시험 자료: 직접 방문해 라멘과 제공 상황을 확인했습니다.", disclosure: "NONE",
+    photoMetadata: JSON.stringify([{ position: 0, takenOn: "2026-11-01", rightsBasis: "OWN_WORK", rightsNote: "자동시험을 위해 직접 생성한 합성 이미지입니다.", caption: "승인 흐름 검증용 합성 사진", privacyChecked: true }]),
+    photos: { name: "synthetic-visit.jpg", mimeType: "image/jpeg", buffer: image },
+  } });
+  expect(response.status()).toBe(303);
+  const submitted = new URL(response.headers().location, origin);
+  const id = submitted.searchParams.get("submitted");
+  expect(id).toBeTruthy();
+  pendingCleanup.set(context, id!);
+  expect(submitted.searchParams.get("notice")).toBe("review-with-photos-submitted");
+  return id!;
+}
+
+async function photoReferences(page: Page, reviewId: string) {
+  const ownRow = page.locator(`#review-${reviewId}`);
+  const previewUrl = await ownRow.locator(".reviewer-history-thumb").getAttribute("src");
+  expect(previewUrl).toContain("preview=1");
+  return { ownRow, previewUrl: previewUrl!, publicUrl: new URL(previewUrl!, page.url()).pathname };
+}
+
+function moderationDriver(adminPage: Page, reviewId: string, mark: (phase: string) => void, checkApprovalRetry = false) {
+  let checkedApprovalRetry = !checkApprovalRetry;
+  let round = 0;
+  return async (status: "APPROVED" | "CHANGES_REQUESTED" | "WITHDRAWN", reason: string) => {
+    const phase = `moderation-${++round}-${status}`;
+    mark(`${phase}:start`);
+    await adminPage.goto("/admin/reviewer-visits?status=ALL");
+    mark(`${phase}:document-ready`);
+    const card = adminPage.locator(`#moderation-${reviewId}`);
+    await card.getByLabel("검수 사유").fill(reason);
+    if (status === "APPROVED" && !checkedApprovalRetry) {
+      await card.getByRole("button", { name: "승인·공개", exact: true }).click();
+      await expect(card.getByRole("alert")).toContainText("방문·권리·개인정보·장소 확인을 모두 마쳐 주세요.");
+      await expect(card.getByLabel("검수 사유")).toHaveValue(reason);
+      await expect(card.locator(".reviewer-moderation-status")).toHaveText("검수 대기");
+      checkedApprovalRetry = true;
+    }
+    if (status === "APPROVED") for (const name of ["visitVerified", "rightsVerified", "privacyVerified", "placeVerified"]) await card.locator(`input[name="${name}"]`).check();
+    await card.getByRole("button", { name: status === "APPROVED" ? "승인·공개" : status === "CHANGES_REQUESTED" ? "보완 요청" : "공개 회수", exact: true }).click();
+    await expect(card.locator(".reviewer-moderation-status")).toHaveText(status === "APPROVED" ? "승인됨" : status === "CHANGES_REQUESTED" ? "보완 요청" : "공개 회수·철회");
+    mark(`${phase}:complete`);
+  };
+}
+
+async function editVisit(page: Page, ownRow: Locator, reason: string, checkRetry = false) {
+  await ownRow.getByText("내용 보완·다시 제출", { exact: true }).click();
+  const edit = ownRow.locator('form').filter({ has: page.locator('input[value="edit-review"]') });
+  await edit.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill(`합성 시험 자료: ${reason}`);
+  await edit.getByLabel("수정 사유").fill(reason);
+  if (checkRetry) {
+    for (const badge of ["육수 농도 선명", "면 익힘 알맞음", "토핑 상태 좋음"]) await edit.getByLabel(badge, { exact: true }).check();
+    await edit.getByRole("button", { name: "수정하고 검수 요청" }).click();
+    await expect(edit.getByRole("alert")).toContainText("맛 배지는 최대 2개까지 선택해 주세요.");
+    await expect(edit.getByLabel("수정 사유")).toHaveValue(reason);
+    await expect(edit.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true })).toHaveValue(`합성 시험 자료: ${reason}`);
+    await edit.getByLabel("토핑 상태 좋음", { exact: true }).uncheck();
+  }
+  await edit.getByRole("button", { name: "수정하고 검수 요청" }).click();
+  await expect(page).toHaveURL(/notice=review-updated/);
+  await expect(ownRow).toContainText("검수 대기");
+}
+
+// Uses only isolated local fixtures. Technical evidence is separate from user studies.
+test("reviewer submits photo and rights through the wizard while pending material stays private", async ({ browser, page, context }, testInfo) => {
+  const mark = taskTiming(testInfo, "submission-and-private-access");
+  mark("task:start");
+  await signIn(context, "qa-active-reviewer-session");
+  const reviewId = await createPendingVisit(page, (name) => testInfo.outputPath(name), mark);
+  const { ownRow, previewUrl, publicUrl } = await photoReferences(page, reviewId);
+  await expect(ownRow).toContainText("검수 대기");
+  const actors = await createActors(browser, page, testInfo);
   try {
-    expect((await anon.request.get(publicUrl)).status()).toBe(404);
-    expect((await anon.request.head(publicUrl)).status()).toBe(404);
-    expect((await anon.request.get(previewUrl!)).status()).toBe(404);
-    await publicPage.goto("/reviewers/qa-gukmul-reviewer");
-    await expect(publicPage.getByText("공개 승인된 방문 자료가 아직 없어요.")).toBeVisible();
+    expect((await actors.anon.request.get(publicUrl)).status()).toBe(404);
+    expect((await actors.anon.request.head(publicUrl)).status()).toBe(404);
+    expect((await actors.anon.request.get(previewUrl)).status()).toBe(404);
+    await actors.publicPage.goto("/reviewers/qa-gukmul-reviewer");
+    await expect(actors.publicPage.getByText("공개 승인된 방문 자료가 아직 없어요.")).toBeVisible();
     const denied = await context.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "APPROVED", reason: "권한 없는 요청" }, headers: { Origin: new URL(page.url()).origin } });
     expect(denied.status()).toBe(403);
     await ownRow.screenshot({ path: testInfo.outputPath("owner-pending.png") });
-    let checkedApprovalRetry = false;
-    async function moderate(status: "APPROVED" | "CHANGES_REQUESTED" | "WITHDRAWN", reason: string) {
-      await adminPage.goto("/admin/reviewer-visits?status=ALL");
-      const card = adminPage.locator(`#moderation-${reviewId}`);
-      await card.getByLabel("검수 사유").fill(reason);
-      if (status === "APPROVED" && !checkedApprovalRetry) {
-        await card.getByRole("button", { name: "승인·공개", exact: true }).click();
-        await expect(card.getByRole("alert")).toContainText("방문·권리·개인정보·장소 확인을 모두 마쳐 주세요.");
-        await expect(card.getByLabel("검수 사유")).toHaveValue(reason);
-        await expect(card.locator(".reviewer-moderation-status")).toHaveText("검수 대기");
-        checkedApprovalRetry = true;
-      }
-      if (status === "APPROVED") for (const name of ["visitVerified", "rightsVerified", "privacyVerified", "placeVerified"]) await card.locator(`input[name="${name}"]`).check();
-      await card.getByRole("button", { name: status === "APPROVED" ? "승인·공개" : status === "CHANGES_REQUESTED" ? "보완 요청" : "공개 회수", exact: true }).click();
-      await expect(card.locator(".reviewer-moderation-status")).toHaveText(status === "APPROVED" ? "승인됨" : status === "CHANGES_REQUESTED" ? "보완 요청" : "공개 회수·철회");
-    }
+    mark("pending-access-and-owner-capture:complete");
+  } finally { await actors.close(); }
+});
+
+test("administrator requests corrections and approves resubmitted private material without leaking evidence", async ({ browser, page, context }, testInfo) => {
+  const mark = taskTiming(testInfo, "correction-and-publication");
+  mark("task:start");
+  await signIn(context, "qa-active-reviewer-session");
+  const origin = String(testInfo.project.use.baseURL);
+  const reviewId = await preparePhotoVisit(page, context, origin);
+  await page.goto("/reviewer/ratings");
+  const { ownRow, publicUrl } = await photoReferences(page, reviewId);
+  const actors = await createActors(browser, page, testInfo);
+  const moderate = moderationDriver(actors.adminPage, reviewId, mark, true);
+  try {
+    mark("pending-fixture:ready");
+    await actors.publicPage.goto("/reviewers/qa-gukmul-reviewer");
+    await expect(actors.publicPage.getByText("공개 승인된 방문 자료가 아직 없어요.")).toBeVisible();
     await moderate("CHANGES_REQUESTED", "합성 검수: 방문 근거를 더 구체적으로 보완해 주세요.");
     await page.reload();
     await expect(ownRow).toContainText("보완 요청");
     await expect(ownRow).toContainText("방문 근거를 더 구체적으로");
-    async function editVisit(reason: string, checkRetry = false) {
-      await ownRow.getByText("내용 보완·다시 제출", { exact: true }).click();
-      const edit = ownRow.locator('form').filter({ has: page.locator('input[value="edit-review"]') });
-      await edit.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true }).fill(`합성 시험 자료: ${reason}`);
-      await edit.getByLabel("수정 사유").fill(reason);
-      if (checkRetry) {
-        for (const badge of ["육수 농도 선명", "면 익힘 알맞음", "토핑 상태 좋음"]) await edit.getByLabel(badge, { exact: true }).check();
-        await edit.getByRole("button", { name: "수정하고 검수 요청" }).click();
-        await expect(edit.getByRole("alert")).toContainText("맛 배지는 최대 2개까지 선택해 주세요.");
-        await expect(edit.getByLabel("수정 사유")).toHaveValue(reason);
-        await expect(edit.getByRole("textbox", { name: "직접 확인한 방문 근거", exact: true })).toHaveValue(`합성 시험 자료: ${reason}`);
-        await edit.getByLabel("토핑 상태 좋음", { exact: true }).uncheck();
-      }
-      await edit.getByRole("button", { name: "수정하고 검수 요청" }).click();
-      await expect(page).toHaveURL(/notice=review-updated/);
-      await expect(ownRow).toContainText("검수 대기");
-    }
-    await editVisit("직접 확인한 방문 근거를 보완했습니다.", true);
+    mark("owner-sees-change-request:complete");
+    await editVisit(page, ownRow, "직접 확인한 방문 근거를 보완했습니다.", true);
+    mark("owner-edit-with-retry:complete");
     await moderate("APPROVED", "합성 검수: 방문·권리·개인정보·장소 확인 완료.");
-    const stale = await admin.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "APPROVED", reason: "오래된 버전 재승인" }, headers: { Origin: new URL(page.url()).origin } });
+    const stale = await actors.admin.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "APPROVED", reason: "오래된 버전 재승인" }, headers: { Origin: new URL(page.url()).origin } });
     expect(stale.status()).toBe(409);
-    const crossOrigin = await admin.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "WITHDRAWN", reason: "외부 출처 요청" }, headers: { Origin: "https://elsewhere.invalid" } });
+    const crossOrigin = await actors.admin.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "WITHDRAWN", reason: "외부 출처 요청" }, headers: { Origin: "https://elsewhere.invalid" } });
     // React Router's document-action CSRF guard rejects this before the route's Origin guard.
     expect(crossOrigin.status()).toBe(400);
-    const approved = await anon.request.get(publicUrl);
+    mark("stale-and-origin-negatives:complete");
+    const approved = await actors.anon.request.get(publicUrl);
     expect(approved.status()).toBe(200);
     expect(approved.headers()["cache-control"]).toContain("no-store");
-    await publicPage.reload();
-    const publicHtml = await publicPage.content();
+    await actors.publicPage.reload();
+    const publicHtml = await actors.publicPage.content();
     expect(publicHtml).not.toContain("qa-active-reviewer");
     expect(publicHtml).not.toContain("자동시험을 위해 직접 생성한 합성 이미지입니다.");
     expect(publicHtml).not.toContain("직접 확인한 방문 근거를 보완했습니다.");
-    const publicVisit = publicPage.locator(".reviewer-public-visit");
+    const publicVisit = actors.publicPage.locator(".reviewer-public-visit");
     await expect(publicVisit.getByRole("link", { name: "Re:Taste 샘플 라멘 동명" })).toBeVisible();
     await expect(publicVisit.getByRole("img", { name: "승인 흐름 검증용 합성 사진" })).toBeVisible();
-    await publicPage.screenshot({ path: testInfo.outputPath("approved-profile.png"), fullPage: true });
-    await adminPage.locator(`#moderation-${reviewId}`).screenshot({ path: testInfo.outputPath("admin-approved.png") });
-    await page.reload();
-    await editVisit("공개 이후 내용을 고쳐 다시 검수 요청합니다.");
-    expect((await anon.request.get(publicUrl)).status()).toBe(404);
-    await publicPage.reload();
-    await expect(publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
+    await actors.publicPage.screenshot({ path: testInfo.outputPath("approved-profile.png"), fullPage: true });
+    await actors.adminPage.locator(`#moderation-${reviewId}`).screenshot({ path: testInfo.outputPath("admin-approved.png") });
+    mark("approved-captures:complete");
+  } finally { await actors.close(); }
+});
+
+test("correcting and withdrawing the same approved visit removes its public photo and finally deletes the owner preview", async ({ browser, page, context }, testInfo) => {
+  const mark = taskTiming(testInfo, "approved-correction-and-withdrawal");
+  mark("task:start");
+  await signIn(context, "qa-active-reviewer-session");
+  const origin = String(testInfo.project.use.baseURL);
+  const reviewId = await preparePhotoVisit(page, context, origin);
+  const actors = await createActors(browser, page, testInfo);
+  try {
+    const approval = await actors.admin.request.post("/admin/reviewer-visits", { headers: { Origin: origin }, form: {
+      reviewId, expectedVersion: "1", status: "APPROVED", reason: "합성 fixture: 실제 관리자 확인 gate로 승인 준비.",
+      visitVerified: "on", rightsVerified: "on", privacyVerified: "on", placeVerified: "on",
+    } });
+    expect(approval.status()).toBe(200);
+    await page.goto("/reviewer/ratings");
+    const { ownRow, previewUrl, publicUrl } = await photoReferences(page, reviewId);
+    await expect(ownRow).toContainText("승인됨");
+    expect((await actors.anon.request.get(publicUrl)).status()).toBe(200);
+    await actors.publicPage.goto("/reviewers/qa-gukmul-reviewer");
+    await expect(actors.publicPage.locator(".reviewer-public-visit")).toHaveCount(1);
+    mark("approved-fixture:ready");
+    const moderate = moderationDriver(actors.adminPage, reviewId, mark);
+    await editVisit(page, ownRow, "공개 이후 내용을 고쳐 다시 검수 요청합니다.");
+    expect((await actors.anon.request.get(publicUrl)).status()).toBe(404);
+    await actors.publicPage.reload();
+    await expect(actors.publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
+    mark("owner-edit-public-removal:complete");
     await moderate("APPROVED", "합성 재검수: 수정한 내용 확인 완료.");
-    expect((await anon.request.get(publicUrl)).status()).toBe(200);
+    expect((await actors.anon.request.get(publicUrl)).status()).toBe(200);
     await moderate("WITHDRAWN", "합성 검수: 공개 회수 경계 시험.");
-    expect((await anon.request.get(publicUrl)).status()).toBe(404);
-    await publicPage.reload();
-    await expect(publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
+    expect((await actors.anon.request.get(publicUrl)).status()).toBe(404);
+    await actors.publicPage.reload();
+    await expect(actors.publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
+    mark("admin-withdrawal-public-removal:complete");
     await page.reload();
     const withdrawal = ownRow.locator('form').filter({ has: page.locator('input[value="withdraw-review"]') });
     await withdrawal.getByLabel("철회 사유").fill("합성 시험 종료 후 사진 삭제 요청.");
     await withdrawal.getByLabel("공개 중단과 사진 삭제를 확인했어요.").check();
     await withdrawal.getByRole("button", { name: /사진 삭제/ }).click();
     await expect(page).toHaveURL(/notice=review-withdrawn/);
-    expect((await context.request.get(previewUrl!)).status()).toBe(404);
+    expect((await context.request.get(previewUrl)).status()).toBe(404);
     pendingCleanup.delete(context);
-  } finally { await Promise.allSettled([admin.close(), anon.close()]); }
+    mark("owner-withdrawal-photo-removal:complete");
+  } finally { await actors.close(); }
 });
 
 test("native administrator POST reports validation failures and success while cursor navigation preserves the filter", async ({ browser, context, page }, testInfo) => {
