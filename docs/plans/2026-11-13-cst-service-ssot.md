@@ -51,9 +51,16 @@
 - [#355 / PR #356](https://github.com/taejunyun1/Tasted_it/pull/356): 지도/목록 조건 보존 RED→GREEN과 desktop/mobile2/2, 필수4CI·독립검토 후 `b1bc5b7` 병합. 운영 반영은 별도 검증.
 - [#357](https://github.com/taejunyun1/Tasted_it/issues/357): R4 앱 의존성 변경으로 고정 native artifact 거절, [PR #362](https://github.com/taejunyun1/Tasted_it/pull/362) 원본 이미지·핀을 유지한 재현 fixture 분리. actual checkpoint903b918 actual 두 세대 PROMOTED·실비0. 고정 합성기전이며 운영 효과 아님. 최종083efd8 필수4CI·독립리뷰 후 `2bf0f48` 병합.
 - [#358](https://github.com/taejunyun1/Tasted_it/issues/358): 운영 Zod 보안 최소 패치·경계 회귀·audit, PR #361 `64898aa` 병합(필수4CI/독립검토), production0/dev포함46 유지.
-- [#359](https://github.com/taejunyun1/Tasted_it/issues/359): 리뷰어 관리자 승인·권리·직접 사진 URL gate·집계 계약(관련 기능 공개의 P0). 구현 정책 v1로 제출/승인·레거시/출처·회수·cache epoch 기준을 확정하고 backend→UI 순으로 구현·검증한다.
+- [#359](https://github.com/taejunyun1/Tasted_it/issues/359): 리뷰어 관리자 승인·권리·직접 사진 URL gate·집계 계약(관련 기능 공개의 P0). 구현 정책 v1의 제출/승인·레거시/출처·회수·epoch backend는 #382 `3bc7758`로 병합했다(최종 CI integration535·unit1627/53 SKIP). 독립 검토의 사진 응답유실/검수 경합과 cross-place trust 회수 두 P2를 수정했다. 승인/보완/재심/철회 UI는 #390 `a95f9ee`로 최종4CI·독립리뷰 후 병합했다. #359 코드 범위는 닫았으며 운영 gate는 #360에 유지한다.
 - [#360](https://github.com/taejunyun1/Tasted_it/issues/360): DEC-01~08은 구현 정책의 ADOPTED_IMPLEMENTATION과 실제 사실 OPEN을 구분한다. 기술 기준은 새 권한/값을 무작정 보류하지 않고 구현하며, 미제공 연락처·실증/계약·운영 사실을 생성하지 않는다.
-- 추천 취소·비회원 저장승계·상세정정/리뷰어 연결은 W03~05로 분리 구현. 모바일 검색버튼 줄바꿈/지도 빈여백은 T07 수정·재검수 대상으로 기록한다.
+- 추천 취소 [#367/PR #369](https://github.com/taejunyun1/Tasted_it/pull/369) `a01e6e8`, 비회원 저장·계정 명시 선택 우선 승계/실패 재시도 [#368/PR #372](https://github.com/taejunyun1/Tasted_it/pull/372) `b469063`은 독립 리뷰·최종 필수4CI 후 병합했다. 장소 전환 중 조회 실패의 저장 상태 P2는 실제 모바일 RED→GREEN 뒤 재검토했다. 운영 반영·전체 T02/T03 완료와 구분한다.
+- 상세 정정 대상 유지 [#370/PR #374](https://github.com/taejunyun1/Tasted_it/pull/374) `3a1090c`는 최종4CI/독립리뷰 후 병합했다. 반복 legal smoke의 익명 공개 실패 메타 보존 [#365/PR #376](https://github.com/taejunyun1/Tasted_it/pull/376) `3ab7256`도 병합했으나 실제 원인은 UNKNOWN이다. 인증 href의 SSR/브라우저 표현 일치 [#371/PR #373](https://github.com/taejunyun1/Tasted_it/pull/373)은 최신 main 통합 후 최종4CI/독립리뷰를 통과해 `75a462d`로 병합했다. #375/PR #378 `a34ce5a`는 합성 local D1 복원 도구를 병합했고 0040/0041 포함 main3bc7758에서 실제 재검증했다. #384/PR #386 `1c31bc1`은 산식 변경 없이 고정 수치/경계 시험을 보완했다. #377/PR #379는 이미 구현된 guest 수집·수명 설명을 대조해 `96996a8`로 병합했으며 출시 전 검토본·실제 사실 OPEN을 유지한다. #385/PR #387 `be2236b`는 방문/사진/검수 자료의 실제 수집·공개·삭제와 잔존 이력을 privacy/terms·인벤토리에 대조했다. #383/PR #389 `f0ca8e0`은 모바일 검색/실패 지도 실제 RED2→GREEN8·최종4CI·독립 화면/코드 리뷰 후 병합했다. #388 제한 핵심 desktop CI 회귀 확대는 승인 UI 병합 뒤 진행한다.
+
+### 부분 검증과 남은 판정
+
+기능코드 기준은 병합 main `d986d6d`다. 검증 source는 실행별 SHA로 구분한다. W03의 기본 취소, W04의 로컬 저장/승계 코드는 들어왔지만 T01~08 전체의 최초 NOT_RUN을 부분 시험으로 덮어쓰지 않는다. [증거 원장](../evidence/cst-20261210/README.md)에 `T02.CANCEL_SERVER`, `T03.GUEST_MERGE_SERVER`처럼 하위 case를 별도로 추가한다. CI 원본 checkout SHA·실행 종료시각과 PR head/병합 SHA를 구분한다.
+
+진행 순서는 #359 backend 병합 → 리뷰어/관리자 UI 연결/역할별 검증 → W06 고정 산식 대조 → W07 복원/삭제 및 W08 통합이다. 독립 가능한 W06 고정 기대값과 W07 합성 D1 복원은 병렬로 먼저 완료했다. #391/PR #392 `646392c`는 공통 헤더320px·CSS확대 잘림과 모바일 메뉴44px를 실제 RED→GREEN2/2·최종4CI/독립 화면검토 후 병합했다. #388/PR #393의 최초22 PASS/2 SKIP/2 FAIL과 2차25 PASS/2 SKIP/1 header30초FAIL은 보존했다. #395/PR #398 `ac01d06`은 reviewer3과업 분할·관련10PASS/own4CI·Linux5PASS 후 병합했다. #394/PR #396 `d986d6d`는 반응형 메뉴와 역할별case분할을 같은30초·모든기대값으로 검증했다. 3차 source 통합 actual `10cb801`은 Linux27 PASS/2 SKIP·필수4CI를 통과했다. 그 뒤 문서합류 final에서26 PASS/2 SKIP/1 hitFAIL을 보존했다. scrollY0을 만들려던 초기화가 제품의 smooth scroll을 따라 이동 중 측정된 것으로 확인해, 제품 변경 없이 headerE2E setup의 즉시 이동·scrollY0 전제만 고정한다. 최종 CI원본3+headerE2E setup1+SSOT/정책·증거7파일의 통합·승인 기록은 같은 PR #393의 exacthead/필수4CI/병합 결과다. 다음 검수는 확정 지원환경·실제 콘텐츠/권리·운영/실증 사실에 따른 전체 T01~08이며 부분 자동시험을 전체수용으로 세지 않는다. 개발 bootstrap cold504 #397의 추가 진단은 UNKNOWN/CANCELED로 분리하며 정상 관측을 회복 증명으로 합산하지 않는다. 실제 D1/R2 운영 복원·삭제 자료의 백업 재유입 처리와 전체 접근성/지원 환경·외부 인증 조합은 별도 미완료다. 실제 콘텐츠/권리 원자료·운영주체/문의처·계약/이전·실증 인원/동의·운영 배포/복구 증거는 OPEN이며 생성하지 않는다. #360은 이 실제 사실의 추적을 위해 유지한다.
 
 ### 이용자 요구사항 추적
 
@@ -61,11 +68,11 @@
 | --- | --- | --- | --- |
 | U01 p2 | `app/routes/home.tsx`, `tests/e2e/home-curation.spec.ts`: 홈 큐레이션·장소 진입 코드 존재 | 공개 적격 집합/지역·음식종류, 빈 목록, 실제 콘텐츠 재확인 | T01/T04, 11/20 |
 | U02 p2 | `app/routes/place-list.tsx`, `app/features/places/place.server.ts`: q/category/bbox 검색 | 지역 필터·초기화·0건·뒤로가기 조합 시험 | T01/T07, 11/20 |
-| U03 p2 | `app/routes/map-category.tsx`, `app/features/maps/map-state.ts`: 보기 전환·공통 상태 | query 소실 최소 수정, 동일 장소 ID집합·실패 시 목록·복귀 위치 확인 | T01/T07, 11/16~20 |
-| U04 p2 | `app/routes/place-detail.tsx`: 공개 상세·평가·사진·외부 링크 | 확인일/미확인 영업정보, 상세에서 대상 지정 정정, 사진 미제공 상태 | T04/T05/T07, 11/23 |
-| U05 p2 | `app/features/ratings/vote.server.ts`, `tests/integration/vote.server.test.ts`: 중복/변경/취소 backend | 공개 action/UI 취소 연결, 리뷰어/일반 반응 분리 표시, 인증조건 DEC-04 | T02/T06, 11/20 |
-| U06 p2 | `app/routes/me.tsx`, `app/features/onboarding/guest-merge.server.ts`: 로그인 저장·guest badge 승계 | 임시 저장·취향 승계의 누락/중복·실패 유지·재시도 구현 범위 확정(DEC-04) | T02/T03, 11/24 |
-| U07 p2 | `app/routes/reviewer-profile.tsx`, `reviewer-ratings.tsx`, reviewer visit/photo 코드 | 기존 즉시 평가 발행·직접 사진 URL의 공개 gate 공백을 우선 계약/설계로 해결, 승인 방문·평가·사진 연결 | T04/T06, 11/25 |
+| U03 p2 | #356 조건·선택 보존, #389 검색/실패 지도 fallback·#392 헤더 보완 병합 | 실제 지도SDK/위치거부·뒤로가기/복귀 위치·전체 T01/T07 확인 | T01/T07, 11/16~20 |
+| U04 p2 | 공개 상세·평가·사진·외부 링크, #374 상세 대상 지정 정정 병합 | 확인일/미확인 영업정보·사진 미제공 상태, 전체 S07 접수/검수·운영 재확인 | T04/T05/T07, 11/23 |
+| U05 p2 | #369 기본 취소, #382 event pointer·피드백/추론 무효화 원자성·출처/집계 gate 병합 | 전체 T02/T06·운영 반영 재확인 | T02/T06, 11/20 |
+| U06 p2 | #372 guest 저장·원자 승계/회원 명시 선택 우선·실패 유지/재시도 병합 | 외부 인증 조합·만료/탈퇴/권한 통합 및 운영 상태 재확인, #377 수집 설명 정합 | T02/T03, 11/24 |
+| U07 p2 | #382 공개 gate·#390 본인/관리자 UI와 승인 프로필→장소 연결 병합 | 실제 자료 권리/운영 적용·전체 T04/T06. standalone Flavor는 근거 결속 전 LEARNING/0 보류 | T04/T06, 11/25 |
 | U08 p2 | `app/routes/course-recommendation.tsx`, course/parking 서비스·시험 | 영업시간/거리·주차/충전 제공/미제공. v2 false와 사진 업로드 false는 활성 증거 아님. DEC-05 결정 후 한정 검증 | T08, 11/26 |
 | U09 p2 | login/signup/verify-email/Google/NAVER route, auth guards | 역할별 서버권한·복귀·만료·탈퇴/삭제, 소셜 개발제한 실제 확인 | T03/T04, 11/24 |
 
@@ -75,10 +82,10 @@
 | --- | --- | --- | --- |
 | D01 p3 | admin-import/data-sync, `tests/unit/place-import.test.ts` | 출처·시각·결과·재반입 idempotency, 로컬 fixture와 승인된 원격 증거 분리 | T05, 11/23 |
 | D02 p3 | 분류·dedup·place-review pipeline, #348~351 | 체인·비음식점·폐업/이전·중복의 근거와 보완/제외, #352 실제 처리 집계는 별도 | T05, 11/25 |
-| D03 p3 | admin candidates/ratings/reviewers, suggestions/corrections | 후보/정정 기존 흐름 검증, 리뷰어 평가/사진 사전 승인·보완 사유 전이 설계/구현 | T04/T05, 11/25 |
+| D03 p3 | #382 CAS/감사 backend·#390 리뷰어/admin 검수 UI 병합, 기존 후보/정정 | 전체 후보/정정 운영 검수·실제 자료 승인 | T04/T05, 11/25 |
 | D04 p3 | place-operations·admin audit, 공개 적격 판정 | admin만 발행, 비공개 즉시 검색/추천 제외·변경 전후·사유 검증 | T04/T05, 11/25 |
-| D05 p3 | rating-v1/v2·trust/similarity·recompute 시험 존재 | DEC-03의 확정 산식·표본·가중/상한과 코드 비교, 외부 평점 합산0·재계산 재현 | T06, 11/26 |
-| D06 p3 | operations·kill switches·retention/audit 런북 | DEC-06/08 확정 후 중단·삭제·backup/restore rehearsal·권한·secret 비노출 증거 | T08, 11/27 |
+| D05 p3 | #382 출처/회수 gate, #386 DEC-03 고정 기대값·신뢰/감쇠→점수·외부평점 배제·재계산 반복 검증 | 전체 T06 수용·실제 운영 입력/재계산 영향 확인 | T06, 11/26 |
+| D06 p3 | 기존 운영 런북, #378 합성 local D1 복원69table/157row·schema/data/손상 거절 PASS | 실제 R2/삭제 후 복원·중단/복구·운영 보관/백업 주기/RPO/RTO·전체 T08 | T08, 11/27 |
 
 ### 화면 흐름과 상태
 
@@ -102,7 +109,7 @@
 | DEC-01 | 세부 지역·업종·초기 콘텐츠 수량, 기존 광주300 운영게이트와의 관계, 체인 제외/사진 권리·이해관계 | 사용자(CST), 11/16 | 합성 표본 기술시험만; 실제 구축/공개 완료 판정 금지 |
 | DEC-02 | 구현 모듈·인터페이스·Jay/Codex 소유 범위・기술 검토 순서, 대외 인계 범위와 적용일 | 사용자(CST)/J, 11/16 | 개발 소유는 Jay/Codex로 고정; 대외 인계 미확정만 분리하며 로컬 구현·시험을 중단하지 않음 |
 | DEC-03 | 평가 최소 표본·신뢰도·감쇠·가중치·상한·규칙 버전·광고/협찬 취급 | 사용자(CST), 11/18 | 현행 베타값을 구현 기준으로 유지, 신규 산식/실제 승인·rollout 사실은 별도 |
-| DEC-04 | 비회원 공개 반응 인증, 임시 취향/저장 승계·실패/중복/취소 정책 | 사용자(CST)/J, 11/17 | 기존 guest30일+D1의 임시저장50개/계정 기존선택 우선·실패 유지/재시도를 구현하며 미완료 표시 유지 |
+| DEC-04 | 비회원 공개 반응 인증, 임시 취향/저장 승계·실패/중복/취소 정책 | 사용자(CST)/J, 11/17 | 기존 guest30일+D1의 임시저장50개/계정 기존선택 우선·commit 전 실패 유지/재시도, 응답 유실은 현재 상태 확인을 구현하며 미완료 표시 유지 |
 | DEC-05 | 공공/지도/코스/주차/충전 공급원·제공수준·기존 kill switch·한도/비용 | 사용자(CST)/J, 11/18 | 새 연동/유료 호출·사진/코스 v2 활성화 금지; 미제공 UX 검증 |
 | DEC-06 | 검수 처리기한·동기화/백업 주기·보관/삭제 기간·운영주체/실제 문의처 | 사용자(CST)/J, 11/18 | 문안/운영 SLA 확정·공개 GO 차단, 허구 연락처/법적 사실 입력 금지 |
 | DEC-07 | 지원 브라우저/기기·성능 목표·시험 fixture, 실증 인원/시니어 포함·동의·일정·목표값 | 사용자(CST), 11/18 | 제안 환경으로 기술 예행만; 실제 실증/성과 달성 주장은 금지 |
@@ -133,7 +140,7 @@
 
 ### 단일 실행자 용량과 완충
 
-계획 산정용 가정은 평일20일×집중6시간=120시간이며 실제 근무·계약 약속이 아니다. 작업 추정102시간, 차단/재시험 완충18시간을 분리한다. 주말 작업은 가용 용량에 넣지 않는다. 11/20·27, 12/04에 실제 소요로 다시 추정하고, 초과하면 선택 기능의 활성화를 미루며 필수 요건을 임의 삭제하지 않는다. 별도 실제 참여자 세션·대외 수용 대기시간은 이 개발공수에 포함하지 않는다.
+계획 산정용 가정은 평일20일×집중6시간=120시간이며 실제 근무·계약 약속이 아니다. 작업 추정102시간, 차단/재시험 완충18시간을 분리한다. 독립 검토에서 세부 합계92시간과 총계102시간의 차이10시간을 확인해, 기존 범위의 W08 통합/접근성에6시간·W10 결함/인계에4시간을 추가 배분했다. 이는 실제 소요시간이 아닌 계획 추정의 정정이다. 주말 작업은 가용 용량에 넣지 않는다. 11/20·27, 12/04에 실제 소요로 다시 추정하고, 초과하면 선택 기능의 활성화를 미루며 필수 요건을 임의 삭제하지 않는다. 별도 실제 참여자 세션·대외 수용 대기시간은 이 개발공수에 포함하지 않는다.
 
 | 작업 | 추정 시간 |
 | --- | --- |
@@ -145,9 +152,9 @@
 | W05 공개/콘텐츠/정정 | 18 |
 | W06 평가 | 7 |
 | W07 운영/복구 | 9 |
-| W08 통합/접근성 | 12 |
+| W08 통합/접근성 | 18 |
 | W09 실증 준비 | 4 |
-| W10 결함/인계 | 8 |
+| W10 결함/인계 | 12 |
 | W11 판정 | 4 |
 | 합계/별도 완충 | 102 / 18 |
 
@@ -223,5 +230,5 @@
 | 날짜 | 변경·근거 |
 | --- | --- |
 | 2026-11-13 | 사용자 요청/PDF v1.0과 main471a3eb 조사로 첫 SSOT 수립. 12/10 내부 검수·실증 준비 목표 확정. 개발 실행은 Jay/Codex, 외부 인력 가용성에 의존하지 않음. 수량/정책/성능·실증 입력은 DEC-01~08 OPEN으로 유지 |
-
 | 2026-11-13 후속 | 사용자 후속 요청으로 #359/360 구현 정책 v1 채택. 기존 베타 기준/PDF의 사전승인·권리/출처와 실제 미제공 사실을 구분하고 backend→UI→SSOT W03~05 순서로 진행 |
+| 2026-11-13 진행 | #366 정책 `8431113`, #369 기본 취소 `a01e6e8`, #372 guest 저장/승계 `b469063` 병합. 실제 CI checkout과 부분 case를 원장에 추가하며 전체 NOT_RUN·#359 공개 게이트·#360 실제 사실 OPEN을 유지 |

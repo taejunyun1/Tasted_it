@@ -46,8 +46,11 @@ for (const user of ["anonymous", "reviewer"] as const) {
       await page.goto("/places");
       if (zoom === 2) await page.addStyleTag({ content: "html { zoom: 2; }" });
       if (fontMode === "monospace-stress") await page.addStyleTag({ content: ".site-head, .site-head * { font-family: monospace !important; }" });
-      // Same-route navigation can restore the scroll left by the previous Tab traversal.
-      await page.evaluate(() => window.scrollTo(0, 0));
+      // Ignore CSS smooth scrolling when resetting a previous Tab traversal.
+      expect(await page.evaluate(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        return window.scrollY;
+      })).toBe(0);
       const header = page.locator(".site-head");
       const menu = header.getByRole("button", { name: "메뉴", exact: true });
       await expect(menu).toBeVisible();
@@ -107,7 +110,10 @@ for (const user of ["anonymous", "reviewer"] as const) {
         await page.setViewportSize({ width, height });
         await page.goto("/places");
         if (zoom === 2) await page.addStyleTag({ content: "html { zoom: 2; }" });
-        await page.evaluate(() => window.scrollTo(0, 0));
+        expect(await page.evaluate(() => {
+          window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+          return window.scrollY;
+        })).toBe(0);
         const header = page.locator(".site-head");
         const menu = header.getByRole("button", { name: "메뉴", exact: true });
         await menu.focus();

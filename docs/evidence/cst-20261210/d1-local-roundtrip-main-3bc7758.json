@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "mode": "LOCAL_SYNTHETIC",
+  "status": "PASS",
+  "sourceSha": "3bc7758f43adf7cb4cb92aa6d45bbd08d99b76e5",
+  "scriptSha256": "75cbbadb9c01f2656197a0fceaf39081cfce088b933fbb5c4f417221db7e8bcb",
+  "stages": [
+    "MIGRATE_SOURCE",
+    "SEED_SOURCE",
+    "SNAPSHOT_SOURCE",
+    "EXPORT_BACKUP",
+    "MUTATE_SOURCE",
+    "SNAPSHOT_CHANGED_SOURCE",
+    "IMPORT_RESTORED",
+    "SNAPSHOT_RESTORED"
+  ],
+  "backupSha256": "167b4843e58c63c49736038027964f14ca8fbd793b96fabba9ec5a7874edcbd4",
+  "backupBytes": 106641,
+  "sourceRowDigest": "bf02f90d8d64d7d7d0bc31110a1852690ec679c6f68261e825160dfc9078243d",
+  "restoredRowDigest": "bf02f90d8d64d7d7d0bc31110a1852690ec679c6f68261e825160dfc9078243d",
+  "counts": {
+    "categories": 1,
+    "places": 1,
+    "links": 1
+  },
+  "quickCheck": "ok",
+  "physicalIntegrity": {
+    "source": {
+      "status": "ok",
+      "mode": "READ_ONLY_SCRATCH_COPY",
+      "copiedBytes": 2747856
+    },
+    "restored": {
+      "status": "ok",
+      "mode": "READ_ONLY_SCRATCH_COPY",
+      "copiedBytes": 1194616
+    }
+  },
+  "projectVerification": {
+    "status": "MATCH",
+    "excludedObjectNames": [
+      "sqlite_*",
+      "_cf_*",
+      "d1_migrations (including owned indexes/triggers)"
+    ],
+    "schemaObjectCount": 212,
+    "domainTableCount": 69,
+    "sourceSchemaDigest": "9172a0f6b7c79e2608f079596d19f08768402cfcc3a2d98cbe6a0b5a96e88d19",
+    "restoredSchemaDigest": "9172a0f6b7c79e2608f079596d19f08768402cfcc3a2d98cbe6a0b5a96e88d19",
+    "sourceDomainDataDigest": "1de8e336a135e1e9cd2af7e59f6170f598b2f83732f5e84405bddeab5feb4ef0",
+    "restoredDomainDataDigest": "1de8e336a135e1e9cd2af7e59f6170f598b2f83732f5e84405bddeab5feb4ef0",
+    "domainRows": 157
+  },
+  "foreignKeyViolations": 0,
+  "sourceMutationObserved": true,
+  "guards": [
+    {
+      "name": "CORRUPT_BACKUP",
+      "status": "REJECTED_BEFORE_IMPORT",
+      "code": "BACKUP_DIGEST_MISMATCH"
+    },
+    {
+      "name": "MISSING_BACKUP",
+      "status": "REJECTED_BEFORE_IMPORT",
+      "code": "BACKUP_UNAVAILABLE"
+    }
+  ],
+  "migrations": [
+    {
+      "file": "0000_week1.sql",
+      "sha256": "7fe2beb8d66635371e109d3020c8af9cc63601b28b0d17a1c8826125b900e821"
+    },
+    {
+      "file": "0001_public_data_candidates.sql",
+      "sha256": "6a4bb73ece1ddd5d739dd267462ed73d482d19becefe8327e788df49b47c8c73"
+    },
+    {
+      "file": "0002_category_taxonomy.sql",
+      "sha256": "a11534e71f54490b580dbbd72da017773d199aaf11362c387ee3d75c3e021e70"
+    },
+    {
+      "file": "0003_member_accounts.sql",
+      "sha256": "a72bcb18ba94087b5ad2531bad1502b47a0c062d0b6f6bda060a0bba81089cab"
+    },
+    {
+      "file": "0004_reviewer_management.sql",
+      "sha256": "2d29088c1bffb54bdd81249e12deef2597bf337ad8948e6731eaef3aa932f9b3"
+    },
+    {
+      "file": "0005_rating_foundation.sql",
+      "sha256": "b0ced12debc57a5c29fdee8870b05b47ab800e3ea28f231fee04b6eade4f80ab"
+    },
+    {
+      "file": "0006_place_operations.sql",
+      "sha256": "14cbd9be2989d894e1e95bb881ba7c9dd89511aa60c1f344c2bd05feb3578860"
+    },
+    {
+      "file": "0007_ai_operations.sql",
+      "sha256": "8f0b82ab36dbd79401771b2057eeeda276ed8b5808a723c1086fa0bac8850f22"
+    },
+    {
+      "file": "0008_ai_usage_quota.sql",
+      "sha256": "e5101d75ec50568044449dc1641ca89945560ad2cbd07594c86ee0a0bb381cfd"
+    },
+    {
+      "file": "0009_category_semantic_taxonomy.sql",
+      "sha256": "995d3cdf0218b07b7c8373751baf8756bce5a8e529014ff12816604cb37d542a"
+    },
+    {
+      "file": "0010_chain_store_exclusions.sql",
+      "sha256": "9c685ea6ceee7665e2de8372aada4fe3172057f8c5692b5e1b7e336639c455fc"
+    },
+    {
+      "file": "0011_backfill_chain_store_exclusions.sql",
+      "sha256": "e5fc1026b88f1add98d7c65743d4bcf2238a36299be418057f47ca2cd1e981a9"
+    },
+    {
+      "file": "0012_repair_category_slugs.sql",
+      "sha256": "acde7e3057b90ae4067de24ac30c85250157f1c8883d6d26eb77a7cb49240160"
+    },
+    {
+      "file": "0013_expand_candidate_exclusions.sql",
+      "sha256": "90d9753d383b326537e7f9a4ecf08ec97987e62f4fe603a660ce334738fedbb9"
+    },
+    {
+      "file": "0014_parking_foundation.sql",
+      "sha256": "5af7286cb69afbc393835e08bf39dac60c6eadb365648aa97d011bf0dea0e5c4"
+    },
+    {
+      "file": "0015_google_oauth.sql",
+      "sha256": "c5088e63983a324c8a7e8cdeb5a45cfa33921612670f35df2673154a15aff829"
+    },
+    {
+      "file": "0016_naver_oidc_auth.sql",
+      "sha256": "5a2c55c9015ef0ce3427df03cfe87a3ed42ba7cf2d7fb091e7fa04be77ec4a8e"
+    },
+    {
+      "file": "0017_profile_taste_badges.sql",
+      "sha256": "134e76bac6c0b8807a12d9cfc86aadfcd1b69ac27dfecb9285d1f791559c6d9a"
+    },
+    {
+      "file": "0018_app_first_taste_onboarding.sql",
+      "sha256": "ba9934be8f0ecba726f2898fc87c87b7329bcae7d81407ff5293ded42a220ba8"
+    },
+    {
+      "file": "0019_taste_learning_state.sql",
+      "sha256": "96b1500dad809714773d8b4b4b0a77ca510851d7ead4478f2953155730458532"
+    },
+    {
+      "file": "0020_product_event_lifecycle_uniqueness.sql",
+      "sha256": "3a20db34122b55a4c4919b5f453dc825c2abb92257d7da08d6815bdcdcd2a1ae"
+    },
+    {
+      "file": "0021_guest_onboarding_selection_revision.sql",
+      "sha256": "d160a2aad1b1e4657c5a6130e726315258199e952f05b4f8a2aa5712ca7ab9f9"
+    },
+    {
+      "file": "0022_guest_onboarding_selection_epoch.sql",
+      "sha256": "044d91ab7617d75f2bc27e08323f54df2124f585708fdf8a49af250fc6c91edb"
+    },
+    {
+      "file": "0023_onboarding_data_lifecycle.sql",
+      "sha256": "6be751a8c8285c883445698950f52b7c22c8811ab4d7e0e41cc8556355cf8559"
+    },
+    {
+      "file": "0024_reviewer_visit_reviews.sql",
+      "sha256": "bec409852fcf799b20efc71c8bc5a7f043d5e8130cbd28512c6fa99071e9a738"
+    },
+    {
+      "file": "0025_place_liveness_states.sql",
+      "sha256": "fb1dfeb4f3d2cb8fd3128a4a5957bdfab0ee46d61c40713caf859260738b2462"
+    },
+    {
+      "file": "0026_reviewer_visit_photos.sql",
+      "sha256": "4f2a4bd3fa2015027ca5cdf0e1b2df074434da5a180af9c063640076e432c4ae"
+    },
+    {
+      "file": "0027_reviewer_photo_cleanup_jobs.sql",
+      "sha256": "7fd4900ced5b5189ddf318ffc3b3ba85e0ffabd0f03121abf168d1da7c84c5ca"
+    },
+    {
+      "file": "0028_rate_limit_windows.sql",
+      "sha256": "4935bd25abb75f77ed081e598e4fe4280de4b51deeccf669002029c3071c7788"
+    },
+    {
+      "file": "0029_auto_not_restaurant_exclusion.sql",
+      "sha256": "f7f207de25d5cea2cf682fb2d0b6298c8797a2967b34b7bd55fa956cc571e5aa"
+    },
+    {
+      "file": "0030_naver_local_category_verification.sql",
+      "sha256": "e6ed30ea5ca0d1f10cf6713056e3e9bed80acbee696be5ada788fa961c4436e3"
+    },
+    {
+      "file": "0031_place_category_v5_profiles.sql",
+      "sha256": "c7435ddf77454f630182dd029803724411afb31061b73dd6c090a398b24be7db"
+    },
+    {
+      "file": "0031_remove_workers_ai.sql",
+      "sha256": "ae5156f8143e38a55ec418db11ba713054da013fc05561732a11290c1af53679"
+    },
+    {
+      "file": "0032_place_course_context.sql",
+      "sha256": "f351ed53102dc9a60ab723c141637b6b619a752fd2ba36f3a9c103376d15de6a"
+    },
+    {
+      "file": "0033_naver_place_liveness.sql",
+      "sha256": "914971126d87a7e52532ff5775eec42469236eb2339f96ddedad61d5adba2a52"
+    },
+    {
+      "file": "0034_place_review_pipeline.sql",
+      "sha256": "c30c454e5645385b7b77af93d34c7f13960451bc16d07e5621dda868eddd7572"
+    },
+    {
+      "file": "0035_naver_run_region_code.sql",
+      "sha256": "39f54c272d01e4c408ea1a957628e35dfc350ab63686fa1418efbe5dd9867808"
+    },
+    {
+      "file": "0036_local_dining_evidence.sql",
+      "sha256": "4ea67dbb352252f57f350293196b9bf865c764971abdd4265df37226a23f0c54"
+    },
+    {
+      "file": "0037_student_invitations.sql",
+      "sha256": "555ad27cafacdf3021694028f222c39c671815800a7a3a779923dcf41ec04ff7"
+    },
+    {
+      "file": "0038_student_tasks.sql",
+      "sha256": "7d9d38416deb7f0aeb8ece8a60588f4eec4b1a26d34d3ba3e385135b3d34e3df"
+    },
+    {
+      "file": "0039_student_invite_aliases.sql",
+      "sha256": "ac3f6f752390d87ee385d0b3c3a937b567ccf7fe699ad0ef12ee699683f64a8f"
+    },
+    {
+      "file": "0040_reviewer_moderation.sql",
+      "sha256": "035d0671b2a299be116739ef191e8341f828a6039a2f589d847f730067b66905"
+    },
+    {
+      "file": "0041_guest_saved_places.sql",
+      "sha256": "adb67a55155834046d3121b7064d1c82a556aa36b0437326cb77b22cdb74a655"
+    }
+  ],
+  "startedAtKst": "2026-11-13T22:30:04.486644+09:00",
+  "finishedAtKst": "2026-11-13T22:30:17.161357+09:00",
+  "elapsedSeconds": 12.675,
+  "sqliteExperimentalWarning": true,
+  "migrationsSha256": "f7d7f7b4c23af8f78667ab7638dba74966c2ae10e6436fcccb72b37efd31137a"
+}
