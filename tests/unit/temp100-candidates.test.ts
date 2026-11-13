@@ -115,9 +115,16 @@ describe("TEMP100 private candidate boundaries", () => {
     writeFileSync(join(directory, "shards/jeonnam.json"), JSON.stringify(input.slice(40)), { mode: 0o600 });
     const prepared = temp100.preparePrivateDataset(directory, operations, asOf);
     expect(prepared.aggregate.localPhotoPreviewCount).toBe(1);
-    expect(prepared.previewHtml).toContain('<img src="photos/synthetic.png"');
+    expect(prepared.previewHtml).toContain('<img src="');
     expect(prepared.previewHtml).not.toMatch(/<img[^>]+https:/);
+    const savedHtml = readFileSync(join(directory, "preview.html"), "utf8");
+    const source = savedHtml.match(/<img src="([^"]+)"/)![1];
     writeFileSync(join(directory, "photos/synthetic.png"), Buffer.from("changed bytes"), { mode: 0o600 });
+    const displayedBytes = source.startsWith("data:")
+      ? Buffer.from(source.split(",")[1], "base64")
+      : readFileSync(join(directory, source));
+    expect(displayedBytes).toEqual(png);
     expect(() => temp100.preparePrivateDataset(directory, operations, asOf)).toThrow("TEMP100_PHOTO_BYTES_INVALID");
+    expect(readFileSync(join(directory, "preview.html"), "utf8")).toBe(savedHtml);
   });
 });
