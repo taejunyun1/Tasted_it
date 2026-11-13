@@ -350,6 +350,14 @@ export async function listPublicCategoryGroups(db: AppDb) {
   return [...groups.values()];
 }
 
+export async function listCorrectionPlaces(db: AppDb): Promise<Array<Pick<PlaceDetail, "id" | "name" | "address">>> {
+  return db.select({ id: places.id, name: places.name, address: places.address }).from(places)
+    .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
+    .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
+    .where(and(publicConditions({}), sql`${places.closedAt} is null`))
+    .orderBy(asc(places.name), asc(places.id)).limit(1_000);
+}
+
 export async function getPlaceBySlug(
   db: AppDb,
   slug: string,
