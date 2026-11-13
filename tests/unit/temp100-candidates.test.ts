@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, chmodSync, writeFileSync, readFileSync, symlinkSync, rmSync, statSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import * as temp100 from "../../scripts/temp100-candidates.mjs";
 import { parseArguments, validateReferenceUrl, buildTemp100Artifacts, assertPrivateDirectory, writePrivateArtifacts } from "../../scripts/temp100-candidates.mjs";
 
 // All names, addresses, image paths and descriptions below are synthetic; no requests run.
@@ -100,5 +102,22 @@ describe("TEMP100 private candidate boundaries", () => {
     expect(() => writePrivateArtifacts(directory, output)).toThrow("TEMP100_ARTIFACT_CONFLICT");
     expect(readFileSync(join(directory, "aggregate.json"), "utf8")).toBe("preserved original");
     expect(readFileSync(join(directory, "candidates.json"), "utf8")).toBe(before);
+  });
+  it("prepares fixed private shards and displays only hash-verified permitted local image bytes", () => {
+    const { operations, directory } = privateDirectory();
+    mkdirSync(join(directory, "shards"), { mode: 0o700 });
+    mkdirSync(join(directory, "photos"), { mode: 0o700 });
+    const input = rows();
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZQAAAABJRU5ErkJggg==", "base64");
+    Object.assign(input[0].photo, { licenseStatus: "PERMITTED", licenseType: "KOGL-1", licenseUrl: "https://www.kogl.or.kr/info/license.do", assetSpecificEvidenceUrl: input[0].sourceUrl, creator: "합성 권리자", localAssetRelativePath: "photos/synthetic.png", photoSha256: createHash("sha256").update(png).digest("hex") });
+    writeFileSync(join(directory, "photos/synthetic.png"), png, { mode: 0o600 });
+    writeFileSync(join(directory, "shards/gwangju.json"), JSON.stringify(input.slice(0, 40)), { mode: 0o600 });
+    writeFileSync(join(directory, "shards/jeonnam.json"), JSON.stringify(input.slice(40)), { mode: 0o600 });
+    const prepared = temp100.preparePrivateDataset(directory, operations, asOf);
+    expect(prepared.aggregate.localPhotoPreviewCount).toBe(1);
+    expect(prepared.previewHtml).toContain('<img src="photos/synthetic.png"');
+    expect(prepared.previewHtml).not.toMatch(/<img[^>]+https:/);
+    writeFileSync(join(directory, "photos/synthetic.png"), Buffer.from("changed bytes"), { mode: 0o600 });
+    expect(() => temp100.preparePrivateDataset(directory, operations, asOf)).toThrow("TEMP100_PHOTO_BYTES_INVALID");
   });
 });
