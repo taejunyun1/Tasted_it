@@ -26,14 +26,14 @@ pnpm test tests/unit/cst-local-d1-recovery.test.ts
 4. D1 API가 `integrity_check`를 허용하지 않으므로, Wrangler 프로세스 종료 후 **생성 local DB와 WAL/SHM을 새 scratch 폴더에 복사한 뒤 복사본만** Node SQLite API의 `readOnly:true`로 전체 `integrity_check`한다. 원본 파일을 이 API로 직접 열지 않는다. 파일 모호함·symlink·크기 상한·검사 실패는 PASS로 바꾸지 않는다.
 5. SQL export를 32MiB 이하의 regular 파일로 한정하고 SHA-256을 기록한다. 소유 경로 밖·symlink·누락·0바이트·크기 초과·해시 불일치를 import 전에 거절한다.
 6. source의 합성 장소 이름을 바꾸고 실제 값 차이를 확인한다. 검증된 백업 bytes의 독점 생성 사본만 별도의 빈 local D1으로 import한다.
-7. 복원 DB의 quick/FK·전체 integrity(별도 scratch 복사본)·합성 건수·정렬 digest가 백업 시점과 일치해야 PASS다. SQL export bytes의 digest와 행 digest는 서로 다른 증거다.
+7. 복원 DB의 quick/FK·전체 integrity(별도 scratch 복사본)·합성 건수·정렬 digest가 백업 시점과 일치해야 PASS다. 추가로 모든 프로젝트 소유 table/index/view/trigger의 정렬된 type/name/table/SQL SHA-256 목록과 각 도메인 테이블의 전체 row count·정렬 canonical 데이터 digest를 비교한다. `sqlite_*`·`_cf_*`·`d1_migrations`와 그 소유 index/trigger만 플랫폼 메타데이터로 명시 제외한다. 각 테이블은 최대100,000행, canonical 데이터는 전체32MiB 이내로 한정하고 초과 시 실패한다. integer/real/text/blob/null을 구분하고 컬럼·행 순서를 정규화한다. SQL export bytes의 digest와 행 digest는 서로 다른 증거다.
 8. 같은 실행에서 손상된 백업 사본과 누락 백업을 검사하고 **import 전 거절**을 확인한다. 손상된 SQL을 실행하거나 복원 성공으로 표시하지 않는다.
 
 `result.json`은 생성한 run 폴더에 남고 stdout에는 비민감 요약만 출력된다. 실행 원본·복원·백업·실패 자료는 자동 삭제/재사용/재시도하지 않는다. 작업자는 이 실행이 생성한 정확한 폴더를 확인한 뒤 그 합성 폴더만 정리할 수 있다. 프로젝트/기존 로컬 상태를 삭제하는 정리 명령은 제공하지 않는다.
 
 ## 한계와 후속
 
-표본 digest는 고정 category/place/관계의 값·연결을 확인하며 모든 업무 테이블 의미를 검증하지 않는다. 전체 DB의 물리 integrity와 FK 검사는 별도로 수행한다. 같은 사용자 계정의 악성 프로세스를 격리하는 sandbox는 아니며 private 폴더·검증 사본을 사용한다.
+고정 category/place/관계의 값·연결 외에 전체 프로젝트 schema 객체와 도메인 table 데이터의 동등성을 비교한다. 개별 객체/테이블 digest는 run의 `project-source.json`·`project-restored.json`, 결과에는 aggregate digest·건수를 기록한다. 모든 업무 규칙의 의미를 검증하는 것은 아니며, 전체 DB의 물리 integrity와 FK 검사는 별도로 수행한다. 같은 사용자 계정의 악성 프로세스를 격리하는 sandbox는 아니며 private 폴더·검증 사본을 사용한다.
 
 처음 검증한 main에는 `0041` guest migration이 있고 `0040` 리뷰어 migration은 아직 병합 전이었다. 순번의 간극을 기존 파일 수정으로 메우지 않았다. backend 병합 뒤 최신 main에서 별도 run으로 전체 migration 적용·복구를 재검증해야 한다. 사진/R2 일관성·삭제 후 백업 복원으로 정보가 재유입되지 않는 운영 정책·복구 시점/권한·원격 복원·백업 보관/암호화·RPO/RTO는 별도 작업이다. 이 도구의 PASS로 대체하지 않는다.
 

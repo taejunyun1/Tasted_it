@@ -10,3 +10,6 @@
 - 최초 actual의 migration 목록은 0041 포함·0040 미포함이다. backend 병합 뒤 최신 main에서 재검증할 필요를 유지한다. 이 증거는 종합 T08·운영 복구/백업 SLA 완료가 아니다.
 
 - 후속 경계 보강: 최초 export read 전에 크기를 검사하도록 추가하고 executable-entry 원격 인자 거절 시험을 보강했다. 최종 코드 `8c6584f`에서 새 합성 run을 1회 수행해 동일 수용조건 PASS를 확인했다(`bounded-export-final-run.json`). 기존 실패·성공 JSON은 유지하며 migration 목록은 이전 성공 JSON과 동일 digest로 참조한다.
+
+- 독립 리뷰 후 표본만 남고 도메인 table/trigger/row가 누락되는 반례를 RED로 재현하고, 모든 프로젝트 소유 table/index/view/trigger의 type/name/table/SQL digest 및 각 도메인 table의 전체 row count·정렬 데이터 digest를 비교하도록 보강했다. `sqlite_*`·`_cf_*`·`d1_migrations`와 그 소유 객체만 플랫폼 메타데이터로 명시 제외한다.
+- 최신 main `3ab7256` 반영 후 실행 코드 `4bde49f`의 actual1회가 PASS했다(`complete-domain-final-run.json`): 도메인67테이블·156행의 schema/data digest와 물리/FK 검사 일치. 각 table/객체의 개별 digest 원장은 해당 run의 `project-source.json`·`project-restored.json`에 보존한다. unit6/6 PASS. 이전 표본 검증 결과는 확장된 전체 도메인 검증으로 소급해서 표시하지 않는다.
