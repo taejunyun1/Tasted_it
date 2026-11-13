@@ -1,19 +1,19 @@
 import { env } from "cloudflare:workers";
 import { asc, desc, inArray } from "drizzle-orm";
-import { Form, Link } from "react-router";
+import { Form, Link, redirect } from "react-router";
 import type { Route } from "./+types/admin-ratings";
 
 import { createDb } from "../db/client.server";
 import { goldenPickEvents, integrityCases, places, ratingRecomputeJobs, ratingSnapshots } from "../db/schema";
 import { readSessionId, requireAdmin } from "../features/auth/session.server";
 import { getActiveRatingConfig } from "../features/ratings/rating-config.server";
-import { invalidateVoteEvent, transitionIntegrityCase } from "../features/ratings/integrity.server";
+import { commitIntegrityOperation, prepareIntegrityOperation, readIntegrityOperation, type IntegrityOperationKind } from "../features/ratings/admin-integrity.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getRatingJobResult } from "../features/ratings/recompute.server";
 import { commitRatingRecompute, prepareRatingRecompute } from "../features/ratings/admin-recompute.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  await requireAdmin(request);
+  const admin = await requireAdmin(request);
   const db = createDb(env.DB); const now = new Date().toISOString();
   const [config, snapshots, jobs, cases, picks, placeRows] = await Promise.all([
     getActiveRatingConfig(db, now),
@@ -27,8 +27,21 @@ export async function loader({ request }: Route.LoaderArgs) {
   const requestedJobId = new URL(request.url).searchParams.get("jobId");
   const requestedJob = requestedJobId && requestedJobId.length <= 128
     ? await getRatingJobResult(db, requestedJobId) : null;
+  let integrityPreview: Awaited<ReturnType<typeof readIntegrityOperation>> | null = null;
+  let integrityError: string | null = null;
+  const url = new URL(request.url), operationId = url.searchParams.get("operation");
+  const kind = url.searchParams.get("operationKind");
+  if (operationId && isIntegrityKind(kind)) {
+    const sessionId = readSessionId(request);
+    if (sessionId) {
+      try { integrityPreview = await readIntegrityOperation(env.DB, { actorUserId: admin.id, sessionId, operationId, kind, now }); }
+      catch { integrityError = "실행 확인을 재개할 수 없습니다. 현재 대상에서 다시 검토해 주세요."; }
+    }
+  }
   return {
     config,
+    integrityPreview,
+    integrityError,
     requestedJob,
     stats: {
       stale: snapshots.filter((snapshot) => snapshot.isStale).length,
@@ -77,26 +90,47 @@ export async function action({ request }: Route.ActionArgs) {
     const preview = await prepareRatingRecompute(env.DB, { ...operator, placeId, ...(intent === "retry-recompute" ? { retryJobId: String(form.get("jobId") ?? "") } : {}) });
     return { ok: true, message: null, preview };
   }
-  if (intent === "case") {
-    const status = String(form.get("status") ?? "");
-    if (status !== "REVIEWING" && status !== "DISMISSED" && status !== "CONFIRMED") throw new Response("Invalid status", { status: 400 });
-    await transitionIntegrityCase(db, { caseId: String(form.get("caseId") ?? ""), actorUserId: admin.id, status, reason: String(form.get("reason") ?? ""), now });
-    return { ok: true, message: "사건 상태를 변경했습니다." };
-  }
-  if (intent === "invalidate") {
-    await invalidateVoteEvent(db, {
-      voteEventId: String(form.get("voteEventId") ?? ""),
-      integrityCaseId: String(form.get("caseId") ?? ""),
-      actorUserId: admin.id,
-      reason: String(form.get("reason") ?? ""),
-      now,
-    });
-    return { ok: true, message: "원본은 보존하고 해당 투표를 집계에서 무효화했습니다." };
+  if (intent === "case" || intent === "invalidate" || intent === "confirm-integrity") {
+    const sessionId = readSessionId(request);
+    if (!sessionId) throw new Response("세션을 확인해 주세요.", { status: 401 });
+    const operator = { actorUserId: admin.id, sessionId, now };
+    const kind = intent === "case" ? "INTEGRITY_CASE_TRANSITION" : intent === "invalidate" ? "VOTE_INVALIDATE" : String(form.get("operationKind") ?? "");
+    if (!isIntegrityKind(kind)) throw new Response("잘못된 작업 종류입니다.", { status: 400 });
+    const operationId = String(form.get("operationId") ?? "");
+    try {
+      if (intent === "confirm-integrity") {
+        const result = await commitIntegrityOperation(env.DB, { ...operator, operationId, kind });
+        return { ok: true, integrityPreview: null, message: result.replayed ? "이미 반영된 요청의 결과를 확인했습니다." : kind === "VOTE_INVALIDATE" ? "투표 원본을 보존하고 무효화와 재계산 대기 등록을 완료했습니다." : "사건 상태 변경을 반영했습니다." };
+      }
+      const prepared = await prepareIntegrityOperation(env.DB, { ...operator, kind, caseId: String(form.get("caseId") ?? ""), status: String(form.get("status") ?? ""), voteEventId: String(form.get("voteEventId") ?? ""), reason: String(form.get("reason") ?? "") });
+      const integrityPreview = await readIntegrityOperation(env.DB, { ...operator, operationId: prepared.operationId, kind });
+      return { ok: true, integrityPreview, message: "대상과 변경 내용을 확인해 주세요. 아직 반영하지 않았습니다." };
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "ADMIN_RECENT_AUTH_REQUIRED") {
+        const returnTo = `/admin/ratings?operation=${encodeURIComponent(operationId)}&operationKind=${kind}`;
+        throw redirect(`/admin/reauth?returnTo=${encodeURIComponent(returnTo)}`);
+      }
+      return { ok: false, message: integrityFailureMessage(code), integrityRetry: code === "ADMIN_OPERATION_RESULT_UNKNOWN" ? { operationId, kind } : null };
+    }
   }
   throw new Response("Invalid intent", { status: 400 });
 }
 
 export function meta() { return [{ title: "평가 운영 — Re:Taste Admin" }]; }
+
+function isIntegrityKind(value: unknown): value is IntegrityOperationKind {
+  return value === "INTEGRITY_CASE_TRANSITION" || value === "VOTE_INVALIDATE";
+}
+function integrityFailureMessage(code: string) {
+  if (code === "ADMIN_OPERATION_EXPIRED") return "실행 확인 시간이 지났습니다. 다시 검토해 주세요.";
+  if (code === "ADMIN_OPERATION_CONFLICT" || code === "INTEGRITY_CASE_CHANGED") return "검토 후 대상이 변경됐습니다. 현재 상태를 다시 확인해 주세요.";
+  if (code === "INTEGRITY_EVENT_SCOPE_MISMATCH") return "이 사건과 연결된 투표만 무효화할 수 있습니다.";
+  if (code === "VOTE_ALREADY_INVALIDATED") return "이미 무효화된 투표입니다.";
+  if (code === "INVALIDATION_REASON_REQUIRED" || code === "INTEGRITY_REASON_REQUIRED") return "처리 사유를 입력해 주세요.";
+  if (code === "ADMIN_OPERATION_RESULT_UNKNOWN") return "반영 결과를 확인할 수 없습니다. 같은 요청을 다시 확인해 주세요.";
+  return "요청을 반영하지 못했습니다. 대상·사유와 현재 권한을 확인해 주세요.";
+}
 
 function ratingJobMessage(status: string) {
   switch (status) {
@@ -109,6 +143,7 @@ function ratingJobMessage(status: string) {
 }
 
 export default function AdminRatings({ loaderData, actionData }: Route.ComponentProps) {
+  const integrityPreview = actionData && "integrityPreview" in actionData ? actionData.integrityPreview : loaderData.integrityPreview;
   const preview = actionData && "preview" in actionData ? actionData.preview : null;
   const requestedJob = actionData && "requestedJob" in actionData ? actionData.requestedJob : loaderData.requestedJob;
   return <main id="main" className="admin-rating-shell"><header><p className="eyebrow">ADMIN / RATING OPERATIONS</p><h1>평가 운영</h1><Link to="/admin/reviewer-visits">방문 리뷰 검수 대기열</Link><p>활성 알고리즘 <strong>{loaderData.config.algorithmVersion}</strong> · 최소 공개 {loaderData.config.minimumVisibleSamples}표</p></header>{actionData?.message && <p className="admin-notice">{actionData.message}</p>}<section className="admin-rating-stats"><Stat label="반영 대기" value={loaderData.stats.stale}/><Stat label="재계산 대기" value={loaderData.stats.pending}/><Stat label="재계산 실패" value={loaderData.stats.failed}/><Stat label="검토·확인" value={loaderData.stats.openCases}/><Stat label="Golden Pick" value={loaderData.stats.activeGoldenPicks}/></section><section className="admin-rating-section"><h2>수동 재계산</h2><Form method="post"><input type="hidden" name="intent" value="recompute"/><select name="placeId" aria-label="재계산 장소">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name}</option>)}</select><button>선택 장소 재계산</button></Form>
@@ -143,7 +178,26 @@ export default function AdminRatings({ loaderData, actionData }: Route.Component
           </Form>}
         </>}
       </div>}
-    </section><section className="admin-rating-section"><h2>재계산 작업</h2>{loaderData.jobs.length ? <div className="admin-rating-table">{loaderData.jobs.map((job) => <article key={job.id}><strong>{job.status}</strong><span>작업 ID <Link to={`?jobId=${encodeURIComponent(job.id)}`}>{job.id}</Link></span><span>{job.placeId ?? "전체"} · {job.configId} · {job.attempts}회</span><span>{job.reason}</span><small>{job.errorSummary ?? job.updatedAt}</small></article>)}</div> : <p>작업 기록이 없습니다.</p>}</section><section className="admin-rating-section"><h2>조작 검토</h2>{loaderData.cases.length ? loaderData.cases.map((item) => <article className="integrity-case" key={item.id}><div><strong>{item.status} · {item.signalType}</strong><p>{item.subjectType} · {item.subjectId}</p><code>{item.evidenceJson}</code></div>{item.status === "CONFIRMED" ? <Form method="post"><input type="hidden" name="intent" value="invalidate"/><input type="hidden" name="caseId" value={item.id}/><input name="voteEventId" placeholder="무효화할 vote event ID" required/><input name="reason" placeholder="무효화 사유" required/><button>투표 무효화·재계산</button></Form> : <Form method="post"><input type="hidden" name="intent" value="case"/><input type="hidden" name="caseId" value={item.id}/><input name="reason" placeholder="처리 사유"/><button name="status" value="REVIEWING">검토 시작</button><button name="status" value="DISMISSED">해제</button><button name="status" value="CONFIRMED">조작 확인</button></Form>}</article>) : <p>열린 조작 검토가 없습니다.</p>}</section></main>;
+    </section><section className="admin-rating-section"><h2>재계산 작업</h2>{loaderData.jobs.length ? <div className="admin-rating-table">{loaderData.jobs.map((job) => <article key={job.id}><strong>{job.status}</strong><span>작업 ID <Link to={`?jobId=${encodeURIComponent(job.id)}`}>{job.id}</Link></span><span>{job.placeId ?? "전체"} · {job.configId} · {job.attempts}회</span><span>{job.reason}</span><small>{job.errorSummary ?? job.updatedAt}</small></article>)}</div> : <p>작업 기록이 없습니다.</p>}</section><section className="admin-rating-section"><h2>조작 검토</h2>
+      {loaderData.integrityError && <p role="alert">{loaderData.integrityError}</p>}
+      {actionData && "integrityRetry" in actionData && actionData.integrityRetry && <Form method="post">
+        <input type="hidden" name="intent" value="confirm-integrity"/>
+        <input type="hidden" name="operationId" value={actionData.integrityRetry.operationId}/>
+        <input type="hidden" name="operationKind" value={actionData.integrityRetry.kind}/>
+        <button>같은 사건 처리 결과 다시 확인</button>
+      </Form>}
+      {integrityPreview && <div className="admin-notice" role="status" style={{ overflowWrap: "anywhere" }}>
+        <h3>사건 처리 실행 확인</h3><p>{integrityPreview.summary.title} · {integrityPreview.summary.count}건</p>
+        <p>사건 {integrityPreview.caseId} · {integrityPreview.previousStatus}{integrityPreview.nextStatus ? ` → ${integrityPreview.nextStatus}` : ""}</p>
+        {integrityPreview.voteEventId && <p>투표 {integrityPreview.voteEventId}</p>}
+        {integrityPreview.reason && <p>사유: {integrityPreview.reason}</p>}
+        {integrityPreview.status === "PENDING" ? <><p>확정 시 최근 인증을 확인하고 이 대상만 변경합니다.</p><Form method="post">
+          <input type="hidden" name="intent" value="confirm-integrity"/><input type="hidden" name="operationId" value={integrityPreview.operationId}/><input type="hidden" name="operationKind" value={integrityPreview.kind}/>
+          <button>확인 후 반영</button>
+        </Form></> : <p>이미 처리된 요청입니다.</p>}
+        <Link to="/admin/ratings">확인 닫기</Link>
+      </div>}
+      {loaderData.cases.length ? loaderData.cases.map((item) => <article className="integrity-case" key={item.id}><div><strong>{item.status} · {item.signalType}</strong><p>{item.subjectType} · {item.subjectId}</p><code>{item.evidenceJson}</code></div>{item.status === "CONFIRMED" ? <Form method="post"><input type="hidden" name="intent" value="invalidate"/><input type="hidden" name="caseId" value={item.id}/><input name="voteEventId" placeholder="무효화할 vote event ID" required/><input name="reason" placeholder="무효화 사유" required/><button>투표 무효화·재계산</button></Form> : <Form method="post"><input type="hidden" name="intent" value="case"/><input type="hidden" name="caseId" value={item.id}/><input name="reason" placeholder="처리 사유"/><button name="status" value="REVIEWING">검토 시작</button><button name="status" value="DISMISSED">해제</button><button name="status" value="CONFIRMED">조작 확인</button></Form>}</article>) : <p>열린 조작 검토가 없습니다.</p>}</section></main>;
 }
 
 function Stat({ label, value }: { label: string; value: number }) { return <article><span>{label}</span><strong>{value}</strong></article>; }

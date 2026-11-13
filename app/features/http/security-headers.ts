@@ -30,24 +30,30 @@ export function applySecurityHeaders(headers: Headers) {
   return next;
 }
 
-function isStudentWorkspaceRequest(request: Request) {
+function isPrivateWorkspaceRequest(request: Request) {
   let path = new URL(request.url).pathname;
   try {
     path = decodeURIComponent(path);
   } catch {
-    // The raw namespace can still identify malformed student paths.
+    // Keep malformed paths inside their original private namespace.
   }
   path = path.toLowerCase();
   return path === "/student" || path === "/student.data" || path.startsWith("/student/")
-    || path === "/admin/students" || path === "/admin/students.data" || path.startsWith("/admin/students/");
+    || path === "/admin" || path === "/admin.data" || path.startsWith("/admin/");
 }
 
 export function withSecurityHeaders(response: Response, request?: Request) {
   const headers = applySecurityHeaders(response.headers);
   // Router redirects bypass route-level headers. Enforce privacy on the final
   // Worker response, including auth redirects, errors, and single-fetch data.
-  if (request && isStudentWorkspaceRequest(request)) {
-    for (const [key, value] of Object.entries(NO_STORE_HEADERS)) headers.set(key, value);
+  if (request && isPrivateWorkspaceRequest(request)) {
+    for (const [key, value] of Object.entries({ ...NO_STORE_HEADERS, Vary: "Cookie" })) {
+      if (key.toLowerCase() === "vary" && headers.has("Vary")) {
+        const fields = headers.get("Vary")!.split(",").map((field) => field.trim());
+        if (!fields.some((field) => field.toLowerCase() === "cookie" || field === "*")) fields.push("Cookie");
+        headers.set("Vary", fields.join(", "));
+      } else headers.set(key, value);
+    }
   }
   return new Response(response.body, {
     status: response.status,
