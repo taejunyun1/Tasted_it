@@ -1,5 +1,9 @@
 # Cloudflare 배포 런북
 
+## 2026-11-14 CST 스키마 전환
+
+0040·0041 적용과 최신 main 운영 배포는 [한정 실행 계획](./2026-11-14-cst-production-rollout.md)을 우선한다. 0040 이후 구 Worker로의 단순 rollback은 금지하며, 전면503 fence 또는 같은 스키마를 지원하는 전진 수정으로 복구한다. 과거 아래 기록의 직전 version 복원 절차를 이 전환에 그대로 적용하지 않는다.
+
 ## 운영 대상 계정 (SSOT)
 
 2026-10-15 후속 인수: [RSI 결과 보존 결정](../decisions/2026-10-15-rsi-result-evidence.md)을 포함한 PR 병합 후 기존 정기 RSI는 `admin_audit_logs`에 결과 1개를 남긴다. 새 테이블·migration·binding·cron·토큰은 없다. 실패·origin 누락·감사 저장 실패는 Cron 실패로 전달한다. rollback은 사전 Worker `fa76558c-0e37-4ff2-89ba-9eb545459d5c`다. 배포 후 다음 기존 정기 실행의 Cron Events와 아래 읽기 쿼리로 같은 실행의 6경로를 확인한다. 원문 after_state에 비밀값이나 개인정보가 없어야 한다.

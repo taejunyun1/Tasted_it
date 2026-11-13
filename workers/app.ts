@@ -1,4 +1,5 @@
 import { createRequestHandler } from "react-router";
+import { withDeploymentFence } from "../app/features/operations/deployment-fence";
 import { runScheduledCandidateSync } from "../app/features/candidates/scheduled-sync.server";
 import { withSecurityHeaders } from "../app/features/http/security-headers";
 import { runScheduledRatingMaintenance } from "../app/features/ratings/scheduled-rating.server";
@@ -13,7 +14,7 @@ const requestHandler = createRequestHandler(
   import.meta.env.MODE,
 );
 
-export default {
+export default withDeploymentFence<Env>({
   async fetch(request, env) {
     const rsi = await handleRsiOnDemandRequest(request, env);
     if (rsi) return withSecurityHeaders(rsi, request);
@@ -32,4 +33,4 @@ export default {
       runScheduledOnboardingDataLifecycle(env),
     ]));
   },
-} satisfies ExportedHandler<Env>;
+});
