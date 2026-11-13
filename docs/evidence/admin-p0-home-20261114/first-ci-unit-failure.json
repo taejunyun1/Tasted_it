@@ -1,0 +1,10 @@
+{
+  "runId": 43473341276,
+  "headSha": "a0f0df927c48edbb03f4cc1c0b1488c4403d13a6",
+  "job": "typecheck and unit",
+  "test": "tests/unit/admin-index-contract.test.ts > admin index route > redirects the index into existing place-operations, not a new dashboard",
+  "error": "Cannot find package 'cloudflare:workers' imported from app/routes/admin-index.tsx",
+  "summary": { "failed": 1, "passed": 1660, "skipped": 53 },
+  "cause": "The old redirect-only contract and its Node mocks were not updated for the approved B01 operational home.",
+  "correction": "Replace the obsolete redirect expectation with a guarded, private operational summary contract and mock the Cloudflare boundary. No timeout, retry or assertion weakening."
+}
