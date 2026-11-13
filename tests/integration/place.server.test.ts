@@ -15,6 +15,8 @@ import {
 } from "../../app/features/places/place.server";
 import type { PlaceImportRow } from "../../app/features/places/place.types";
 
+import { publicationSnapshotStamp } from "./reviewer-public-fixtures";
+
 const baseRow: PlaceImportRow = {
   name: "장소 서비스 테스트",
   slug: "place-service-test",
@@ -184,6 +186,7 @@ describe("place service", () => {
         updatedAt: now,
       },
       {
+        ...(await publicationSnapshotStamp(db, placeId)),
         id: `snapshot-fresh-${suffix}`,
         placeId,
         configId: "rating-config-v2",

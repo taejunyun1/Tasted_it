@@ -5,6 +5,8 @@ import { createDb } from "../../app/db/client.server";
 import { currentVotes, integrityCases, invalidatedVoteEvents, places, ratingRecomputeJobs, ratingSnapshots, users, voteEvents } from "../../app/db/schema";
 import { enqueueRatingRecompute, getLatestRatingSnapshot, processRatingJobs, recomputePlaceRating } from "../../app/features/ratings/recompute.server";
 
+import { publicationSnapshotStamp, seedApprovedReviewerVote } from "./reviewer-public-fixtures";
+
 const now = "2026-08-06T00:00:00.000Z";
 const placeId = "rating-recompute-place";
 
@@ -25,13 +27,17 @@ async function seedVotes() {
       id: userId, email: `${userId}@example.com`, displayName: userId,
       role: index < 6 ? "USER" : "REVIEWER", createdAt: now, updatedAt: now,
     }).onConflictDoNothing();
-    await db.insert(voteEvents).values({ id: eventId, placeId, userId, value: index === 7 ? -1 : 1, eventType: "CREATE", createdAt: now }).onConflictDoNothing();
-    await db.insert(currentVotes).values({ placeId, userId, eventId, value: index === 7 ? -1 : 1, updatedAt: now }).onConflictDoNothing();
+    if (index >= 6) {
+      await seedApprovedReviewerVote(db, { reviewerId: userId, placeId, eventId, value: index === 7 ? -1 : 1, now });
+    } else {
+      await db.insert(voteEvents).values({ id: eventId, placeId, userId, value: 1, eventType: "CREATE", createdAt: now }).onConflictDoNothing();
+      await db.insert(currentVotes).values({ placeId, userId, eventId, value: 1, updatedAt: now }).onConflictDoNothing();
+    }
   }
 }
 
 describe("rating recomputation", () => {
-  it("writes a deterministic role-separated snapshot and reuses the same input", async () => {
+  it("writes a deterministic source-separated snapshot and reuses the same input", async () => {
     const db = createDb(env.DB);
     await seedVotes();
 
@@ -40,6 +46,8 @@ describe("rating recomputation", () => {
     const rows = await db.select().from(ratingSnapshots);
 
     expect(first).toMatchObject({ overallSampleCount: 8, userSampleCount: 6, reviewerSampleCount: 2, overallScore: 75, userScore: null, reviewerScore: null, isStale: false });
+    expect(first).toMatchObject({ reviewerRawWeight: 2, reviewerCombinedWeight: 2, reviewerWeightShare: 0.25 });
+    expect(second).toMatchObject({ id: first.id, overallSampleCount: 8, userSampleCount: 6, reviewerSampleCount: 2, overallScore: 75, userScore: null, reviewerScore: null, isStale: false });
     expect(first.inputHash).toBe(second.inputHash);
     expect(rows.filter((row) => row.placeId === placeId)).toHaveLength(1);
     expect(JSON.parse(first.reasonsJson)).toMatchObject({ algorithmVersion: "rating-v2.0" });
@@ -101,6 +109,7 @@ describe("rating recomputation", () => {
       updatedAt: now,
     }).onConflictDoNothing();
     await db.insert(ratingSnapshots).values({
+      ...(await publicationSnapshotStamp(db, placeId)),
       id: `${placeId}-fresh`,
       placeId,
       configId: "rating-config-v2",

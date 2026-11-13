@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
+import { isWithdrawnEmail } from "../auth/withdraw";
 import { slugifyPlaceName } from "../places/place-slug";
 import { isDormantAt, type ReviewerApplicationInput, validateReviewerApplication } from "./reviewer-policy";
 
@@ -105,10 +106,10 @@ export async function applyReviewerDormancy(db: AppDb, input: { actorUserId: str
 }
 
 export async function getPublicReviewerProfile(db: AppDb, slug: string) {
-  const [row] = await db.select({ profile: reviewerProfiles, displayName: users.displayName }).from(reviewerProfiles)
+  const [row] = await db.select({ profile: reviewerProfiles, displayName: users.displayName, email: users.email }).from(reviewerProfiles)
     .innerJoin(users, eq(users.id, reviewerProfiles.userId))
-    .where(and(eq(reviewerProfiles.slug, slug), inArray(reviewerProfiles.status, ["ACTIVE", "DORMANT"]))).limit(1);
-  if (!row) return null;
+    .where(and(eq(reviewerProfiles.slug, slug), eq(reviewerProfiles.status, "ACTIVE"), eq(users.role, "REVIEWER"))).limit(1);
+  if (!row || isWithdrawnEmail(row.email)) return null;
   const specialtySlugs = parseSlugs(row.profile.specialtySlugs);
   const specialtyRows = specialtySlugs.length ? await db.select({ slug: categories.slug, name: categories.name, emoji: categories.emoji }).from(categories).where(inArray(categories.slug, specialtySlugs)) : [];
   return { ...row.profile, displayName: row.displayName, specialties: specialtyRows };

@@ -7,7 +7,10 @@ test("public vote change and withdrawal survive reload without clearing a saved 
   const route = "/places/sample-dongmyeong-ramen";
   const origin = new URL(testInfo.project.use.baseURL!).origin;
   // Reset only this QA account's reaction so desktop/mobile runs are independent.
-  for (const form of [{ intent: "withdraw" }, { intent: "save", saved: "true" }]) {
+  await page.goto(route);
+  const resetWithdrawal = page.getByRole("button", {name:"평가 취소",exact:true});
+  if (await resetWithdrawal.count()) await resetWithdrawal.click();
+  for (const form of [{ intent: "save", saved: "true" }]) {
     const response = await context.request.post(route, { form, headers: { Origin: origin } });
     expect(response.ok()).toBe(true);
   }

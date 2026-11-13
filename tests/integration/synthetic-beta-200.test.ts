@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { WITHDRAW_CONFIRM_PHRASE, withdrawnEmailFor } from "../../app/features/auth/withdraw";
 import { getPlaceFlavorPrint } from "../../app/features/ratings/flavor-print.server";
+import { processRatingJobs } from "../../app/features/ratings/recompute.server";
 import { withdrawVote } from "../../app/features/ratings/vote.server";
 import { loader as homeLoader } from "../../app/routes/home";
 import { loader as homeRecommendationsLoader } from "../../app/routes/home-recommendations-resource";
@@ -151,8 +152,8 @@ describe("isolated synthetic beta 200 testers + 100 viewers", () => {
 
     const printBeforeA = await getPlaceFlavorPrint(db, PLACE_A);
     const printBeforeB = await getPlaceFlavorPrint(db, PLACE_B);
-    expect(printBeforeA).toMatchObject({ status: "VISIBLE", ratingCount: 3 });
-    expect(printBeforeB).toMatchObject({ status: "VISIBLE", ratingCount: 3 });
+    expect(printBeforeA).toMatchObject({ status: "LEARNING", ratingCount: 0 });
+    expect(printBeforeB).toMatchObject({ status: "LEARNING", ratingCount: 0 });
 
     const beforeVotes = await invoke(() => placeDetailLoader({
       request: getRequest(`/places/${SLUG_A}`, viewerIp(1)),
@@ -386,6 +387,16 @@ describe("isolated synthetic beta 200 testers + 100 viewers", () => {
     expect(await countTable("current_votes")).toBe(votesBeforeViewers);
     expect(await countTable("place_suggestions")).toBe(suggestionsBeforeViewers);
 
+    const awaitingRecompute = await invoke(() => placeDetailLoader({
+      request: getRequest(`/places/${SLUG_A}`, viewerIp(100)),
+      params: { placeSlug: SLUG_A },
+    } as never), bucket);
+    expect((awaitingRecompute.result as {rating:{overallScore:number|null;isStale:boolean;overallSampleCount:number}}).rating)
+      .toMatchObject({overallScore:null,isStale:true});
+    const recomputed=await processRatingJobs(db,{now:NOW,limit:100});
+    expect(recomputed.failed).toBe(0);
+    expect(recomputed.completed).toBeGreaterThan(0);
+
     const afterVotes = await invoke(() => placeDetailLoader({
       request: getRequest(`/places/${SLUG_A}`, viewerIp(100)),
       params: { placeSlug: SLUG_A },
@@ -396,7 +407,7 @@ describe("isolated synthetic beta 200 testers + 100 viewers", () => {
     };
     expect(after.rating.overallSampleCount).toBeGreaterThanOrEqual(8);
     expect(after.rating.overallScore).not.toBeNull();
-    expect(after.flavorPrint).toMatchObject({ status: "VISIBLE", ratingCount: 3 });
+    expect(after.flavorPrint).toMatchObject({ status: "LEARNING", ratingCount: 0 });
     expect(beforeRating.overallSampleCount).toBeLessThan(after.rating.overallSampleCount);
 
     const pairs = await env.DB.prepare(
@@ -421,7 +432,7 @@ describe("isolated synthetic beta 200 testers + 100 viewers", () => {
       current_votes: voteCount,
       place_suggestions: suggestionCount,
       viewer_mutations: 0,
-      flavor_print: "VISIBLE",
+      flavor_print: "LEARNING",
       score_sample_before: beforeRating.overallSampleCount,
       score_sample_after: after.rating.overallSampleCount,
     }));

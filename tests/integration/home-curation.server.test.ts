@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { expect, expectTypeOf, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
@@ -9,6 +10,7 @@ import {
   placeCategories,
   places,
   ratingSnapshots,
+  reviewerVisitReviews,
   userTasteBadges,
   users,
   voteEvents,
@@ -19,6 +21,9 @@ import {
 } from "../../app/features/places/home-curation.server";
 import type { HomeCurationPage as HomeCurationPageContract } from "../../app/features/places/home-curation";
 import { loadRecommendationCandidateContext } from "../../app/features/places/recommendation-candidates.server";
+
+import { publicationSnapshotStamp, seedApprovedReviewerVote } from "./reviewer-public-fixtures";
+import { getPublicationEpoch } from "../../app/features/ratings/reviewer-publication.server";
 
 const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 let homeFixtureIndex = 0;
@@ -133,8 +138,15 @@ async function seedConcentricCandidates(input: {
       categoryId,
       isPrimary: true,
     })));
+  }
+  // Finish all category/place relationships before binding synthetic snapshots;
+  // each relationship insert advances the global publication epoch.
+  const snapshotEpoch = await getPublicationEpoch(db);
+  for (let offset = 0; offset < candidates.length; offset += 4) {
+    const chunk = candidates.slice(offset, offset + 4);
     await db.insert(ratingSnapshots).values(chunk.map((candidate, index) => ({
       id: `density-snapshot-${suffix}-${offset + index}`,
+      moderationEpoch:snapshotEpoch,voteRevision:0,
       placeId: candidate.id,
       configId: "rating-config-v2",
       inputHash: `${suffix}-${offset + index}`,
@@ -243,8 +255,23 @@ async function seedHomeCurationFixtures(input: { farTail: boolean; fixed?: { id:
     isPrimary: true,
   })));
 
+  const {reviewId:goldenReviewId}=await seedApprovedReviewerVote(db,{reviewerId,placeId:placeIds[2]!,eventId:`home-golden-review-${suffix}`,value:1,now,projectVote:false,withPhoto:true});
+  await db.insert(goldenPickEvents).values({
+    id: `home-golden-${suffix}`, reviewId:goldenReviewId, reviewVersion:1,
+    reviewerUserId: reviewerId,
+    placeId: placeIds[2]!,
+    eventType: "GRANT",
+    previousEventId: null,
+    reason: null,
+    effectiveAt: now,
+    expiresAt: "2026-09-11T03:00:00.000Z",
+    createdAt: now,
+  });
+  await db.update(reviewerVisitReviews).set({goldenRequested:true,goldenPickEventId:`home-golden-${suffix}`}).where(eq(reviewerVisitReviews.id,goldenReviewId));
+  const snapshotEpoch = await getPublicationEpoch(db);
   const snapshots = placeIds.map((placeId, index) => ({
     id: `home-snapshot-${suffix}-${index}`,
+    moderationEpoch:snapshotEpoch,voteRevision:0,
     placeId,
     configId: "rating-config-v2",
     inputHash: `${suffix}-${index}`,
@@ -265,17 +292,6 @@ async function seedHomeCurationFixtures(input: { farTail: boolean; fixed?: { id:
   }));
   await db.insert(ratingSnapshots).values(snapshots.slice(0, 4));
   await db.insert(ratingSnapshots).values(snapshots.slice(4));
-  await db.insert(goldenPickEvents).values({
-    id: `home-golden-${suffix}`,
-    reviewerUserId: reviewerId,
-    placeId: placeIds[2]!,
-    eventType: "GRANT",
-    previousEventId: null,
-    reason: null,
-    effectiveAt: now,
-    expiresAt: "2026-09-11T03:00:00.000Z",
-    createdAt: now,
-  });
 
   return {
     userId,
@@ -339,6 +355,7 @@ it("최신 평가 스냅샷의 전체·사용자·리뷰어 점수와 표본을 
   const db = createDb(env.DB);
   const zeroSamplePlaceId = fixture.placeIds[0]!;
   await db.insert(ratingSnapshots).values({
+    ...(await publicationSnapshotStamp(db,zeroSamplePlaceId)),
     id: `home-snapshot-zero-${crypto.randomUUID()}`,
     placeId: zeroSamplePlaceId,
     configId: "rating-config-v2",

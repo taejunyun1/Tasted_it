@@ -40,6 +40,10 @@ export interface PlaceSummary {
   primaryCategory: { slug: string; name: string; emoji: string };
   positive: number;
   negative: number;
+  userPositive?: number;
+  userNegative?: number;
+  reviewerPositive?: number;
+  reviewerNegative?: number;
   ratingScore?: number | null;
   ratingSampleCount?: number;
 }

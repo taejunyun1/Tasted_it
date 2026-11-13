@@ -3,6 +3,8 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import { currentVotes, userTasteBadges } from "../../db/schema";
+import { currentTasteSignalCondition } from "../members/taste-publication.server";
+import { eligibleVoteCondition } from "../ratings/reviewer-publication.server";
 import {
   loadGoldenPickContextForPlaces,
   type GoldenPlaceSummary,
@@ -35,7 +37,7 @@ async function loadStoredTasteSignals(db: AppDb, userId?: string | null) {
     source: userTasteBadges.source,
   })
     .from(userTasteBadges)
-    .where(eq(userTasteBadges.userId, userId))
+    .where(and(eq(userTasteBadges.userId, userId), currentTasteSignalCondition()))
     .orderBy(desc(userTasteBadges.score));
 }
 
@@ -48,7 +50,8 @@ async function loadDislikedPlaceIds(db: AppDb, userId: string | null | undefined
       eq(currentVotes.userId, userId),
       eq(currentVotes.value, -1),
       inArray(currentVotes.placeId, placeIdChunk),
-    )), { reservedBindings: 2 });
+      eligibleVoteCondition(),
+    )), { reservedBindings: 3 });
   const disliked = new Set(rows.map((row) => row.placeId));
   return placeIds.filter((placeId) => disliked.has(placeId));
 }

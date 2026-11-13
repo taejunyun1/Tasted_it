@@ -24,6 +24,8 @@ function localResponse(items: unknown[] = [
     link: "https://example.invalid/place/never-store",
     category: "음식점>술집>포장마차",
     description: "never-store-this-description",
+    rating: 5,
+    ratingCount: 1_000_000,
     telephone: "",
     address: "광주광역시 광산구 쌍암동 1",
     roadAddress: "광주광역시 광산구 임방울대로 825",
@@ -45,7 +47,7 @@ describe("NAVER 지역검색 서버 어댑터", () => {
       .toThrow("NAVER_LOCAL_SEARCH_DISABLED");
   });
 
-  it("sends one bounded request and projects only matcher-safe fields", async () => {
+  it("projects only matcher-safe fields even when high external ratings are present", async () => {
     const fetcher = vi.fn(async () => localResponse());
     const adapter = createNaverLocalSearchAdapter(enabledEnv, fetcher);
 
