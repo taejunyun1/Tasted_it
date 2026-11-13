@@ -1,0 +1,500 @@
+{
+  "date": "2026-11-13",
+  "source_sha": "f0ca8e02da04f350f0d2e60259cd94ce51a4d91d",
+  "test_sha": "c73e6da13b42fa5bca826193b0c213a86ad03623",
+  "projects": [
+    "mobile-chromium"
+  ],
+  "result": "1 failed (expected bounds/edge-hit RED)",
+  "network": "all non-local browser requests aborted",
+  "measurements": [
+    {
+      "user": "anonymous",
+      "width": 320,
+      "zoom": 1,
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 95.125,
+          "bottom": 48,
+          "width": 81.125,
+          "height": 33,
+          "hit": true
+        },
+        "menu": {
+          "x": 283.703125,
+          "y": 11.5,
+          "right": 321.703125,
+          "bottom": 49.5,
+          "width": 38,
+          "height": 38,
+          "hit": false
+        }
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 105.125,
+          "y": 21.5,
+          "right": 158.765625,
+          "bottom": 39.5,
+          "width": 53.640625,
+          "height": 18,
+          "hit": true
+        },
+        "코스 추천": {
+          "x": 170.765625,
+          "y": 21.5,
+          "right": 214.234375,
+          "bottom": 39.5,
+          "width": 43.46875,
+          "height": 18,
+          "hit": true
+        },
+        "나의 취향": {
+          "x": 226.234375,
+          "y": 21.5,
+          "right": 269.703125,
+          "bottom": 39.5,
+          "width": 43.46875,
+          "height": 18,
+          "hit": true
+        },
+        "로그인": {
+          "x": 61,
+          "y": 65,
+          "right": 309,
+          "bottom": 107,
+          "width": 248,
+          "height": 42,
+          "hit": true
+        },
+        "회원가입": {
+          "x": 61,
+          "y": 107,
+          "right": 309,
+          "bottom": 149,
+          "width": 248,
+          "height": 42,
+          "hit": true
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 640,
+      "zoom": 2,
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 190.234375,
+          "bottom": 96,
+          "width": 162.234375,
+          "height": 66,
+          "hit": true
+        },
+        "menu": {
+          "x": 567.359375,
+          "y": 23,
+          "right": 643.359375,
+          "bottom": 99,
+          "width": 76,
+          "height": 76,
+          "hit": false
+        }
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 210.234375,
+          "y": 43,
+          "right": 317.515625,
+          "bottom": 79,
+          "width": 107.28125,
+          "height": 36,
+          "hit": true
+        },
+        "코스 추천": {
+          "x": 341.515625,
+          "y": 43,
+          "right": 428.4375,
+          "bottom": 79,
+          "width": 86.921875,
+          "height": 36,
+          "hit": true
+        },
+        "나의 취향": {
+          "x": 452.4375,
+          "y": 43,
+          "right": 539.359375,
+          "bottom": 79,
+          "width": 86.921875,
+          "height": 36,
+          "hit": true
+        },
+        "로그인": {
+          "x": 122,
+          "y": 130,
+          "right": 618,
+          "bottom": 214,
+          "width": 496,
+          "height": 84,
+          "hit": true
+        },
+        "회원가입": {
+          "x": 122,
+          "y": 214,
+          "right": 618,
+          "bottom": 298,
+          "width": 496,
+          "height": 84,
+          "hit": true
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "anonymous",
+      "width": 1280,
+      "zoom": 1,
+      "closed": {
+        "brand": {
+          "x": 20,
+          "y": 19.75,
+          "right": 191.34375,
+          "bottom": 57.25,
+          "width": 171.34375,
+          "height": 37.5,
+          "hit": true
+        },
+        "menu": {
+          "x": 1222,
+          "y": 19.5,
+          "right": 1260,
+          "bottom": 57.5,
+          "width": 38,
+          "height": 38,
+          "hit": true
+        }
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 993.515625,
+          "y": 28,
+          "right": 1056.28125,
+          "bottom": 49,
+          "width": 62.765625,
+          "height": 21,
+          "hit": true
+        },
+        "코스 추천": {
+          "x": 1076.28125,
+          "y": 28,
+          "right": 1127.140625,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true
+        },
+        "나의 취향": {
+          "x": 1147.140625,
+          "y": 28,
+          "right": 1198,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true
+        },
+        "로그인": {
+          "x": 1031,
+          "y": 66.5,
+          "right": 1259,
+          "bottom": 108.5,
+          "width": 228,
+          "height": 42,
+          "hit": true
+        },
+        "회원가입": {
+          "x": 1031,
+          "y": 108.5,
+          "right": 1259,
+          "bottom": 150.5,
+          "width": 228,
+          "height": 42,
+          "hit": true
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/login?returnTo=%2Fplaces",
+        "/signup?returnTo=%2Fplaces"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 320,
+      "zoom": 1,
+      "closed": {
+        "brand": {
+          "x": 14,
+          "y": 15,
+          "right": 95.125,
+          "bottom": 48,
+          "width": 81.125,
+          "height": 33,
+          "hit": true
+        },
+        "menu": {
+          "x": 283.703125,
+          "y": 11.5,
+          "right": 321.703125,
+          "bottom": 49.5,
+          "width": 38,
+          "height": 38,
+          "hit": false
+        }
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 105.125,
+          "y": 21.5,
+          "right": 158.765625,
+          "bottom": 39.5,
+          "width": 53.640625,
+          "height": 18,
+          "hit": true
+        },
+        "코스 추천": {
+          "x": 170.765625,
+          "y": 21.5,
+          "right": 214.234375,
+          "bottom": 39.5,
+          "width": 43.46875,
+          "height": 18,
+          "hit": true
+        },
+        "나의 취향": {
+          "x": 226.234375,
+          "y": 21.5,
+          "right": 269.703125,
+          "bottom": 39.5,
+          "width": 43.46875,
+          "height": 18,
+          "hit": true
+        },
+        "장소 제안": {
+          "x": 61,
+          "y": 107,
+          "right": 309,
+          "bottom": 149,
+          "width": 248,
+          "height": 42,
+          "hit": true
+        },
+        "리뷰어 평가": {
+          "x": 61,
+          "y": 149,
+          "right": 309,
+          "bottom": 191,
+          "width": 248,
+          "height": 42,
+          "hit": true
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 640,
+      "zoom": 2,
+      "closed": {
+        "brand": {
+          "x": 28,
+          "y": 30,
+          "right": 190.234375,
+          "bottom": 96,
+          "width": 162.234375,
+          "height": 66,
+          "hit": true
+        },
+        "menu": {
+          "x": 567.359375,
+          "y": 23,
+          "right": 643.359375,
+          "bottom": 99,
+          "width": 76,
+          "height": 76,
+          "hit": false
+        }
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 210.234375,
+          "y": 43,
+          "right": 317.515625,
+          "bottom": 79,
+          "width": 107.28125,
+          "height": 36,
+          "hit": true
+        },
+        "코스 추천": {
+          "x": 341.515625,
+          "y": 43,
+          "right": 428.4375,
+          "bottom": 79,
+          "width": 86.921875,
+          "height": 36,
+          "hit": true
+        },
+        "나의 취향": {
+          "x": 452.4375,
+          "y": 43,
+          "right": 539.359375,
+          "bottom": 79,
+          "width": 86.921875,
+          "height": 36,
+          "hit": true
+        },
+        "장소 제안": {
+          "x": 122,
+          "y": 214,
+          "right": 618,
+          "bottom": 298,
+          "width": 496,
+          "height": 84,
+          "hit": true
+        },
+        "리뷰어 평가": {
+          "x": 122,
+          "y": 298,
+          "right": 618,
+          "bottom": 382,
+          "width": 496,
+          "height": 84,
+          "hit": true
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    },
+    {
+      "user": "reviewer",
+      "width": 1280,
+      "zoom": 1,
+      "closed": {
+        "brand": {
+          "x": 20,
+          "y": 19.75,
+          "right": 191.34375,
+          "bottom": 57.25,
+          "width": 171.34375,
+          "height": 37.5,
+          "hit": true
+        },
+        "menu": {
+          "x": 1222,
+          "y": 19.5,
+          "right": 1260,
+          "bottom": 57.5,
+          "width": 38,
+          "height": 38,
+          "hit": true
+        }
+      },
+      "open": {
+        "맛집 리스트": {
+          "x": 993.515625,
+          "y": 28,
+          "right": 1056.28125,
+          "bottom": 49,
+          "width": 62.765625,
+          "height": 21,
+          "hit": true
+        },
+        "코스 추천": {
+          "x": 1076.28125,
+          "y": 28,
+          "right": 1127.140625,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true
+        },
+        "나의 취향": {
+          "x": 1147.140625,
+          "y": 28,
+          "right": 1198,
+          "bottom": 49,
+          "width": 50.859375,
+          "height": 21,
+          "hit": true
+        },
+        "장소 제안": {
+          "x": 1031,
+          "y": 108.5,
+          "right": 1259,
+          "bottom": 150.5,
+          "width": 228,
+          "height": 42,
+          "hit": true
+        },
+        "리뷰어 평가": {
+          "x": 1031,
+          "y": 150.5,
+          "right": 1259,
+          "bottom": 192.5,
+          "width": 228,
+          "height": 42,
+          "hit": true
+        }
+      },
+      "reached": [
+        "/places",
+        "/courses",
+        "/me",
+        "/suggestions/new",
+        "/reviewer/ratings"
+      ]
+    }
+  ],
+  "externalRequestsBlocked": [
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com"
+  ]
+}
