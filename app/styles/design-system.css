@@ -1186,3 +1186,45 @@
     padding:var(--space-6) 0;
   }
 }
+
+/* Category explorer controls and the existing unavailable-map state. */
+@media(max-width:760px){
+  .explore-page .search-form{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:stretch;
+  }
+
+  .explore-page .search-form input{
+    min-width:0;
+    width:100%;
+  }
+
+  .explore-page .search-form button{
+    min-height:var(--control-height);
+    white-space:nowrap;
+  }
+
+  .explore-page .explore-split[data-view="map"]:has([data-map-unavailable="true"]){
+    height:auto;
+    min-height:0;
+  }
+
+  .explore-page .map-panel:has([data-map-unavailable="true"]){
+    height:auto;
+  }
+
+  .explore-page .map-canvas[data-map-unavailable="true"]{
+    height:220px;
+  }
+
+  .explore-page [data-map-unavailable="true"] .map-error{
+    inset:var(--space-4) var(--space-4) auto;
+    max-width:none;
+  }
+
+  .explore-page [data-map-unavailable="true"] .map-location-overview{
+    top:var(--space-24);
+    transform:none;
+  }
+}

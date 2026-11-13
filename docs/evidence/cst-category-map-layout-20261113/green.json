@@ -1,0 +1,26 @@
+{
+  "sourceSha": "ce476f03b47e74215177f690932395489eecad9f",
+  "ownCodeCommit": "6f5992fbf34b2ff2652b815e5b252e76f438bbc4",
+  "environment": "LOCAL_SYNTHETIC_PLAYWRIGHT_CHROMIUM_AND_PIXEL7",
+  "startedAtUtc": "2026-11-13T13:53:40Z",
+  "verifiedAtUtc": "2026-11-13T13:54:38Z",
+  "result": "PASS",
+  "passed": 8,
+  "failed": 0,
+  "skipped": 0,
+  "playwrightDurationSeconds": 24.8,
+  "assertions": [
+    "one-line search at viewport320 and viewport640+CSSzoom2",
+    "button width and height at least44 CSSpx normalized by content zoom",
+    "keyboard search focus/list activation; no horizontal overflow",
+    "SDK requests explicitly intercepted; unavailable map at most240 CSSpx and no notice/overview overlap",
+    "list and exact place detail usable in both viewport scenarios",
+    "synthetic initialized map retains existing native minimum area498/518px",
+    "q/bbox/selected and place IDs retained through view switch/reload"
+  ],
+  "limits": [
+    "CSS content zoom does not prove native browser or pinch zoom",
+    "synthetic initialized SDK does not prove actual provider tile loading",
+    "partial category-layout test does not prove complete T07 or production deployment"
+  ]
+}
