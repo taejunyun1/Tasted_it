@@ -22,6 +22,7 @@ import type {
   PlaceSummary,
 } from "./place.types";
 import { publicVenueVisibilityCondition } from "./public-venue-visibility.server";
+import { attachTempCatalog } from "../temp-catalog/temp-catalog.server";
 
 interface UpsertPlaceInput {
   id: string;
@@ -133,6 +134,7 @@ function publicConditions(filters: PlaceFilters, slug?: string) {
     eq(placeCategories.isPrimary, true),
     publicVenueVisibilityCondition(),
   ];
+  if (filters.tempOnly) conditions.push(sql`exists (select 1 from temp_catalog_entries t join temp_catalog_batches b on b.id=t.batch_id where t.place_id=${places.id} and b.status='PUBLISHED')`);
 
   if (slug) conditions.push(eq(places.slug, slug));
   if (filters.categorySlug) {
@@ -220,7 +222,7 @@ async function selectPublicPlaces(
     )
     .limit(slug ? 1 : Math.min(filters.limit ?? 100, options.maxLimit ?? 100));
 
-  return rows.map((row) => ({
+  return attachTempCatalog(db, rows.map((row) => ({
     id: row.id,
     slug: row.slug,
     name: row.name,
@@ -244,7 +246,7 @@ async function selectPublicPlaces(
     userNegative: Number(row.userNegative),
     reviewerPositive: Number(row.reviewerPositive),
     reviewerNegative: Number(row.reviewerNegative),
-  }));
+  })));
 }
 
 export async function listPlaces(

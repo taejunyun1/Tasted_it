@@ -9,6 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+export { tempCatalogBatches, tempCatalogEntries } from "../features/temp-catalog/temp-catalog.schema";
 
 const timestamps = {
   createdAt: text("created_at").notNull(),
