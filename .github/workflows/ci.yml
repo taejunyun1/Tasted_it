@@ -125,7 +125,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Playwright smoke
-        run: pnpm exec playwright test tests/e2e/release.spec.ts tests/e2e/ci-smoke-places.spec.ts tests/e2e/student-workspace.spec.ts tests/e2e/student-request-session.spec.ts tests/e2e/student-invite-handoff.spec.ts --project=chromium
+        run: pnpm exec playwright test tests/e2e/release.spec.ts tests/e2e/ci-smoke-places.spec.ts tests/e2e/student-workspace.spec.ts tests/e2e/student-request-session.spec.ts tests/e2e/student-invite-handoff.spec.ts tests/e2e/vote-withdraw.spec.ts tests/e2e/guest-save-merge.spec.ts tests/e2e/reviewer-moderation.spec.ts tests/e2e/auth-entry-hydration.spec.ts tests/e2e/header-layout.spec.ts --project=chromium
 
       - name: Preserve anonymous legal failure metadata
         if: failure()
