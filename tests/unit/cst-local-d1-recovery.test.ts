@@ -1,6 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, symlinkSync, chmodSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertOptIn, digestBytes, readVerifiedBackup, compareSnapshots } from "../../scripts/cst-local-d1-recovery.mjs";
 
@@ -19,6 +20,13 @@ describe("local-only D1 recovery rehearsal boundaries", () => {
     for (const args of [[], ["--remote"], ["--run", "--remote"], ["--run", "DB"], ["--run", "--file=unsafe.sql"], ["--run", "--config=wrangler.jsonc"]]) {
       expect(() => assertOptIn(args)).toThrow("LOCAL_REHEARSAL_EXPLICIT_OPT_IN_REQUIRED");
     }
+  });
+
+  it("rejects remote input at the executable entry before any rehearsal output", () => {
+    const result = spawnSync(process.execPath, [resolve("scripts/cst-local-d1-recovery.mjs"), "--run", "--remote"], { encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr.trim()).toBe("LOCAL_REHEARSAL_EXPLICIT_OPT_IN_REQUIRED");
   });
 
   it("accepts only the exact bounded backup bytes inside the owned directory", () => {

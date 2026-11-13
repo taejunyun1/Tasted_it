@@ -169,7 +169,11 @@ export async function runRehearsal() {
     const backup = join(runDirectory, "backup.sql");
     local(sourceDirectory, "EXPORT_BACKUP", ["d1", "export", "DB", "--local", "--output", backup]);
     chmodSync(backup, 0o600);
+    const backupStat = lstatSync(backup);
+    if (!backupStat.isFile() || backupStat.isSymbolicLink()) throw new Error("BACKUP_UNAVAILABLE");
+    if (backupStat.size === 0 || backupStat.size > MAX_BACKUP_BYTES) throw new Error("BACKUP_SIZE_LIMIT");
     const backupBytes = readFileSync(backup);
+    if (backupBytes.length > MAX_BACKUP_BYTES) throw new Error("BACKUP_SIZE_LIMIT");
     const backupSha256 = digestBytes(backupBytes);
     readVerifiedBackup(runDirectory, backup, backupSha256);
     local(sourceDirectory, "MUTATE_SOURCE", ["d1", "execute", "DB", "--local", "--command", `UPDATE places SET name='CST synthetic changed' WHERE id='${FIXTURE_ID}'`]);
