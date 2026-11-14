@@ -93,5 +93,3 @@ CREATE TRIGGER admin_operation_commit_no_update BEFORE UPDATE ON admin_operation
 CREATE TRIGGER admin_operation_commit_no_delete BEFORE DELETE ON admin_operation_commits BEGIN SELECT RAISE(ABORT,'ADMIN_OPERATION_IMMUTABLE'); END;
 
 CREATE INDEX admin_operation_activity_order_idx ON admin_operations(julianday(created_at) DESC, id DESC);
-
-
