@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const TEMP_PHOTO_TARGET_BATCH = "temp100-652f4d261db7795b";
 const pageHosts = new Set(["map.naver.com", "place.naver.com", "m.place.naver.com", "pcmap.place.naver.com", "search.naver.com", "m.search.naver.com", "blog.naver.com", "m.blog.naver.com"]);
-const imageHosts = new Set(["ldb-phinf.pstatic.net", "naverbooking-phinf.pstatic.net", "pup-review-phinf.pstatic.net", "postfiles.pstatic.net", "mblogthumb-phinf.pstatic.net", "search.pstatic.net", "blogfiles.naver.net"]);
+const imageHosts = new Set(["ldb-phinf.pstatic.net", "naverbooking-phinf.pstatic.net", "pup-review-phinf.pstatic.net", "postfiles.pstatic.net", "mblogthumb-phinf.pstatic.net", "search.pstatic.net", "blogfiles.naver.net", "blogfiles.pstatic.net"]);
 function safeUrl(value: string, hosts: Set<string>) {
   try {
     const url = new URL(value);

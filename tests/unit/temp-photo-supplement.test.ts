@@ -6,6 +6,8 @@ describe("TEMP photo supplement boundary", () => {
   it("accepts truthful NAVER provenance and rejects foreign/proxy hosts and invented licenses", () => {
     expect(tempPhotoSupplementEntrySchema.safeParse(entry).success).toBe(true);
     expect(tempPhotoSupplementEntrySchema.safeParse({ ...entry, sourcePageUrl: "https://m.blog.naver.com/example/1", imageUrl: "https://search.pstatic.net/common/?src=http%3A%2F%2Fblogfiles.naver.net%2Fexample.jpg" }).success).toBe(true);
+    expect(tempPhotoSupplementEntrySchema.safeParse({ ...entry, imageUrl: "https://search.pstatic.net/common/?src=https%3A%2F%2Fblogfiles.pstatic.net%2Fexample.jpg" }).success).toBe(true);
+    expect(tempPhotoSupplementEntrySchema.safeParse({ ...entry, imageUrl: "https://search.pstatic.net/common/?src=https%3A%2F%2Fblogfiles.pstatic.net.attacker.test%2Fexample.jpg" }).success).toBe(false);
     expect(tempPhotoSupplementEntrySchema.safeParse({ ...entry, imageUrl: "https://mblogthumb-phinf.pstatic.net/example.jpg?type=w800" }).success).toBe(true);
     expect(tempPhotoSupplementEntrySchema.safeParse({ ...entry, sourcePageUrl: "https://m.search.naver.com.attacker.test/" }).success).toBe(false);
     expect(tempPhotoSupplementEntrySchema.safeParse({ ...entry, imageUrl: "https://search.pstatic.net/common/?src=https%3A%2F%2Fattacker.test%2Fx.jpg" }).success).toBe(false);
