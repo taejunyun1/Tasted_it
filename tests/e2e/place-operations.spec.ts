@@ -36,7 +36,7 @@ test("admin sees submitted suggestions on review step 1 only", async ({ page }, 
   await expect(page.getByRole("heading", { name: "회원 장소 제안" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "장소 검수 단계" })).toBeVisible();
   await expect(page.getByText(/자동으로 5단계 대기 \d+건 \/ 공개 0/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "선택 장소 공개 미리보기" })).toHaveCount(0);
 
   await page.getByRole("link", { name: /NAVER 검증/ }).click();
   await expect(page).toHaveURL(/step=2/);
@@ -50,7 +50,7 @@ test("admin sees submitted suggestions on review step 1 only", async ({ page }, 
   await page.getByRole("link", { name: /승인·공개/ }).click();
   await expect(page).toHaveURL(/step=5/);
   await expect(page.getByText(/자동으로 5단계 대기 \d+건 \/ 공개 0/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "선택 장소 승인·공개" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 장소 공개 미리보기" })).toBeVisible();
   await expect(page.getByRole("button", { name: "근거 있는 항목만 다음 단계" })).toHaveCount(0);
   await page.screenshot({ path: `docs/evidence/2026-08-26-confident-queue-copy-${testInfo.project.name}.png`, fullPage: true });
 });
@@ -72,7 +72,8 @@ test("admin switches restored operations tabs without auto-merge", async ({ page
   await expect(page).toHaveURL(/tab=duplicates/);
   await expect(page.getByRole("heading", { name: "동일 상호 중복 병합" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "중복 장소 병합" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "병합 실행" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "병합 미리보기" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "이 값으로 복원" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /묶음 병합/ })).toHaveCount(0);
   await page.screenshot({ path: `docs/evidence/2026-08-17-place-ops-tabs-${testInfo.project.name}.png`, fullPage: true });
 });

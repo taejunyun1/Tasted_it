@@ -48,20 +48,22 @@ export function PlaceMergePanel({
         <input type="hidden" name="intent" value="merge" />
         <label>남길 장소
           <select name="targetPlaceId" required>
-            {places.map((place) => <option key={place.id} value={place.id}>{place.name} · {place.status}</option>)}
+            {places.map((place) => <option key={place.id} value={place.id}>{place.name} · {place.address} · {place.status} · {place.id}</option>)}
           </select>
         </label>
         <label>흡수할 장소
           <select name="sourcePlaceId" required>
-            {places.map((place) => <option key={`source-${place.id}`} value={place.id}>{place.name} · {place.status}</option>)}
+            {places.map((place) => <option key={`source-${place.id}`} value={place.id}>{place.name} · {place.address} · {place.status} · {place.id}</option>)}
           </select>
         </label>
-        <input name="reason" placeholder="병합 근거" required maxLength={300} />
-        <button>병합 실행</button>
+        <label>병합 근거<input name="reason" placeholder="같은 장소임을 확인한 근거" required maxLength={300} /></label>
+        <button>병합 미리보기</button>
       </Form>
+      <p className="ops-form-help">이름이 같아도 주소와 장소 ID를 구분해 선택하세요. 미리보기에서 남길 장소와 흡수할 장소, 영향 범위를 확인한 뒤 확정합니다.</p>
     </section>
     <section className="place-ops-section">
-      <h2>최근 변경·복원</h2>
+      <h2>최근 변경 이력</h2>
+      <p className="ops-form-help">과거 변경 값으로 되돌리는 기능은 지원하지 않습니다. 공개 회수의 복원은 해당 작업의 확정 영수증에서 확인할 수 있습니다.</p>
       {revisions.length ? revisions.map((item) => (
         <article className="ops-revision" key={item.id}>
           <div>
@@ -69,14 +71,6 @@ export function PlaceMergePanel({
             <span>{item.placeName}</span>
             <small>{item.reason} · {item.createdAt}</small>
           </div>
-          {item.restorable && (
-            <Form method="post" className="ops-form ops-form-compact">
-              <input type="hidden" name="intent" value="restore" />
-              <input type="hidden" name="revisionId" value={item.id} />
-              <input name="reason" placeholder="복원 사유" required maxLength={300} />
-              <button>이 값으로 복원</button>
-            </Form>
-          )}
         </article>
       )) : <p>변경 이력이 없습니다.</p>}
     </section>

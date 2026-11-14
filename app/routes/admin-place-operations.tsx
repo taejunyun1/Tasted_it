@@ -1,18 +1,21 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { data, Link } from "react-router";
+import { data, Form, isRouteErrorResponse, Link, redirect } from "react-router";
+import { z } from "zod";
 
 import type { Route } from "./+types/admin-place-operations";
 import { PlaceCorrectionPanel } from "../components/admin/PlaceCorrectionPanel";
 import { PlaceLivenessPanel } from "../components/admin/PlaceLivenessPanel";
+import { PlaceOperationPreview } from "../components/admin/PlaceOperationPreview";
 import { PlaceMergePanel } from "../components/admin/PlaceMergePanel";
 import { PlaceReviewPipeline } from "../components/admin/PlaceReviewPipeline";
 import { PlaceSuggestionReviewCard } from "../components/admin/PlaceSuggestionReviewCard";
 import { createDb } from "../db/client.server";
 import { categories } from "../db/schema";
-import { requireAdmin } from "../features/auth/session.server";
+import { requireAdminSession } from "../features/auth/session.server";
 import { getTerminalCategoryIds } from "../features/candidates/category-selection";
 import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter, NaverLocalSearchError } from "../features/candidates/naver-local-search.server";
+import { isAccountRestrictedError, ACCOUNT_RESTRICTED_MESSAGE } from "../features/auth/member-access.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { listCorrectionOperations, listDuplicateOperations, listLivenessOperations } from "../features/places/place-operations-admin.server";
 import {
@@ -21,19 +24,18 @@ import {
   checkCorrectionTransitionRequest,
   checkLivenessResolveRequest,
   checkMergeRequest,
-  checkRestoreRequest,
   operationsErrorMessage,
 } from "../features/places/place-operations-io";
 import { parsePlaceOperationsTab, placeOperationsTabHref, type PlaceOperationsTab } from "../features/places/place-operations-tabs";
 import { applyPlaceCorrection, transitionPlaceCorrection } from "../features/places/place-correction.server";
-import { mergePlaces, restorePlaceRevision } from "../features/places/place-merge.server";
+import { commitPlaceAdminOperation, getPlaceAdminOperation, preparePlaceAdminOperation } from "../features/places/place-admin.server";
+import { placeAdminCommandSchema, type PlaceAdminCommand } from "../features/places/place-admin";
 import { confirmReviewItemCategories } from "../features/places/place-review-category.server";
 import { listReviewDuplicateCandidates, resolveReviewDuplicates } from "../features/places/place-review-duplicates.server";
 import { verifyReviewItemsWithNaver } from "../features/places/place-review-naver.server";
 import { reviewErrorMessage } from "../features/places/place-review-errors";
 import { checkReviewRequest } from "../features/places/place-review-io";
 import { parsePlaceReviewQuery } from "../features/places/place-review-pagination";
-import { publishReviewedPlaces } from "../features/places/place-review-publication.server";
 import { confirmLocalDiningReview } from "../features/places/local-dining-review.server";
 import { getPlaceReviewStageCounts, listPlaceReviewWorkItems } from "../features/places/place-review-query.server";
 import { isConfidentAdvanceEnabled } from "../features/places/place-review-pipeline";
@@ -43,6 +45,34 @@ import { clearRecommendationExclusions, resolvePlaceLivenessCase } from "../feat
 import { checkSuggestionApprovalRequest, checkSuggestionTransitionRequest, suggestionApprovalErrorMessage } from "../features/places/place-suggestion-io";
 import { approvePlaceSuggestion, listReviewablePlaceSuggestions, transitionPlaceSuggestion } from "../features/places/place-suggestion.server";
 import { listNaverRegionDailyUsage } from "../features/places/naver-region-quota.server";
+
+const PRIVATE = { "Cache-Control": "private, no-store", Vary: "Cookie" };
+export function headers({actionHeaders,loaderHeaders}:Route.HeadersArgs) {
+  const result = new Headers([...actionHeaders].length ? actionHeaders : loaderHeaders);
+  result.set("Cache-Control",PRIVATE["Cache-Control"]);
+  result.set("Vary",[...new Set([...(result.get("Vary")??"").split(",").map(v=>v.trim()).filter(Boolean),"Cookie"])].join(", "));
+  return result;
+}
+async function readOperationsForm(request:Request) {
+  if (!request.headers.get("Content-Type")?.startsWith("application/x-www-form-urlencoded")) throw new Response(null,{status:415,headers:PRIVATE});
+  const reader=request.body?.getReader(); const chunks:Uint8Array[]=[]; let size=0;
+  if (reader) try { for (;;) { const part=await reader.read(); if(part.done)break; size+=part.value.byteLength; if(size>65536) {await reader.cancel();throw new Response(null,{status:413,headers:PRIVATE});} chunks.push(part.value); } } finally {reader.releaseLock();}
+  const bytes=new Uint8Array(size); let offset=0; for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  let params:URLSearchParams; try {params=new URLSearchParams(new TextDecoder("utf-8",{fatal:true}).decode(bytes));} catch {throw new Response(null,{status:400,headers:PRIVATE});}
+  const form=new FormData();
+  for(const key of new Set(params.keys())) {
+    if(!["workItem","workItemId","autoWorkItem","duplicateCandidate"].includes(key) && params.getAll(key).length!==1) throw new Response(null,{status:400,headers:PRIVATE});
+    for(const value of params.getAll(key)) form.append(key,value);
+  }
+  return form;
+}
+function placeOperationFailure(error:unknown) {
+  if(isAccountRestrictedError(error)) return data({ok:false,error:ACCOUNT_RESTRICTED_MESSAGE},{status:403,headers:PRIVATE});
+  const code=error instanceof Error?error.message:"UNKNOWN";
+  const message=code==="PLACE_ADMIN_PREVIEW_REQUIRED"?"공개 상태 변경은 장소 공개·회수 미리보기에서 진행해 주세요.":code==="PLACE_ADMIN_RESTRICTED_PARTICIPANT"?"제한된 회원의 반응 또는 저장 이동이 포함되어 처리할 수 없습니다.":code==="ADMIN_OPERATION_CONFLICT"?"미리보기 뒤 대상이나 연결 자료가 바뀌어 변경을 적용하지 않았습니다. 다시 준비해 주세요.":code==="ADMIN_OPERATION_RESULT_UNKNOWN"?"결과를 확인하지 못했습니다. 같은 작업 주소에서 확정 영수증을 다시 확인해 주세요.":code==="PLACE_ADMIN_SNAPSHOT_TOO_LARGE"?"연결 자료가 한 번에 처리할 수 있는 범위를 넘습니다. 운영 담당자의 별도 검토가 필요합니다.":code==="PLACE_ADMIN_NOT_ELIGIBLE"?"현재 공개·병합 조건을 충족하지 않습니다. 대상 상태와 근거를 다시 확인해 주세요.":"변경 입력·현재 권한·미리보기 만료 여부를 확인한 뒤 다시 준비해 주세요.";
+  return data({ok:false,error:message},{status:code==="ADMIN_OPERATION_RESULT_UNKNOWN"?503:code==="ADMIN_REQUIRED"?403:code==="ADMIN_OPERATION_CONFLICT"?409:400,headers:PRIVATE});
+}
+function operationPath(operationId:string) {return `/admin/place-operations?operation=${encodeURIComponent(operationId)}`;}
 
 function reviewActionError(code: string, extra?: { batchId?: string }) {
   const mapped = reviewErrorMessage(code);
@@ -59,11 +89,12 @@ function operationsActionError(code: string) {
 }
 
 function operationsCaughtError(error: unknown) {
+  if(error instanceof Error && error.message==="PLACE_ADMIN_PREVIEW_REQUIRED") return placeOperationFailure(error);
   return operationsActionError(error instanceof Error ? error.message : "UNKNOWN");
 }
 
 function selectedWorkItems(form: FormData) {
-  const versions: Record<string, number> = {};
+  const versions: Record<string, number> = Object.create(null);
   const workItemIds = form.getAll("workItem").flatMap((value) => {
     const [id, version] = String(value).split("|");
     const parsedVersion = Number(version);
@@ -75,19 +106,26 @@ function selectedWorkItems(form: FormData) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  await requireAdmin(request);
+  const {user,sessionId}=await requireAdminSession(request);
   const db = createDb(env.DB);
   const url = new URL(request.url);
   const tab = parsePlaceOperationsTab(url);
+  if (["operation","place"].some(key=>url.searchParams.getAll(key).length>1)) throw new Response(null,{status:400,headers:PRIVATE});
+  const operationId=url.searchParams.get("operation"), placeId=url.searchParams.get("place");
+  if ((operationId && !z.uuid().safeParse(operationId).success) || (placeId && (placeId.length>160 || !placeId.length))) throw new Response(null,{status:400,headers:PRIVATE});
+  let operation:Awaited<ReturnType<typeof getPlaceAdminOperation>>|null=null,operationUnavailable=false;
+  if(operationId) try {operation=await getPlaceAdminOperation(env.DB,{actorUserId:user.id,sessionId,now:new Date().toISOString(),operationId});} catch {operationUnavailable=true;}
+  const selectedPlace=placeId?await env.DB.prepare("SELECT id,name,address,status FROM places WHERE id=?").bind(placeId).first<{id:string;name:string;address:string;status:string}>():null;
+  const extra={operation,operationUnavailable,selectedPlace};
   if (tab === "liveness") {
     const liveness = await listLivenessOperations(db, url.searchParams.get("liveness"));
-    return { tab, ...liveness };
+    return data({ tab, ...liveness, ...extra },{headers:PRIVATE});
   }
   if (tab === "duplicates") {
-    return { tab, ...(await listDuplicateOperations(db)) };
+    return data({ tab, ...(await listDuplicateOperations(db)), ...extra },{headers:PRIVATE});
   }
   if (tab === "corrections") {
-    return { tab, corrections: await listCorrectionOperations(db) };
+    return data({ tab, corrections: await listCorrectionOperations(db), ...extra },{headers:PRIVATE});
   }
   const query = parsePlaceReviewQuery(url);
   const now = new Date().toISOString();
@@ -103,25 +141,52 @@ export async function loader({ request }: Route.LoaderArgs) {
   const duplicateCandidates = query.step === 4
     ? await listReviewDuplicateCandidates(db, page.rows.map((row) => row.workItemId))
     : [];
-  return {
-    tab,
+  return data({
+    tab, ...extra,
     query, page, counts, categories: categoryRows.filter((category) => terminalCategoryIds.has(category.id)), duplicateCandidates,
     suggestions,
     naverRegionUsage,
     naverMapsClientId: placeGeocodingEnabled ? env.NAVER_MAPS_CLIENT_ID ?? "" : "",
     placeGeocodingEnabled,
     confidentAdvanceEnabled: isConfidentAdvanceEnabled(env.REVIEW_CONFIDENT_ADVANCE_ENABLED),
-  };
+  },{headers:PRIVATE});
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const admin = await requireAdmin(request);
-  if (!isSameOriginMutation(request)) return data({ ok: false, error: "이 요청은 현재 서비스에서 다시 실행해 주세요." }, { status: 403 });
-  const form = await request.formData();
+  const {user:admin,sessionId}=await requireAdminSession(request);
+  if(request.method!=="POST") return new Response(null,{status:405,headers:{...PRIVATE,Allow:"POST"}});
+  if (!isSameOriginMutation(request)) return data({ ok: false, error: "이 요청은 현재 서비스에서 다시 실행해 주세요." }, { status: 403, headers:PRIVATE });
+  let form:FormData; try {form=await readOperationsForm(request);} catch(error) {if(error instanceof Response)return error;return placeOperationFailure(error);}
   const db = createDb(env.DB);
   const now = new Date().toISOString();
   const confidentAdvanceEnabled = isConfidentAdvanceEnabled(env.REVIEW_CONFIDENT_ADVANCE_ENABLED);
   const intent = String(form.get("intent") ?? "");
+  const caller={actorUserId:admin.id,sessionId,now};
+  const prepare=async(command:PlaceAdminCommand)=>{
+    const parsed=placeAdminCommandSchema.parse(command);
+    const op=await preparePlaceAdminOperation(env.DB,{...caller,command:parsed});
+    return redirect(operationPath(op.operationId),{headers:PRIVATE});
+  };
+  if(intent==="confirm-place-operation") {
+    let operationId:string;
+    try {
+      operationId=z.uuid().parse(form.get("operationId"));
+      await commitPlaceAdminOperation(env.DB,{...caller,operationId});
+      return redirect(operationPath(operationId),{headers:PRIVATE});
+    } catch(error) {
+      if(error instanceof Error && error.message==="ADMIN_RECENT_AUTH_REQUIRED") {
+        const id=form.get("operationId");
+        if(typeof id==="string" && z.uuid().safeParse(id).success) return redirect(`/admin/reauth?returnTo=${encodeURIComponent(operationPath(id))}`,{headers:PRIVATE});
+      }
+      return placeOperationFailure(error);
+    }
+  }
+  if(intent==="recall" || intent==="restore-recall") {
+    try {
+      return await prepare(intent==="recall"?{change:"RECALL",placeId:String(form.get("placeId")??""),reason:String(form.get("reason")??"")}:{change:"RESTORE_RECALL",recallOperationId:String(form.get("recallOperationId")??""),reason:String(form.get("reason")??"")});
+    } catch(error) {return placeOperationFailure(error);}
+  }
+
   if (intent === "approve-suggestion") {
     const suggestionId = String(form.get("suggestionId") ?? "");
     const prefix = `approval-${suggestionId}-`;
@@ -168,7 +233,7 @@ export async function action({ request }: Route.ActionArgs) {
     const checked = checkCorrectionApplyRequest({ requestId: form.get("requestId"), reason: form.get("reason") });
     if (!checked.ok) return operationsActionError(checked.code);
     try {
-      await applyPlaceCorrection(db, { ...checked.value, actorUserId: admin.id, now });
+      await applyPlaceCorrection(db, { ...checked.value, actorUserId: admin.id, now, preservePublicationState:true });
       return { ok: true, message: "정정 내용을 적용하고 수정 이력을 남겼습니다." };
     } catch (error) {
       return operationsCaughtError(error);
@@ -196,22 +261,11 @@ export async function action({ request }: Route.ActionArgs) {
     });
     if (!checked.ok) return operationsActionError(checked.code);
     try {
-      await mergePlaces(db, { ...checked.value, actorUserId: admin.id, now });
-      return { ok: true, message: "중복 장소를 병합하고 기존 URL 리다이렉트를 생성했습니다." };
-    } catch (error) {
-      return operationsCaughtError(error);
-    }
+      return await prepare({change:"MERGE",...checked.value});
+    } catch(error) {return placeOperationFailure(error);}
   }
-  if (intent === "restore") {
-    const checked = checkRestoreRequest({ revisionId: form.get("revisionId"), reason: form.get("reason") });
-    if (!checked.ok) return operationsActionError(checked.code);
-    try {
-      await restorePlaceRevision(db, { ...checked.value, actorUserId: admin.id, now });
-      return { ok: true, message: "선택한 이전 값으로 복원했습니다." };
-    } catch (error) {
-      return operationsCaughtError(error);
-    }
-  }
+  if(intent==="restore") return data({ok:false,error:"과거 revision의 자동 복원은 지원하지 않습니다. 직전 공개 회수 영수증에서 별도 복원 미리보기를 준비해 주세요."},{status:400,headers:PRIVATE});
+
   if (intent === "resolve-liveness") {
     const checked = checkLivenessResolveRequest({
       caseId: form.get("caseId"),
@@ -220,8 +274,8 @@ export async function action({ request }: Route.ActionArgs) {
     });
     if (!checked.ok) return operationsActionError(checked.code);
     try {
-      await resolvePlaceLivenessCase(db, { ...checked.value, actorUserId: admin.id, now });
-      return { ok: true, message: "영업 상태 검수를 반영했습니다." };
+      await resolvePlaceLivenessCase(db, { ...checked.value, actorUserId: admin.id, now, preservePublicationState:true });
+      return { ok: true, message: "영업 상태 검수를 반영했습니다. 공개 상태는 유지되며 재공개는 장소 미리보기에서 진행합니다." };
     } catch (error) {
       return operationsCaughtError(error);
     }
@@ -238,6 +292,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
   const batchId = String(form.get("batchId") ?? "");
   const { workItemIds, versions } = selectedWorkItems(form);
+  if(intent==="publish-review-items" && (workItemIds.length!==1 || form.getAll("workItem").length!==1)) return data({ok:false,error:"공개 영향은 한 번에 1곳씩 확인합니다. 대상 1곳만 선택해 주세요."},{status:400,headers:PRIVATE});
 	  const automaticWorkItemIds = [
 		...new Set(
 			form
@@ -343,8 +398,7 @@ export async function action({ request }: Route.ActionArgs) {
       return { ok: true, message: `중복 판정 ${result.accepted.length}건 저장 · 건너뜀 ${result.skipped.length}건`, skipped: result.skipped };
     }
     if (intent === "publish-review-items") {
-      const result = await publishReviewedPlaces(db, { workItemIds, expectedVersions: versions, actorUserId: admin.id, now });
-      return { ok: true, message: `선택 공개 ${result.published.length}곳 완료 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
+      return await prepare({change:"PUBLISH",workItemId:workItemIds[0]!,expectedVersion:versions[workItemIds[0]!],reason});
     }
     if (intent === "advance-review-items") {
       const result = await advancePlaceReviewWorkItems(db, { workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, confidentAdvanceEnabled });
@@ -381,7 +435,7 @@ export async function action({ request }: Route.ActionArgs) {
     }
     return reviewActionError("INVALID_INTENT");
   } catch (error) {
-    return reviewCaughtError(error);
+    return intent === "publish-review-items" ? placeOperationFailure(error) : reviewCaughtError(error);
   }
 }
 
@@ -407,6 +461,12 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
       <nav><Link to="/admin/data-sync">공공데이터 수집</Link><Link to="/admin/ratings">평가 운영</Link></nav>
     </header>
     {message && <p className="admin-notice" role="status">{message}</p>}
+    <PlaceOperationPreview view={loaderData.operation??undefined} />
+    {loaderData.operationUnavailable && <p className="operation-error" role="alert">미리보기 또는 영수증을 확인할 수 없습니다. 대상과 현재 권한을 확인해 주세요.</p>}
+    <details className="place-ops-section"><summary>기존 공개 회수 복원 검토</summary><p>원래 공개 회수 작업 번호를 입력해 새 미리보기를 준비합니다. 현재 관리자 재인증과 회수 뒤 변경 여부를 다시 확인하며, 병합 전체를 되돌리지 않습니다.</p><Form method="post" className="ops-form"><input type="hidden" name="intent" value="restore-recall"/><label>원 공개 회수 작업 번호<input name="recallOperationId" required maxLength={36}/></label><label>공개 회수 복원 사유<input name="reason" required maxLength={300}/></label><button>기존 회수 복원 미리보기</button></Form></details>
+
+    {loaderData.selectedPlace && <section className="place-ops-section" aria-label="선택한 장소 공개 관리"><h2>{loaderData.selectedPlace.name}</h2><p>{loaderData.selectedPlace.address}</p><p>현재 {loaderData.selectedPlace.status} · <code>{loaderData.selectedPlace.id}</code></p>{loaderData.selectedPlace.status==="PUBLISHED"?<Form method="post" className="ops-form"><input type="hidden" name="intent" value="recall"/><input type="hidden" name="placeId" value={loaderData.selectedPlace.id}/><label>공개 회수 사유<input name="reason" required maxLength={300}/></label><button>공개 회수 미리보기</button></Form>:<p>공개 중인 장소만 회수할 수 있습니다. 공개는 최종 검수 1곳을 선택해 준비합니다.</p>}</section>}
+
     {error && loaderData.tab !== "review" && <p className="operation-error" role="alert">{error}</p>}
     <nav className="place-ops-tabs" aria-label="장소 운영 작업" role="tablist">
       {operationTabs.map((tab) => (
@@ -437,4 +497,9 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
       {loaderData.tab === "duplicates" && <PlaceMergePanel places={loaderData.places} safeSameNameMergeGroups={loaderData.safeSameNameMergeGroups} revisions={loaderData.revisions} />}
     </div>
   </main>;
+}
+
+export function ErrorBoundary({error}:Route.ErrorBoundaryProps) {
+  const status=isRouteErrorResponse(error)?error.status:503;
+  return <main id="main" className="admin-page"><h1 className="text-[25.2px] md:text-[33.6px]">{status===403?"관리자만 조회할 수 있습니다.":"장소 관리를 열 수 없습니다."}</h1><p>현재 권한과 요청을 확인한 뒤 다시 조회해 주세요.</p><Link to="/admin/place-operations">장소 관리 다시 열기</Link></main>;
 }

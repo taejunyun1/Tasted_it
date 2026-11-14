@@ -1,15 +1,19 @@
 import { env } from "cloudflare:workers";
-import { Link } from "react-router";
+import { data, isRouteErrorResponse, Link } from "react-router";
 
 import type { Route } from "./+types/admin-places";
 import { createDb } from "../db/client.server";
 import { requireAdmin } from "../features/auth/session.server";
 import { listAdminPlaces } from "../features/places/place.server";
 
+const PRIVATE = {"Cache-Control":"private, no-store",Vary:"Cookie"};
+export const headers=()=>PRIVATE;
+export const meta=()=>[{title:"장소 관리 — Re:Taste Admin"},{name:"robots",content:"noindex,nofollow"}];
+
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdmin(request);
   const places = await listAdminPlaces(createDb(env.DB));
-  return { places };
+  return data({ places }, {headers:PRIVATE});
 }
 
 export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
@@ -39,7 +43,7 @@ export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
             {loaderData.places.map((place) => (
               <tr className="border-b border-neutral-200" key={place.id}>
                 <td className="px-2 py-4 text-sm">{place.status}</td>
-                <td className="px-2 py-4 font-medium">{place.name}</td>
+                <td className="px-2 py-4 font-medium"><Link to={`/admin/place-operations?place=${encodeURIComponent(place.id)}`}>{place.name}</Link><br/><small>{place.id}</small></td>
                 <td className="px-2 py-4">{place.categoryName}</td>
                 <td className="px-2 py-4 text-sm text-neutral-600">
                   {place.updatedAt}
@@ -51,4 +55,9 @@ export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
       </div>
     </main>
   );
+}
+
+export function ErrorBoundary({error}:Route.ErrorBoundaryProps) {
+  const status=isRouteErrorResponse(error)?error.status:503;
+  return <main id="main" className="admin-page"><h1 className="text-[25.2px] md:text-[33.6px]">{status===403?"관리자만 조회할 수 있습니다.":"장소 목록을 열 수 없습니다."}</h1><Link to="/admin/places">다시 조회</Link></main>;
 }
