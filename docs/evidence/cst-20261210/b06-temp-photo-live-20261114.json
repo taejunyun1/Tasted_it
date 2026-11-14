@@ -1,0 +1,195 @@
+{
+  "status": "VERIFIED_LIVE_SCOPED",
+  "dateKST": "2026-11-14",
+  "sourceSha": "652d9590bbb6535d2567f851efd82ca3b0aceb81",
+  "workerVersion": "6e5d8d8e-4ae0-474e-9d7c-2998138e09e6",
+  "trafficPercent": 100,
+  "deploymentAt": "2026-11-14T01:52:46.126Z",
+  "approvalPRs": [
+    426,
+    427
+  ],
+  "migrations": [
+    {
+      "at": "2026-11-14T01:49:03.717Z",
+      "sourceSha": "3f214c556698546a7500616d3b78a71dd3491a5c",
+      "fileSha256": "743390d1520ad3327d2c33b2efc84175897af9a551ba138c05eda5b1b2453804",
+      "applied": "0045_admin_activity_read_indexes.sql",
+      "plan": [
+        {
+          "id": 5,
+          "parent": 0,
+          "notused": 210,
+          "detail": "SCAN admin_audit_logs USING COVERING INDEX admin_audit_activity_order_idx"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-14T01:51:02.473Z",
+      "sourceSha": "652d9590bbb6535d2567f851efd82ca3b0aceb81",
+      "fileSha256": "729e59c1400e94e5f096001849537e1f72066b62e5f05f0415c6cd3c2b3c75a7",
+      "applied": "0046_temp_photo_supplements.sql",
+      "emptyTables": {
+        "batches": 0,
+        "photos": 0
+      }
+    }
+  ],
+  "build": {
+    "at": "2026-11-14T01:51:25.864Z",
+    "sourceSha": "652d9590bbb6535d2567f851efd82ca3b0aceb81",
+    "configSha256": "24823cb2a84fada1cd8ea6a6dae6d442e557d8ee8adc59bdc1a8e3cc64ad7cb0",
+    "dryRun": "PASS",
+    "migrationHashes": {
+      "0046_temp_photo_supplements.sql": "729e59c1400e94e5f096001849537e1f72066b62e5f05f0415c6cd3c2b3c75a7",
+      "0045_admin_activity_read_indexes.sql": "743390d1520ad3327d2c33b2efc84175897af9a551ba138c05eda5b1b2453804"
+    }
+  },
+  "activity": {
+    "read_only_counts_unchanged": true,
+    "session_absent_and_actor_not_in_activity_main": true,
+    "activity_first_rows": 50,
+    "next_cursor": true,
+    "operation_detail": true,
+    "malformed": 400,
+    "post": 405,
+    "anonymous": 302,
+    "audit": 200
+  },
+  "photos": {
+    "public_cards": 100,
+    "cards_with_images": 100,
+    "new_photo_hashes": 77,
+    "head": 1,
+    "original_photo": 1,
+    "invalid": 404,
+    "details": 2,
+    "initial_client_timeouts": 1,
+    "independent_curl_followup": 200,
+    "source": "NAVER publicly visible business/blog/search images",
+    "existingKoglPhotos": 23,
+    "additionalNaverPhotos": 77,
+    "totalPlacesWithPhotos": 100,
+    "bytes": 7875412,
+    "manifestSha256": "59f41a7d7c3bf95568c11c5423680660ef4485884eaacb778c485f07b18ad5af",
+    "photoBatchId": "tempphotos-59f41a7d7c3bf955",
+    "publication": {
+      "at": "2026-11-14T01:52:31.679Z",
+      "status": "ACTIVE",
+      "count": 77,
+      "audit": 1,
+      "manifestSha256": "59f41a7d7c3bf95568c11c5423680660ef4485884eaacb778c485f07b18ad5af",
+      "photoBatchId": "tempphotos-59f41a7d7c3bf955",
+      "canonicalVersionUnchanged": true,
+      "sqlSha256": "45d559d1f98a6050faa8bde201f0bfc482a2a1ddfe170da171ab30abd1d39cde"
+    },
+    "upload": {
+      "at": "2026-11-14T01:52:06.705Z",
+      "uploaded": 77,
+      "verified": 77,
+      "bytes": 7875412,
+      "manifestSha256": "59f41a7d7c3bf95568c11c5423680660ef4485884eaacb778c485f07b18ad5af"
+    },
+    "browserPhotoLoad": {
+      "naturalWidth": 560,
+      "naturalHeight": 698,
+      "loaded": true
+    },
+    "rightsStatus": "UNVERIFIED for 77 NAVER images; no license or consent inferred",
+    "sourceIdentityNotes": {
+      "addressTextAliases": 2,
+      "matchEvidence": "same establishment/contact and mapped location, preserved privately"
+    },
+    "contentReview": "source and visual review performed; no claim of complete privacy or copyright clearance"
+  },
+  "rsi": {
+    "get": 405,
+    "post": 200,
+    "paths_ok": 6,
+    "audit_delta": 1,
+    "workerLogOutcome": "ok",
+    "workerLogVersion": "6e5d8d8e-4ae0-474e-9d7c-2998138e09e6"
+  },
+  "preservation": {
+    "countsBefore": {
+      "places": 756,
+      "public": 108,
+      "reviews": 7,
+      "photos": 8,
+      "votes": 119,
+      "users": 78,
+      "guest_sessions": 0
+    },
+    "countsAfter": {
+      "places": 756,
+      "public": 108,
+      "reviews": 7,
+      "photos": 8,
+      "votes": 119,
+      "users": 78,
+      "guest_sessions": 0
+    },
+    "at": "2026-11-14T01:55:39.125Z",
+    "countsUnchanged": true,
+    "rolesSeatsInvitationsUnchanged": true,
+    "canonicalVersionUnchanged": true
+  },
+  "cleanup": {
+    "at": "2026-11-14T01:55:48.568Z",
+    "sameUniqueAdminSession": 1,
+    "reusedWithinOriginalExpiry": 2,
+    "remainingSessions": 0,
+    "credentialFilesRemoved": true,
+    "ownedTailStopped": true
+  },
+  "httpCounts": {
+    "b06": 10,
+    "photo": 83,
+    "sequential_total": 17,
+    "parallel_total": 77,
+    "extraIndependentCurl": 1,
+    "manualTotal": 95,
+    "previousWorkerRead": 1
+  },
+  "preservedFailures": [
+    {
+      "stage": "first live validation",
+      "result": "FAIL",
+      "cause": "verifier treated the current signed-in user id in existing root hydration as an activity data leak",
+      "finding": "B06 main contains no raw actor id and full response contains no session token",
+      "correction": "scope the assertion to B06 content; retain original response and failure; no product code change"
+    },
+    {
+      "stage": "parallel photo read",
+      "sourceId": "temp100-091",
+      "result": "TIMEOUT",
+      "timeoutSeconds": 30,
+      "followingRead": {
+        "at": "2026-11-14T01:55:06.239Z",
+        "sourceId": "temp100-091",
+        "http": 200,
+        "sha256Matches": true,
+        "bytes": 112247,
+        "transport": "system curl, one bounded read, no automatic retry"
+      },
+      "workerOutcomes": [
+        "ok",
+        "ok"
+      ],
+      "rootCause": "UNKNOWN; system curl read returned 200 and matching bytes in 1.0 seconds"
+    }
+  ],
+  "notRun": [
+    "full T01-T08 acceptance",
+    "live role/password/provider authentication changes",
+    "actual rating job execution or CSV/vote mutation",
+    "actual site visits/current business confirmation",
+    "production restore",
+    "public photo withdrawal rehearsal"
+  ],
+  "remaining": {
+    "issue397": "HOLD; no current production blocker observed",
+    "issue428": "separate synthetic same-category/region 100-peer query limit finding; no current production block observed",
+    "adminLaterPhases": "separate accepted work required beyond B06"
+  }
+}
