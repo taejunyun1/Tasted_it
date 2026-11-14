@@ -1,11 +1,13 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { createDb } from "../../db/client.server";
-import { naverLocalCategoryRuns } from "../../db/schema";
+import { naverLocalCategoryRuns, places as canonicalPlaces } from "../../db/schema";
 import { assertNaverRegionQuota, getNaverLocalSearchApiCallsToday } from "../places/naver-region-quota.server";
 import type { NaverLocalSearchAdapter } from "../candidates/naver-local-search.server";
 import { commitAdminOperation, prepareAdminOperation, type AdminOperationInput } from "../operations/admin-operation.server";
 import { tempCatalogBatches, tempCatalogEntries } from "./temp-catalog.schema";
+import { tempPhotoSupplementBatches, tempPhotoSupplements } from "./temp-photo-supplement.schema";
+import { supplementalPhotoKey, tempPhotoSupplementEntrySchema } from "./temp-photo-supplement";
 import { categorySlug, coordinateEvidenceSchema, identityKey, photoObjectKey, tempEntrySchema, tempManifestSchema, verifiedCoordinates, type TempPublicInfo } from "./temp-catalog";
 
 type EntryRow = { id: string; batch_id: string; source_id: string; place_id: string | null; owns_place: number; payload_json: string; latitude: number | null; longitude: number | null; geo_status: string };
@@ -149,7 +151,7 @@ async function assertPhotos(bucket: R2Bucket, rows: EntryRow[]) {
 /** Content hash is authoritative; CLI uploads need no custom metadata. */
 export async function readVerifiedTempPhoto(bucket: R2Bucket, photo: { key: string; contentType: string; sha256: string }, byteBudget = 8 * 1024 * 1024) {
   const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as Record<string, string>)[photo.contentType];
-  if (!Number.isSafeInteger(byteBudget) || byteBudget <= 0 || !extension || !/^temp100\/temp100-[a-f0-9]{16}\/temp100-\d{3}-[a-f0-9]{64}\.(jpg|png|webp)$/.test(photo.key)
+  if (!Number.isSafeInteger(byteBudget) || byteBudget <= 0 || !extension || !/^(temp100|temp100-naver)\/temp100-[a-f0-9]{16}\/temp100-\d{3}-[a-f0-9]{64}\.(jpg|png|webp)$/.test(photo.key)
     || !photo.key.endsWith(`-${photo.sha256}.${extension}`)) throw new Error("TEMP_PHOTO_NOT_READY");
   const object = await bucket.get(photo.key);
   const limit = Math.min(8 * 1024 * 1024, byteBudget);
@@ -223,13 +225,24 @@ export async function commitTempPublication(database: D1Database, bucket: R2Buck
   });
 }
 
-export async function attachTempCatalog<T extends { id: string }>(db: AppDb, places: T[]): Promise<Array<T & { tempCatalog?: TempPublicInfo }>> {
+export async function attachTempCatalog<T extends { id: string; heroImageUrl?: string | null }>(db: AppDb, places: T[]): Promise<Array<T & { tempCatalog?: TempPublicInfo }>> {
   if (!places.length) return places;
-  const rows = await db.select({ id: tempCatalogEntries.id, placeId: tempCatalogEntries.placeId, payload: tempCatalogEntries.payloadJson })
+  const rows = await db.select({ id: tempCatalogEntries.id, placeId: tempCatalogEntries.placeId, payload: tempCatalogEntries.payloadJson,
+    supplement: tempPhotoSupplements.payloadJson, supplementStatus: tempPhotoSupplementBatches.status })
     .from(tempCatalogEntries).innerJoin(tempCatalogBatches, eq(tempCatalogEntries.batchId, tempCatalogBatches.id))
+    .innerJoin(canonicalPlaces, and(eq(canonicalPlaces.id, tempCatalogEntries.placeId), eq(canonicalPlaces.status, "PUBLISHED")))
+    .leftJoin(tempPhotoSupplements, eq(tempPhotoSupplements.entryId, tempCatalogEntries.id))
+    .leftJoin(tempPhotoSupplementBatches, and(eq(tempPhotoSupplementBatches.id, tempPhotoSupplements.supplementBatchId), eq(tempPhotoSupplementBatches.targetBatchId, tempCatalogEntries.batchId)))
     .where(and(sql`${tempCatalogEntries.placeId} in (select value from json_each(${JSON.stringify(places.map((p) => p.id))}))`, eq(tempCatalogBatches.status, "PUBLISHED")));
-  const byId = new Map(rows.map((row) => { const entry = tempEntrySchema.parse(JSON.parse(row.payload)); return [row.placeId, { ...entry, entryId: row.id, photoUrl: entry.photo ? `/temp-photos/${row.id}` : null }]; }));
-  return places.map((place) => byId.has(place.id) ? { ...place, tempCatalog: byId.get(place.id) } : place);
+  const byId = new Map(rows.map((row) => {
+    const entry = tempEntrySchema.parse(JSON.parse(row.payload));
+    const photoSupplement = !entry.photo && row.supplement && row.supplementStatus === "ACTIVE" ? tempPhotoSupplementEntrySchema.parse(JSON.parse(row.supplement)) : undefined;
+    return [row.placeId, { ...entry, entryId: row.id, photoUrl: entry.photo || photoSupplement ? `/temp-photos/${row.id}` : null, ...(photoSupplement ? { photoSupplement } : {}) }];
+  }));
+  return places.map((place) => {
+    const tempCatalog = byId.get(place.id);
+    return tempCatalog ? { ...place, ...(tempCatalog.photoSupplement && !place.heroImageUrl ? { heroImageUrl: tempCatalog.photoUrl } : {}), tempCatalog } : place;
+  });
 }
 export async function getTempPhoto(database: D1Database, entryId: string) {
   if (!/^temp100-[a-f0-9]{16}-temp100-\d{3}$/.test(entryId)) return null;
@@ -237,5 +250,10 @@ export async function getTempPhoto(database: D1Database, entryId: string) {
   if (!row) return null;
   const entry = tempEntrySchema.parse(JSON.parse(row.payload_json));
   const key = photoObjectKey(row.batch_id, entry);
-  return key && entry.photo ? { key, contentType: entry.photo.contentType, sha256: entry.photo.sha256 } : null;
+  if (key && entry.photo) return { key, contentType: entry.photo.contentType, sha256: entry.photo.sha256 };
+  const supplemental = await database.prepare("SELECT s.payload_json,s.object_key FROM temp_photo_supplements s JOIN temp_photo_supplement_batches b ON b.id=s.supplement_batch_id WHERE s.entry_id=? AND b.target_batch_id=? AND b.status='ACTIVE'").bind(row.id, row.batch_id).first<{ payload_json: string; object_key: string }>();
+  if (!supplemental) return null;
+  const photo = tempPhotoSupplementEntrySchema.parse(JSON.parse(supplemental.payload_json));
+  if (photo.sourceId !== entry.sourceId || photo.name !== entry.name || photo.address !== entry.address || supplemental.object_key !== supplementalPhotoKey(row.batch_id, photo)) return null;
+  return { key: supplemental.object_key, contentType: photo.contentType, sha256: photo.sha256 };
 }
