@@ -5,6 +5,7 @@ test("reviewer preview separates evidence and asks for reauthentication before c
   const response = await page.goto("/admin/reviewers?status=APPLIED");
   expect(response?.headers()["cache-control"]).toContain("no-store");
   await expect(page.getByRole("heading", { name: "리뷰어 관리", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "리뷰어 관리", exact: true })).toHaveCSS("font-size", page.viewportSize()!.width >= 768 ? "33.6px" : "25.2px");
   await page.waitForFunction(() => (window as unknown as { __reactRouterDataRouter?: { state: { initialized: boolean; navigation: { state: string } } } }).__reactRouterDataRouter?.state.navigation.state === "idle");
   await page.getByRole("checkbox", { name: "QA 심사 대기자 신청 선택" }).check();
   await page.getByRole("button", { name: "선택 신청 미리보기" }).click();

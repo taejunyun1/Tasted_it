@@ -90,8 +90,8 @@ export default function AdminReviewers({ loaderData, actionData }: Route.Compone
   const results = actionData?.transient ?? (preview?.committed ? preview.result.results : null);
   const resultNames: Record<string, string> = !preview ? {} : preview.committed ? preview.displayNames : Object.fromEntries(preview.items.map((item) => [item.targetRef, item.name]));
   const conflicted = actionData?.transient?.some((item) => item.outcome === "NOT_APPLIED");
-  return <main id="main" className="admin-home reviewer-admin">
-    <header className="admin-home__header"><div><p className="admin-home__eyebrow">ADMIN / REVIEWER REGISTRY</p><h1>리뷰어 관리</h1><p>신청 근거와 활동 상태를 확인한 뒤 선택한 변경만 확정합니다.</p></div><Link to="/admin">운영 홈</Link></header>
+  return <main id="main" className="admin-page admin-home reviewer-admin">
+    <header className="admin-home__header"><div><p className="admin-home__eyebrow">ADMIN / REVIEWER REGISTRY</p><h1 className="text-[25.2px] md:text-[33.6px]">리뷰어 관리</h1><p>신청 근거와 활동 상태를 확인한 뒤 선택한 변경만 확정합니다.</p></div><Link to="/admin">운영 홈</Link></header>
     <nav className="reviewer-admin__tabs" aria-label="리뷰어 상태">{Object.entries(STATUS).map(([status, label]) => <Link key={status} aria-current={loaderData.status === status ? "page" : undefined} to={`/admin/reviewers?status=${status}`}>{label}</Link>)}</nav>
     <Form method="get" className="admin-home__filter"><input type="hidden" name="status" value={loaderData.status}/><label htmlFor="reviewer-query">이름·이메일 검색</label><input id="reviewer-query" name="q" maxLength={100} defaultValue={loaderData.query}/><button>조회</button></Form>
     <p className="admin-home__note">각 목록은 최대 50명입니다. 한 번에 같은 변경을 최대 25명에게 미리볼 수 있습니다. 일반 승인 기준은 기존과 같이 신청 당시 승인 제안 10곳이며, 현재 수치는 별도로 확인합니다.</p>

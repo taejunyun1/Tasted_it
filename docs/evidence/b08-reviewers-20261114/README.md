@@ -21,3 +21,7 @@ Local synthetic fixtures only. No production reviewer role/status changes or liv
 - Diff whitespace and scoped credential-pattern scan — passed.
 
 Shared migration/receipt/B06 tests belong to the included common people-operation commit, independently verified by the integrating owner. Required CI and live deployment validation are separate completion gates.
+
+## 최초 CI 실패와 수정
+
+첫 head `6bbd6f1`의 CI run `43561942058`에서 unit 2건이 실패했다(통과 1,674건, 건너뜀 53건). 기존 `admin-page` 디자인 프레임과 H1 `25.2px / md 33.6px` 계약을 새 화면이 유지하지 않은 것이 원인이었다. 테스트는 그대로 두고 실제 main/H1 클래스와 리뷰어 전용 CSS를 복원했다. 수정 후 해당 디자인 계약 파일 2개의 테스트 7/7이 통과했다. 기존 desktop/mobile E2E 2/2도 통과했고 computed style로 각각 33.6px/25.2px를 확인했다. 변경된 화면 증거를 교체하고 잘림·겹침이 없음을 확인했다.
