@@ -1,6 +1,6 @@
 # B09 장소 운영 영향 미리보기 적용 — 2026-11-14
 
-- 상태: #439의 ACCEPTED_IMPLEMENTATION. 필수 CI·독립 검토·병합 후 아래 한정 운영 작업을 실행한다.
+- 상태: #439의 DEPLOYED / VERIFIED_LIVE_SCOPED. #440 필수4CI·독립 검토·병합 후 한정 운영 작업을 실행했다. 아래는 승인 당시 절차이며 실제 결과와 관측 대체는 마지막 절을 따른다.
 - 담당: Jay/Codex(root), backend/SQL은 admin_p0_home, route/UI는 admin_p0_identity. #397은 HOLD다.
 - 대상: 기존 계정 `7543330c65069ee2df1b7b353fb0201c`, Worker `retaste-beta`, D1 `retaste-production`(`5181489d-83a7-4f78-9384-db096cadaa2d`). 기존 R2·두 cron·기능 flag·provider는 유지한다.
 
@@ -33,3 +33,10 @@
 불일치/실패 시 같은 schema의 점검 fence를 유지하고 원인을 확인해 전진 수정한다. 구 Worker로 위험 변경 경로를 재개하거나 전체 D1을 임의 복원하지 않는다. 실제 복원·R2 삭제·권한 확대는 이 범위가 아니다.
 
 기능 병합, 실제 배포, 합성 양성 검증, 한정 live를 구분해 SSOT와 위키에 기록한다. 최종 결과 문서 PR은 다시 운영 배포하지 않는다. B09 완료를 전체 ADMIN 또는 T01–T08·현장실증 완료로 확대하지 않는다. 다음 B10과 #397 HOLD, 12/10 내부 검수·실증 준비 및 12/18 납품기한은 유지한다.
+
+## 실행 결과와 관측 대체 — 2026-11-14
+
+- 통합 main `e96360c2c0dc4b7d619262021ef8001ad373bac9`, 정상 Worker `d285759b-d529-4ea0-a7e9-9cf88b3e7cf1` 100%. 점검7경로·96초 drain·비공개 백업1 후0049 한 번 적용했다. 25개 관련 테이블의 기존 값·rowid·권한·이력 보존, FK위반0을 확인했다. 인허가/제외 비교는 장소에 연결된 자료 범위다.
+- 관리자 조회/입력·출처·과거 복원 거절·미확정 회수 미리보기/재인증 없는 거절, B06 필터·공개 상세/사진·RSI6/6/감사1행을 확인했다. 실제 장소 변경0, 최종 세션/미확정 작업0이다.
+- 채팅 브라우저 접근 불가, MCP 다른 계정, 저장 query403으로 **병합 #440 본문의 관측 대체 계획**을 적용했다. 기존 인증의 Wrangler tail JSON을 비공개 수집해 관측된 이전 읽기1·점검7호출과 새 RSI의 정확 scriptVersion/outcome ok를 확인했다. 새 인증·secret/권한/설정 변경0이다. 최신 scheduled RSI 성공 감사와 두 cron의 최근 시작 가능 시각이 [scheduled 최대15분](https://developers.cloudflare.com/workers/platform/limits/#duration)을 지난 창임을 대조했다. 모든 과거 HTTP가60초로 강제 종료됐다는 주장은 하지 않으며 구체 미확인 실행이 관측되면 보류한다는 조건을 유지했다.
+- 수동HTTP28/50, D1 데이터명령15+관리3=18/30, 실제SQL조회93/96, export1·migration1·고유ADMIN세션1·RSI1이다. [실행 증거](../evidence/cst-20261210/b09-place-live-20261114.json)와 합성 서버/UI의 초기 실패·교정 기록을 보존했다. 운영 검증 자체는 재시도/실패 없이 끝났다. 실제 양성 장소 변화·실제 재인증·복원·전체T01–T08·현장실증은 NOT_RUN, #397 HOLD다.
