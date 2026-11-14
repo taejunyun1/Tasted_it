@@ -85,6 +85,10 @@ describe("read-only administrator activity", () => {
     await env.DB.prepare(`INSERT INTO admin_operations(id,kind,actor_user_id,session_id,payload_json,payload_hash,summary_json,requires_recent_auth,status,result_json,created_at,expires_at,committed_at)
       VALUES(?,'CSV_IMPORT',?,?,NULL,'unused','{broken',0,'COMMITTED','{broken',?,?,?)`).bind(id, admin.actorUserId, admin.sessionId, now, now, now).run();
     expect((await read(`operation=${id}`)).detail).toMatchObject({ state: "INCOMPLETE", resultUnavailable: true, count: null });
+    const orphan = crypto.randomUUID();
+    await env.DB.prepare(`INSERT INTO admin_operations(id,kind,actor_user_id,session_id,payload_json,payload_hash,summary_json,requires_recent_auth,status,result_json,created_at,expires_at,committed_at)
+      VALUES(?,'CSV_IMPORT',?,?,NULL,'unused','{"count":10}',0,'COMMITTED','{"imported":10}',?,?,?)`).bind(orphan, admin.actorUserId, admin.sessionId, now, now, now).run();
+    expect((await read(`operation=${orphan}`)).detail).toMatchObject({ state: "INCOMPLETE", auditLinked: false, count: null, fields: [], resultUnavailable: true });
     expect((await read(`operation=${crypto.randomUUID()}`)).detailMissing).toBe(true);
   });
 

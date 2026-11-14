@@ -45,7 +45,8 @@ async function readDetail(database: D1Database, operationId: string, now: string
     o.summary_json,o.result_json,c.operation_id AS receipt_id,${AUDIT_COUNT} AS audit_count
     FROM admin_operations o ${RECEIPT_JOIN} WHERE o.id=?`).bind(operationId).first<OperationRow>();
   if (!row) return null;
-  const kind = activityKind(row.kind), summary = object(row.summary_json), result = object(row.result_json);
+  const linked = row.status === "COMMITTED" && row.audit_count === 1 && Boolean(row.receipt_id);
+  const kind = activityKind(row.kind), summary = object(row.summary_json), result = linked ? object(row.result_json) : null;
   const fields: { label: string; value: string }[] = [];
   const addCount = (key: string, label: string) => {
     const value = result?.[key];
@@ -70,7 +71,6 @@ async function readDetail(database: D1Database, operationId: string, now: string
   if (kind === "TEMP_PUBLISH" || kind === "TEMP_UNPUBLISH") {
     addCount("published", "공개 건수"); addCount("withdrawn", "회수 건수"); addCount("count", "처리 건수");
   }
-  const linked = row.status === "COMMITTED" && row.audit_count === 1 && Boolean(row.receipt_id);
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
   if (kind === "RATING_RECOMPUTE" && row.status === "COMMITTED") {
     const jobId = identifier(result?.jobId), placeId = identifier(result?.placeId), configId = identifier(result?.configId);
@@ -82,7 +82,7 @@ async function readDetail(database: D1Database, operationId: string, now: string
   return {
     operationId: row.id, kind, title: kind ? ACTIVITY_KINDS[kind] : "기타 작업", state: status(row, now),
     actor: await reference(row.actor_user_id), createdAt: timestamp(row.created_at), expiresAt: timestamp(row.expires_at), committedAt: timestamp(row.committed_at),
-    count: typeof summary?.count === "number" && Number.isSafeInteger(summary.count) && summary.count > 0 && summary.count <= 200 ? summary.count : null,
+    count: (row.status === "PENDING" || linked) && typeof summary?.count === "number" && Number.isSafeInteger(summary.count) && summary.count > 0 && summary.count <= 200 ? summary.count : null,
     auditLinked: linked, fields, job,
     resultUnavailable: row.status === "COMMITTED" && result === null,
   };
