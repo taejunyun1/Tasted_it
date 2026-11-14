@@ -32,6 +32,10 @@ for (const blockedStorage of [false, true]) {
 test.skip(Boolean(process.env.BASE_URL), "Only isolated local D1 is allowed.");
 test.beforeEach(async () => {
   execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--file", "scripts/seed-student-qa.sql"], { stdio: "pipe" });
+  const verifiedAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+  // Local synthetic QA session; the deployed service still requires real reauthentication.
+  execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", `INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at) SELECT id,user_id,'PASSWORD','${verifiedAt}','${expiresAt}' FROM sessions WHERE id='qa-admin-session' ON CONFLICT(session_id) DO UPDATE SET verified_at=excluded.verified_at,expires_at=excluded.expires_at`], { stdio: "pipe" });
   const hashed = await hashPassword(password);
   // Derived base64 strings contain no SQL quotes; these rows are local fixtures.
   execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", `UPDATE users SET password_hash='${hashed.hash}', password_salt='${hashed.salt}' WHERE id='qa-student-a'`], { stdio: "pipe" });
@@ -39,7 +43,8 @@ test.beforeEach(async () => {
 async function invitation(admin: Page, context: BrowserContext, baseURL: string) {
   await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: baseURL }]);
   await admin.goto("/admin/students");
-  await admin.getByRole("button", { name: "학생 A 초대 발급", exact: true }).click();
+  await admin.getByRole("button", { name: "학생 A 초대 발급 미리보기", exact: true }).click();
+  await admin.getByRole("button", { name: "변경 확정", exact: true }).click();
   return admin.getByLabel("학생에게 전달할 초대 링크").inputValue();
 }
 

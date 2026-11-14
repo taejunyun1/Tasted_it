@@ -19,7 +19,7 @@ export async function studentAdminData(db: AppDb, actorUserId: string, url: URL)
     db.select().from(studentTasks).orderBy(desc(studentTasks.updatedAt), desc(studentTasks.id)).limit(50).offset((taskPage - 1) * 50),
     db.select({ total: sql<number>`count(*)` }).from(studentTasks),
   ]);
-  return { seats: seats.map(({ userId, ...s }) => ({ ...s, connected: Boolean(userId) })), invitations, queue, query, reviews, tasks: tasks.map(({ submittedBy: _s, checkedBy: _c, createdBy: _a, ...t }) => t), taskPage, taskTotal: Number(count?.total ?? 0) };
+  return { asOf: new Date().toISOString(), seats: seats.map(({ userId, ...s }) => ({ ...s, connected: Boolean(userId) })), invitations, queue, query, reviews, tasks: tasks.map(({ submittedBy: _s, checkedBy: _c, createdBy: _a, ...t }) => t), taskPage, taskTotal: Number(count?.total ?? 0) };
 }
 
 export async function assignStudentQueueBatch(db: AppDb, input: { actorUserId: string; assignedSeat: string; checkerSeat: string; targetIds: string[]; now: string }) {
@@ -28,12 +28,13 @@ export async function assignStudentQueueBatch(db: AppDb, input: { actorUserId: s
   const ids = [...new Set(targetIds)];
   const seats = await db.select().from(studentSeats).where(inArray(studentSeats.code, [assignedSeat, checkerSeat]));
   if (seats.length !== 2 || seats.some((s) => !s.isActive || !s.canClassifyPlaces || s.expiresAt <= input.now)) throw new Error("STUDENT_CAPABILITY_REQUIRED");
-  const rows = await db.select({ id: placeReviewWorkItems.id, licenseName: businessLicenses.businessName, placeName: places.name }).from(placeReviewWorkItems)
+  const rows = await db.select({ id: placeReviewWorkItems.id, version: placeReviewWorkItems.stageVersion, licenseName: businessLicenses.businessName, placeName: places.name }).from(placeReviewWorkItems)
     .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId)).leftJoin(places, eq(places.id, placeReviewWorkItems.placeId))
     .where(and(inArray(placeReviewWorkItems.id, ids), eq(placeReviewWorkItems.status, "ACTIVE")));
   if (rows.length !== ids.length) throw new Error("STUDENT_SOURCE_CHANGED");
   const statements = [];
-  for (let i = 0; i < rows.length; i += 5) statements.push(db.insert(studentTasks).values(rows.slice(i, i + 5).map((r) => ({ id: crypto.randomUUID(), kind: "PLACE" as const, targetId: r.id, title: `${r.licenseName ?? r.placeName ?? "점포"} 분류`.slice(0, 120), assignedSeat, checkerSeat, createdBy: input.actorUserId, createdAt: input.now, updatedAt: input.now }))).onConflictDoNothing().returning({ id: studentTasks.id }));
+  const assignedSnapshot = seats.find(s => s.code === assignedSeat)!, checker = seats.find(s => s.code === checkerSeat)!;
+  for (const r of rows) statements.push(db.insert(studentTasks).select(sql`SELECT ${crypto.randomUUID()},'PLACE',${r.id},${`${r.licenseName ?? r.placeName ?? "점포"} 분류`.slice(0,120)},s.code,${checkerSeat},1,'OPEN',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,${input.actorUserId},${input.now},${input.now} FROM student_seats s WHERE s.code=${assignedSeat} AND s.version=${assignedSnapshot.version} AND s.is_active=1 AND s.expires_at>${input.now} AND EXISTS(SELECT 1 FROM student_seats c WHERE c.code=${checkerSeat} AND c.version=${checker.version} AND c.is_active=1 AND c.expires_at>${input.now}) AND EXISTS(SELECT 1 FROM place_review_work_items w WHERE w.id=${r.id} AND w.stage_version=${r.version} AND w.status='ACTIVE')`).onConflictDoNothing().returning({id:studentTasks.id}));
   const results = await db.batch([statements[0]!, ...statements.slice(1)]);
   const assigned = results.reduce((n, r) => n + r.length, 0);
   await studentAudit(db, input.actorUserId, "STUDENT_QUEUE_ASSIGNED", assignedSeat, { assigned, skipped: ids.length - assigned, targetIds: ids, checkerSeat }, input.now);
@@ -43,6 +44,9 @@ export async function assignStudentQueueBatch(db: AppDb, input: { actorUserId: s
 export async function cancelStudentTask(db: AppDb, input: { actorUserId: string; taskId: string; now: string }) {
   await requireStudentAdmin(db, input.actorUserId);
   const taskId = z.string().min(1).max(128).parse(input.taskId);
-  await db.update(studentTasks).set({ isActive: false, updatedAt: input.now }).where(eq(studentTasks.id, taskId));
+  const task = await db.query.studentTasks.findFirst({ where: and(eq(studentTasks.id, taskId), eq(studentTasks.isActive, true)) });
+  if (!task) throw new Error("STUDENT_TASK_NOT_FOUND");
+  const changed = await db.update(studentTasks).set({ isActive: false, version: task.version + 1, updatedAt: input.now }).where(and(eq(studentTasks.id, taskId), eq(studentTasks.version, task.version), eq(studentTasks.isActive, true))).returning({ id: studentTasks.id });
+  if (changed.length !== 1) throw new Error("STUDENT_TASK_CONFLICT");
   await studentAudit(db, input.actorUserId, "STUDENT_TASK_CANCELLED", taskId, { isActive: false }, input.now);
 }

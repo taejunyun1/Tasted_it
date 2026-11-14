@@ -42,10 +42,13 @@ export async function createStudentInvite(db: AppDb, input: { seatCode: SeatCode
   if (!seat || seat.userId || !seat.isActive || seat.expiresAt <= input.now) throw new Error("STUDENT_SEAT_UNAVAILABLE");
   const token = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
   const expiresAt = new Date(Math.min(Date.parse(input.now) + 7 * 86400_000, Date.parse(seat.expiresAt))).toISOString();
-  await db.batch([
-    db.update(studentInvitations).set({ revokedAt: input.now }).where(and(eq(studentInvitations.seatCode, code), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt))),
-    db.insert(studentInvitations).values({ id: crypto.randomUUID(), seatCode: code, tokenHash: await digest(token), expiresAt, createdBy: input.actorUserId, createdAt: input.now }),
+  const currentSeat = sql`exists(select 1 from student_seats s where s.code=${code} and s.version=${seat.version} and s.user_id is null and s.is_active=1 and s.expires_at>${input.now})`;
+  const [, inserted] = await db.batch([
+    db.update(studentInvitations).set({ revokedAt: input.now }).where(and(eq(studentInvitations.seatCode, code), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt), currentSeat)),
+    db.insert(studentInvitations).select(sql`SELECT ${crypto.randomUUID()},s.code,${await digest(token)},${expiresAt},NULL,NULL,NULL,${input.actorUserId},${input.now} FROM student_seats s WHERE s.code=${code} AND s.version=${seat.version} AND s.user_id IS NULL AND s.is_active=1 AND s.expires_at>${input.now}`).returning({ id: studentInvitations.id }),
+    db.update(studentSeats).set({ updatedAt: input.now }).where(and(eq(studentSeats.code, code), eq(studentSeats.version, seat.version))),
   ]);
+  if (inserted.length !== 1) throw new Error("STUDENT_SEAT_UNAVAILABLE");
   await studentAudit(db, input.actorUserId, "STUDENT_INVITE_CREATED", code, { expiresAt }, input.now);
   return { token, expiresAt };
 }
@@ -74,9 +77,13 @@ export async function acceptStudentInvite(db: AppDb, input: { token: string; use
 export async function setStudentSeatActive(db: AppDb, input: { seatCode: SeatCode; isActive: boolean; actorUserId: string; now: string }) {
   await requireStudentAdmin(db, input.actorUserId);
   const code = seatCodeSchema.parse(input.seatCode);
-  await db.batch([
-    db.update(studentSeats).set({ isActive: input.isActive, updatedAt: input.now }).where(eq(studentSeats.code, code)),
-    db.update(studentInvitations).set({ revokedAt: input.now }).where(and(eq(studentInvitations.seatCode, code), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt))),
+  const seat = await db.query.studentSeats.findFirst({ where: eq(studentSeats.code, code) });
+  if (!seat) throw new Error("STUDENT_SEAT_UNAVAILABLE");
+  const current = sql`exists(select 1 from student_seats s where s.code=${code} and s.version=${seat.version})`;
+  const [, changed] = await db.batch([
+    db.update(studentInvitations).set({ revokedAt: input.now }).where(and(eq(studentInvitations.seatCode, code), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt), current)),
+    db.update(studentSeats).set({ isActive: input.isActive, updatedAt: input.now }).where(and(eq(studentSeats.code, code), eq(studentSeats.version, seat.version))).returning({ code: studentSeats.code }),
   ]);
+  if (changed.length !== 1) throw new Error("STUDENT_TASK_CONFLICT");
   await studentAudit(db, input.actorUserId, input.isActive ? "STUDENT_ACCESS_ENABLED" : "STUDENT_ACCESS_REVOKED", code, { isActive: input.isActive }, input.now);
 }

@@ -6,6 +6,10 @@ test.describe("student workspace", () => {
   test.skip(Boolean(process.env.BASE_URL), "Student fixtures must only run against isolated local D1.");
   test.beforeEach(() => {
     execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--file", "scripts/seed-student-qa.sql"], { stdio: "pipe" });
+    const verifiedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+    // Local synthetic QA session only; production authentication is never bypassed.
+    execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", `INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at) SELECT id,user_id,'PASSWORD','${verifiedAt}','${expiresAt}' FROM sessions WHERE id='qa-admin-session' ON CONFLICT(session_id) DO UPDATE SET verified_at=excluded.verified_at,expires_at=excluded.expires_at`], { stdio: "pipe" });
   });
 
   test("administrator invitation forms also work before JavaScript starts", async ({ browser, baseURL }) => {
@@ -13,7 +17,8 @@ test.describe("student workspace", () => {
     try {
       await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: baseURL! }]);
       const page = await context.newPage(); await page.goto("/admin/students");
-      await page.getByRole("button", { name: "학생 A 초대 발급", exact: true }).click();
+      await page.getByRole("button", { name: "학생 A 초대 발급 미리보기", exact: true }).click();
+      await page.getByRole("button", { name: "변경 확정", exact: true }).click();
       await expect(page.getByLabel("학생에게 전달할 초대 링크")).toBeVisible();
     } finally { await context.close(); }
   });
@@ -21,7 +26,8 @@ test.describe("student workspace", () => {
   test("recovers an invitation after reload and sign-in in the same tab", async ({ page, context, browser, baseURL }, info) => {
     await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", url: baseURL! }]);
     await page.goto("/admin/students");
-    await page.getByRole("button", { name: "학생 A 초대 발급", exact: true }).click();
+    await page.getByRole("button", { name: "학생 A 초대 발급 미리보기", exact: true }).click();
+    await page.getByRole("button", { name: "변경 확정", exact: true }).click();
     const invite = await page.getByLabel("학생에게 전달할 초대 링크").inputValue();
     const studentContext = await browser.newContext({ baseURL, viewport: page.viewportSize() });
     try {
@@ -54,8 +60,9 @@ test.describe("student workspace", () => {
     const contexts: BrowserContext[] = []; const students: Record<string, Page> = {};
     try {
       for (const code of ["A", "B", "C", "D"]) {
-        await admin.getByRole("button", { name: `학생 ${code} 초대 발급`, exact: true }).click();
-        await expect(admin.getByText(`학생 ${code} 개별 초대`, { exact: true })).toBeVisible();
+        await admin.getByRole("button", { name: `학생 ${code} 초대 발급 미리보기`, exact: true }).click();
+        await admin.getByRole("button", { name: "변경 확정", exact: true }).click();
+        await expect(admin.getByText(`학생 ${code} 개별 초대 · 발급 완료`, { exact: true })).toBeVisible();
         const invite = await admin.getByLabel("학생에게 전달할 초대 링크").inputValue();
         expect(new URL(invite).hash.length).toBe(44);
         const studentContext = await browser.newContext({ baseURL, viewport: admin.viewportSize(), isMobile: info.project.name === "mobile-chromium", hasTouch: info.project.name === "mobile-chromium" });
@@ -97,8 +104,9 @@ test.describe("student workspace", () => {
       await admin.goto("/admin/students?step=5");
       await admin.getByRole("combobox", { name: "배정할 대상", exact: true }).selectOption("qa-student-new-store");
       await admin.getByLabel("학생에게 보일 작업명").fill("점포 분류와 등록 인가 실습");
-      await admin.getByRole("button", { name: "선택 작업 1건 배정" }).click();
-      await expect(admin.getByText("작업을 배정했습니다.", { exact: true })).toBeVisible();
+      await admin.getByRole("button", { name: "선택 작업 1건 배정 미리보기" }).click();
+      await admin.getByRole("button", { name: "변경 확정", exact: true }).click();
+      await expect(admin.getByText("변경을 확정했습니다.", { exact: true })).toBeVisible();
 
       const a = students.A!; const b = students.B!; const c = students.C!; const d = students.D!;
       await a.goto("/student");
@@ -123,8 +131,9 @@ test.describe("student workspace", () => {
       await admin.getByLabel("업무 종류").selectOption("REVIEW");
       await admin.getByRole("combobox", { name: "배정할 대상", exact: true }).selectOption("qa-student-negative-review");
       await admin.getByLabel("학생에게 보일 작업명").fill("리뷰와 사진 분류 실습");
-      await admin.getByRole("button", { name: "선택 작업 1건 배정" }).click();
-      await expect(admin.getByText("작업을 배정했습니다.", { exact: true })).toBeVisible();
+      await admin.getByRole("button", { name: "선택 작업 1건 배정 미리보기" }).click();
+      await admin.getByRole("button", { name: "변경 확정", exact: true }).click();
+      await expect(admin.getByText("변경을 확정했습니다.", { exact: true })).toBeVisible();
       await c.goto("/student"); await c.getByRole("link", { name: /리뷰와 사진 분류 실습/ }).click();
       await expect(c.getByText("작성자 평가 비추천", { exact: true })).toBeVisible();
       await c.getByLabel("분류 결과").selectOption("NEEDS_INFO");
@@ -139,8 +148,9 @@ test.describe("student workspace", () => {
       await expect(d.getByText("작성자 평가 비추천", { exact: true })).toBeVisible();
 
       await admin.goto("/admin/students");
-      await admin.getByRole("row").filter({ has: admin.getByText("학생 A", { exact: true }) }).getByRole("button", { name: "접근 중지", exact: true }).click();
-      await expect(admin.getByText("학생 접근 상태를 변경했습니다.", { exact: false })).toBeVisible();
+      await admin.getByRole("row").filter({ has: admin.getByText("학생 A", { exact: true }) }).getByRole("button", { name: "접근 중지 검토", exact: true }).click();
+      await admin.getByRole("button", { name: "변경 확정", exact: true }).click();
+      await expect(admin.getByText("변경을 확정했습니다.", { exact: true })).toBeVisible();
       const revoked = await a.goto("/student"); expect(revoked?.status()).toBe(403);
       const adminDenied = await b.goto("/admin/students"); expect(adminDenied?.status()).toBe(403);
     } finally { await Promise.allSettled(contexts.map((studentContext) => studentContext.close())); }
