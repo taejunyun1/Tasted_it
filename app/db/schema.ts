@@ -505,6 +505,7 @@ export const reviewerApplications = sqliteTable(
     id: text("id").primaryKey(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     status: text("status", { enum: ["APPLIED", "REVIEWING", "APPROVED", "REJECTED"] }).notNull().default("APPLIED"),
+    version: integer("version").notNull().default(0),
     statement: text("statement").notNull(),
     occupation: text("occupation").notNull(),
     tasteDirection: text("taste_direction").notNull(),
@@ -529,6 +530,7 @@ export const reviewerProfiles = sqliteTable(
     userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
     slug: text("slug").notNull().unique(),
     status: text("status", { enum: ["ACTIVE", "DORMANT", "SUSPENDED"] }).notNull().default("ACTIVE"),
+    version: integer("version").notNull().default(0),
     occupation: text("occupation").notNull(),
     tasteDirection: text("taste_direction").notNull(),
     regionCode: text("region_code", { enum: ["GWANGJU", "JEONNAM"] }).notNull(),
@@ -1143,6 +1145,7 @@ export const productEvents = sqliteTable("product_events", {
 
 export const studentSeats = sqliteTable("student_seats", {
   code: text("code", { enum: ["A", "B", "C", "D"] }).primaryKey(),
+  version: integer("version").notNull().default(0),
   label: text("label").notNull(),
   userId: text("user_id").unique().references(() => users.id, { onDelete: "set null" }),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),

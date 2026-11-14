@@ -80,6 +80,11 @@ async function readDetail(database: D1Database, operationId: string, now: string
     const reason = { OPERATOR_RESTRICTION: "운영자 접근 제한", OPERATOR_LIFT: "운영자 제한 해제", OPERATOR_SESSION_REVOKE: "운영자 세션 회수" };
     if (typeof result?.reasonCode === "string" && Object.hasOwn(reason,result.reasonCode)) fields.push({ label: "구분", value: reason[result.reasonCode as keyof typeof reason] });
   }
+  if (kind === "REVIEWER_ADMIN_CHANGE" || kind === "STUDENT_ADMIN_CHANGE") {
+    addCount("requestedCount", "요청 건수");
+    addCount("appliedCount", "반영 건수");
+    addCount("skippedCount", "미리보기 제외 건수");
+  }
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
   if (kind === "RATING_RECOMPUTE" && row.status === "COMMITTED") {
     const jobId = identifier(result?.jobId), placeId = identifier(result?.placeId), configId = identifier(result?.configId);

@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 it("preserves every operation/receipt/check row and original guards across 0047",async()=>{
   const db=(env as unknown as {MIGRATION_DB:D1Database}).MIGRATION_DB;
   const migrations=env.TEST_MIGRATIONS;
-  const before=migrations.filter((m)=>!m.name.startsWith("0047"));
+  const before=migrations.filter((m)=>m.name < "0047");
   const upgrade=migrations.filter((m)=>m.name.startsWith("0047"));
   expect(upgrade).toHaveLength(1);
   await applyD1Migrations(db,before);
