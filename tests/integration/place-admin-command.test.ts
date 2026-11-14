@@ -326,6 +326,11 @@ describe("single-place administrative operations", () => {
     expect(raced).toBe(true);
     expect(await placeRow(racedPlace)).toMatchObject({ status: "HIDDEN", last_verified_at: now });
     expect(await env.DB.prepare("SELECT status FROM place_revalidation_cases WHERE id=?").bind(racedCaseId).first("status")).toBe("RESOLVED");
+    const auditAfter = await env.DB.prepare("SELECT after_state FROM admin_audit_logs WHERE target_id=? AND action='RESOLVE_PLACE_LIVENESS_CASE'").bind(racedPlace).first<string>("after_state");
+    const afterPlace = JSON.parse(auditAfter!).place;
+    expect(afterPlace.publicationState).toBe("PRESERVED");
+    expect(afterPlace).not.toHaveProperty("status");
+    expect(afterPlace.changedFields).not.toHaveProperty("status");
   });
 
   it("rolls merge relationships, receipt and audit back together when the final audit fails", async () => {

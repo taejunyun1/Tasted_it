@@ -62,11 +62,14 @@ export async function applyPlaceCorrection(db: AppDb, input: { requestId: string
   if (!Object.keys(changes).length) throw new Error("CORRECTION_CHANGES_EMPTY");
   const after = { ...place, ...changes, closedAt: changes.status === "HIDDEN" && request.requestType === "CLOSED" ? input.now : place.closedAt, updatedAt: input.now };
   if (changes.name || changes.address || changes.neighborhood) after.searchText = `${after.name} ${after.address} ${after.neighborhood}`.toLocaleLowerCase("ko-KR");
+  const afterEvidence = input.preservePublicationState
+    ? { changedFields: { ...changes, searchText: after.searchText, updatedAt: input.now }, publicationState: "PRESERVED" }
+    : after;
   await db.batch([
     db.update(places).set({ ...changes, searchText: after.searchText, ...(input.preservePublicationState ? {} : { closedAt: after.closedAt }), updatedAt: input.now }).where(eq(places.id, place.id)),
     db.update(placeCorrectionRequests).set({ status: "APPLIED", adminResponse: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(eq(placeCorrectionRequests.id, request.id)),
-    db.insert(placeRevisions).values({ id: crypto.randomUUID(), placeId: place.id, actorUserId: input.actorUserId, action: "CORRECTION", reason: input.reason.trim(), beforeJson: JSON.stringify(place), afterJson: JSON.stringify(after), sourceType: "CORRECTION_REQUEST", sourceId: request.id, createdAt: input.now }),
-    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "APPLY_PLACE_CORRECTION", targetType: "PLACE", targetId: place.id, beforeState: JSON.stringify(place), afterState: JSON.stringify(after), createdAt: input.now }),
+    db.insert(placeRevisions).values({ id: crypto.randomUUID(), placeId: place.id, actorUserId: input.actorUserId, action: "CORRECTION", reason: input.reason.trim(), beforeJson: JSON.stringify(place), afterJson: JSON.stringify(afterEvidence), sourceType: "CORRECTION_REQUEST", sourceId: request.id, createdAt: input.now }),
+    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "APPLY_PLACE_CORRECTION", targetType: "PLACE", targetId: place.id, beforeState: JSON.stringify(place), afterState: JSON.stringify(afterEvidence), createdAt: input.now }),
   ]);
   return after;
 }

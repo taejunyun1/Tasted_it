@@ -95,7 +95,9 @@ export async function resolvePlaceLivenessCase(db: AppDb, input: {
     updatedAt: input.now,
   };
   const after = {
-    place: { ...placeSnapshot(place), ...afterPlace },
+    place: input.preservePublicationState
+      ? { changedFields: preservedPlaceMetadata, publicationState: "PRESERVED" }
+      : { ...placeSnapshot(place), ...afterPlace },
     liveness: {
       status: afterLiveness.status,
       kakaoStatus: afterLiveness.kakaoStatus,
