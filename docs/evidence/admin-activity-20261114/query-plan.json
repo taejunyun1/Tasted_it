@@ -1,0 +1,14 @@
+{
+  "environment": "local Miniflare D1 only",
+  "baseline": [
+    "SEARCH admin_audit_logs USING INTEGER PRIMARY KEY (rowid<?); USE TEMP B-TREE FOR ORDER BY",
+    "SEARCH admin_operations USING INTEGER PRIMARY KEY (rowid<?); USE TEMP B-TREE FOR ORDER BY",
+    "SCAN admin_audit_logs"
+  ],
+  "after0045": [
+    "SEARCH admin_audit_logs USING INDEX admin_audit_activity_order_idx (<expr><?)",
+    "SEARCH admin_operations USING INDEX admin_operation_activity_order_idx (<expr><?)",
+    "SEARCH admin_audit_logs USING INDEX admin_audit_operation_link_idx (action=? AND target_type=? AND target_id=? AND actor_user_id=?)"
+  ],
+  "scope": "Bounded cursor reads and exact operation linkage; no production timings or throughput claims."
+}

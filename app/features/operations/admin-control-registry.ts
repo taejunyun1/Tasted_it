@@ -41,7 +41,7 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A19", "개인정보 요청", "privacy", "열람·정정·삭제 접수", "NOT_IMPLEMENTED", null, "자기 탈퇴 외 통합 요청 관리 화면 없음", "본인 확인·보존 범위·처리 기한·실패 재시도"),
   control("A20", "보존 정리", "privacy", "만료 자료·정리 결과 확인", "NOT_IMPLEMENTED", null, "정기 정리 작업의 개별 관리 화면 없음", "대상별 예상 건수·결과·실패 대기열 조회"),
   control("A21", "원장 정합성", "privacy", "읽기 감사·누락 탐색", "READ_ONLY", "/admin/audit", "조회 상한과 불완전 결과를 표시하는 감사", "실행 간 비교와 발견 사항 처리 추적"),
-  control("A22", "관리자 감사", "privacy", "변경 주체·대상·결과 확인", "NOT_IMPLEMENTED", null, "도메인별 이력만 있고 통합 조회 화면 없음", "최소 정보로 작업·대상·결과 검색 연결"),
+  control("A22", "관리자 감사", "privacy", "변경 주체·대상·결과 확인", "PARTIAL", "/admin/activity", "50건 cursor 감사·영수증 조회, 작업별 연결과 재계산 상태 확인", "추가 도메인 이력 연결과 제한된 내보내기 검토"),
   control("A23", "공공데이터", "operations", "수집·진행·실패·재개", "PARTIAL", "/admin/data-sync", "수동 동기화와 실행 이력", "작업별 대상·외부 호출·중복·재시도 한도 표시"),
   control("A24", "NAVER·지도", "operations", "사용량·검증·좌표 확인", "PARTIAL", "/admin/place-operations", "지역별 예산·사용량과 장소 검증", "실측·추정 구분과 동시 호출 한도 보완"),
   control("A25", "AI·부가 공급자", "operations", "호출·비용·실패 관측", "NOT_IMPLEMENTED", null, "통합 공급자 비용 관리 화면 없음", "비밀값 없이 규칙·건수·추정·실측 조회"),
