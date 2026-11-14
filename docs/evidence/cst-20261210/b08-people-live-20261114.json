@@ -1,0 +1,181 @@
+{
+  "status": "VERIFIED_LIVE_SCOPED",
+  "dateKST": "2026-11-14",
+  "sourceSha": "10a72bf9e668aea710586ff9ddc71868ee8cdf3b",
+  "workerVersion": "6498fdff-5bf2-40a0-b9e7-7342ce681bbf",
+  "trafficPercent": 100,
+  "approvalPRs": [
+    436,
+    437
+  ],
+  "migration": {
+    "at": "2026-11-14T05:54:06.958Z",
+    "migration": "0048_admin_people_contract.sql",
+    "existingFieldsAndHistoryEqual": true,
+    "newVersionsZero": true,
+    "foreignKeyViolations": 0,
+    "fileSha256": "0f55167a49fd6d15290d72814f399fc710696aea3ad1eb47b03489558222bca8",
+    "historyRowCounts": {
+      "admin_operations": 0,
+      "admin_operation_commits": 0,
+      "admin_operation_checks": 0,
+      "admin_audit_logs": 18618
+    }
+  },
+  "backup": {
+    "bytes": 104676365,
+    "sha256": "16f61a2cec6ca25e695b85c69f626718a67f9ae59b246f051d2d1576c574e334",
+    "observedAt": "2026-11-14T05:53:19.570Z",
+    "actualRestore": "NOT_RUN"
+  },
+  "drain": {
+    "at": "2026-11-14T05:51:36.871Z",
+    "minimumDrainSeconds": 72,
+    "observedFenceInvocations": 7,
+    "oldInvocationOutcome": "ok",
+    "oldInvocationAtKST": "2026-11-14T14:31:23.894+09:00",
+    "latestScheduled": {
+      "observedAt": "2026-11-14T05:43:32.453Z",
+      "eventAtKST": "2026-11-14T09:47:06.058+09:00",
+      "cron": "47 */6 * * *",
+      "outcome": "ok",
+      "wallTimeMs": 1449,
+      "version": "afeaa57e-1255-459e-b5d5-a39bcb2c8a31",
+      "scope": "latest scheduled invocation in six hour stored UI query"
+    },
+    "unresolvedInvocationObserved": false,
+    "source": "Cloudflare stored invocation list and old fetch/scheduled details"
+  },
+  "live": {
+    "at": "2026-11-14T05:56:29.395Z",
+    "checks": [
+      "both admin read, anonymous/input/origin guards and no-store",
+      {
+        "previewAndRecentAuthDenied": 2,
+        "reviewerEligibleTarget": true,
+        "studentSeat": true
+      },
+      "both B06 kind filters",
+      "public detail/photo and RSI6/6 with audit1"
+    ],
+    "realDomainMutations": 0,
+    "invitesIssued": 0,
+    "mailSent": 0,
+    "positiveDomainCommit": "LOCAL_D1_ONLY"
+  },
+  "cleanup": {
+    "at": "2026-11-14T05:56:34.410Z",
+    "sessions": 0,
+    "previews": 0
+  },
+  "rsi": {
+    "at": "2026-11-14T05:56:29.395Z",
+    "paths_ok": 6,
+    "audit_delta": 1
+  },
+  "workerObservation": {
+    "at": "2026-11-14T05:57:11.226Z",
+    "eventAtKST": "2026-11-14T14:56:28.289+09:00",
+    "outcome": "ok",
+    "workerVersion": "6498fdff-5bf2-40a0-b9e7-7342ce681bbf",
+    "message": "RSI_SELF_CHECK",
+    "source": "Cloudflare stored invocation detail",
+    "wallTimeMs": 543
+  },
+  "dataPreservation": {
+    "counts": {
+      "places": 756,
+      "public": 108,
+      "reviews": 7,
+      "photos": 8,
+      "votes": 119,
+      "users": 78,
+      "guest_sessions": 0
+    },
+    "existingRoleReviewerSeatInviteTaskFieldsMatch": true,
+    "committedReceiptsChecksUnchanged": true,
+    "auditDelta": 1,
+    "expiredPendingPreviewPrunedByExistingB02Rule": 0
+  },
+  "failures": [
+    {
+      "stage": "REVIEWER_INITIAL_CI",
+      "head": "6bbd6f135e017390c648fe3612093f9d29235396",
+      "run": 43561942058,
+      "failed": 2,
+      "passed": 1674,
+      "skipped": 53,
+      "cause": "Shared admin frame and responsive heading classes omitted; restored actual classes and scoped CSS without weakening tests",
+      "fixedHead": "21901b517648d43e864ae77204a7db0379a75a2d"
+    },
+    {
+      "stage": "LOCAL_STUDENT_HMR",
+      "cause": "Native POST response lost while source was changing; no reproduction after freezing source",
+      "productionAffected": false
+    },
+    {
+      "at": "2026-11-14T05:55:51.907Z",
+      "cause": "HARNESS_EXPECTED_ROUTE_403_BUT_FRAMEWORK_CSRF_RETURNS_400",
+      "httpStatus": 400,
+      "body": "Bad Request",
+      "noStore": true,
+      "initialCleanup": {
+        "at": "2026-11-14T05:54:53.517Z",
+        "sessions": 0,
+        "previews": 0
+      },
+      "correction": "Well-shaped cross-origin forms and exact framework 400/body; same original session ID restored within original maximum lifetime",
+      "uniqueTemporarySessions": 1,
+      "lifetimeExtended": false,
+      "domainMutations": 0,
+      "rsiRuns": 0
+    }
+  ],
+  "limits": {
+    "manualHttp": 39,
+    "d1DataReads": 51,
+    "d1ManagementReads": 3,
+    "d1TotalReads": 54,
+    "exports": 1,
+    "newMigrations": 1,
+    "temporaryAdminSessions": 1,
+    "sameSessionRestoredAfterHarnessFailure": true,
+    "rsiRuns": 1,
+    "realReviewerStudentMutations": 0,
+    "invitesIssued": 0,
+    "emailsSent": 0
+  },
+  "tests": {
+    "commonD1": 3,
+    "reviewerFocusedD1": 14,
+    "designRegression": 7,
+    "reviewerDesktopMobile": 2,
+    "studentNewD1": 9,
+    "studentExistingSmoke": 13,
+    "studentNativePositiveNegative": 4,
+    "studentFinalLabelsAndHeaders": 2,
+    "requiredCI": "PR436 and PR437 all 4 PASS"
+  },
+  "boundaries": {
+    "positiveReviewerStudentMutations": "LOCAL_SYNTHETIC_ONLY",
+    "actualOAuthOrMailReauthentication": "NOT_RUN",
+    "realD1Restore": "NOT_RUN",
+    "fullT01T08": "NOT_RUN",
+    "issue397": "HOLD",
+    "nextAdminUnit": "B09"
+  },
+  "ci": {
+    "reviewer": {
+      "head": "21901b517648d43e864ae77204a7db0379a75a2d",
+      "url": "https://github.com/taejunyun1/Tasted_it/actions/runs/43562191978",
+      "requiredChecks": 4,
+      "result": "PASS"
+    },
+    "student": {
+      "head": "658e7f3c6d393fb3f5edf4cba83b17ce54a137c4",
+      "url": "https://github.com/taejunyun1/Tasted_it/actions/runs/43562723281",
+      "requiredChecks": 4,
+      "result": "PASS"
+    }
+  }
+}
