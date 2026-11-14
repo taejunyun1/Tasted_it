@@ -1,0 +1,145 @@
+{
+  "status": "VERIFIED_LIVE_SCOPED",
+  "dateKST": "2026-11-14",
+  "sourceSha": "d859087a3eade9b309e8142eedb66cc0f94c3408",
+  "workerVersion": "11c305e3-d8af-4f81-8fe0-5783dce7a78c",
+  "trafficPercent": 100,
+  "approvalPRs": [
+    431,
+    433
+  ],
+  "initialDeployment": {
+    "sourceSha": "8da1bc9be245efc419e27713c3d812f4d16d5b1b",
+    "workerVersion": "60dd0022-37cf-4d73-8d8b-8d287387ad92"
+  },
+  "migration": {
+    "at": "2026-11-14T03:28:04.897Z",
+    "migration": "0047_member_access.sql",
+    "allDigestsEqual": true,
+    "allCountsEqual": true,
+    "foreignKeyViolations": 0,
+    "initialRestrictions": 0,
+    "fileSha256": "251055e49d88e7873e856215961bad068afe12c2bf7ca199e7e6c7b7109c938a",
+    "historyRowCounts": {
+      "operations": 1,
+      "commits": 0,
+      "checks": 0,
+      "audit": 18617
+    }
+  },
+  "backup": {
+    "bytes": 104666806,
+    "sha256": "ce219b3d01739a6f2e2255af07f31c13a3379b3601740903c1353895be7587c6",
+    "time": "2026-11-14T03:27:42.354Z",
+    "actualRestore": "NOT_RUN"
+  },
+  "drain": {
+    "at": "2026-11-14T03:26:38.138Z",
+    "minimumDrainSeconds": 67,
+    "observedOldInvocations": 1,
+    "oldInvocationOutcome": "ok",
+    "observedFenceInvocations": 6,
+    "otherInvocationsInLastHour": 0,
+    "source": "Cloudflare stored invocation list and exact old invocation detail"
+  },
+  "failures": [
+    {
+      "stage": "PRE_MIGRATION_HARNESS",
+      "cause": "Wrangler --file returns execution metadata, not SELECT rows; stopped before migration and reran using --command",
+      "dataChanged": false
+    },
+    {
+      "sourceSha": "8da1bc9be245efc419e27713c3d812f4d16d5b1b",
+      "workerVersion": "60dd0022-37cf-4d73-8d8b-8d287387ad92",
+      "failure": "RESTRICTED_LOGIN_HTML_MISSING_NO_STORE",
+      "httpStatus": 403,
+      "accountAccessBlocked": true,
+      "cleanup": {
+        "users": 0,
+        "member_sessions": 0,
+        "restrictions": 0,
+        "operator_sessions": 0,
+        "preview": 0
+      },
+      "issue": 432
+    }
+  ],
+  "live": {
+    "at": "2026-11-14T03:38:48.928Z",
+    "checks": [
+      "fixture login and authenticated route",
+      "admin search detail redaction cursor origin preview recent-auth gate and audit filter",
+      "SQL fixture restriction revokes old sessions and blocks password login; public read remains",
+      "SQL fixture lift requires fresh login and does not resurrect old session",
+      "existing public detail and TEMP photo remain available",
+      "Worker RSI 6/6 with one audit event"
+    ],
+    "positiveAdminCommit": "NOT_RUN_LIVE; local D1/UI only",
+    "realOAuth": "NOT_RUN"
+  },
+  "cleanup": {
+    "users": 0,
+    "member_sessions": 0,
+    "restrictions": 0,
+    "operator_sessions": 0,
+    "preview": 0
+  },
+  "rsi": {
+    "at": "2026-11-14T03:38:48.928Z",
+    "paths_ok": 6,
+    "audit_delta": 1
+  },
+  "workerObservation": {
+    "observedAt": "2026-11-14T03:39:32.728Z",
+    "eventTimestamp": "2026-11-14T03:38:47.957Z",
+    "invocationId": "6a05400da194449d8205666eb91e2d9f",
+    "event": "RSI_SELF_CHECK",
+    "outcome": "ok",
+    "workerVersion": "11c305e3-d8af-4f81-8fe0-5783dce7a78c",
+    "source": "Cloudflare stored invocation"
+  },
+  "dataPreservation": {
+    "counts": {
+      "places": 756,
+      "public": 108,
+      "reviews": 7,
+      "photos": 8,
+      "votes": 119,
+      "users": 78,
+      "guest_sessions": 0
+    },
+    "roleSeatInvitationDigestsMatch": true,
+    "committedReceiptsChecksUnchanged": true,
+    "auditDelta": 1,
+    "expiredPendingPreviewPrunedByExistingB02Rule": 1
+  },
+  "limits": {
+    "manualHttp": 50,
+    "d1Reads": 46,
+    "d1ManagementReads": 3,
+    "d1TotalReadCommands": 49,
+    "newMigrations": 1,
+    "temporaryUsersTotal": 2,
+    "temporaryAdminSessionsTotal": 2,
+    "rsiRuns": 1,
+    "realMemberChanges": 0,
+    "emailsSent": 0,
+    "realOAuthFlows": 0
+  },
+  "boundaries": {
+    "adminPositiveCommit": "LOCAL_D1_ONLY",
+    "realOAuth": "NOT_RUN",
+    "realD1Restore": "NOT_RUN",
+    "fullT01T08": "NOT_RUN",
+    "issue397": "HOLD",
+    "nextAdminUnit": "B08"
+  },
+  "tests": {
+    "b07FocusedD1": 16,
+    "legacyRegression": 8,
+    "naverUnit": 9,
+    "desktopMobile": 2,
+    "headerHttpRegression": 1,
+    "requiredCI": "PR431 and PR433 all 4 PASS"
+  }
+}
