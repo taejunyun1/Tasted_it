@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 export { tempCatalogBatches, tempCatalogEntries } from "../features/temp-catalog/temp-catalog.schema";
+export { tempPhotoSupplementBatches, tempPhotoSupplements } from "../features/temp-catalog/temp-photo-supplement.schema";
 
 const timestamps = {
   createdAt: text("created_at").notNull(),

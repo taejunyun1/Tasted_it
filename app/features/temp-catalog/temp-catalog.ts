@@ -45,7 +45,10 @@ export const tempManifestSchema = z.object({
 });
 export type TempEntry = z.infer<typeof tempEntrySchema>;
 export type TempManifest = z.infer<typeof tempManifestSchema>;
-export type TempPublicInfo = TempEntry & { entryId: string; photoUrl: string | null };
+export type TempPublicInfo = TempEntry & {
+  entryId: string; photoUrl: string | null;
+  photoSupplement?: import("./temp-photo-supplement").TempPhotoSupplementEntry;
+};
 export function normalizeIdentity(value: string) {
   return value.normalize("NFKC").toLowerCase().replace(/\([^)]*\)/g, "").replace(/[\s.,·-]/gu, "");
 }
