@@ -14,7 +14,7 @@ export default defineConfig({
       miniflare: {
         compatibilityDate: "2026-08-05",
         compatibilityFlags: ["nodejs_compat"],
-        d1Databases: ["DB"],
+        d1Databases: ["DB", "MIGRATION_DB"],
 
         r2Buckets: ["REVIEW_PHOTOS"],
         bindings: {

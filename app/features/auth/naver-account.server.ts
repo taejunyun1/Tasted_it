@@ -1,8 +1,9 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { authIdentities, users } from "../../db/schema";
 import type { UserRole } from "./guards.server";
+import { AccountAccessChangedError, AccountRestrictedError, assertFreshMemberAuthentication, assertMemberAccess, isAccountRestrictedError } from "./member-access.server";
 
 export interface NaverAccountInput {
   providerSubject: string;
@@ -56,7 +57,7 @@ export async function resolveNaverLogin(
   if (!subject) throw new Error("NAVER_SUBJECT_INVALID");
 
   const linked = await linkedUser(db, subject);
-  if (linked) return result(linked, false);
+  if (linked) { await assertMemberAccess(db, linked.id, input.now.toISOString()); return result(linked, false); }
 
   const email = input.email.trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("NAVER_EMAIL_REQUIRED");
@@ -91,9 +92,10 @@ export async function resolveNaverLogin(
         updatedAt: timestamp,
       }),
     ]);
-  } catch {
+  } catch (error) {
+    if (isAccountRestrictedError(error)) throw new AccountRestrictedError();
     const raced = await linkedUser(db, subject);
-    if (raced) return result(raced, false);
+    if (raced) { await assertMemberAccess(db, raced.id); return result(raced, false); }
     if (await db.query.users.findFirst({ where: eq(users.email, email) })) {
       throw new Error("NAVER_EXISTING_ACCOUNT_LOGIN_REQUIRED");
     }
@@ -116,6 +118,7 @@ export async function connectNaverIdentity(
 ) {
   const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
   if (!user) throw new Error("NAVER_CONNECT_USER_INVALID");
+  await assertMemberAccess(db, user.id, input.now.toISOString());
 
   const subjectOwner = await linkedUser(db, input.providerSubject);
   if (subjectOwner && subjectOwner.id !== input.userId) {
@@ -147,7 +150,8 @@ export async function connectNaverIdentity(
       createdAt: timestamp,
       updatedAt: timestamp,
     });
-  } catch {
+  } catch (error) {
+    if (isAccountRestrictedError(error)) throw new AccountRestrictedError();
     throw new Error("NAVER_IDENTITY_CONFLICT");
   }
 }
@@ -158,10 +162,14 @@ export async function disconnectNaverIdentity(
     userId: string;
     providerSubject: string;
     revoke: () => Promise<void>;
+    now?: Date;
   },
 ) {
+  const authenticatedAt=(input.now??new Date()).toISOString();
   const user = await db.query.users.findFirst({ where: eq(users.id, input.userId) });
   if (!user) throw new Error("NAVER_CONNECT_USER_INVALID");
+  await assertMemberAccess(db, user.id);
+  await assertFreshMemberAuthentication(db,user.id,authenticatedAt);
   const identity = await db.query.authIdentities.findFirst({
     where: and(
       eq(authIdentities.provider, "NAVER"),
@@ -181,8 +189,14 @@ export async function disconnectNaverIdentity(
     throw new Error("NAVER_LAST_LOGIN_METHOD");
   }
 
+  await assertMemberAccess(db, user.id);
+  await assertFreshMemberAuthentication(db,user.id,authenticatedAt);
   await input.revoke();
-  await db
-    .delete(authIdentities)
-    .where(eq(authIdentities.id, identity.id));
+  try {
+    const deleted=await db.delete(authIdentities).where(and(eq(authIdentities.id,identity.id),sql`NOT EXISTS(SELECT 1 FROM member_access_restrictions r WHERE r.user_id=${user.id} AND r.updated_at>${authenticatedAt})`)).returning({id:authIdentities.id});
+    if(deleted.length!==1) throw new AccountAccessChangedError();
+  } catch (error) {
+    if (isAccountRestrictedError(error)) throw new AccountRestrictedError();
+    throw error;
+  }
 }

@@ -18,7 +18,8 @@ export async function requireStudentSeat(db: AppDb, userId: string, now: string)
 }
 function currentCapability(userId: string, kind: TaskKind, now: string, registration = false) {
   const column = registration ? studentSeats.canApproveRegistration : kind === "PLACE" ? studentSeats.canClassifyPlaces : kind === "REVIEW" ? studentSeats.canClassifyReviews : studentSeats.canRecordQa;
-  return sql`exists (select 1 from ${studentSeats} inner join ${users} on ${users.id} = ${studentSeats.userId} where ${studentSeats.userId} = ${userId} and ${studentSeats.isActive} = 1 and ${studentSeats.expiresAt} > ${now} and ${column} = 1 and ${users.emailVerifiedAt} is not null and ${users.role} <> 'ADMIN')`;
+  return sql`exists (select 1 from ${studentSeats} inner join ${users} on ${users.id} = ${studentSeats.userId} where ${studentSeats.userId} = ${userId} and ${studentSeats.isActive} = 1 and ${studentSeats.expiresAt} > ${now} and ${column} = 1 and ${users.emailVerifiedAt} is not null and ${users.role} <> 'ADMIN'
+    and not exists(select 1 from member_access_restrictions r where r.user_id=${userId} and r.lifted_at is null and r.starts_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') and r.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')))`;
 }
 
 export async function assignStudentTask(db: AppDb, input: z.infer<typeof assignmentSchema> & { actorUserId: string; now: string }) {

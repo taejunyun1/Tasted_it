@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { redirect } from "react-router";
 
 import { createDb } from "../../db/client.server";
@@ -7,6 +7,7 @@ import { sessions, users } from "../../db/schema";
 import { assertRole, type UserRole } from "./guards.server";
 import { safeReturnTo } from "./login";
 import { isWithdrawnEmail } from "./withdraw";
+import { AccountRestrictedError, assertFreshMemberAuthentication, assertMemberAccess, isAccountRestrictedError } from "./member-access.server";
 
 const SESSION_COOKIE = "retaste_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -84,7 +85,9 @@ export async function getOptionalUser(
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
-    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, now)))
+    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, now), sql`NOT EXISTS (
+      SELECT 1 FROM member_access_restrictions r WHERE r.user_id=${users.id}
+      AND r.lifted_at IS NULL AND r.starts_at<=${now} AND r.expires_at>${now})`))
     .limit(1);
 
   if (!result || isWithdrawnEmail(result.email)) return null;
@@ -116,13 +119,14 @@ export async function createUserSession(input: {
     input.now.getTime() + SESSION_TTL_SECONDS * 1000,
   ).toISOString();
   const db = createDb(env.DB);
-
-  await db.insert(sessions).values({
-    id,
-    userId: input.userId,
-    createdAt: input.now.toISOString(),
-    expiresAt,
-  });
+  await assertMemberAccess(db, input.userId, input.now.toISOString());
+  await assertFreshMemberAuthentication(db,input.userId,input.now.toISOString());
+  try {
+    await db.insert(sessions).values({ id, userId: input.userId, createdAt: input.now.toISOString(), expiresAt });
+  } catch (error) {
+    if (isAccountRestrictedError(error) || String(error).includes("ACCOUNT_RESTRICTED")) throw new AccountRestrictedError();
+    throw error;
+  }
 
   const secure = new URL(input.requestUrl).protocol === "https:";
   return sessionCookie(id, secure);

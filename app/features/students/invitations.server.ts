@@ -2,8 +2,10 @@ import { and, eq, gt, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, studentInvitations, studentSeats, users } from "../../db/schema";
 import { inviteTokenSchema, seatCodeSchema, type SeatCode } from "./policy";
+import { assertMemberAccess } from "../auth/member-access.server";
 
 export async function requireStudentAdmin(db: AppDb, userId: string) {
+  await assertMemberAccess(db, userId);
   const user = await db.query.users.findFirst({ where: and(eq(users.id, userId), eq(users.role, "ADMIN")) });
   if (!user) throw new Error("STUDENT_ADMIN_REQUIRED");
 }
@@ -18,7 +20,7 @@ async function digest(token: string) {
 
 export async function getStudentSeat(db: AppDb, input: { userId: string; now: string }) {
   const [row] = await db.select({ seat: studentSeats }).from(studentSeats).innerJoin(users, eq(studentSeats.userId, users.id))
-    .where(and(eq(studentSeats.userId, input.userId), eq(studentSeats.isActive, true), gt(studentSeats.expiresAt, input.now), isNotNull(users.emailVerifiedAt), ne(users.role, "ADMIN"))).limit(1);
+    .where(and(eq(studentSeats.userId, input.userId), eq(studentSeats.isActive, true), gt(studentSeats.expiresAt, input.now), isNotNull(users.emailVerifiedAt), ne(users.role, "ADMIN"), sql`not exists(select 1 from member_access_restrictions r where r.user_id=${input.userId} and r.lifted_at is null and r.starts_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') and r.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now'))`)).limit(1);
   return row?.seat ?? null;
 }
 
@@ -57,11 +59,12 @@ export async function acceptStudentInvite(db: AppDb, input: { token: string; use
   const invitation = await db.query.studentInvitations.findFirst({ where: and(eq(studentInvitations.tokenHash, tokenHash), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt), gt(studentInvitations.expiresAt, input.now)) });
   if (!invitation) throw new Error("STUDENT_INVITE_INVALID");
   const currentInvite = sql`exists (select 1 from student_invitations i where i.token_hash = ${tokenHash} and i.seat_code = ${studentSeats.code} and i.consumed_at is null and i.revoked_at is null and i.expires_at > ${input.now})`;
-  const verifiedAccount = sql`exists (select 1 from users u where u.id = ${input.userId} and u.email_verified_at is not null and u.role <> 'ADMIN')`;
+  const verifiedAccount = sql`exists (select 1 from users u where u.id = ${input.userId} and u.email_verified_at is not null and u.role <> 'ADMIN')
+    and not exists(select 1 from member_access_restrictions r where r.user_id=${input.userId} and r.lifted_at is null and r.starts_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') and r.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;
   const unusedUser = sql`not exists (select 1 from student_seats other where other.user_id = ${input.userId})`;
   const [claimed, consumed] = await db.batch([
     db.update(studentSeats).set({ userId: input.userId, updatedAt: input.now }).where(and(eq(studentSeats.code, invitation.seatCode), isNull(studentSeats.userId), eq(studentSeats.isActive, true), gt(studentSeats.expiresAt, input.now), currentInvite, verifiedAccount, unusedUser)).returning({ code: studentSeats.code }),
-    db.update(studentInvitations).set({ consumedAt: input.now, consumedBy: input.userId }).where(and(eq(studentInvitations.tokenHash, tokenHash), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt), gt(studentInvitations.expiresAt, input.now), sql`exists (select 1 from student_seats s where s.code = ${invitation.seatCode} and s.user_id = ${input.userId})`)).returning({ id: studentInvitations.id }),
+    db.update(studentInvitations).set({ consumedAt: input.now, consumedBy: input.userId }).where(and(eq(studentInvitations.tokenHash, tokenHash), isNull(studentInvitations.consumedAt), isNull(studentInvitations.revokedAt), gt(studentInvitations.expiresAt, input.now), verifiedAccount, sql`exists (select 1 from student_seats s where s.code = ${invitation.seatCode} and s.user_id = ${input.userId})`)).returning({ id: studentInvitations.id }),
   ]);
   if (claimed.length !== 1 || consumed.length !== 1) throw new Error("STUDENT_INVITE_INVALID");
   await studentAudit(db, input.userId, "STUDENT_INVITE_ACCEPTED", invitation.seatCode, { seatCode: invitation.seatCode }, input.now);

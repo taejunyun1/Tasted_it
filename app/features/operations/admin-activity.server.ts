@@ -71,6 +71,15 @@ async function readDetail(database: D1Database, operationId: string, now: string
   if (kind === "TEMP_PUBLISH" || kind === "TEMP_UNPUBLISH") {
     addCount("published", "공개 건수"); addCount("withdrawn", "회수 건수"); addCount("count", "처리 건수");
   }
+  if (kind === "MEMBER_ACCESS_CHANGE") {
+    await addRef("targetUserId", "대상 회원");
+    addCount("revokedSessions", "회수 세션 수");
+    if (["ACTIVE", "RESTRICTED"].includes(String(result?.status))) fields.push({ label: "접근 상태", value: result?.status === "RESTRICTED" ? "제한" : "허용" });
+    const expiresAt = timestamp(result?.expiresAt);
+    if (expiresAt) fields.push({ label: "제한 만료", value: expiresAt });
+    const reason = { OPERATOR_RESTRICTION: "운영자 접근 제한", OPERATOR_LIFT: "운영자 제한 해제", OPERATOR_SESSION_REVOKE: "운영자 세션 회수" };
+    if (typeof result?.reasonCode === "string" && Object.hasOwn(reason,result.reasonCode)) fields.push({ label: "구분", value: reason[result.reasonCode as keyof typeof reason] });
+  }
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
   if (kind === "RATING_RECOMPUTE" && row.status === "COMMITTED") {
     const jobId = identifier(result?.jobId), placeId = identifier(result?.placeId), configId = identifier(result?.configId);

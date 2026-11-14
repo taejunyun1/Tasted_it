@@ -21,7 +21,7 @@ function control(id: string, title: string, area: AdminControlArea, task: string
 
 export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A01", "운영 홈", "overview", "현황·메뉴 확인", "READ_ONLY", "/admin", "장소·검수 집계와 관리 경로 조회", "각 작업의 실행 결과와 운영 증거 연결"),
-  control("A02", "회원", "people", "검색·제한·복구", "NOT_IMPLEMENTED", null, "전역 회원 관리 화면 없음", "최소 정보 검색과 제한·복구 절차 마련"),
+  control("A02", "회원", "people", "검색·제한·복구", "PARTIAL", "/admin/members", "최소 정보 검색·접근 제한·세션 회수", "재인증 후 미리보기와 확정"),
   control("A03", "관리자·세션", "people", "권한 부여·회수·접속 해제", "PARTIAL", "/admin/identities", "재인증·현재 권한 검사·마지막 실제 관리자 보호·세션 철회", "세부 권한 정책과 통합 감사 검색 확장"),
   control("A04", "리뷰어 자격", "people", "신청 심사·정지·휴면", "PARTIAL", "/admin/reviewers", "신청·활동 관리와 사유 기록", "변경 충돌과 일괄 처리 결과 보완"),
   control("A05", "학생 계정", "people", "초대·활성·중지", "PARTIAL", "/admin/students", "기능 활성 시 학생 초대·만료·회수", "초대 전달·수락 상태와 재발급 영향 표시"),

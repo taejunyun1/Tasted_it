@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { users } from "../../db/schema";
 import type { UserRole } from "./guards.server";
+import { assertMemberAccess } from "./member-access.server";
 
 export interface UpsertBetaUserInput {
   email: string;
@@ -24,6 +25,7 @@ export async function upsertBetaUser(
   });
 
   if (existing) {
+    await assertMemberAccess(db, existing.id, input.now);
     await db
       .update(users)
       .set({
