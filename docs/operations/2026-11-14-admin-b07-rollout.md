@@ -1,0 +1,34 @@
+# B07 회원 접근 관리 운영 적용 — 2026-11-14
+
+- 상태: #430 사용자 요청에 따른 실행 계획. 이 문서를 포함한 기능 PR의 필수 CI·독립 리뷰·병합 뒤 GO.
+- 담당: Jay/Codex(root). 구현은 B07 회원 검색·기간 제한·해제·세션 철회이며 #397은 HOLD다.
+- 대상: 기존 계정 `7543330c65069ee2df1b7b353fb0201c`, Worker `retaste-beta`, D1 `retaste-production`(`5181489d-83a7-4f78-9384-db096cadaa2d`). 기존 R2·두 cron·공급자·비밀값은 유지한다.
+
+## 계약과 검증 경계
+
+회원 접근 제한은 역할·리뷰어 자격·학생 좌석·공개 콘텐츠와 별도 상태다. 사유·만료가 필수이고 최대90일이다. 제한과 해제는 기존 세션을 회수하며 만료 후에도 새 로그인이 필요하다. 자기 제한 및 마지막 유효한 인증 ADMIN을 없애는 조치를 거절한다. 확정은 기존 B02 미리보기·재인증·현재 대상/version·원자 감사/영수증 계약을 따른다. 감사 조회에는 허용된 상태·사유 코드·건수만 노출한다.
+
+로컬 D1의 실제 원자 확정·동시성·만료·세션 발급·마지막 ADMIN 보호와 desktop/mobile UI를 집중 검증한다. 운영에서는 실제 사람의 역할·접근 상태·세션을 시험 목적으로 바꾸지 않는다. 원격 SQL로 만든 제한은 관리자 UI 확정 성공 증거가 아니다. 운영 검증 결과에서 이 차이를 명시한다.
+
+## 준비·migration·배포
+
+1. 최종 기능 PR diff·독립 보안 리뷰와 필수4CI 통과를 확인하고 squash merge한다. primary `main`을 최신화한 뒤 그 병합 SHA만 빌드한다. 기존 pnpm/프로젝트 Wrangler를 사용하고 `wrangler deploy --config build/server/wrangler.json --dry-run`으로 패키징을 확인한다.
+2. private0700 디렉터리/0600 파일에 active version, 설정 대상, 적용 migration, 핵심 집계와 역할·좌석·초대 digest를 저장한다. 새 대기 migration은 `0047` 한 개만 허용한다. 신규 migration hash와 실제 파일을 대조한다. 운영 DB/사용자/토큰 원문은 출력·커밋하지 않는다.
+3. `0047`은 회원 접근 상태와 세션/유효 ADMIN 방어를 추가하고, 새 operation kind를 위해 기존 작업·확정·검사 테이블을 보존하여 재구성한다. 적용 전에 해당 세 테이블의 전체 행을 안정 정렬한 digest, 감사 행수/digest, D1 Time Travel bookmark 및 비공개 export1개를 보관한다. 백업 확보를 실제 복원 성공으로 표현하지 않는다.
+4. 빌드된 설정을 **같은 디렉터리**의 `wrangler.b07-fence.json`으로 복사하여 `vars.CST_MAINTENANCE="true"`, `assets.run_worker_first=true` 두 필드만 변경한다. 기존 이름·D1/R2·cron·그 밖의 vars·경로는 동일해야 한다. 이 fence를 배포하고 공개/관리자/인증/정적자산이503·no-store인지 확인한다. 최소60초 drain 및 관측 가능한 이전 Worker 요청/예약실행의 terminal 결과를 확인한다. 미확인 실행이 있으면 migration을 적용하지 않는다.
+5. fence 상태에서 `pnpm exec wrangler d1 migrations apply DB --remote`로 승인된0047만1회 적용한다. 실패 시 fence를 유지하고 오류/실제 적용 상태를 확인하며 무작정 반복하지 않는다. 적용 후 pending0, 보존 대상 digest일치, foreign-key 위반0, 신규 제한0, 핵심 집계/역할·좌석·초대 불변을 확인한다.
+6. 같은 병합 main 빌드의 원본 정상 설정으로 배포한다. 새 Worker version100% 및 정상 공개 응답을 확인한 뒤 아래 live를 수행한다. migration/설정 차이가 있으면 중단한다.
+
+## 운영 검증 한도
+
+- 기존 `OPERATOR_ADMIN_PROVISIONED` 감사가 유일하게 지정한 비탈퇴·미제한 ADMIN에 한하여 임시30분 세션1개를 생성한다. 최근 인증 보증은 만들지 않는다. 비밀값/실제 로그인 자격정보를 열람하지 않는다. 제한된 목록/검색/상세/세션 표기, 잘못된cursor, 익명 보호, POST origin, 최근인증 없는 확정 거절과 B06 새 kind 필터를 확인한다. 소수의 읽기·미확정 미리보기만 사용한다. 해당 세션/미확정 preview만 정확 ID로 정리한다.
+- 비공개 난수 ID·수신불가 `example.invalid` 이메일·난수 비밀번호의 **USER fixture1개**를 최대30분 동안 만든다. 기존 회원/좌석/콘텐츠와 연관시키지 않으며 새 ADMIN을 만들지 않는다. 알고 있는 fixture 비밀번호로 실제 `/login`을 사용한다. fixture에 한해서 운영자 SQL로 만료가 있는 제한1회·해제1회, 해당 세션 회수를 적용하여 기존 쿠키 거절/새 로그인403/해제 후 기존 쿠키 미복구/새 로그인 성공을 확인한다. 이 SQL은 UI의 긍정 확정 검증으로 세지 않는다. 마지막에 정확fixture와 연결 세션/제한만 삭제한다. 공용 rate-limit·감사 기록은 삭제하지 않는다.
+- 정상 공개/상세·TEMP 사진 대표1개는 읽기 smoke만 한다. RSI ADMIN POST1회(재시도0)로 실제 Worker6경로·같은 실행 감사1행·Worker terminal 로그를 확인한다. fence 중 RSI skip은 성공으로 세지 않는다.
+- 최대 수동HTTP70회(정적자산·RSI내부6GET 별도), 원격 D1 읽기50회, export1회, migration1회, fixture1개/제한1회/해제1회, 임시ADMIN세션1개, RSI1회다. 클라이언트 오류 교정은 같은 객체/원래 만료 안에서 남은 한도로만 수행하고 최초 실패를 보존한다. 새 계정·권한·시간 확대나 무제한 재시도는 없다.
+- 기존 무료/유료 Worker·D1 사용분 외 외부API/메일/AI0. 실제 사람의 계정·역할·세션 변경0, TEMP/평가/원문/R2 변경0. fixture/API의 민감 자료는 private0600에만 두고 정리 후 bearer 파일을 제거한다.
+
+## 복구·완료
+
+새 제한이 존재할 때 구 Worker로 단순 rollback하면 접근 제한을 우회할 수 있으므로 금지한다. 문제 발생 시 같은 schema의 점검 fence로 닫고 전진 수정한다. 연결된 D1/R2는 Worker rollback으로 복원되지 않는다. 전체 D1 복원·기존 기록 삭제는 이번 범위가 아니며 실제 장애 시 별도 판단한다.
+
+완료는 필수CI/리뷰·병합·새 Worker·보존 검증·실제 live와 RSI·fixture/세션 잔존0·SSOT/위키 반영까지다. 전체 ADMIN 후속·전체T01–T08·현장실증·실제 D1 복원 완료로 확대하지 않는다.
