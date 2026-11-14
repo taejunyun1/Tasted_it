@@ -19,6 +19,7 @@ import {
   verifyGoogleIdToken,
 } from "../features/auth/google-oauth.server";
 import { createUserSession } from "../features/auth/session.server";
+import { ACCOUNT_RESTRICTED_MESSAGE, isAccountRestrictedError } from "../features/auth/member-access.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 
 function errorRedirect(
@@ -107,6 +108,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     });
     return redirect(result.returnTo, { headers });
   } catch (error) {
+    if (isAccountRestrictedError(error)) return new Response(ACCOUNT_RESTRICTED_MESSAGE, { status: 403, headers: { "Cache-Control": "private, no-store", Vary: "Cookie", "Content-Type": "text/plain; charset=utf-8", "Set-Cookie": expireOAuthRequestCookie(request.url) } });
     const publicCode = oauthFailureCode(error);
     console.error("GOOGLE_OAUTH_FAILED", publicCode);
     return errorRedirect(request.url, publicCode);

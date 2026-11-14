@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { authIdentities, users } from "../../db/schema";
 import type { UserRole } from "./guards.server";
+import { AccountRestrictedError, assertMemberAccess, isAccountRestrictedError } from "./member-access.server";
 
 export interface GoogleAccountInput {
   providerSubject: string;
@@ -105,7 +106,7 @@ export async function resolveGoogleAccount(
   if (!input.providerSubject.trim()) throw new Error("GOOGLE_SUBJECT_INVALID");
 
   const linked = await findLinkedUser(db, input.providerSubject);
-  if (linked) return accountResult(linked, false);
+  if (linked) { await assertMemberAccess(db, linked.id, input.now.toISOString()); return accountResult(linked, false); }
 
   const email = input.email.trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("GOOGLE_EMAIL_INVALID");
@@ -126,16 +127,18 @@ export async function resolveGoogleAccount(
   if (!isNewUser && !user.emailVerifiedAt) {
     throw new Error("GOOGLE_EXISTING_ACCOUNT_LOGIN_REQUIRED");
   }
+  await assertMemberAccess(db, user.id, input.now.toISOString());
 
   try {
     await linkGoogleIdentity(db, user.id, input, email);
-  } catch {
+  } catch (error) {
+    if (isAccountRestrictedError(error)) throw new AccountRestrictedError();
     const racedUser = await findLinkedUser(db, input.providerSubject);
     if (!racedUser || racedUser.id !== user.id) {
       throw new Error("GOOGLE_IDENTITY_CONFLICT");
     }
     isNewUser = false;
   }
-
+  await assertMemberAccess(db, user.id, new Date().toISOString());
   return accountResult(user, isNewUser);
 }

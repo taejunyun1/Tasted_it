@@ -12,6 +12,7 @@ import {
 import { publicLoginError, retainedAuthFields, safeReturnTo } from "../features/auth/login";
 import { NaverAuthButton, naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
 import { createUserSession, getOptionalUser } from "../features/auth/session.server";
+import { ACCOUNT_RESTRICTED_MESSAGE, isAccountRestrictedError } from "../features/auth/member-access.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 import { consumeLoginRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 
@@ -59,6 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
     });
     return redirect(safeReturnTo(parsed.data.returnTo), { headers });
   } catch (error) {
+    if (isAccountRestrictedError(error)) return data({ error: ACCOUNT_RESTRICTED_MESSAGE, ...fields }, { status: 403, headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
     return data({ error: publicLoginError(error), ...fields }, { status: 400 });
   }
 }

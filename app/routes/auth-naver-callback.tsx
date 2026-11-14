@@ -21,6 +21,7 @@ import {
 } from "../features/auth/naver-oauth.server";
 import { consumeOAuthRequest, peekOAuthRequestContext } from "../features/auth/oauth-request.server";
 import { createUserSession } from "../features/auth/session.server";
+import { ACCOUNT_RESTRICTED_MESSAGE, isAccountRestrictedError, assertMemberAccess } from "../features/auth/member-access.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 
 function errorRedirect(requestUrl: string, target: string, code: NaverFailureCode | "cancelled") {
@@ -59,6 +60,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
   const now = new Date();
   try {
+    if (context?.userId) await assertMemberAccess(db, context.userId, now.toISOString());
     const result = await completeNaverFlow(
       {
         consumeRequest: (input) => consumeOAuthRequest(db, input),
@@ -106,6 +108,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     const success = result.flow === "CONNECT" ? "naver_connected" : "naver_disconnected";
     return redirect(`/me?oauthSuccess=${success}`, { headers });
   } catch (error) {
+    if (isAccountRestrictedError(error)) return new Response(ACCOUNT_RESTRICTED_MESSAGE, { status: 403, headers: { "Cache-Control": "private, no-store", Vary: "Cookie", "Content-Type": "text/plain; charset=utf-8", "Set-Cookie": expireNaverOAuthRequestCookie(request.url) } });
     const code = naverFailureCode(error);
     console.error("NAVER_OAUTH_FAILED", code);
     return errorRedirect(request.url, errorTarget, code);

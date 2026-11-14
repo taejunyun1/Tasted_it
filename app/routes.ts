@@ -41,6 +41,7 @@ export default [
   route("admin", "routes/admin-index.tsx"),
   route("admin/reauth", "routes/admin-reauth.tsx"),
   route("admin/identities", "routes/admin-identities.tsx"),
+  route("admin/members", "routes/admin-members.tsx"),
   route("admin/students", "routes/admin-students.tsx"),
   route("admin/places", "routes/admin-places.tsx"),
   route("admin/import", "routes/admin-import.tsx"),

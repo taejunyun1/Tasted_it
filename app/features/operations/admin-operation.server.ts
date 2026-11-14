@@ -1,4 +1,6 @@
 import { isWithdrawnEmail } from "../auth/withdraw";
+import { assertMemberAccess } from "../auth/member-access.server";
+import { createDb } from "../../db/client.server";
 
 export type AdminJson = null | boolean | number | string | AdminJson[] | { [key: string]: AdminJson };
 export const ADMIN_OPERATION_POLICY = {
@@ -10,6 +12,7 @@ export const ADMIN_OPERATION_POLICY = {
   ADMIN_SESSIONS_REVOKE: { maxCount: 1, recentAuth: true },
   TEMP_PUBLISH: { maxCount: 100, recentAuth: true },
   TEMP_UNPUBLISH: { maxCount: 100, recentAuth: true },
+  MEMBER_ACCESS_CHANGE: { maxCount: 1, recentAuth: true },
 } as const;
 export type AdminOperationKind = keyof typeof ADMIN_OPERATION_POLICY;
 type Caller = { actorUserId: string; sessionId: string; now: string };
@@ -59,6 +62,7 @@ async function assertCaller(database: D1Database, input: Caller, recent = false)
   const row = await database.prepare("SELECT u.role,u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=? AND s.user_id=? AND s.expires_at>?")
     .bind(input.sessionId, input.actorUserId, input.now).first<{ role: string; email: string }>();
   if (!row || row.role !== "ADMIN" || isWithdrawnEmail(row.email)) fail("ADMIN_REQUIRED");
+  await assertMemberAccess(createDb(database), input.actorUserId, input.now);
   if (recent && !await database.prepare("SELECT session_id FROM admin_session_assurances WHERE session_id=? AND actor_user_id=? AND verified_at<=? AND expires_at>?")
     .bind(input.sessionId, input.actorUserId, input.now, input.now).first()) fail("ADMIN_RECENT_AUTH_REQUIRED");
 }
@@ -124,6 +128,7 @@ export async function commitAdminOperation(database: D1Database, input: AdminOpe
     const current = await getAdminOperation(database, input).catch(() => null);
     if (current?.status === "COMMITTED") return { operationId: current.id, replayed: true, result: current.result };
     const message = String(error);
+    if (message.includes("MEMBER_LAST_ADMIN")) fail("MEMBER_LAST_ADMIN");
     if (message.includes("ADMIN_RECENT_AUTH_REQUIRED")) fail("ADMIN_RECENT_AUTH_REQUIRED");
     if (message.includes("ADMIN_OPERATION_UNAVAILABLE")) fail("ADMIN_OPERATION_UNAVAILABLE");
     if (/CHECK constraint|UNIQUE constraint|FOREIGN KEY constraint|CONFLICT|STALE|VERSION|MISMATCH/i.test(message)) fail("ADMIN_OPERATION_CONFLICT");

@@ -5,6 +5,7 @@ import type { AppDb } from "../../db/client.server";
 import { memberSaveChoices, accountTokens, authIdentities, oauthRequests, reviewerApplications, reviewerProfiles, reviewerVisitReviews, savedPlaces, sessions, users } from "../../db/schema";
 import { DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT, hashPassword, verifyPassword } from "./password.server";
 import { isWithdrawnEmail, WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "./withdraw";
+import { assertMemberAccess } from "./member-access.server";
 
 const TOKEN_TTL_MS = 30 * 60 * 1000;
 const encoder = new TextEncoder();
@@ -71,6 +72,7 @@ export async function authenticateAccount(db: AppDb, input: { email: string; pas
   );
   if (!user?.passwordHash || !user.passwordSalt || !valid || isWithdrawnEmail(user.email)) throw new Error("LOGIN_INVALID");
   if (!user.emailVerifiedAt) throw new Error("EMAIL_NOT_VERIFIED");
+  await assertMemberAccess(db, user.id);
   return { id: user.id, email: user.email, displayName: user.displayName, role: user.role };
 }
 

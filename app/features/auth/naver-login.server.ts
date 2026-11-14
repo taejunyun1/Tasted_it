@@ -47,6 +47,7 @@ interface Dependencies {
     userId: string;
     providerSubject: string;
     revoke: () => Promise<void>;
+    now?: Date;
   }): Promise<void>;
   revokeToken(input: {
     accessToken: string;
@@ -141,6 +142,7 @@ export async function completeNaverFlow(
   await dependencies.disconnectIdentity({
     userId: request.userId,
     providerSubject: profile.subject,
+    now: input.now,
     revoke: () =>
       dependencies.revokeToken({
         accessToken: token.accessToken,
