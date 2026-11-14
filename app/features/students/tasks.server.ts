@@ -16,9 +16,9 @@ export async function requireStudentSeat(db: AppDb, userId: string, now: string)
   if (!seat) throw new Error("STUDENT_ACCESS_DENIED");
   return seat;
 }
-function currentCapability(userId: string, kind: TaskKind, now: string, registration = false) {
+function currentCapability(userId: string, kind: TaskKind, now: string, seatVersion: number, registration = false) {
   const column = registration ? studentSeats.canApproveRegistration : kind === "PLACE" ? studentSeats.canClassifyPlaces : kind === "REVIEW" ? studentSeats.canClassifyReviews : studentSeats.canRecordQa;
-  return sql`exists (select 1 from ${studentSeats} inner join ${users} on ${users.id} = ${studentSeats.userId} where ${studentSeats.userId} = ${userId} and ${studentSeats.isActive} = 1 and ${studentSeats.expiresAt} > ${now} and ${column} = 1 and ${users.emailVerifiedAt} is not null and ${users.role} <> 'ADMIN'
+  return sql`exists (select 1 from ${studentSeats} inner join ${users} on ${users.id} = ${studentSeats.userId} where ${studentSeats.userId} = ${userId} and ${studentSeats.version} = ${seatVersion} and ${studentSeats.isActive} = 1 and ${studentSeats.expiresAt} > ${now} and ${column} = 1 and ${users.emailVerifiedAt} is not null and ${users.role} <> 'ADMIN'
     and not exists(select 1 from member_access_restrictions r where r.user_id=${userId} and r.lifted_at is null and r.starts_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') and r.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')))`;
 }
 
@@ -26,14 +26,19 @@ export async function assignStudentTask(db: AppDb, input: z.infer<typeof assignm
   await requireStudentAdmin(db, input.actorUserId);
   const { actorUserId, now, ...raw } = input;
   const values = assignmentSchema.parse(raw);
+  const snapshots: Seat[] = [];
   for (const code of [values.assignedSeat, values.checkerSeat]) {
     const seat = await db.query.studentSeats.findFirst({ where: eq(studentSeats.code, code) });
     if (!seat || !seat.isActive || seat.expiresAt <= now || !capability(seat, values.kind)) throw new Error("STUDENT_CAPABILITY_REQUIRED");
+    snapshots.push(seat);
   }
   await getStudentSubject(db, values.kind, values.targetId, now);
   const id = crypto.randomUUID();
-  try { await db.insert(studentTasks).values({ id, ...values, createdBy: actorUserId, createdAt: now, updatedAt: now }); }
-  catch { throw new Error("STUDENT_TASK_DUPLICATE"); }
+  const [assigned, checker] = snapshots;
+  try {
+    const inserted = await db.insert(studentTasks).select(sql`SELECT ${id},${values.kind},${values.targetId},${values.title},s.code,${values.checkerSeat},1,'OPEN',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,${actorUserId},${now},${now} FROM student_seats s WHERE s.code=${values.assignedSeat} AND s.version=${assigned!.version} AND s.is_active=1 AND s.expires_at>${now} AND EXISTS(SELECT 1 FROM student_seats c WHERE c.code=${values.checkerSeat} AND c.version=${checker!.version} AND c.is_active=1 AND c.expires_at>${now})`).returning({id:studentTasks.id});
+    if (inserted.length !== 1) throw new Error("STUDENT_CAPABILITY_REQUIRED");
+  } catch (error) { if (error instanceof Error && error.message === "STUDENT_CAPABILITY_REQUIRED") throw error; throw new Error("STUDENT_TASK_DUPLICATE"); }
   await studentAudit(db, actorUserId, "STUDENT_TASK_ASSIGNED", id, values, now);
   return { id };
 }
@@ -74,7 +79,7 @@ function revision(db: AppDb, task: Task, userId: string, seat: Seat, eventType: 
     id: sql<string>`${crypto.randomUUID()}`.as("id"), taskId: studentTasks.id, version: studentTasks.version,
     actorUserId: sql<string>`${userId}`.as("actor_user_id"), actorSeat: sql<Seat["code"]>`${seat.code}`.as("actor_seat"),
     eventType: sql<typeof eventType>`${eventType}`.as("event_type"), payloadJson: sql<string>`${JSON.stringify(payload)}`.as("payload_json"), createdAt: sql<string>`${now}`.as("created_at"),
-  }).from(studentTasks).where(and(eq(studentTasks.id, task.id), eq(studentTasks.version, task.version + 1), eventType === "SUBMIT" ? eq(studentTasks.submittedBy, userId) : eq(studentTasks.checkedBy, userId))));
+  }).from(studentTasks).where(and(eq(studentTasks.id, task.id), eq(studentTasks.isActive, true), eq(studentTasks.version, task.version + 1), eventType === "SUBMIT" ? eq(studentTasks.submittedBy, userId) : eq(studentTasks.checkedBy, userId))));
 }
 
 export async function submitStudentTask(db: AppDb, input: { userId: string; taskId: string; expectedVersion: number; targetFingerprint: string; classification: unknown; now: string }) {
@@ -90,7 +95,7 @@ export async function submitStudentTask(db: AppDb, input: { userId: string; task
   try {
     const [changed] = await db.batch([
       db.update(studentTasks).set({ classificationJson: JSON.stringify(classification), targetFingerprint: subject.fingerprint, status: "SUBMITTED", version: expectedVersion + 1, submittedBy: input.userId, submittedAt: input.now, checkedBy: null, checkedAt: null, reviewNote: null, updatedAt: input.now })
-        .where(and(eq(studentTasks.id, task.id), eq(studentTasks.assignedSeat, seat.code), eq(studentTasks.version, expectedVersion), eq(studentTasks.isActive, true), currentCapability(input.userId, task.kind, input.now))).returning({ id: studentTasks.id }),
+        .where(and(eq(studentTasks.id, task.id), eq(studentTasks.assignedSeat, seat.code), eq(studentTasks.version, expectedVersion), eq(studentTasks.isActive, true), currentCapability(input.userId, task.kind, input.now, seat.version))).returning({ id: studentTasks.id }),
       revision(db, task, input.userId, seat, "SUBMIT", { classification, fingerprint: subject.fingerprint }, input.now),
     ]);
     if (changed.length !== 1) throw new Error("STUDENT_TASK_CONFLICT");
@@ -113,7 +118,7 @@ export async function reviewStudentTask(db: AppDb, input: { userId: string; task
   try {
     const [changed] = await db.batch([
       db.update(studentTasks).set({ status, version: expectedVersion + 1, checkedBy: input.userId, checkedAt: input.now, reviewNote, updatedAt: input.now })
-        .where(and(eq(studentTasks.id, task.id), eq(studentTasks.checkerSeat, seat.code), ne(studentTasks.submittedBy, input.userId), eq(studentTasks.status, "SUBMITTED"), eq(studentTasks.version, expectedVersion), eq(studentTasks.isActive, true), currentCapability(input.userId, task.kind, input.now, input.approveRegistration))).returning({ id: studentTasks.id }),
+        .where(and(eq(studentTasks.id, task.id), eq(studentTasks.checkerSeat, seat.code), ne(studentTasks.submittedBy, input.userId), eq(studentTasks.status, "SUBMITTED"), eq(studentTasks.version, expectedVersion), eq(studentTasks.isActive, true), currentCapability(input.userId, task.kind, input.now, seat.version, input.approveRegistration))).returning({ id: studentTasks.id }),
       revision(db, task, input.userId, seat, eventType, { status, reviewNote, fingerprint: subject.fingerprint }, input.now),
     ]);
     if (changed.length !== 1) throw new Error("STUDENT_TASK_CONFLICT");

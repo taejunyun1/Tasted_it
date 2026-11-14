@@ -3,6 +3,7 @@ import { data } from "react-router";
 import { ZodError } from "zod";
 import type { AppDb } from "../../db/client.server";
 import { rateLimitWindows } from "../../db/schema";
+import { isAccountRestrictedError, ACCOUNT_RESTRICTED_MESSAGE } from "../auth/member-access.server";
 import { isSameOriginMutation } from "../http/same-origin";
 import { subjectFingerprint } from "./subjects.server";
 import { NO_STORE_HEADERS, STUDENT_CONFLICT, STUDENT_DENIED } from "./policy";
@@ -42,6 +43,7 @@ export async function consumeStudentWriteLimit(db: AppDb, userId: string, now: D
 }
 
 export function studentFailure(error: unknown) {
+  if (isAccountRestrictedError(error)) return data({ error: ACCOUNT_RESTRICTED_MESSAGE }, { status: 403, headers: NO_STORE_HEADERS });
   if (error instanceof Response) {
     if (error.status === 403 || error.status === 429 || error.status >= 500) console.warn("STUDENT_WORKSPACE_FAILURE", { code: "HTTP", status: error.status });
     return data({ error: error.status === 403 ? "현재 서비스에서 다시 요청해 주세요." : error.status === 413 ? "입력 내용이 너무 깁니다." : "요청 형식이나 횟수를 확인해 주세요." }, { status: error.status, headers: error.headers });
@@ -49,6 +51,14 @@ export function studentFailure(error: unknown) {
   if (error instanceof ZodError) return data({ error: "입력 항목과 허용된 분류 값을 확인해 주세요." }, { status: 400, headers: NO_STORE_HEADERS });
   const code = error instanceof Error ? error.message : "UNKNOWN";
   const messages: Record<string, [number, string]> = {
+    ADMIN_REQUIRED: [403, "관리자 권한이 필요합니다."],
+    ADMIN_OPERATION_CONFLICT: [409, "확인 뒤 자료나 배정이 변경되어 아무 항목도 적용하지 않았습니다. 새로 검토해 주세요."],
+    ADMIN_OPERATION_EXPIRED: [409, "미리보기가 만료되었습니다. 변경을 새로 준비해 주세요."],
+    ADMIN_OPERATION_UNAVAILABLE: [409, "미리보기를 확인할 수 없습니다. 기존 결과를 확인한 뒤 새로 준비해 주세요."],
+    ADMIN_OPERATION_LIMIT: [429, "미확정 작업이 많습니다. 잠시 후 다시 준비해 주세요."],
+    ADMIN_OPERATION_RESULT_UNKNOWN: [503, "결과를 확인하지 못했습니다. 같은 미리보기에서 영수증을 확인해 주세요."],
+    ADMIN_OPERATION_RECEIPT_UNAVAILABLE: [409, "확정 영수증의 연결을 확인할 수 없습니다. 작업 기록을 확인해 주세요."],
+    STUDENT_RECEIPT_UNAVAILABLE: [409, "확정 영수증의 연결을 확인할 수 없습니다. 작업 기록을 확인해 주세요."],
     STUDENT_ACCESS_DENIED: [403, STUDENT_DENIED], STUDENT_CAPABILITY_REQUIRED: [403, STUDENT_DENIED],
     STUDENT_ADMIN_REQUIRED: [403, "관리자 권한이 필요합니다."], STUDENT_ASSIGNEE_REQUIRED: [403, "이 작업의 1차 담당자만 제출할 수 있습니다."],
     STUDENT_TASK_NOT_FOUND: [404, "배정된 작업을 찾을 수 없습니다."], STUDENT_TARGET_UNAVAILABLE: [404, "대상 자료가 변경되었습니다. 담당자에게 확인해 주세요."],

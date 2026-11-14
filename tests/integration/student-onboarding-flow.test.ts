@@ -6,7 +6,7 @@ import { accountTokens, categories, places, placeReviewWorkItems, reviewerVisitR
 import { action as signup } from "../../app/routes/signup";
 import { action as verifyEmail } from "../../app/routes/verify-email";
 import { action as login } from "../../app/routes/login";
-import { action as manageStudents } from "../../app/routes/admin-students";
+import { action as manageStudentsAction } from "../../app/routes/admin-students";
 import { action as acceptInvite } from "../../app/routes/student-join";
 import { action as changeTask, loader as loadTask } from "../../app/routes/student-task";
 import { createUserSession } from "../../app/features/auth/session.server";
@@ -25,6 +25,14 @@ function request(path: string, cookie?: string, fields?: Record<string, string>)
     ...(fields ? { method: "POST", body: new URLSearchParams(fields) } : {}),
     headers: { Origin: origin, ...(fields ? { "Content-Type": "application/x-www-form-urlencoded" } : {}), ...(cookie ? { Cookie: cookie } : {}) },
   });
+}
+
+async function manageStudents(args: Parameters<typeof manageStudentsAction>[0]) {
+  const prepared = await manageStudentsAction(args);
+  if (!(prepared instanceof Response) || prepared.status !== 302) return prepared;
+  const operationId = new URL(prepared.headers.get("Location")!, origin).searchParams.get("operation");
+  if (!operationId) return prepared;
+  return manageStudentsAction({request:request("/admin/students",args.request.headers.get("Cookie") ?? undefined,{intent:"confirm",operationId})} as never);
 }
 
 beforeEach(async () => {
@@ -82,6 +90,7 @@ describe("signup through independent student cross-check", () => {
     const adminId = crypto.randomUUID();
     await db.insert(users).values({ id: adminId, email: `${adminId}@example.test`, displayName: "시험 관리자", role: "ADMIN", emailVerifiedAt: now, createdAt: now, updatedAt: now });
     const adminCookie = (await createUserSession({ userId: adminId, now: new Date(), requestUrl: origin })).split(";")[0]!;
+    await env.DB.prepare("INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at) VALUES(?,?,'PASSWORD',?,?)").bind(adminCookie.split("=")[1],adminId,now,new Date(Date.parse(now)+600000).toISOString()).run();
     const members: Record<string, Awaited<ReturnType<typeof registerAndLogin>>> = {};
     let consumedToken = "";
     for (const code of ["A", "B", "C", "D"]) {
@@ -121,7 +130,7 @@ describe("signup through independent student cross-check", () => {
       const sourceReview = reviewId ? await db.query.reviewerVisitReviews.findFirst({ where: eq(reviewerVisitReviews.id, reviewId) }) : null;
       const assignee = kind === "PLACE" ? "A" : "C"; const checker = kind === "PLACE" ? "B" : "D";
       const assigned = await manageStudents({ request: request("/admin/students", adminCookie, { intent: "assign", kind, assignedSeat: assignee, checkerSeat: checker, targetId, title: `합성 ${kind} 분류 시험`, targetIds: "[]" }) } as never);
-      expect(assigned).toMatchObject({ data: { message: "작업을 배정했습니다." } });
+      expect(assigned).toMatchObject({ data: { message: "변경을 확정했습니다." } });
       const task = await db.query.studentTasks.findFirst({ where: eq(studentTasks.targetId, targetId) });
       const taskId = task!.id; const path = `/student/tasks/${taskId}`;
       const detail = await loadTask({ request: request(path, members[assignee]!.cookie), params: { taskId } } as never);
