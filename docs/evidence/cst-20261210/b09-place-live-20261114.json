@@ -1,0 +1,193 @@
+{
+  "status": "VERIFIED_LIVE_SCOPED",
+  "dateKST": "2026-11-14",
+  "sourceSha": "e96360c2c0dc4b7d619262021ef8001ad373bac9",
+  "workerVersion": "d285759b-d529-4ea0-a7e9-9cf88b3e7cf1",
+  "trafficPercent": 100,
+  "approvalPR": 440,
+  "ci": {
+    "head": "5fd8441969d3dc34ce2a0eaca57c6aaf326eb263",
+    "url": "https://github.com/taejunyun1/Tasted_it/actions/runs/43576946637",
+    "requiredChecks": 4,
+    "result": "PASS"
+  },
+  "migration": {
+    "at": "2026-11-14T08:51:36.994Z",
+    "migration": "0049_admin_place_contract.sql",
+    "existingFieldsAndHistoryEqual": true,
+    "foreignKeyViolations": 0,
+    "fileSha256": "3ccfc5247f9ee37a77a4d36a86ad53179faecea4a73642e2ea42d119d668d879",
+    "preservedTables": 25,
+    "linkedSourceOnly": true,
+    "historyRowCounts": {
+      "admin_operations": 0,
+      "admin_operation_commits": 0,
+      "admin_operation_checks": 0,
+      "admin_audit_logs": 18620
+    }
+  },
+  "backup": {
+    "bytes": 104679401,
+    "sha256": "d3960581952b6366e4c7805abbfcf63f4d5e5dd66e82871856ed4c2087bc6199",
+    "observedAt": "2026-11-14T08:50:51.088Z",
+    "actualRestore": "NOT_RUN"
+  },
+  "drain": {
+    "at": "2026-11-14T08:49:59.842Z",
+    "minimumDrainSeconds": 96,
+    "oldReadTerminalCount": 1,
+    "fenceTerminalCount": 7,
+    "observedOutcomes": "ok",
+    "scheduledLastPossibleStartsUTC": [
+      "2026-11-14T06:47:00+00:00",
+      "2026-11-13T18:17:00+00:00"
+    ],
+    "scheduledWallTime15MinutesElapsed": true,
+    "previousScheduledRsi": {
+      "at": "2026-11-14T08:44:42.674Z",
+      "createdAt": "2026-11-14T06:47:05.702Z",
+      "result": {
+        "trigger": "scheduled",
+        "ok": true,
+        "failed": 0,
+        "originHost": "retaste-beta.retaste-beta.workers.dev",
+        "paths": [
+          {
+            "path": "/",
+            "status": 200,
+            "ok": true
+          },
+          {
+            "path": "/places",
+            "status": 200,
+            "ok": true
+          },
+          {
+            "path": "/login",
+            "status": 200,
+            "ok": true
+          },
+          {
+            "path": "/admin",
+            "status": 302,
+            "ok": true
+          },
+          {
+            "path": "/robots.txt",
+            "status": 200,
+            "ok": true
+          },
+          {
+            "path": "/privacy",
+            "status": 200,
+            "ok": true
+          }
+        ]
+      }
+    },
+    "source": "Existing Wrangler tail and scheduled RSI audit; PR440 addendum",
+    "scope": "Observed terminal calls only; no claim of all past HTTP termination",
+    "specificUnresolvedInvocationObserved": false
+  },
+  "live": {
+    "at": "2026-11-14T08:53:06.626Z",
+    "checks": [
+      "admin read/anonymous/input/origin/legacy-restore guards; recall preview and recent-auth denial; place unchanged",
+      "B06 kind, public detail/photo, RSI6/6 and audit1"
+    ],
+    "realPlaceMutations": 0,
+    "positivePlaceCommit": "LOCAL_SYNTHETIC_ONLY"
+  },
+  "cleanup": {
+    "at": "2026-11-14T08:53:11.641Z",
+    "sessions": 0,
+    "previews": 0
+  },
+  "rsi": {
+    "at": "2026-11-14T08:53:06.626Z",
+    "paths_ok": 6,
+    "audit_delta": 1
+  },
+  "workerObservation": {
+    "source": "EXISTING_WRANGLER_TAIL",
+    "outcome": "ok",
+    "workerVersion": "d285759b-d529-4ea0-a7e9-9cf88b3e7cf1",
+    "eventTimestamp": 1794646385176,
+    "message": "RSI_SELF_CHECK"
+  },
+  "observationLimitations": {
+    "at": "2026-11-14T08:44:58.882Z",
+    "browser": "UNAVAILABLE_IN_CHAT",
+    "mcp": "DIFFERENT_ACCOUNT",
+    "storedQuery": "FORBIDDEN",
+    "actualSource": "EXISTING_WRANGLER_TAIL_AND_RSI_AUDIT",
+    "credentialsStoredOrExposed": false,
+    "permissionExpanded": false,
+    "approvalPR": 440
+  },
+  "dataPreservation": {
+    "counts": {
+      "places": 756,
+      "public": 108,
+      "reviews": 7,
+      "photos": 8,
+      "votes": 119,
+      "users": 78,
+      "guest_sessions": 0
+    },
+    "existingPlaceSourceCategoryVoteSaveReviewPhotoRightsHistoryFieldsMatch": true,
+    "committedReceiptsChecksUnchanged": true,
+    "auditDelta": 1,
+    "expiredPendingPreviewPrunedByExistingRule": 0
+  },
+  "initialLocalFailures": [
+    {
+      "stage": "SNAPSHOT_QUERY",
+      "cause": "D1 compound SELECT term limit; replaced repeated UNION scopes with materialized scope preserving meaning",
+      "fixed": true
+    },
+    {
+      "stage": "UI_CLICK",
+      "cause": "30-second combined scenario failed waiting for scroll stability; SSR latency hypothesis withdrawn",
+      "fixed": "Separated cases, polled stable bounds, normal click and original timeout/retry maintained"
+    },
+    {
+      "stage": "RECALL_FIXTURE",
+      "cause": "Active final-review task correctly blocked recall; only own synthetic recall fixture marked completed",
+      "fixed": true
+    }
+  ],
+  "limits": {
+    "manualHttp": 28,
+    "d1DataCommands": 15,
+    "d1ManagementReads": 3,
+    "d1TotalCommands": 18,
+    "d1SelectStatementsIncludingManagement": 93,
+    "exports": 1,
+    "newMigrations": 1,
+    "temporaryAdminSessions": 1,
+    "rsiRuns": 1,
+    "realPlaceMutations": 0,
+    "emailsSent": 0
+  },
+  "tests": {
+    "commonContractD1": 2,
+    "placeCommandD1": 9,
+    "legacyMergeD1": 6,
+    "legacyCorrectionLivenessD1": 11,
+    "routeHTTP": 7,
+    "designContracts": 14,
+    "desktopMobile": 6,
+    "integratedTypecheck": "PASS",
+    "productionDependencyAudit": 0
+  },
+  "boundaries": {
+    "positivePlaceChanges": "LOCAL_SYNTHETIC_ONLY",
+    "realPlacePublicationMergeRecallRestore": "NOT_RUN",
+    "actualOAuthOrMailReauthentication": "NOT_RUN",
+    "realD1Restore": "NOT_RUN",
+    "fullT01T08": "NOT_RUN",
+    "issue397": "HOLD",
+    "nextAdminUnit": "B10"
+  }
+}
