@@ -17,6 +17,12 @@ import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.
 import { consumeLoginRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 
 const schema = z.object({ email: z.email(), password: z.string().min(1), returnTo: z.string().optional() });
+export const headers: Route.HeadersFunction = ({ actionHeaders }) => {
+  const result = new Headers(actionHeaders);
+  result.set("Cache-Control", "private, no-store");
+  result.set("Vary", "Cookie");
+  return result;
+};
 export function meta() { return [{ title: "로그인 — Re:Taste" }]; }
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
