@@ -13,6 +13,8 @@ export const ADMIN_OPERATION_POLICY = {
   TEMP_PUBLISH: { maxCount: 100, recentAuth: true },
   TEMP_UNPUBLISH: { maxCount: 100, recentAuth: true },
   MEMBER_ACCESS_CHANGE: { maxCount: 1, recentAuth: true },
+  REVIEWER_ADMIN_CHANGE: { maxCount: 25, recentAuth: true },
+  STUDENT_ADMIN_CHANGE: { maxCount: 25, recentAuth: true },
 } as const;
 export type AdminOperationKind = keyof typeof ADMIN_OPERATION_POLICY;
 type Caller = { actorUserId: string; sessionId: string; now: string };
@@ -103,6 +105,22 @@ export async function getAdminOperation(database: D1Database, input: AdminOperat
     summary: JSON.parse(row.summary_json) as AdminOperationSummary, status: row.status,
     result: row.result_json ? JSON.parse(row.result_json) as AdminJson : null, expiresAt: row.expires_at };
 }
+/** Read a session-bound operation and verify the durable receipt before showing success. */
+export async function getVerifiedAdminOperation(database: D1Database, input: AdminOperationInput): Promise<AdminOperation> {
+  const operation = await getAdminOperation(database, input);
+  if (operation.status === "COMMITTED") {
+    const receipt = await database.prepare(`SELECT 1 FROM admin_operations o JOIN admin_operation_commits c
+      ON c.operation_id=o.id AND c.actor_user_id=o.actor_user_id AND c.kind=o.kind AND c.committed_at=o.committed_at
+      WHERE o.id=? AND o.actor_user_id=? AND c.session_id=? AND o.kind=? AND o.status='COMMITTED'
+      AND (SELECT COUNT(*) FROM (SELECT 1 FROM admin_audit_logs a
+        WHERE a.action='ADMIN_OPERATION_COMMITTED' AND a.target_type='ADMIN_OPERATION'
+        AND a.target_id=o.id AND a.actor_user_id=o.actor_user_id LIMIT 2))=1`)
+      .bind(operation.id, input.actorUserId, input.sessionId, input.kind).first();
+    if (!receipt) fail("ADMIN_OPERATION_RECEIPT_UNAVAILABLE");
+  }
+  return operation;
+}
+
 export async function commitAdminOperation(database: D1Database, input: AdminOperationInput, build: (operation: AdminOperation) => {
   checks: D1PreparedStatement[]; statements: D1PreparedStatement[]; result: unknown;
 } | Promise<{ checks: D1PreparedStatement[]; statements: D1PreparedStatement[]; result: unknown }>) {
