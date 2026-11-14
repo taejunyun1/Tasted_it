@@ -14,7 +14,9 @@ describe("place operations tab wiring", () => {
     expect(livenessAt).toBeGreaterThan(mergeAt);
     expect(reviewCheckAt).toBeGreaterThan(livenessAt);
     expect(route).toContain("applyPlaceCorrection");
-    expect(route).toContain("mergePlaces");
+    expect(route).toContain("preparePlaceAdminOperation");
+    expect(route).not.toContain("await mergePlaces(");
+    expect(route).not.toContain("await restorePlaceRevision(");
     expect(route).toContain("resolvePlaceLivenessCase");
     expect(route).toContain("PlaceLivenessPanel");
     expect(route).toContain("PlaceMergePanel");

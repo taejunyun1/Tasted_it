@@ -15,6 +15,7 @@ export const ADMIN_OPERATION_POLICY = {
   MEMBER_ACCESS_CHANGE: { maxCount: 1, recentAuth: true },
   REVIEWER_ADMIN_CHANGE: { maxCount: 25, recentAuth: true },
   STUDENT_ADMIN_CHANGE: { maxCount: 25, recentAuth: true },
+  PLACE_ADMIN_CHANGE: { maxCount: 1, recentAuth: true },
 } as const;
 export type AdminOperationKind = keyof typeof ADMIN_OPERATION_POLICY;
 type Caller = { actorUserId: string; sessionId: string; now: string };

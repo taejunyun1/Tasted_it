@@ -25,16 +25,22 @@ async function requireAdmin(db: AppDb, userId: string) {
   if (user?.role !== "ADMIN") throw new Error("ADMIN_REQUIRED");
 }
 
-export async function mergePlaces(
-  db: AppDb,
-  input: {
-    targetPlaceId: string;
-    sourcePlaceId: string;
-    actorUserId: string;
-    reason: string;
-    now: string;
-  },
-) {
+export type PlaceMergeInput = {
+  targetPlaceId: string;
+  sourcePlaceId: string;
+  actorUserId: string;
+  reason: string;
+  now: string;
+};
+
+export type PlaceMergeSnapshot = {
+  target: typeof places.$inferSelect;
+  source: typeof places.$inferSelect;
+  sourceVotes: Array<typeof currentVotes.$inferSelect>;
+  sourceCategories: Array<typeof placeCategories.$inferSelect>;
+};
+
+export async function mergePlaces(db: AppDb, input: PlaceMergeInput) {
   if (input.targetPlaceId === input.sourcePlaceId)
     throw new Error("MERGE_SAME_PLACE");
   if (!input.reason.trim()) throw new Error("MERGE_REASON_REQUIRED");
@@ -52,6 +58,26 @@ export async function mergePlaces(
       .where(eq(placeCategories.placeId, input.sourcePlaceId)),
   ]);
   if (!target || !source) throw new Error("MERGE_PLACE_NOT_FOUND");
+  const statements = buildPlaceMergeStatements(db, input, {
+    target, source, sourceVotes, sourceCategories,
+  });
+  const [first, ...rest] = statements;
+  if (first) await db.batch([first, ...rest]);
+  return { targetPlaceId: target.id, oldSlug: source.slug };
+}
+
+/** Builds a merge plan from the caller's checked snapshot; performs no reads or writes. */
+export function buildPlaceMergeStatements(
+  db: AppDb,
+  input: PlaceMergeInput,
+  snapshot: PlaceMergeSnapshot,
+): BatchItem<"sqlite">[] {
+  if (input.targetPlaceId === input.sourcePlaceId)
+    throw new Error("MERGE_SAME_PLACE");
+  if (!input.reason.trim()) throw new Error("MERGE_REASON_REQUIRED");
+  const { target, source, sourceVotes, sourceCategories } = snapshot;
+  if (!target || !source || target.id !== input.targetPlaceId || source.id !== input.sourcePlaceId)
+    throw new Error("MERGE_PLACE_NOT_FOUND");
   const statements: BatchItem<"sqlite">[] = [];
   // A merge preserves the original location and provenance of every event.
   // Only a still-current ordinary reaction may be forwarded to the canonical
@@ -218,6 +244,10 @@ export async function mergePlaces(
       .set({ status: "HIDDEN", updatedAt: input.now })
       .where(eq(places.id, source.id)),
     db
+      .update(placeSlugRedirects)
+      .set({ placeId: target.id })
+      .where(eq(placeSlugRedirects.placeId, source.id)),
+    db
       .insert(placeSlugRedirects)
       .values({
         oldSlug: source.slug,
@@ -259,9 +289,7 @@ export async function mergePlaces(
         createdAt: input.now,
       }),
   );
-  const [first, ...rest] = statements;
-  if (first) await db.batch([first, ...rest]);
-  return { targetPlaceId: target.id, oldSlug: source.slug };
+  return statements;
 }
 
 function restorableSnapshot(raw: string | null) {

@@ -16,7 +16,8 @@ describe("place review selection controls", () => {
     const route = readFileSync("app/routes/admin-place-operations.tsx", "utf8");
     const component = readFileSync("app/components/admin/PlaceReviewPipeline.tsx", "utf8");
 
-    expect(route).not.toContain("return redirect(");
+    const naverBranch=route.slice(route.indexOf('if (intent === "verify-review-items-with-naver")'),route.indexOf('if (intent === "auto-verify-review-item-with-naver")'));
+    expect(naverBranch).not.toContain("redirect(");
     expect(route).toContain("nextStep: 3");
     expect(component).not.toContain("useNavigate");
     expect(component).not.toContain("navigate(buildPlaceReviewNextStepHref(query)");

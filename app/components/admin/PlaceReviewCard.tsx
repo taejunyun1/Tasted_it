@@ -23,11 +23,12 @@ function categoryEvidenceLabel(row: PlaceReviewQueueRow) {
   return "미확정";
 }
 
-export function PlaceReviewCard({ row, checked, onToggle, addressEditable = false }: {
+export function PlaceReviewCard({ row, checked, onToggle, addressEditable = false, selection }: {
   row: PlaceReviewQueueRow;
   checked: boolean;
   onToggle: () => void;
   addressEditable?: boolean;
+  selection?: { type: "radio"; name: string; value: string };
 }) {
   return <article className={`place-review-card${checked ? " is-selected" : ""}`} onClick={(event) => {
     const target = event.target as HTMLElement;
@@ -35,8 +36,8 @@ export function PlaceReviewCard({ row, checked, onToggle, addressEditable = fals
     onToggle();
   }}>
     <label className="place-review-card-select" onClick={(event) => event.stopPropagation()}>
-      <input type="checkbox" checked={checked} onChange={onToggle} onClick={(event) => event.stopPropagation()} />
-      <span className="sr-only">{row.name} 선택</span>
+      <input type={selection?.type ?? "checkbox"} name={selection?.name} value={selection?.value} required={Boolean(selection)} checked={checked} onChange={onToggle} onClick={(event) => event.stopPropagation()} />
+      <span className="sr-only">{selection ? `${row.name} · ${row.address} · ${row.workItemId} 선택` : `${row.name} 선택`}</span>
     </label>
     <div className="place-review-card-main">
       <p className="place-review-card-meta">
@@ -47,6 +48,7 @@ export function PlaceReviewCard({ row, checked, onToggle, addressEditable = fals
       </p>
       <h3>{row.name || "상호 확인 필요"}</h3>
       <p>{row.address || "주소 확인 필요"}</p>
+      {selection && <small style={{ overflowWrap: "anywhere" }}>검수 항목 ID {row.workItemId}</small>}
       {addressEditable && checked && <label className="place-review-address-edit" onClick={(event) => event.stopPropagation()}>주소 상세<input name={`address:${row.workItemId}`} defaultValue={row.address} maxLength={200} /></label>}
       <dl>
         <div><dt>NAVER 장소 대조</dt><dd>{naverStatusLabel(row.naverStatus)}</dd></div>

@@ -1,6 +1,6 @@
 # ADMIN 전역 운영 통제 계획
 
-- 상태: **P0(B01–B05) + B06–B08 DEPLOYED / VERIFIED_LIVE_SCOPED / B09 이후 후속**. 사용자의 2026-11-14 명시 요청에 따른 구현을 운영에 배포했다. 전 기능 또는 임의 운영 변경의 일괄 승인은 아니다.
+- 상태: **P0(B01–B05) + B06–B08 DEPLOYED / VERIFIED_LIVE_SCOPED / B09 ACCEPTED_IMPLEMENTATION / B10 이후 후속**. 사용자의 2026-11-14 명시 요청에 따른 구현을 운영에 배포했다. 전 기능 또는 임의 운영 변경의 일괄 승인은 아니다.
 - 작성·최초 코드 대조: 2026-11-14, `origin/main@76dce1e071581c4ff6d8b40f84412d2bff2a3052`. 최초 목록 대조 후 #403의 전면 점검 차단과 스키마 전환 복구 경계를 반영했다. 최신 배포 소스는 `10a72bf`, Worker 버전은 `6498fdff-5bf2-40a0-b9e7-7342ce681bbf`이다. P0 최초 배포는 아래 기록과 구분한다.
 - 추적: [#399](https://github.com/taejunyun1/Tasted_it/issues/399). 계획 작성·후속 개발 주담당은 Jay/Codex, 범위·정책 수용은 사용자, 운영 실행은 승인된 PR이 지정한 담당자다.
 - 최초 계획은 문서만 작성했다. P0 추적은 [#408](https://github.com/taejunyun1/Tasted_it/issues/408)이며 Jay/Codex가 각 독립 PR과 통합·운영 적용을 담당한다.
@@ -141,7 +141,7 @@ P0 최초 배포에서 병합된 #414/#415/#416/#418/#417/#419/#420/#422를 포�
 | B06 `admin: 통합 audit cursor·작업 이력 조회` | B06 DEPLOYED_SCOPED / 최초추정8–12h | B02 | 첫 범위는 기존 감사와 작업 영수증의 읽기 전용 cursor 조회, actor/대상/job/결과 연계·권한·redaction·상한. 새 정책/provider·변이·대량 export 제외 |
 | B07 `admin: 회원 검색·접근 제한·세션 철회` | DEPLOYED_SCOPED / #431·#433 | B03,B06 | 최소필드 조회, 본인/타인·역할변경·탈퇴·세션철회 회귀. 회원 관리 route/service |
 | B08 `admin: 리뷰어·학생 관리의 경합과 일괄 결과` | DEPLOYED_SCOPED / #436·#437 | B02,B03,B06 | 미리보기·경합 시 전체0·항목별 결과·초대 비밀값 재표시0·seat/owner/revision 보존. 실제 운영 양성 변경은 미실행 |
-| B09 `admin: 장소 공개·병합·회수 영향 preview` | P1 / 10–16h | B02,B03,B05,B06 | 출처/현재값 구분, 건수고정·역작업·GENERAL/저장우선·사진/평가회수 회귀. 장소 운영 |
+| B09 `admin: 장소 공개·병합·회수 영향 preview` | ACCEPTED_IMPLEMENTATION / #439 | B02,B03,B05,B06 | 출처/현재값 구분, 건수고정·역작업·GENERAL/저장우선·사진/평가회수 회귀. 장소 운영 |
 | B10 `admin: 작업 상태·lease·제한 재시도/취소` | P1 / 12–18h | B02,B04,B06 | cron/수동 동시실행·stale lease·재시작·외부결과불명 구분, 기존 cron 사용. 작업별 순차 PR |
 | B11 `admin: 공급자 사용량·예산·메일 도메인 상태` | P1 / 10–16h | B03,B06,B10 | NAVER/공공/주차/AI 호출 상한·추정/실측·원자 quota, A34 지정 메일 도메인의 접수/검증/결과불명 재조회. credential 값0, 임의 endpoint/DNS0 |
 | B12 `admin: flag 기대/실효값과 제한된 kill switch` | P1 / 8–12h | B03,B06,B11, 설정 ADR | allowlist·version·fail-closed·긴급중단/재활성화 분리·복원. 첫 PR은 읽기 전용 |

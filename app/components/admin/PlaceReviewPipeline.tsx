@@ -25,7 +25,7 @@ const nextAction: Record<PlaceReviewQuery["step"], string> = {
   2: "카테고리 확정으로 이동",
   3: "중복 검토로 이동",
   4: "승인·공개 대기로 이동",
-  5: "선택 장소 승인·공개",
+  5: "선택 장소 공개 미리보기",
 };
 
 type NaverBatch = {
@@ -80,7 +80,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   }, {}), [duplicateCandidates]);
   const pageKey = `${query.step}:${query.page}:${query.pageSize}:${query.status ?? ""}:${query.region ?? ""}:${query.query}`;
   const selectionLimit = REVIEW_SELECTION_LIMIT;
-  const standardBatchDisabled = !selectedIds.length || selectedIds.length > REVIEW_BATCH_MAX || Boolean(naverBatch);
+  const standardBatchDisabled = query.step === 5 ? Boolean(naverBatch) : !selectedIds.length || selectedIds.length > REVIEW_BATCH_MAX || Boolean(naverBatch);
   useEffect(() => setSelectedIds([]), [pageKey]);
   useEffect(() => {
     if (!processedWorkItemIds.length) return;
@@ -122,7 +122,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     setNaverBatch(null);
   }, [naverBatch, naverBatchFetcher.data, naverBatchFetcher.state]);
 
-  const toggle = (id: string) => setSelectedIds((current) => current.includes(id)
+  const toggle = (id: string) => setSelectedIds((current) => query.step === 5 ? [id] : current.includes(id)
     ? current.filter((item) => item !== id)
     : current.length >= selectionLimit ? current : [...current, id]);
   const togglePageSelection = () => setSelectedIds((current) => current.length
@@ -142,7 +142,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
 
   return <section className="place-review-flow">
     <div className="place-review-flow-head">
-      <div><p className="eyebrow">REVIEW PIPELINE / 01—05</p><h2>{query.step === 2 ? "NAVER 근거 확인" : query.step === 5 ? "선택 승인·공개" : `${String(query.step).padStart(2, "0")} ${nextAction[query.step]}`}</h2><p>앞 단계 근거를 통과한 항목만 다음 단계로 이동합니다. NAVER 확인만으로는 공개되지 않습니다.</p></div>
+      <div><p className="eyebrow">REVIEW PIPELINE / 01—05</p><h2>{query.step === 2 ? "NAVER 근거 확인" : query.step === 5 ? "선택 공개 미리보기" : `${String(query.step).padStart(2, "0")} ${nextAction[query.step]}`}</h2><p>앞 단계 근거를 통과한 항목만 다음 단계로 이동합니다. NAVER 확인만으로는 공개되지 않습니다.</p></div>
     </div>
     {message && <p className="admin-notice" role="status">{message}</p>}
     {naverBatchMessage && <p className="admin-notice" role="status">{naverBatchMessage}</p>}
@@ -154,17 +154,16 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />
       {query.step === 1 && page.rows.map((row) => <input key={`auto:${row.workItemId}`} type="hidden" name="autoWorkItem" value={row.workItemId} />)}
-      {selectedIds.map((id) => {
+      {query.step !== 5 && selectedIds.map((id) => {
         const row = page.rows.find((item) => item.workItemId === id);
         return <span key={id}><input type="hidden" name="workItem" value={`${id}|${row?.stageVersion ?? 0}`} /><input type="hidden" name="workItemId" value={id} /></span>;
       })}
       <div className="place-review-selection-bar">
-        <strong>{selectedIds.length} / {selectionLimit} 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다. NAVER 검증은 {NAVER_REVIEW_RUN_MAX}곳, 그 외 일괄 작업은 {REVIEW_BATCH_MAX}곳까지입니다.</span>
-        <button type="button" className="secondary" onClick={togglePageSelection}>{selectedIds.length ? "선택 해제" : `현재 페이지 ${Math.min(page.rows.length, selectionLimit)}곳 선택`}</button>
+        {query.step === 5 ? <><strong>공개는 한 번에 1곳</strong><span>대상 한 곳을 선택해 미리보기에서 공개 영향을 확인하세요. 여러 곳의 동시 공개 요청은 처리하지 않습니다.</span></> : <><strong>{selectedIds.length} / {selectionLimit} 선택</strong><span>페이지를 바꾸면 선택은 해제됩니다. NAVER 검증은 {NAVER_REVIEW_RUN_MAX}곳, 그 외 일괄 작업은 {REVIEW_BATCH_MAX}곳까지입니다.</span><button type="button" className="secondary" onClick={togglePageSelection}>{selectedIds.length ? "선택 해제" : `현재 페이지 ${Math.min(page.rows.length, selectionLimit)}곳 선택`}</button></>}
         {query.step === 1 && <button className="danger" name="intent" value="auto-exclude-non-food-review-items" disabled={!page.rows.length}>방문 식당 제외 대상 걸러내기</button>}
       </div>
       <div className="place-review-grid">
-        {page.rows.map((row) => <div key={row.workItemId} className="place-review-card-wrap"><PlaceReviewCard row={row} checked={selectedSet.has(row.workItemId)} onToggle={() => toggle(row.workItemId)} addressEditable={query.step === 2} />
+        {page.rows.map((row) => <div key={row.workItemId} className="place-review-card-wrap"><PlaceReviewCard row={row} checked={selectedSet.has(row.workItemId)} onToggle={() => toggle(row.workItemId)} addressEditable={query.step === 2} selection={query.step === 5 ? { type: "radio", name: "workItem", value: `${row.workItemId}|${row.stageVersion}` } : undefined} />
           {query.step === 3 && selectedSet.has(row.workItemId) && <label className="place-review-category-select">최종 카테고리<select name={`category:${row.workItemId}`} defaultValue={row.selectedCategoryId ?? row.naverMappedCategoryId ?? ""}><option value="">카테고리 선택</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>}
           {query.step === 4 && selectedSet.has(row.workItemId) && <div className="place-review-duplicates">
             {!(duplicatesByWorkItem[row.workItemId]?.length) && <p>프랜차이즈를 제외한 동일 상호·동일 위치 후보가 없습니다. 다음 단계로 이동할 수 있습니다.</p>}
@@ -184,7 +183,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         {canConfirmLocalDining && <label key={selectedIds.join("|")} className="place-review-publish-confirm"><span><input type="checkbox" name="confirmLocalDining" /> 선택한 1곳이 체인이 아닌 로컬 식당이며, 직접 방문해 식사할 수 있음을 확인했습니다.</span></label>}
         <label>보류·제외·수동 근거<input name="reason" maxLength={300} placeholder="보류·제외 사유, 또는 강제 이동 시 20자 이상" /></label>
         {canConfirmLocalDining && <button className="secondary" name="intent" value="confirm-local-dining" disabled={Boolean(naverBatch)}>로컬·방문 식사 근거 저장 (20자 이상)</button>}
-        {query.step === 5 && <label className="place-review-publish-confirm"><span><input type="checkbox" name="confirmPublish" /> 선택한 장소만 공개하며, 이 동작은 되돌릴 수 있음을 확인합니다.</span></label>}
+        {query.step === 5 && <label className="place-review-publish-confirm"><span><input type="checkbox" name="confirmPublish" /> 선택한 한 곳의 공개 미리보기를 확인하겠습니다. 아직 공개되지 않으며, 관리자 재인증 후 별도로 확정합니다.</span></label>}
         <button className="secondary" name="intent" value="hold-review-items" disabled={standardBatchDisabled}>선택 항목 보류</button>
         <button className="danger" name="intent" value="exclude-review-items" disabled={standardBatchDisabled}>선택 항목 제외</button>
         {query.step === 4 && <button className="secondary" name="intent" value="resolve-review-duplicates" disabled={standardBatchDisabled}>선택 중복 판정 저장</button>}
