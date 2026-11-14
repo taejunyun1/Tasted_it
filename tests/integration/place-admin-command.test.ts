@@ -7,7 +7,9 @@ import { businessLicenses, categories, placeReviewWorkItems, places } from "../.
 import { prepareAdminOperation } from "../../app/features/operations/admin-operation.server";
 import { confirmLocalDiningReview } from "../../app/features/places/local-dining-review.server";
 import { commitPlaceAdminOperation, getPlaceAdminOperation, preparePlaceAdminOperation } from "../../app/features/places/place-admin.server";
+import { applyPlaceCorrection } from "../../app/features/places/place-correction.server";
 import { newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
+import { resolvePlaceLivenessCase } from "../../app/features/places/place-revalidation.server";
 
 const now = "2026-11-14T09:00:00.000Z";
 const reason = "합성 관리 변경 사유";
@@ -277,6 +279,53 @@ describe("single-place administrative operations", () => {
       expect((await env.DB.prepare("SELECT * FROM member_save_choices WHERE user_id=? ORDER BY place_id").bind(fixture.userId).all()).results).toEqual(beforeChoices);
       expect(await env.DB.prepare("SELECT count(*) AS n FROM admin_operations WHERE actor_user_id=?").bind(actor.actorUserId).first("n")).toBe(0);
     }
+  });
+
+  it("keeps correction and liveness helpers from bypassing the publication preview", async () => {
+    const actor = await admin(), publicPlace = await place(), requestId = crypto.randomUUID();
+    await env.DB.prepare(`INSERT INTO place_correction_requests(id,place_id,requester_email,requester_relation,request_type,status,requested_changes_json,created_at,updated_at)
+      VALUES(?,?,'private-owner@example.test','업주','CLOSED','SUBMITTED',?,?,?)`)
+      .bind(requestId, publicPlace, JSON.stringify({ status: "HIDDEN", name: "적용하면 안 되는 상호" }), now, now).run();
+    const beforePublic = await placeRow(publicPlace);
+    await expect(applyPlaceCorrection(db, { ...actor, requestId, reason, preservePublicationState: true })).rejects.toThrow("PLACE_ADMIN_PREVIEW_REQUIRED");
+    expect(await placeRow(publicPlace)).toEqual(beforePublic);
+    expect(await env.DB.prepare("SELECT status FROM place_correction_requests WHERE id=?").bind(requestId).first("status")).toBe("SUBMITTED");
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM place_revisions WHERE place_id=?").bind(publicPlace).first("n")).toBe(0);
+
+    async function livenessCase(placeId: string) {
+      const id = crypto.randomUUID();
+      await env.DB.prepare("INSERT INTO place_revalidation_cases(id,place_id,reason_type,status,evidence_json,created_at,updated_at) VALUES(?,?,'UNKNOWN','OPEN','{}',?,?)")
+        .bind(id, placeId, now, now).run();
+      return id;
+    }
+    const closedCaseId = await livenessCase(publicPlace);
+    await expect(resolvePlaceLivenessCase(db, { ...actor, caseId: closedCaseId, resolution: "CLOSED", reason, preservePublicationState: true })).rejects.toThrow("PLACE_ADMIN_PREVIEW_REQUIRED");
+    expect(await placeRow(publicPlace)).toEqual(beforePublic);
+    expect(await env.DB.prepare("SELECT status FROM place_revalidation_cases WHERE id=?").bind(closedCaseId).first("status")).toBe("OPEN");
+
+    const hiddenPlace = await place("HIDDEN"), hiddenCaseId = await livenessCase(hiddenPlace);
+    await env.DB.prepare("UPDATE places SET closed_at=? WHERE id=?").bind(now, hiddenPlace).run();
+    await resolvePlaceLivenessCase(db, { ...actor, caseId: hiddenCaseId, resolution: "OPEN", reason, preservePublicationState: true });
+    expect(await placeRow(hiddenPlace)).toMatchObject({ status: "HIDDEN", closed_at: null, last_verified_at: now });
+    expect(await env.DB.prepare("SELECT status FROM place_liveness_states WHERE place_id=?").bind(hiddenPlace).first("status")).toBe("VERIFIED");
+
+    const racedPlace = await place(), racedCaseId = await livenessCase(racedPlace);
+    const originalBatch = db.batch.bind(db);
+    let raced = false;
+    const boundaryDb = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch") return async (statements: Parameters<typeof db.batch>[0]) => {
+          raced = true;
+          await env.DB.prepare("UPDATE places SET status='HIDDEN' WHERE id=?").bind(racedPlace).run();
+          return originalBatch(statements);
+        };
+        return Reflect.get(target, key);
+      },
+    });
+    await resolvePlaceLivenessCase(boundaryDb, { ...actor, caseId: racedCaseId, resolution: "OPEN", reason, preservePublicationState: true });
+    expect(raced).toBe(true);
+    expect(await placeRow(racedPlace)).toMatchObject({ status: "HIDDEN", last_verified_at: now });
+    expect(await env.DB.prepare("SELECT status FROM place_revalidation_cases WHERE id=?").bind(racedCaseId).first("status")).toBe("RESOLVED");
   });
 
   it("rolls merge relationships, receipt and audit back together when the final audit fails", async () => {

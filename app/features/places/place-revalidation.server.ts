@@ -40,6 +40,7 @@ export async function resolvePlaceLivenessCase(db: AppDb, input: {
   resolution: LivenessResolution;
   reason: string;
   now: string;
+  preservePublicationState?: boolean;
 }): Promise<void> {
   if (!isLivenessResolution(input.resolution)) throw new Error("INVALID_LIVENESS_RESOLUTION");
 
@@ -69,11 +70,13 @@ export async function resolvePlaceLivenessCase(db: AppDb, input: {
     liveness: state ? livenessSnapshot(state) : null,
   };
   const afterPlace = {
-    status: isOpen ? "PUBLISHED" as const : "HIDDEN" as const,
+    status: input.preservePublicationState && isOpen ? place.status : isOpen ? "PUBLISHED" as const : "HIDDEN" as const,
     closedAt: isOpen ? null : input.now,
     lastVerifiedAt: isOpen ? input.now : place.lastVerifiedAt,
     updatedAt: input.now,
   };
+  if (input.preservePublicationState && afterPlace.status !== place.status) throw new Error("PLACE_ADMIN_PREVIEW_REQUIRED");
+  const { status: _publicationStatus, ...preservedPlaceMetadata } = afterPlace;
   const afterLiveness = {
     status: isOpen ? "VERIFIED" as const : "HIDDEN" as const,
     kakaoStatus: state?.kakaoStatus ?? "SKIPPED" as const,
@@ -105,7 +108,7 @@ export async function resolvePlaceLivenessCase(db: AppDb, input: {
   };
 
   await db.batch([
-    db.update(places).set(afterPlace).where(eq(places.id, place.id)),
+    db.update(places).set(input.preservePublicationState ? preservedPlaceMetadata : afterPlace).where(eq(places.id, place.id)),
     db.insert(placeLivenessStates).values({ placeId: place.id, ...afterLiveness }).onConflictDoUpdate({
       target: placeLivenessStates.placeId,
       set: afterLiveness,
