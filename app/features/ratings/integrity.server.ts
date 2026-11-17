@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AppDb } from "../../db/client.server";
 import { integrityCases, invalidatedVoteEvents, places, users, voteEvents } from "../../db/schema";
 import { getActiveRatingConfig } from "./rating-config.server";
+import { CURRENT_RATING_CONFIG_ID_SQL } from "./rating-config-eligibility";
 
 type CaseStatus = "OPEN" | "REVIEWING" | "DISMISSED" | "CONFIRMED";
 
@@ -137,8 +138,8 @@ export async function invalidateVoteEvent(db: AppDb, input: {
   }
   const config = await getActiveRatingConfig(db, input.now);
   const auditId = crypto.randomUUID();
-  const guard = "EXISTS (SELECT 1 FROM users WHERE id=? AND role='ADMIN') AND EXISTS (SELECT 1 FROM integrity_cases WHERE id=? AND status='CONFIRMED' AND updated_at=? AND evidence_json=? AND subject_type=? AND subject_id=?) AND EXISTS (SELECT 1 FROM vote_events WHERE id=? AND user_id=? AND place_id=?) AND (SELECT id FROM rating_configs WHERE active_until IS NULL ORDER BY active_from DESC LIMIT 1)=? AND NOT EXISTS (SELECT 1 FROM invalidated_vote_events WHERE vote_event_id=?)";
-  const bindings = [input.actorUserId, item.id, item.updatedAt, item.evidenceJson, item.subjectType, item.subjectId, event.id, event.userId, event.placeId, config.id, event.id];
+  const guard = `EXISTS (SELECT 1 FROM users WHERE id=? AND role='ADMIN') AND EXISTS (SELECT 1 FROM integrity_cases WHERE id=? AND status='CONFIRMED' AND updated_at=? AND evidence_json=? AND subject_type=? AND subject_id=?) AND EXISTS (SELECT 1 FROM vote_events WHERE id=? AND user_id=? AND place_id=?) AND ${CURRENT_RATING_CONFIG_ID_SQL}=? AND NOT EXISTS (SELECT 1 FROM invalidated_vote_events WHERE vote_event_id=?)`;
+  const bindings = [input.actorUserId, item.id, item.updatedAt, item.evidenceJson, item.subjectType, item.subjectId, event.id, event.userId, event.placeId, input.now, config.id, event.id];
   const results = await db.$client.batch([
     db.$client.prepare(`INSERT INTO admin_audit_logs (id,actor_user_id,action,target_type,target_id,before_state,after_state,created_at) SELECT ?,?,'INVALIDATE_VOTE_EVENT','VOTE_EVENT',?,NULL,?,? WHERE ${guard}`)
       .bind(auditId, input.actorUserId, event.id, JSON.stringify({ integrityCaseId: item.id, reason }), input.now, ...bindings),
@@ -222,8 +223,8 @@ export function buildVoteInvalidationBatch(database: D1Database, operationId: st
   return {
     checks: [
       caseCheck(database, operationId, item),
-      database.prepare("INSERT INTO admin_operation_checks (operation_id,check_name,passed) SELECT ?,'vote',CASE WHEN EXISTS (SELECT 1 FROM vote_events WHERE id=? AND user_id=? AND place_id=?) AND NOT EXISTS (SELECT 1 FROM invalidated_vote_events WHERE vote_event_id=?) AND (SELECT id FROM rating_configs WHERE active_until IS NULL ORDER BY active_from DESC LIMIT 1)=? THEN 1 ELSE 0 END")
-        .bind(operationId, event.id, event.userId, event.placeId, event.id, configId),
+      database.prepare(`INSERT INTO admin_operation_checks (operation_id,check_name,passed) SELECT ?,'vote',CASE WHEN EXISTS (SELECT 1 FROM vote_events WHERE id=? AND user_id=? AND place_id=?) AND NOT EXISTS (SELECT 1 FROM invalidated_vote_events WHERE vote_event_id=?) AND ${CURRENT_RATING_CONFIG_ID_SQL}=? THEN 1 ELSE 0 END`)
+        .bind(operationId, event.id, event.userId, event.placeId, event.id, now, configId),
     ],
     statements: [
       database.prepare("INSERT INTO invalidated_vote_events (vote_event_id,integrity_case_id,reason,invalidated_by,invalidated_at) VALUES (?,?,?,?,?)").bind(event.id, item.id, reason, actorUserId, now),

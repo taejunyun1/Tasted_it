@@ -10,6 +10,7 @@ import {
 } from "../../db/schema";
 import { eligibleVoteCondition } from "./reviewer-publication.server";
 import { enqueueRatingRecompute, markRatingStale } from "./recompute.server";
+import { recordOperationalAlert } from "../operations/alerts.server";
 
 function invalidateVoteTaste(
   db: AppDb,
@@ -239,10 +240,21 @@ export async function withdrawVote(
   )
     throw new Error("VOTE_VERSION_CONFLICT");
   await markRatingStale(db, input.placeId, input.now);
-  await enqueueRatingRecompute(db, {
-    placeId: input.placeId,
-    reason: "VOTE_WITHDRAWN",
-    now: input.now,
-  });
+  try {
+    await enqueueRatingRecompute(db, {
+      placeId: input.placeId,
+      reason: "VOTE_WITHDRAWN",
+      now: input.now,
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || (error.message !== "ACTIVE_RATING_CONFIG_NOT_FOUND" && error.message !== "RATING_CONFIG_CHANGED")) throw error;
+    await recordOperationalAlert(db, {
+      alertType: "RATING_RECOMPUTE",
+      sourceId: "ACTIVE_RATING_CONFIG_NOT_FOUND",
+      message: "반응 철회는 저장했지만 활성 평가 설정을 확인할 수 없어 재계산을 접수하지 못했습니다.",
+      details: { code: error.message },
+      now: input.now,
+    });
+  }
   return true;
 }
