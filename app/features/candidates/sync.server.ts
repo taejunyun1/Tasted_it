@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AppDb } from "../../db/client.server";
 import { publicDataSyncGuards, publicDataSyncRuns } from "../../db/schema";
-import { prepareBusinessLicenseUpsert } from "./candidate.server";
+import { loadBusinessLicenseUpsertContexts, prepareBusinessLicenseUpsert } from "./candidate.server";
 import { recordOperationalAlert } from "../operations/alerts.server";
 import { LAUNCH_PUBLIC_DATA_ADDRESS_PREFIX } from "../regions/region-pack";
 import { buildPublicDataUrl, normalizePublicDataItem, parsePublicDataResponse, publicDataSources, type PublicDataSource } from "./public-data";
@@ -111,14 +111,16 @@ export async function syncPublicDataBatch(db: AppDb, input: {
       if (!response?.ok) throw new Error(`PUBLIC_DATA_HTTP_${response?.status ?? 503}`);
       const parsed = parsePublicDataResponse(await response.json());
       if (parsed.items.length > 100) throw new Error("PUBLIC_DATA_RESPONSE_INVALID");
-      const now = clock(), plans = [], seen = new Set<string>();
+      const now = clock(), plans = [], items = [], seen = new Set<string>();
       let pageSkipped = 0;
       for (const raw of parsed.items) {
         const item = normalizePublicDataItem(scope.sourceType, raw);
         if (!item || seen.has(item.sourceManagementNo)) { pageSkipped += 1; continue; }
         seen.add(item.sourceManagementNo);
-        plans.push(await prepareBusinessLicenseUpsert(db, item, now));
+        items.push(item);
       }
+      const contexts = await loadBusinessLicenseUpsertContexts(db,items);
+      for (const item of items) plans.push(await prepareBusinessLicenseUpsert(db,item,now,contexts.get(item.sourceManagementNo)!));
       const complete = (page * 100 >= parsed.totalCount) || parsed.items.length === 0;
       const additions = { inserted: plans.filter((p) => p.inserted).length, updated: plans.filter((p) => !p.inserted).length, excluded: plans.filter((p) => p.excluded).length };
       const guardId = crypto.randomUUID();
