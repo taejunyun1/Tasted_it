@@ -16,6 +16,7 @@ const AUDIT_NAMES: Record<string, string> = {
   APPROVE_CANDIDATE: "후보 승인", REJECT_CANDIDATE: "후보 반려", PLACE_REVIEW_PUBLISH: "장소 공개",
   PLACE_REVIEW_HOLD: "장소 검수 보류", PLACE_REVIEW_EXCLUDE: "장소 제외", RSI_SELF_CHECK: "서비스 경로 점검",
   EMAIL_DOMAIN_REPAIR: "발신 도메인 작업", RESOLVE_OPERATIONAL_ALERT: "운영 경보 처리",
+  ADMIN_AUDIT_EXPORT: "감사 목록 CSV 생성",
 };
 async function reference(value: string | null | undefined) {
   if (!value) return "없음";
@@ -114,12 +115,18 @@ async function readDetail(database: D1Database, operationId: string, now: string
   };
 }
 
-export async function readAdminActivity(database: D1Database, query: Query, now: string) {
+export async function readAdminActivity(database: D1Database, query: Query, now: string,
+  bounds?: { from: string; to: string; pageSize: number }) {
+  const pageSize = bounds?.pageSize ?? ACTIVITY_PAGE_SIZE;
+  if (bounds && (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200
+    || !Number.isFinite(Date.parse(bounds.from)) || !Number.isFinite(Date.parse(bounds.to))
+    || bounds.from >= bounds.to || Date.parse(bounds.to) - Date.parse(bounds.from) > 31 * 86_400_000)) throw new Error("ACTIVITY_BOUNDS_INVALID");
   const alias = query.view === "audit" ? "a" : "o", table = query.view === "audit" ? "admin_audit_logs" : "admin_operations";
   const highWater = query.cursor?.highWater ?? Number(await database.prepare(`SELECT coalesce(max(rowid),0) AS value FROM ${table}`).first("value"));
   const cutoff = query.cursor?.cutoff ?? now;
   const conditions = [`${alias}.rowid<=?`, `julianday(${alias}.created_at)<=julianday(?)`];
   const bindings: (string | number)[] = [highWater, cutoff];
+  if (bounds) { conditions.push(`julianday(${alias}.created_at)>=julianday(?) AND julianday(${alias}.created_at)<julianday(?)`); bindings.push(bounds.from, bounds.to); }
   if (query.cursor) { conditions.push(`(julianday(${alias}.created_at),${alias}.id)<(?,?)`); bindings.push(query.cursor.afterKey, query.cursor.afterId); }
   if (query.kind !== "all") { conditions.push("o.kind=?"); bindings.push(query.kind); }
   const sql = query.view === "audit"
@@ -129,8 +136,8 @@ export async function readAdminActivity(database: D1Database, query: Query, now:
         AND a.target_type='ADMIN_OPERATION' AND a.target_id=o.id AND a.actor_user_id=o.actor_user_id ${RECEIPT_JOIN}`
     : `SELECT o.id,o.id AS operation_id,o.kind,o.actor_user_id,o.status,o.created_at,o.expires_at,julianday(o.created_at) AS order_key,
         c.operation_id AS receipt_id,${AUDIT_COUNT} AS audit_count FROM admin_operations o ${RECEIPT_JOIN}`;
-  const raw = (await database.prepare(`${sql} WHERE ${conditions.join(" AND ")} ORDER BY julianday(${alias}.created_at) DESC,${alias}.id DESC LIMIT ${ACTIVITY_PAGE_SIZE + 1}`).bind(...bindings).all<ListRow>()).results;
-  const page = raw.slice(0, ACTIVITY_PAGE_SIZE);
+  const raw = (await database.prepare(`${sql} WHERE ${conditions.join(" AND ")} ORDER BY julianday(${alias}.created_at) DESC,${alias}.id DESC LIMIT ${pageSize + 1}`).bind(...bindings).all<ListRow>()).results;
+  const page = raw.slice(0, pageSize);
   const rows = await Promise.all(page.map(async (row) => {
     const kind = activityKind(row.kind);
     return { key: await reference(`${query.view}:${row.id}`), createdAt: timestamp(row.created_at), actor: await reference(row.actor_user_id),
@@ -139,8 +146,8 @@ export async function readAdminActivity(database: D1Database, query: Query, now:
       operationId: row.operation_id, state: row.operation_id ? status(row, now) : "RECORDED" as ActivityStatus };
   }));
   const last = page.at(-1);
-  const nextCursor = raw.length > ACTIVITY_PAGE_SIZE && last ? encodeActivityCursor({ version: 1, view: query.view, kind: query.kind,
+  const nextCursor = raw.length > pageSize && last ? encodeActivityCursor({ version: 1, view: query.view, kind: query.kind,
     cutoff, highWater, afterKey: last.order_key, afterId: last.id }) : null;
   const detail = query.operationId ? await readDetail(database, query.operationId, now) : null;
-  return { rows, nextCursor, cutoff, queriedAt: now, detail, detailMissing: Boolean(query.operationId && !detail), pageSize: ACTIVITY_PAGE_SIZE };
+  return { rows, nextCursor, cutoff, queriedAt: now, detail, detailMissing: Boolean(query.operationId && !detail), pageSize };
 }
