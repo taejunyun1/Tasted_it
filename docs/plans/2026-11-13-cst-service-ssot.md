@@ -2,6 +2,8 @@
 
 ## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
 
+최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 통합 head `d6916c5`의 [CI 44148152396](https://github.com/taejunyun1/Tasted_it/actions/runs/44148152396)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
+
 B10 평가 PR [#444](https://github.com/taejunyun1/Tasted_it/pull/444) `990d5d4`와 공공 수집 [#446](https://github.com/taejunyun1/Tasted_it/pull/446) `941a205`는 각각 필수 4CI와 독립 리뷰를 통과해 병합했다. 주차·EV [#448](https://github.com/taejunyun1/Tasted_it/pull/448)은 관련 로컬 검증과 독립 리뷰를 통과했으나 GitHub Actions 계정 결제/지출 한도로 runner가 시작되지 않았다. [실제 check annotation](https://github.com/taejunyun1/Tasted_it/actions/runs/44141185490)을 근거로 **CI_BLOCKED / 운영 미배포**로 남긴다. 로컬 통과를 필수 CI 또는 운영 성공으로 대체하지 않는다.
 
 후속 B11 사용량 [#455](https://github.com/taejunyun1/Tasted_it/pull/455), B12 설정·자동검수 중단 [#458](https://github.com/taejunyun1/Tasted_it/pull/458), B14 RSI·경보 [#456](https://github.com/taejunyun1/Tasted_it/pull/456), B16 감사 CSV [#457](https://github.com/taejunyun1/Tasted_it/pull/457), B11 메일 도메인 [#459](https://github.com/taejunyun1/Tasted_it/pull/459)은 로컬 검증·독립 리뷰 후 PR로 준비했다. B15 평가 기준 [#461](https://github.com/taejunyun1/Tasted_it/pull/461)와 B13 개인정보·삭제대기 [#464](https://github.com/taejunyun1/Tasted_it/pull/464)도 로컬 검증·독립 리뷰를 마쳤다. 보존 계측 [#466](https://github.com/taejunyun1/Tasted_it/pull/466), 사용량 전환 도구 [#468](https://github.com/taejunyun1/Tasted_it/pull/468), 평가 설정 날짜 일관성 [#469](https://github.com/taejunyun1/Tasted_it/pull/469)도 같은 로컬 검증·리뷰를 완료했다. 각 단위와 통합본의 결과는 [ADMIN 진행표](../evidence/admin-followup-20261118.md)에 기록한다.

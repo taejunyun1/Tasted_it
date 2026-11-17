@@ -25,5 +25,13 @@
   },
   "postReviewAdjustments": [
     "0056: removed one trailing blank line; SQL statements unchanged"
-  ]
+  ],
+  "observedRequiredCI": {
+    "head": "d6916c57bfdca73d514e1a9851e32d8cc001cdc8",
+    "run": 44148152396,
+    "jobs": 4,
+    "executedSteps": 0,
+    "outcome": "BLOCKED_PAYMENT_OR_SPENDING_LIMIT",
+    "url": "https://github.com/taejunyun1/Tasted_it/actions/runs/44148152396"
+  }
 }
