@@ -61,4 +61,5 @@ export default [
   route("admin/audit", "routes/admin-audit.tsx"),
   route("admin/activity", "routes/admin-activity.tsx"),
   route("admin/settings", "routes/admin-settings.tsx"),
+  route("admin/records", "routes/admin-records.tsx"),
 ] satisfies RouteConfig;
