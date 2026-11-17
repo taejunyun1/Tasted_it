@@ -938,7 +938,10 @@ export const parkingDataSnapshots = sqliteTable("parking_data_snapshots", {
 export const parkingSyncRuns = sqliteTable("parking_sync_runs", {
   id: text("id").primaryKey(),
   source: text("source", { enum: ["PARKING", "EV"] }).notNull(),
-  status: text("status", { enum: ["RUNNING", "COMPLETED", "FAILED"] }).notNull(),
+  status: text("status", { enum: ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"] }).notNull(),
+  attempts: integer("attempts").notNull().default(1),
+  leaseVersion: integer("lease_version").notNull().default(0),
+  leaseExpiresAt: text("lease_expires_at"),
   snapshotId: text("snapshot_id").references(() => parkingDataSnapshots.id, { onDelete: "set null" }),
   nextPage: integer("next_page").notNull().default(1),
   totalCount: integer("total_count"),

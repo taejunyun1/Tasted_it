@@ -8,6 +8,7 @@ export const ADMIN_OPERATION_POLICY = {
   CSV_IMPORT: { maxCount: 200, recentAuth: true },
   RATING_RECOMPUTE: { maxCount: 1, recentAuth: false },
   RATING_JOB_CONTROL: { maxCount: 1, recentAuth: true },
+  PARKING_SYNC_CONTROL: { maxCount: 1, recentAuth: true },
   INTEGRITY_CASE_TRANSITION: { maxCount: 1, recentAuth: true },
   VOTE_INVALIDATE: { maxCount: 1, recentAuth: true },
   ADMIN_ROLE_CHANGE: { maxCount: 1, recentAuth: true },
