@@ -66,6 +66,8 @@ test("admin reviews a bounded job action and resumes it after recent authenticat
     const pending = page.getByRole("article", { name: `재계산 작업 ${pendingId}`, exact: true });
     const legacy = page.getByRole("article", { name: `재계산 작업 ${staleId}`, exact: true });
     const exhausted = page.getByRole("article", { name: `재계산 작업 ${exhaustedId}`, exact: true });
+    await expect(legacy).toContainText("실행 상태 미확인 (RUNNING)");
+    await expect(legacy).not.toContainText("실행 중");
     await expect(legacy).toContainText("이전 실행의 소유권을 확인할 수 없어 자동 재실행할 수 없습니다.");
     await expect(legacy.getByRole("button")).toHaveCount(0);
     await expect(exhausted).toContainText("3회");

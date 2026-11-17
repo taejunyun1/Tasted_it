@@ -22,7 +22,7 @@ export function inspectRatingJob(job: RatingRecomputeJob, now: string, activeCon
   else if (job.attempts >= RATING_JOB_MAX_ATTEMPTS) blockedReason = "재시도 한도에 도달했습니다. 원인을 확인해 주세요.";
   else if (job.status === "FAILED") allowedActions = ["RETRY"];
   else if (stale) allowedActions = ["RECOVER"];
-  return { status: stale ? "STALE" as const : job.status, allowedActions, blockedReason,
+  return { status: job.status === "RUNNING" && !job.leaseExpiresAt ? "UNKNOWN" as const : stale ? "STALE" as const : job.status, allowedActions, blockedReason,
     leaseExpiresAt: job.leaseExpiresAt, maxAttempts: RATING_JOB_MAX_ATTEMPTS };
 }
 

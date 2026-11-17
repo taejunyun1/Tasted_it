@@ -212,7 +212,7 @@ const jobActionLabel = { CANCEL: "대기 작업 취소", RETRY: "실패 작업 �
 function isRatingJobAction(value: string): value is RatingJobAction {
   return value === "CANCEL" || value === "RETRY" || value === "RECOVER";
 }
-const jobStateLabel: Record<string, string> = { PENDING: "접수·대기", RUNNING: "실행 중", STALE: "실행 기한 경과·결과 확인 필요", COMPLETED: "완료", FAILED: "실패", CANCELLED: "취소" };
+const jobStateLabel: Record<string, string> = { PENDING: "접수·대기", RUNNING: "실행 중", UNKNOWN: "실행 상태 미확인", STALE: "실행 기한 경과·결과 확인 필요", COMPLETED: "완료", FAILED: "실패", CANCELLED: "취소" };
 function jobTime(value: string | null) {
   if (!value) return "미기록";
   const date = new Date(value);
