@@ -17,6 +17,7 @@ const AUDIT_NAMES: Record<string, string> = {
   PLACE_REVIEW_HOLD: "장소 검수 보류", PLACE_REVIEW_EXCLUDE: "장소 제외", RSI_SELF_CHECK: "서비스 경로 점검",
   EMAIL_DOMAIN_REPAIR: "발신 도메인 작업", RESOLVE_OPERATIONAL_ALERT: "운영 경보 처리",
   ADMIN_AUDIT_EXPORT: "감사 목록 CSV 생성",
+  EMAIL_DOMAIN_OBSERVED: "메일 도메인 상태 관측", EMAIL_DOMAIN_REQUEST_RESULT: "메일 도메인 요청 결과",
 };
 async function reference(value: string | null | undefined) {
   if (!value) return "없음";
@@ -87,6 +88,13 @@ async function readDetail(database: D1Database, operationId: string, now: string
     addCount("skippedCount", "미리보기 제외 건수");
   }
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
+  if (kind === "EMAIL_DOMAIN_CONTROL" && linked && typeof result?.targetDomain === "string" && ["create", "verify"].includes(String(result.intent))) {
+    const action = await database.prepare("SELECT state FROM email_domain_actions WHERE operation_id=? AND target_domain=? AND intent=?")
+      .bind(row.id, result.targetDomain, String(result.intent)).first<{ state: string }>();
+    const labels: Record<string, string> = { CREATED: "생성 응답 확인 · 존재 조회 대기", ACCEPTED: "검증 요청 접수 · 완료 미확인", OBSERVED_PRESENT: "현재 존재 확인 · 요청 기여 불명", OBSERVED_VERIFIED: "현재 검증 상태 확인", OBSERVED_FAILED: "현재 검증 실패 확인" };
+    fields.push({ label: "요청 종류", value: result.intent === "create" ? "생성" : "검증 요청" });
+    fields.push({ label: "요청 결과", value: action && labels[action.state] ? labels[action.state] : "결과 불명 · 조회 필요" });
+  }
   if ((kind === "RATING_RECOMPUTE" || kind === "RATING_JOB_CONTROL") && row.status === "COMMITTED") {
     const jobId = identifier(result?.jobId), placeId = identifier(result?.placeId), configId = identifier(result?.configId);
     const current = linked && jobId && placeId && configId ? await database.prepare(`SELECT status,lease_expires_at,finished_at FROM rating_recompute_jobs

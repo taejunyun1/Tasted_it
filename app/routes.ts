@@ -56,7 +56,7 @@ export default [
   route("admin/operations", "routes/admin-operations.tsx"),
   route("admin/providers", "routes/admin-providers.tsx"),
   route("admin/reliability", "routes/admin-reliability.tsx"),
-  route("admin/operations/email-domain", "routes/admin-email-domain.ts"),
+  route("admin/operations/email-domain", "routes/admin-email-domain.tsx"),
   route("admin/operations/rsi-check", "routes/admin-rsi-check.ts"),
   route("admin/audit", "routes/admin-audit.tsx"),
   route("admin/activity", "routes/admin-activity.tsx"),

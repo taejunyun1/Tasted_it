@@ -53,7 +53,7 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A31", "백업·복구", "recovery", "백업 확인·복원 검증", "PARTIAL", "/admin/reliability", "버전 고정 로컬 합성 복원 자료와 digest 조회", "실제 운영 백업·복원 성공은 미검증"),
   control("A32", "배포·환경", "recovery", "승인·배포·복구 추적", "PARTIAL", "/admin/reliability", "버전 고정 과거 배포·경로 확인 자료 조회", "현재 Worker·실효 설정은 지정 운영 기록과 대조"),
   control("A33", "서비스 문안·신고", "content", "문안 검토·문의 접수", "PARTIAL", "/admin/records", "현재 정책 초안·원문 버전 조회, 법적 문안은 PR 검토로 변경", "실제 운영 사실·검토자·시행일 확정과 문의 처리 연결"),
-  control("A34", "메일 도메인", "operations", "지정 발신 도메인 확인", "PARTIAL", "/admin/providers", "발신 설정 구성 여부만 조회", "도메인 검증·실제 발신 결과 조회는 후속 작업"),
+  control("A34", "메일 도메인", "operations", "지정 발신 도메인 확인", "PARTIAL", "/admin/operations/email-domain", "상태 관측·미리보기·단발 요청·불명 결과 조회", "실제 발신 성공은 별도 전달 근거 필요"),
 ];
 
 export function parseAdminControlArea(value: string | null): AdminControlFilter {
