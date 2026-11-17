@@ -1,10 +1,12 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { publicDataSyncRuns } from "../../app/db/schema";
 import { listExcludedCandidates, listPendingCandidates } from "../../app/features/candidates/candidate.server";
 import { syncPublicDataBatch } from "../../app/features/candidates/sync.server";
+
+beforeEach(async () => { await env.DB.prepare("DELETE FROM public_data_sync_runs").run(); });
 
 describe("public data sync", () => {
   it("stores only open rows as visible review candidates", async () => {
@@ -46,7 +48,7 @@ describe("public data sync", () => {
     const result = await syncPublicDataBatch(db, { serviceKey: "key", sourceType: "BAKERY", addressField: "LOTNO_ADDR", fetcher: fetcher as typeof fetch, maxPages: 1, now });
     expect(result.runId).toBe(runId);
     expect(seenPages[0]).toBe(5);
-    await expect(db.query.publicDataSyncRuns.findFirst({ where: eq(publicDataSyncRuns.id, runId) })).resolves.toMatchObject({ status: "RUNNING", fetchedCount: 401 });
+    await expect(db.query.publicDataSyncRuns.findFirst({ where: eq(publicDataSyncRuns.id, runId) })).resolves.toMatchObject({ status: "PENDING", fetchedCount: 401 });
   });
   it("retries a 5xx page response and only fails after the bounded attempts", async () => {
     const db = createDb(env.DB);
@@ -54,4 +56,106 @@ describe("public data sync", () => {
     await expect(syncPublicDataBatch(db, { serviceKey: "key", sourceType: "ENTERTAINMENT_BAR", addressField: "ROAD_NM_ADDR", fetcher: fetcher as typeof fetch, maxPages: 1, now: "2026-08-05T12:00:00.000Z" })).rejects.toThrow("PUBLIC_DATA_HTTP_504");
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
+});
+
+
+describe("public sync execution ownership", () => {
+  it("does not issue a second request while the same source has an active owner", async () => {
+    const db = createDb(env.DB);
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const fetcher = vi.fn(async () => {
+      entered(); await blocked;
+      return Response.json({ response: { header: { resultCode: "0" }, body: { totalCount: 0, items: { item: [] } } } });
+    });
+    const input = { serviceKey: "test", sourceType: "REST_CAFE" as const, addressField: "ROAD_NM_ADDR" as const, maxPages: 1, fetcher: fetcher as typeof fetch };
+    const first = syncPublicDataBatch(db, input);
+    await started;
+    const second = syncPublicDataBatch(db, input);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    release(); await Promise.all([first, second]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+function publicPage(items: Record<string, unknown>[], totalCount = items.length) {
+  return Response.json({ response: { header: { resultCode: "0" }, body: { totalCount, items: { item: items } } } });
+}
+function license(no: string, name = "동기화 확인 식당") {
+  return { MNG_NO: no, BPLC_NM: name, ROAD_NM_ADDR: "전남광주통합특별시 동구 확인로 1", SALS_STTS_CD: "01", SALS_STTS_NM: "영업/정상", DTL_SALS_STTS_CD: "01", DTL_SALS_STTS_NM: "영업" };
+}
+
+describe("public sync fenced pages", () => {
+  it("rejects unsupported scope before creating a run or calling a provider", async () => {
+    const fetcher = vi.fn();
+    await expect(syncPublicDataBatch(createDb(env.DB), { serviceKey: "test", sourceType: "forged" as never, addressField: "ROAD_NM_ADDR", fetcher })).rejects.toThrow();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await env.DB.prepare("SELECT count(*) n FROM public_data_sync_runs").first<{n:number}>())?.n).toBe(0);
+  });
+
+  it("rolls back every source row and counter when any write in a page fails", async () => {
+    const db = createDb(env.DB), prefix = crypto.randomUUID();
+    const items = [license(`${prefix}-ok`), license(`${prefix}-reject`, "rollback sentinel")];
+    await env.DB.exec("CREATE TRIGGER sync_page_failure BEFORE INSERT ON business_licenses WHEN NEW.business_name='rollback sentinel' BEGIN SELECT RAISE(ABORT,'page sentinel'); END;");
+    let run;
+    try {
+      await expect(syncPublicDataBatch(db, { serviceKey: "test", sourceType: "GENERAL_RESTAURANT", addressField: "ROAD_NM_ADDR", fetcher: async () => publicPage(items) })).rejects.toThrow("PUBLIC_DATA_SYNC_FAILED");
+      run = await db.query.publicDataSyncRuns.findFirst();
+      expect(run).toMatchObject({ status: "FAILED", nextPage: 1, fetchedCount: 0, insertedCount: 0, retryCount: 1 });
+      expect((await env.DB.prepare("SELECT count(*) n FROM business_licenses WHERE source_management_no LIKE ?").bind(`${prefix}%`).first<{n:number}>())?.n).toBe(0);
+    } finally { await env.DB.exec("DROP TRIGGER sync_page_failure"); }
+    const result = await syncPublicDataBatch(db, { serviceKey: "test", sourceType: "GENERAL_RESTAURANT", addressField: "ROAD_NM_ADDR", runId: run!.id, fetcher: async () => publicPage(items) });
+    expect(result.run).toMatchObject({ status: "COMPLETED", fetchedCount: 2, insertedCount: 2, attempts: 2 });
+  });
+
+  it("resumes the last uncommitted page and does not count the prior page twice", async () => {
+    const db = createDb(env.DB), prefix = crypto.randomUUID();
+    const first = vi.fn(async (input: RequestInfo | URL) => {
+      if (new URL(String(input)).searchParams.get("pageNo") === "1") return publicPage([license(`${prefix}-one`)], 200);
+      return new Response(null, { status: 503 });
+    });
+    await expect(syncPublicDataBatch(db, { serviceKey: "test", sourceType: "BAKERY", addressField: "ROAD_NM_ADDR", maxPages: 2, fetcher: first })).rejects.toThrow("PUBLIC_DATA_HTTP_503");
+    const run = await db.query.publicDataSyncRuns.findFirst();
+    expect(run).toMatchObject({ nextPage: 2, fetchedCount: 1, insertedCount: 1 });
+    const next = vi.fn(async (input: RequestInfo | URL) => {
+      expect(new URL(String(input)).searchParams.get("pageNo")).toBe("2");
+      return publicPage([license(`${prefix}-two`)], 200);
+    });
+    const result = await syncPublicDataBatch(db, { serviceKey: "test", sourceType: "BAKERY", addressField: "ROAD_NM_ADDR", runId: run!.id, fetcher: next });
+    expect(result.run).toMatchObject({ status: "COMPLETED", fetchedCount: 2, insertedCount: 2, requestCount: 5 });
+  });
+
+  it("fences a late page after a stale owner is replaced", async () => {
+    const db = createDb(env.DB), no = crypto.randomUUID();
+    let release!: () => void, enter!: () => void;
+    const blocked = new Promise<void>(r => { release = r; }), entered = new Promise<void>(r => { enter = r; });
+    const scope = { serviceKey: "test", sourceType: "REST_CAFE" as const, addressField: "LOTNO_ADDR" as const };
+    const first = syncPublicDataBatch(db, { ...scope, now: "2026-08-05T12:00:00.000Z", fetcher: async () => { enter(); await blocked; return publicPage([license(no, "stale owner")]); } });
+    await entered;
+    const run = await db.query.publicDataSyncRuns.findFirst();
+    const second = await syncPublicDataBatch(db, { ...scope, runId: run!.id, now: "2026-08-05T12:03:00.000Z", fetcher: async () => publicPage([license(no, "current owner")]) });
+    release(); await first;
+    expect(second.run).toMatchObject({ status: "COMPLETED", attempts: 2, retryCount: 1, fetchedCount: 1 });
+    expect((await env.DB.prepare("SELECT business_name FROM business_licenses WHERE source_management_no=?").bind(no).first<{business_name:string}>())?.business_name).toBe("current owner");
+  });
+
+  it("stops after the bounded failed attempts without starting another run", async () => {
+    const db = createDb(env.DB), fetcher = vi.fn(async () => new Response(null, {status:503}));
+    const input = { serviceKey: "test", sourceType: "BAKERY" as const, addressField: "LOTNO_ADDR" as const, fetcher };
+    for (let i=0;i<3;i++) await expect(syncPublicDataBatch(db,input)).rejects.toThrow("PUBLIC_DATA_HTTP_503");
+    const result = await syncPublicDataBatch(db,input);
+    expect(fetcher).toHaveBeenCalledTimes(9);
+    expect(result.run).toMatchObject({ retryCount:3, attempts:3, canResume:false });
+    expect((await env.DB.prepare("SELECT count(*) n FROM public_data_sync_runs").first<{n:number}>())?.n).toBe(1);
+  });
+});
+
+
+it("commits a full hundred-row page without exceeding D1 binding limits", async()=>{
+  const db=createDb(env.DB),prefix=crypto.randomUUID();
+  const result=await syncPublicDataBatch(db,{serviceKey:"test",sourceType:"GENERAL_RESTAURANT",addressField:"ROAD_NM_ADDR",fetcher:async()=>publicPage(Array.from({length:100},(_,i)=>license(`${prefix}-${i}`)))});
+  expect(result.run).toMatchObject({status:"COMPLETED",fetchedCount:100,insertedCount:100});
+  expect((await env.DB.prepare("SELECT count(*) n FROM public_data_sync_guards").first<{n:number}>())?.n).toBe(0);
 });

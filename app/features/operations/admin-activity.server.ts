@@ -93,6 +93,16 @@ async function readDetail(database: D1Database, operationId: string, now: string
     job = { reference: await reference(jobId), status: current && ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"].includes(current.status) ? current.status : "UNKNOWN",
       checkedAt: now, finishedAt: timestamp(current?.finished_at) };
   }
+  if (kind === "PUBLIC_SYNC_CONTROL" && row.status === "COMMITTED") {
+    const runId = identifier(result?.runId);
+    const current = linked && runId && typeof result?.sourceType === "string" && typeof result?.addressField === "string"
+      ? await database.prepare(`SELECT status,lease_id,lease_expires_at,finished_at FROM public_data_sync_runs
+          WHERE id=? AND source_type=? AND address_field=? AND region_code='GWANGJU_JEONNAM'`)
+        .bind(runId, result.sourceType, result.addressField).first<{ status: string; lease_id: string | null; lease_expires_at: string | null; finished_at: string | null }>() : null;
+    const known = current && ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"].includes(current.status)
+      && !(current.status === "RUNNING" && !current.lease_id);
+    job = { reference: await reference(runId), status: known ? (current.status === "RUNNING" && current.lease_expires_at && current.lease_expires_at <= now ? "STALE" : current.status) : "UNKNOWN", checkedAt: now, finishedAt: timestamp(current?.finished_at) };
+  }
   return {
     operationId: row.id, kind, title: kind ? ACTIVITY_KINDS[kind] : "기타 작업", state: status(row, now),
     actor: await reference(row.actor_user_id), createdAt: timestamp(row.created_at), expiresAt: timestamp(row.expires_at), committedAt: timestamp(row.committed_at),
