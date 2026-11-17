@@ -1,5 +1,16 @@
 # CST 서비스 준비 실행계획 SSOT — 2026-12-10
 
+## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
+
+B10 평가 PR [#444](https://github.com/taejunyun1/Tasted_it/pull/444) `990d5d4`와 공공 수집 [#446](https://github.com/taejunyun1/Tasted_it/pull/446) `941a205`는 각각 필수 4CI와 독립 리뷰를 통과해 병합했다. 주차·EV [#448](https://github.com/taejunyun1/Tasted_it/pull/448)은 관련 로컬 검증과 독립 리뷰를 통과했으나 GitHub Actions 계정 결제/지출 한도로 runner가 시작되지 않았다. [실제 check annotation](https://github.com/taejunyun1/Tasted_it/actions/runs/44141185490)을 근거로 **CI_BLOCKED / 운영 미배포**로 남긴다. 로컬 통과를 필수 CI 또는 운영 성공으로 대체하지 않는다.
+
+후속 B11 사용량 [#455](https://github.com/taejunyun1/Tasted_it/pull/455), B12 설정·자동검수 중단 [#458](https://github.com/taejunyun1/Tasted_it/pull/458), B14 RSI·경보 [#456](https://github.com/taejunyun1/Tasted_it/pull/456), B16 감사 CSV [#457](https://github.com/taejunyun1/Tasted_it/pull/457), B11 메일 도메인 [#459](https://github.com/taejunyun1/Tasted_it/pull/459)은 로컬 검증·독립 리뷰 후 PR로 준비했다. B15 평가 기준 [#461](https://github.com/taejunyun1/Tasted_it/pull/461)와 B13 개인정보·삭제대기 [#464](https://github.com/taejunyun1/Tasted_it/pull/464)도 로컬 검증·독립 리뷰를 마쳤다. 보존 계측 [#466](https://github.com/taejunyun1/Tasted_it/pull/466), 사용량 전환 도구 [#468](https://github.com/taejunyun1/Tasted_it/pull/468), 평가 설정 날짜 일관성 [#469](https://github.com/taejunyun1/Tasted_it/pull/469)도 같은 로컬 검증·리뷰를 완료했다. 각 단위와 통합본의 결과는 [ADMIN 진행표](../evidence/admin-followup-20261118.md)에 기록한다.
+
+신규 0050 이후 migration, 새 Worker 배포, 실제 운영 대상 변경은 이 차단 이후 실행하지 않았다. 운영 기준선은 기존 B09 소스 `e96360c` / Worker `d285759b-d529-4ea0-a7e9-9cf88b3e7cf1`이며, 이번 읽기 사전조회와 로컬 검증을 새 배포로 표현하지 않는다. B10의 대기 1건 전환도 아직 미실행이다. 복구 뒤에는 최신 main 재통합·필수 CI·단계별 migration 보존·라이브 RSI·시험 세션 정리를 수행해야 한다.
+
+#397은 HOLD를 유지한다. #360의 실제 운영주체/문의처/추가 보존기간·국외이전·비용/복구 정책은 미확정이며, 읽기 화면·기술 구현이 이 사실을 확정하지 않는다. 11개 코드 head의 로컬 통합 검증은 완료했으나 B17 전체 운영 리허설·실제 인계·운영 수용은 아직 완료가 아니다. 12월 10일 내부 검수·실증 준비와 12월 18일 납품 기준은 유지한다.
+
+
 - 상태: **ACCEPTED — 사용자 2026-11-13 요청에 따른 일정·요구사항 추적 SSOT**. 저장소 반영은 이 문서를 포함한 병합 PR로 확정한다.
 - 실행 담당: **Jay/Codex — 계획·구현·통합·기술검증·인계 준비**. 서비스 정책·내부 수용 결정은 사용자(CST). PDF의 대외 책임 구분은 원문대로 보존하되, 이 개발 일정은 외부 인력 투입을 전제하지 않는다.
 - 추적: [#354](https://github.com/taejunyun1/Tasted_it/issues/354). 최초 조사 기준 `origin/main@471a3eba61a47bc40574c478be23116335798c0e`.
