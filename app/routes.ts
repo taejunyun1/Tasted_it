@@ -57,4 +57,5 @@ export default [
   route("admin/operations/rsi-check", "routes/admin-rsi-check.ts"),
   route("admin/audit", "routes/admin-audit.tsx"),
   route("admin/activity", "routes/admin-activity.tsx"),
+  route("admin/lifecycle", "routes/admin-lifecycle.tsx"),
 ] satisfies RouteConfig;
