@@ -34,7 +34,7 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A12", "영업 상태·추천 제외", "content", "상태 확인·제외 해제", "PARTIAL", "/admin/place-operations", "영업 상태 판정과 추천 제외 해제", "공개·폐업·추천 제외를 구분한 영향 확인"),
   control("A13", "방문·사진 검수", "review", "승인·보완·반려·공개 회수", "PARTIAL", "/admin/reviewer-visits", "현재 버전과 검수 항목을 확인하는 전환", "대기 기한과 삭제 대기·감사 연결"),
   control("A14", "사진 삭제", "privacy", "삭제 대상·처리 결과 확인", "NOT_IMPLEMENTED", null, "소유자 철회·탈퇴 경로 외 관리자 화면 없음", "공개 회수와 영구 삭제를 구분한 처리 확인"),
-  control("A15", "평가 설정", "review", "현재 규칙·버전 확인", "READ_ONLY", "/admin/ratings", "현재 활성 평가 설정 조회", "규칙 변경안 비교·승인·버전 활성화 절차"),
+  control("A15", "평가 설정", "review", "현재 규칙·버전 확인", "READ_ONLY", "/admin/rating-config", "점수 실효값·DB 소비 차이와 합성 표본 비교", "정책 승인과 날짜·버전 일관성 보완 후 활성화 검토"),
   control("A16", "평가 작업", "review", "재계산 접수·완료·실패 확인", "PARTIAL", "/admin/ratings", "정확한 작업 상태·실행 기한·대기 취소·제한 재시도와 결과 재조회", "실제 운영 조치·다른 종류의 작업과 운영 증거 연결"),
   control("A17", "조작 사건", "review", "검토·확정·표 무효화", "PARTIAL", "/admin/ratings", "대상 사건·투표 결속, 최근 인증·미리보기·동시 변경 검사·감사", "통합 감사 조회와 사건별 상세 이력"),
   control("A18", "임시 이용·개인화", "privacy", "승계 실패 상태 확인", "NOT_IMPLEMENTED", null, "개인 선택 경로 외 관리자 화면 없음", "세션 원문 없이 승계 상태·처리 시각 조회"),

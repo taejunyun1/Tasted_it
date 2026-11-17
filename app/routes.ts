@@ -51,6 +51,7 @@ export default [
   route("admin/jobs/parking", "routes/admin-parking-jobs.tsx"),
   route("admin/reviewers", "routes/admin-reviewers.tsx"),
   route("admin/ratings", "routes/admin-ratings.tsx"),
+  route("admin/rating-config", "routes/admin-rating-config.tsx"),
   route("admin/reviewer-visits", "routes/admin-reviewer-visits.tsx"),
   route("admin/place-operations", "routes/admin-place-operations.tsx"),
   route("admin/operations", "routes/admin-operations.tsx"),

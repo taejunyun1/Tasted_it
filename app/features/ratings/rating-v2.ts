@@ -1,6 +1,18 @@
 export const RATING_V2_VERSION = "rating-v2.0" as const;
-const MIN_VISIBLE_SAMPLES = 8;
-const REVIEWER_MAX_SHARE = 0.3;
+
+export type RatingV2Policy = Readonly<{
+  minimumVisibleSamples: number;
+  alphaPrior: number;
+  betaPrior: number;
+  reviewerMaxShare: number;
+}>;
+
+export const RATING_V2_POLICY: RatingV2Policy = Object.freeze({
+  minimumVisibleSamples: 8,
+  alphaPrior: 2,
+  betaPrior: 2,
+  reviewerMaxShare: 0.3,
+});
 
 type VoteValue = -1 | 1;
 
@@ -41,12 +53,12 @@ function assertWeight(value: number) {
   if (!Number.isFinite(value) || value < 0) throw new Error("INVALID_WEIGHT");
 }
 
-function scoreGroup(votes: Array<{ value: VoteValue; weight: number }>): RatingGroupResult {
+function scoreGroup(votes: Array<{ value: VoteValue; weight: number }>, policy: RatingV2Policy): RatingGroupResult {
   const positive = votes.filter((vote) => vote.value === 1).length;
   const negative = votes.length - positive;
   const positiveWeight = votes.reduce((sum, vote) => sum + (vote.value === 1 ? vote.weight : 0), 0);
   const negativeWeight = votes.reduce((sum, vote) => sum + (vote.value === -1 ? vote.weight : 0), 0);
-  const visible = votes.length >= MIN_VISIBLE_SAMPLES;
+  const visible = votes.length >= policy.minimumVisibleSamples;
   return {
     positive,
     negative,
@@ -55,7 +67,7 @@ function scoreGroup(votes: Array<{ value: VoteValue; weight: number }>): RatingG
     sampleCount: votes.length,
     sampleStatus: visible ? "VISIBLE" : "INSUFFICIENT",
     displayScore: visible
-      ? Math.round(((2 + positiveWeight) / (4 + positiveWeight + negativeWeight)) * 100)
+      ? Math.round(((policy.alphaPrior + positiveWeight) / (policy.alphaPrior + policy.betaPrior + positiveWeight + negativeWeight)) * 100)
       : null,
   };
 }
@@ -77,10 +89,21 @@ export function calculateReviewerReliability(input: { eligible: number; correct:
   };
 }
 
-export function calculateRatingV2(input: {
+type RatingV2Input = {
   userVotes: VoteValue[];
   reviewerVotes: ReviewerWeightedVote[];
-}): RatingV2Result {
+};
+
+export function calculateRatingV2(input: RatingV2Input): RatingV2Result {
+  return calculateWithPolicy(input, RATING_V2_POLICY);
+}
+
+/** Pure simulation only. Production calculations always use calculateRatingV2. */
+export function simulateRatingV2Policy(input: RatingV2Input, policy: RatingV2Policy): RatingV2Result {
+  return calculateWithPolicy(input, policy);
+}
+
+function calculateWithPolicy(input: RatingV2Input, policy: RatingV2Policy): RatingV2Result {
   input.userVotes.forEach(assertVote);
   input.reviewerVotes.forEach((vote) => {
     assertVote(vote.value);
@@ -96,7 +119,7 @@ export function calculateRatingV2(input: {
   const rawReviewerWeight = reviewerRaw.reduce((sum, vote) => sum + vote.weight, 0);
   const userWeight = userWeighted.length;
   const reviewerCap = userWeight > 0
-    ? (REVIEWER_MAX_SHARE / (1 - REVIEWER_MAX_SHARE)) * userWeight
+    ? (policy.reviewerMaxShare / (1 - policy.reviewerMaxShare)) * userWeight
     : rawReviewerWeight;
   const reviewerScale = rawReviewerWeight > 0 ? Math.min(1, reviewerCap / rawReviewerWeight) : 1;
   const reviewerCombined = reviewerRaw.map((vote) => ({ ...vote, weight: vote.weight * reviewerScale }));
@@ -105,14 +128,18 @@ export function calculateRatingV2(input: {
 
   return {
     algorithmVersion: RATING_V2_VERSION,
-    overall: scoreGroup([...userWeighted, ...reviewerCombined]),
-    users: scoreGroup(userWeighted),
+    overall: scoreGroup([...userWeighted, ...reviewerCombined], policy),
+    users: scoreGroup(userWeighted, policy),
     reviewers: {
-      ...scoreGroup(reviewerRaw),
+      ...scoreGroup(reviewerRaw, policy),
       rawEffectiveWeight: rawReviewerWeight,
       combinedEffectiveWeight: combinedReviewerWeight,
     },
     reviewerWeightShare: combinedWeight > 0 ? combinedReviewerWeight / combinedWeight : 0,
-    reasons: reviewerScale < 1 ? ["REVIEWER_WEIGHT_CAPPED_30_PERCENT"] : [],
+    reasons: reviewerScale < 1
+      ? [policy.reviewerMaxShare === RATING_V2_POLICY.reviewerMaxShare
+        ? "REVIEWER_WEIGHT_CAPPED_30_PERCENT"
+        : "REVIEWER_WEIGHT_CAPPED_SIMULATION"]
+      : [],
   };
 }
