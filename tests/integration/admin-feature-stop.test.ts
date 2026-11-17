@@ -3,6 +3,8 @@ import { beforeEach,expect,it,vi } from "vitest";
 import * as automaticReview from "../../app/features/places/place-review-auto-pipeline.server";
 import { runScheduledCandidateSync } from "../../app/features/candidates/scheduled-sync.server";
 import { commitFeatureFlagChange,isAutoReviewEnabled,prepareFeatureFlagChange,readAutoReviewControl } from "../../app/features/operations/admin-feature-stop.server";
+import { parseActivityQuery } from "../../app/features/operations/admin-activity";
+import { readAdminActivity } from "../../app/features/operations/admin-activity.server";
 
 beforeEach(async()=>{await env.DB.prepare("UPDATE admin_feature_stops SET stopped=0,version=0,updated_at=?,updated_by=NULL").bind(new Date().toISOString()).run();});
 async function operator(){
@@ -22,6 +24,9 @@ it("requires recent authentication and applies the stop only once across receipt
  expect((await commitFeatureFlagChange(env.DB,{...o,operationId:p.operationId},"true")).replayed).toBe(true);
  expect(await isAutoReviewEnabled(env.DB,"true")).toBe(false);
  expect((await env.DB.prepare("SELECT COUNT(*) n FROM admin_audit_logs WHERE target_id=? AND action='ADMIN_OPERATION_COMMITTED'").bind(p.operationId).first<{n:number}>())?.n).toBe(1);
+ const activity=await readAdminActivity(env.DB,parseActivityQuery(new URLSearchParams({view:"operations",kind:"FEATURE_FLAG_CONTROL",operation:p.operationId}),o.now),o.now);
+ expect(activity.detail).toMatchObject({title:"자동 검수 중단·해제",auditLinked:true,state:"COMMITTED"});
+ expect(JSON.stringify(activity)).not.toContain("자동 검수 중단 확인");
 });
 it("restores only the current environment baseline and rejects changed previews",async()=>{
  const o=await operator();await assure(o);
