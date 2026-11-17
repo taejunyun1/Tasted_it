@@ -9,7 +9,7 @@ test("provider usage separates estimates, reservations and unmeasured costs", as
   const prefix = `qa-provider-${testInfo.project.name}`;
   localD1(`DELETE FROM provider_call_attempts; DELETE FROM provider_daily_quotas;
     INSERT INTO provider_daily_quotas(provider,utc_day,baseline_at,baseline_source,cutover_state,is_cutover_anchor,cutover_verified_at,ready_after_utc_day,cutover_receipt_ref,created_at,updated_at)
-    VALUES('NAVER_LOCAL_SEARCH','${yesterday}','${now}','EMPTY_NEW_DAY','READY',1,'${now}','${today}','synthetic-e2e','${now}','${now}');
+    VALUES('NAVER_LOCAL_SEARCH','${yesterday}','${now}','EMPTY_NEW_DAY','READY',1,'${yesterday}T00:00:00.000Z','${today}','synthetic-e2e','${now}','${now}');
     INSERT INTO provider_daily_quotas(provider,utc_day,legacy_total,legacy_gwangju,legacy_jeonnam,reserved_total,reserved_gwangju,reserved_jeonnam,baseline_at,baseline_source,cutover_state,created_at,updated_at)
     VALUES('NAVER_LOCAL_SEARCH','${today}',4,3,2,3,2,1,'${now}','LEGACY_RUN_ESTIMATE','READY','${now}','${now}');
     INSERT INTO provider_call_attempts(id,provider,utc_day,region_code,source,reserved_at,dispatch_started_at,finished_at,outcome)
@@ -30,7 +30,7 @@ test("provider usage separates estimates, reservations and unmeasured costs", as
     await expect(global.getByText("3회", { exact: true })).toBeVisible();
     await expect(global.getByText("7회", { exact: true })).toBeVisible();
     await expect(page.getByRole("region", { name: "NAVER 지역검색" })).toContainText("결과 불명");
-    await expect(page.getByText("실제 HTTP 호출 수 미측정", { exact: false })).toHaveCount(2);
+    await expect(page.getByText("청구 금액 확인 안 됨", { exact: false })).toHaveCount(3);
     await expect(page.getByText("일반 서비스의 공급자 실행 경로 없음", { exact: false })).toBeVisible();
     await expect(page.locator("main form[method='post']")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

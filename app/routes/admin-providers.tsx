@@ -32,7 +32,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const parkingFields = { status: parkingSyncRuns.status, records: parkingSyncRuns.fetchedCount, nextPage: parkingSyncRuns.nextPage, updatedAt: parkingSyncRuns.updatedAt };
   const [usage, publicRuns, parkingRuns, evRuns] = await Promise.all([
     readProviderUsage(env.DB, { now, env }),
-    db.select({ status: publicDataSyncRuns.status, records: publicDataSyncRuns.fetchedCount, nextPage: publicDataSyncRuns.nextPage, updatedAt: publicDataSyncRuns.updatedAt })
+    db.select({ status: publicDataSyncRuns.status, records: publicDataSyncRuns.fetchedCount, nextPage: publicDataSyncRuns.nextPage, updatedAt: publicDataSyncRuns.updatedAt, attempts: publicDataSyncRuns.attempts, requests: publicDataSyncRuns.requestCount })
       .from(publicDataSyncRuns).orderBy(desc(publicDataSyncRuns.updatedAt), desc(publicDataSyncRuns.id)).limit(1),
     db.select(parkingFields).from(parkingSyncRuns).where(eq(parkingSyncRuns.source, "PARKING"))
       .orderBy(desc(parkingSyncRuns.updatedAt), desc(parkingSyncRuns.id)).limit(1),
@@ -42,7 +42,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   return data({ utcDay: usage.utcDay, queriedAt: usage.queriedAt, naver: usage.naver, other: {
     publicDataConfigured: Boolean(env.DATA_GO_KR_SERVICE_KEY?.trim()),
     mailConfigured: Boolean(env.RESEND_API_KEY?.trim() && env.RESEND_FROM_EMAIL?.trim()),
-    publicRun: publicRuns[0] ?? null, parkingRun: parkingRuns[0] ?? null, evRun: evRuns[0] ?? null,
+    publicRun: publicRuns[0] ? { status: publicRuns[0].status, records: publicRuns[0].records, nextPage: publicRuns[0].nextPage, updatedAt: publicRuns[0].updatedAt,
+      requests: publicRuns[0].attempts > 0 || publicRuns[0].requests > 0 ? publicRuns[0].requests : null } : null, parkingRun: parkingRuns[0] ?? null, evRun: evRuns[0] ?? null,
   } }, { headers: PRIVATE });
 }
 
@@ -62,9 +63,9 @@ function time(value: string | null) {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "medium" }).format(date) : "미확인";
 }
-type RunSummary = { status: string; records: number; nextPage: number; updatedAt: string } | null;
+type RunSummary = { status: string; records: number; nextPage: number; updatedAt: string; requests?: number | null } | null;
 function RecentRun({ run }: { run: RunSummary }) {
-  return run ? <p>최근 작업의 저장 상태 {run.status} · 누적 수집 {number(run.records)}개 레코드 · 다음 {run.nextPage}쪽<br/>갱신 {time(run.updatedAt)} (KST)</p> : <p>작업 기록 없음 · 실제 호출 수 미측정</p>;
+  return run ? <p>최근 작업의 저장 상태 {run.status} · 누적 수집 {number(run.records)}개 레코드 · 다음 {run.nextPage}쪽<br/>갱신 {time(run.updatedAt)} (KST)<br/>HTTP 전송 시도 {run.requests == null ? "미측정" : `${number(run.requests)}회 · B10 이후 기록만, 과거 호출 제외`}</p> : <p>작업 기록 없음 · 실제 호출 수 미측정</p>;
 }
 
 export default function AdminProviders({ loaderData: state }: Route.ComponentProps) {
@@ -110,7 +111,7 @@ export default function AdminProviders({ loaderData: state }: Route.ComponentPro
     </section>
     <section className="admin-activity__detail" aria-labelledby="other-providers-title">
       <h2 id="other-providers-title">다른 공급자의 측정 범위</h2>
-      <article><h3>공공 인허가 데이터</h3><p>자격정보 {state.other.publicDataConfigured ? "구성 있음" : "구성 없음"} · 실제 HTTP 호출 수 미측정 · 청구 금액 확인 안 됨</p><RecentRun run={state.other.publicRun}/><p>레코드 수·페이지는 호출 수가 아닙니다. 기존 기본 한 번에 최대 5페이지 범위를 유지합니다.</p></article>
+      <article><h3>공공 인허가 데이터</h3><p>자격정보 {state.other.publicDataConfigured ? "구성 있음" : "구성 없음"} · 과거 HTTP 호출 수 미측정 · 청구 금액 확인 안 됨</p><RecentRun run={state.other.publicRun}/><p>레코드 수·페이지는 호출 수가 아닙니다. 기존 기본 한 번에 최대 5페이지 범위를 유지합니다.</p></article>
       <article><h3>주차·전기차 충전 데이터</h3><p>자격정보 {state.other.publicDataConfigured ? "구성 있음" : "구성 없음"} · 실제 HTTP 호출 수 미측정 · 청구 금액 확인 안 됨</p><h4>주차</h4><RecentRun run={state.other.parkingRun}/><h4>전기차 충전</h4><RecentRun run={state.other.evRun}/><p>주차 정기 작업은 회당 최대 3페이지, 완료 기준 90일 주기를 사용합니다. EV는 지역별 응답 완전성 검사를 통과해야 반영됩니다.</p></article>
       <article><h3>AI</h3><p>일반 서비스의 공급자 실행 경로 없음 · 사용량 측정 없음 · 청구 금액 확인 안 됨</p><p>개발·실험용 기록을 서비스 사용량으로 합산하지 않습니다.</p></article>
       <article><h3>메일</h3><p>발신 설정 {state.other.mailConfigured ? "구성 있음" : "구성 없음"} · 도메인 검증 상태 미조회 · 발신 결과 미조회</p><p>지정 도메인의 검증과 결과 조회는 후속 작업입니다. 이 화면은 메일을 발송하지 않습니다.</p></article>

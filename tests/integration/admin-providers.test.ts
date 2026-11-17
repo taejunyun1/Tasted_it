@@ -39,7 +39,11 @@ describe("read-only provider dashboard", () => {
     const before = await env.DB.prepare("SELECT count(*) AS count FROM provider_call_attempts").first();
     const response = await loader({ request: request(admin) } as never);
     expect(response.init?.headers).toMatchObject({ "Cache-Control": "private, no-store", Vary: "Cookie" });
-    expect(response.data.other.publicRun).toMatchObject({ records: 123, nextPage: 2, status: "FAILED" });
+    expect(response.data.other.publicRun).toMatchObject({ records: 123, nextPage: 2, status: "FAILED", requests: null });
+    await env.DB.prepare("UPDATE public_data_sync_runs SET attempts=1,request_count=3 WHERE id='private-run-id'").run();
+    const measured = await loader({ request: request(admin) } as never);
+    expect(measured.data.other.publicRun).toMatchObject({ requests: 3 });
+    expect(measured.data.other.parkingRun).toBeNull();
     expect(response.data.naver.configured).toBeTypeOf("boolean");
     expect(response.data.naver.configValid).toBeTypeOf("boolean");
     expect(response.data.utcDay).toMatch(/^\d{4}-\d{2}-\d{2}$/);
