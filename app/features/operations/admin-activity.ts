@@ -11,6 +11,8 @@ export const ACTIVITY_KINDS = {
   REVIEWER_ADMIN_CHANGE: "리뷰어 관리", STUDENT_ADMIN_CHANGE: "학생 관리", PLACE_ADMIN_CHANGE: "장소 공개·병합·회수",
   PUBLIC_SYNC_CONTROL: "공공 인허가 동기화",
   EMAIL_DOMAIN_CONTROL: "메일 도메인 요청",
+  PHOTO_CLEANUP_RETRY: "본인 사진 삭제 재시도",
+  PRIVACY_REQUEST_UPDATE: "개인정보 요청 처리 기록",
 } as const;
 export type ActivityKind = keyof typeof ACTIVITY_KINDS;
 export type ActivityView = "audit" | "operations";

@@ -7,6 +7,8 @@ export const ADMIN_OPERATION_POLICY = {
   FEATURE_FLAG_CONTROL: { maxCount: 1, recentAuth: true },
   OPERATIONAL_ALERT_RESOLVE: { maxCount: 1, recentAuth: true },
   EMAIL_DOMAIN_CONTROL: { maxCount: 1, recentAuth: true },
+  PHOTO_CLEANUP_RETRY: { maxCount: 1, recentAuth: true },
+  PRIVACY_REQUEST_UPDATE: { maxCount: 1, recentAuth: true },
   PUBLIC_SYNC_CONTROL: { maxCount: 1, recentAuth: true },
   CSV_IMPORT: { maxCount: 200, recentAuth: true },
   RATING_RECOMPUTE: { maxCount: 1, recentAuth: false },

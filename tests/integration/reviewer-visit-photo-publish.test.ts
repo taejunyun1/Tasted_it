@@ -439,3 +439,33 @@ it("checks the current reviewer role before any object write or cleanup plan",as
   expect(put).not.toHaveBeenCalled();
   expect(await env.DB.prepare("SELECT count(*) n FROM reviewer_photo_cleanup_jobs WHERE review_id=?").bind(reviewId).first()).toEqual({n:0});
 });
+
+it("does not commit photo references after the orphan cleanup has claimed and removed the upload", async () => {
+  const db = createDb(env.DB), reviewId = "cleanup-claimed-before-publish", photoId = "cleanup-claimed-photo";
+  const store = {
+    put: async (key: string, bytes: Uint8Array, options: { httpMetadata: { contentType: "image/jpeg" } }) => {
+      await env.REVIEW_PHOTOS.put(key, bytes, options);
+      expect(await recoverPendingReviewerPhotoCleanup(db, env.REVIEW_PHOTOS, { now: "2026-08-13T01:00:00.000Z" })).toEqual({ deleted: 1, pending: 0, failed: 0 });
+    },
+    delete: (keys: string | string[]) => env.REVIEW_PHOTOS.delete(keys),
+  };
+  await expect(publishReviewerVisitWithPhotos(db, store, { ...reviewInput({ id: reviewId }), photos: [photo(photoId)] })).rejects.toThrow();
+  expect(await env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).toBeNull();
+  expect(await env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id=?").bind(reviewId).first()).toBeNull();
+  expect(await env.DB.prepare("SELECT count(*) AS n FROM reviewer_photo_cleanup_guards").first()).toEqual({ n: 0 });
+});
+
+it("recovers a late PUT that stores the object after cron removed the original orphan plan", async () => {
+  const db = createDb(env.DB), reviewId = "late-put-after-cleanup", photoId = "late-photo";
+  const store = {
+    put: async (key: string, bytes: Uint8Array, options: { httpMetadata: { contentType: "image/jpeg" } }) => {
+      expect(await recoverPendingReviewerPhotoCleanup(db, env.REVIEW_PHOTOS, { now: "2026-08-13T01:00:00.000Z" })).toEqual({ deleted: 1, pending: 0, failed: 0 });
+      await env.REVIEW_PHOTOS.put(key, bytes, options);
+    },
+    delete: (keys: string | string[]) => env.REVIEW_PHOTOS.delete(keys),
+  };
+  await expect(publishReviewerVisitWithPhotos(db, store, { ...reviewInput({ id: reviewId }), photos: [photo(photoId)] })).rejects.toThrow();
+  expect(await env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(reviewId, photoId))).toBeNull();
+  expect(await env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE id=?").bind(reviewId).first()).toBeNull();
+  expect(await env.DB.prepare("SELECT review_id FROM reviewer_photo_cleanup_jobs WHERE review_id=?").bind(reviewId).first()).toBeNull();
+});

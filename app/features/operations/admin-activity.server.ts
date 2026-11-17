@@ -87,6 +87,18 @@ async function readDetail(database: D1Database, operationId: string, now: string
     addCount("appliedCount", "반영 건수");
     addCount("skippedCount", "미리보기 제외 건수");
   }
+  if (kind === "PHOTO_CLEANUP_RETRY") {
+    await addRef("reviewId", "삭제 계획 참조");
+    addCount("count", "계획 대상 수");
+    addCount("revision", "검토 계획 버전");
+    fields.push({ label: "처리 범위", value: "기존 본인 삭제 계획의 재시도 접수 · 삭제 완료 아님" });
+  }
+  if (kind === "PRIVACY_REQUEST_UPDATE") {
+    await addRef("requestId", "요청 참조");
+    const decisions = { REVIEW_STARTED: "검토 시작", POLICY_UNRESOLVED: "정책 확인 대기", SELF_SERVICE_GUIDANCE: "기존 경로 안내 기록" };
+    if (typeof result?.decision === "string" && Object.hasOwn(decisions, result.decision)) fields.push({ label: "기록한 처리", value: decisions[result.decision as keyof typeof decisions] });
+    fields.push({ label: "처리 범위", value: "요청 처리 기록만 변경 · 개인정보 열람/정정/삭제 완료 아님" });
+  }
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
   if (kind === "EMAIL_DOMAIN_CONTROL" && linked && typeof result?.targetDomain === "string" && ["create", "verify"].includes(String(result.intent))) {
     const action = await database.prepare("SELECT state FROM email_domain_actions WHERE operation_id=? AND target_domain=? AND intent=?")
