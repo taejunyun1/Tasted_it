@@ -21,6 +21,15 @@ import {
   getPlaceVoteRevision,
 } from "./reviewer-publication.server";
 
+export const RATING_JOB_MAX_ATTEMPTS = 3;
+export const RATING_JOB_LEASE_MS = 10 * 60 * 1000;
+type RatingJobOwnership = { jobId: string; attempt: number };
+function jobFence(ownership?: RatingJobOwnership) {
+  return ownership
+    ? sql`exists(select 1 from rating_recompute_jobs where id=${ownership.jobId} and status='RUNNING' and attempts=${ownership.attempt} and lease_expires_at is not null)`
+    : sql`1`;
+}
+
 export async function markRatingStale(db: AppDb, placeId: string, now: string) {
   await db
     .update(ratingSnapshots)
@@ -76,7 +85,7 @@ export async function enqueueRatingRecompute(
     inArray(ratingRecomputeJobs.status, ["PENDING", "RUNNING"]),
   );
   const [, winners] = await db.batch([
-    db.insert(ratingRecomputeJobs).select(sql`SELECT ${job.id}, ${job.placeId}, ${job.configId}, 'PLACE', 'PENDING', ${job.reason}, 0, NULL, NULL, NULL, ${job.createdAt}, ${job.updatedAt}
+    db.insert(ratingRecomputeJobs).select(sql`SELECT ${job.id}, ${job.placeId}, ${job.configId}, 'PLACE', 'PENDING', ${job.reason}, 0, NULL, NULL, NULL, NULL, ${job.createdAt}, ${job.updatedAt}
       WHERE NOT EXISTS(SELECT 1 FROM rating_recompute_jobs WHERE place_id=${input.placeId} AND config_id=${config.id} AND status IN ('PENDING','RUNNING'))`).onConflictDoNothing(),
     db.select().from(ratingRecomputeJobs).where(or(eq(ratingRecomputeJobs.id, job.id), activeScope))
       .orderBy(desc(sql`${ratingRecomputeJobs.id}=${job.id}`)).limit(1),
@@ -99,7 +108,7 @@ async function sha256(value: string) {
 
 export async function recomputePlaceRating(
   db: AppDb,
-  input: { placeId: string; now: string; expectedConfigId?: string },
+  input: { placeId: string; now: string; expectedConfigId?: string; jobOwnership?: RatingJobOwnership },
 ) {
   // Capture before reading inputs. A concurrent change leaves this snapshot
   // bound to the old revision/epoch and public reads reject it.
@@ -219,11 +228,13 @@ export async function recomputePlaceRating(
     ),
   });
   if (existing) {
-    if (existing.isStale)
-      await db
-        .update(ratingSnapshots)
+    if (existing.isStale) {
+      const changed = await db.update(ratingSnapshots)
         .set({ isStale: false, updatedAt: input.now })
-        .where(eq(ratingSnapshots.id, existing.id));
+        .where(and(eq(ratingSnapshots.id, existing.id), jobFence(input.jobOwnership)))
+        .returning({ id: ratingSnapshots.id });
+      if (!changed.length) throw new Error("RATING_JOB_OWNERSHIP_LOST");
+    }
     return { ...existing, isStale: false };
   }
   const snapshot = {
@@ -251,13 +262,16 @@ export async function recomputePlaceRating(
     createdAt: input.now,
     updatedAt: input.now,
   };
-  await db.batch([
-    db
-      .update(ratingSnapshots)
-      .set({ isStale: true, updatedAt: input.now })
-      .where(eq(ratingSnapshots.placeId, input.placeId)),
-    db.insert(ratingSnapshots).values(snapshot),
+  // Both effects are fenced inside the same D1 transaction. A recovered
+  // worker can finish its computation, but cannot publish its old attempt.
+  const values = Object.values(snapshot).map((value) => sql`${typeof value === "boolean" ? Number(value) : value}`);
+  const [, inserted] = await db.batch([
+    db.update(ratingSnapshots).set({ isStale: true, updatedAt: input.now })
+      .where(and(eq(ratingSnapshots.placeId, input.placeId), jobFence(input.jobOwnership))),
+    db.insert(ratingSnapshots).select(sql`SELECT ${sql.join(values, sql`, `)} WHERE ${jobFence(input.jobOwnership)}`)
+      .returning({ id: ratingSnapshots.id }),
   ]);
+  if (!inserted.length) throw new Error("RATING_JOB_OWNERSHIP_LOST");
   return snapshot;
 }
 
@@ -296,10 +310,11 @@ export async function processRatingJob(
   if (!job) return existing;
   if (job.placeId !== input.placeId || job.configId !== input.configId)
     throw new Error("RATING_JOB_SCOPE_MISMATCH");
-  const retry = job.status === "FAILED" && input.retryFailedAtAttempt === job.attempts;
-  if (job.status !== "PENDING" && !retry) return existing;
+  const retry = job.status === "FAILED" && input.retryFailedAtAttempt === job.attempts && job.attempts < RATING_JOB_MAX_ATTEMPTS;
+  if ((job.status !== "PENDING" && !retry) || job.attempts >= RATING_JOB_MAX_ATTEMPTS) return existing;
   const [claimed] = await db.update(ratingRecomputeJobs).set({
     status: "RUNNING", attempts: job.attempts + 1, startedAt: input.now,
+    leaseExpiresAt: new Date(Date.parse(input.now) + RATING_JOB_LEASE_MS).toISOString(),
     finishedAt: null, errorSummary: null, updatedAt: input.now,
   }).where(and(
     eq(ratingRecomputeJobs.id, job.id),
@@ -316,13 +331,16 @@ export async function processRatingJob(
     if (!input.placeId || job.scope !== "PLACE") throw new Error("PLACE_JOB_MISSING_PLACE");
     await recomputePlaceRating(db, {
       placeId: input.placeId, now: input.now, expectedConfigId: job.configId,
+      jobOwnership: { jobId: job.id, attempt: claimed.attempts },
     });
     await db.update(ratingRecomputeJobs).set({
-      status: "COMPLETED", finishedAt: input.now, errorSummary: null, updatedAt: input.now,
+      status: "COMPLETED", finishedAt: input.now, leaseExpiresAt: null, errorSummary: null, updatedAt: input.now,
     }).where(ownedAttempt);
   } catch (error) {
+    if (error instanceof Error && error.message === "RATING_JOB_OWNERSHIP_LOST")
+      return { ...await getRatingJobResult(db, job.id), claimed: true };
     await db.update(ratingRecomputeJobs).set({
-      status: "FAILED", finishedAt: input.now, updatedAt: input.now,
+      status: "FAILED", finishedAt: input.now, leaseExpiresAt: null, updatedAt: input.now,
       errorSummary: error instanceof Error && error.message === "RATING_CONFIG_CHANGED"
         ? "RATING_CONFIG_CHANGED" : "RATING_RECOMPUTE_FAILED",
     }).where(ownedAttempt);

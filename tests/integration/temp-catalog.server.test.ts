@@ -13,7 +13,7 @@ async function fixture() {
   const key = crypto.randomUUID(), actorUserId = `admin-${key}`, sessionId = `session-${key}`;
   const photoHash = await sha256("synthetic image");
   await env.DB.prepare("INSERT INTO users(id,email,display_name,role,created_at,updated_at) VALUES(?,?,?,'ADMIN',?,?)").bind(actorUserId, `${key}@example.com`, "합성 관리자", now, now).run();
-  await env.DB.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES(?,?,?,?)").bind(sessionId, actorUserId, "2026-11-15T01:00:00.000Z", now).run();
+  await env.DB.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES(?,?,?,?)").bind(sessionId, actorUserId, "2099-01-01T00:00:00.000Z", now).run();
   const manifest: TempManifest = { schemaVersion: 1, sourceHash: TEMP_SOURCE_HASH, entries: Array.from({ length: 100 }, (_, i) => ({
     sourceId: `temp100-${String(i + 1).padStart(3, "0")}`, name: `합성 ${key} 식당 ${i}`, address: `광주 동구 합성길 ${i}`, region: "광주 동구", cuisine: "한식", summary: "합성 테스트용 독자 설명이며 실제 업소가 아닙니다.", sourceUrl: `https://tour.gwangju.go.kr/example?id=${i}`, sourceTitle: "공식 소개", checkedAt: now,
     evaluation: { kind: "OFFICIAL_CURATION", provider: "공식 관광", sourceUrl: `https://tour.gwangju.go.kr/example?id=${i}` },

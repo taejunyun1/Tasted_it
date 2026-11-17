@@ -86,11 +86,11 @@ async function readDetail(database: D1Database, operationId: string, now: string
     addCount("skippedCount", "미리보기 제외 건수");
   }
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
-  if (kind === "RATING_RECOMPUTE" && row.status === "COMMITTED") {
+  if ((kind === "RATING_RECOMPUTE" || kind === "RATING_JOB_CONTROL") && row.status === "COMMITTED") {
     const jobId = identifier(result?.jobId), placeId = identifier(result?.placeId), configId = identifier(result?.configId);
     const current = linked && jobId && placeId && configId ? await database.prepare(`SELECT status,finished_at FROM rating_recompute_jobs
       WHERE id=? AND place_id=? AND config_id=? AND scope='PLACE'`).bind(jobId, placeId, configId).first<{ status: string; finished_at: string | null }>() : null;
-    job = { reference: await reference(jobId), status: current && ["PENDING", "RUNNING", "COMPLETED", "FAILED"].includes(current.status) ? current.status : "UNKNOWN",
+    job = { reference: await reference(jobId), status: current && ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"].includes(current.status) ? current.status : "UNKNOWN",
       checkedAt: now, finishedAt: timestamp(current?.finished_at) };
   }
   return {
