@@ -26,6 +26,7 @@ export default [
   route("forgot-password", "routes/forgot-password.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
   route("me", "routes/me.tsx"),
+  route("me/privacy", "routes/privacy-requests.tsx"),
   route("student", "routes/student-index.tsx"),
   route("student/join", "routes/student-join.tsx"),
   route("student/tasks/:taskId", "routes/student-task.tsx"),
@@ -57,4 +58,5 @@ export default [
   route("admin/operations/rsi-check", "routes/admin-rsi-check.ts"),
   route("admin/audit", "routes/admin-audit.tsx"),
   route("admin/activity", "routes/admin-activity.tsx"),
+  route("admin/privacy", "routes/admin-privacy.tsx"),
 ] satisfies RouteConfig;

@@ -6,11 +6,12 @@ import {
   places,
   reviewerProfiles,
   reviewerPhotoCleanupJobs,
+  reviewerPhotoCleanupGuards,
   reviewerReviewTransitions,
   reviewerVisitPhotos,
   reviewerVisitReviews,
 } from "../../db/schema";
-import { cleanupUncommittedReviewerPhotoUpload } from "./reviewer-photo-deletion.server";
+import { cleanupUncommittedReviewerPhotoUpload, ensureUncommittedPhotoRecovery } from "./reviewer-photo-deletion.server";
 import { eligibleReviewCondition } from "./reviewer-publication.server";
 import {
   reviewCursorCondition,
@@ -287,8 +288,12 @@ async function publishReviewerVisitInternal(
       updatedAt: input.now,
     });
   });
+  const cleanupGuardId = cleanupJobReviewId ? crypto.randomUUID() : null;
   await db.batch([
     db.insert(reviewerVisitReviews).values(review),
+    ...(cleanupGuardId ? [db.insert(reviewerPhotoCleanupGuards).values({ id: cleanupGuardId,
+      passed: sql`case when exists(select 1 from reviewer_photo_cleanup_jobs where review_id=${cleanupJobReviewId} and purpose='ORPHAN' and status='PENDING' and attempt_count=0 and object_keys_json=${JSON.stringify(photoRows.map((photo) => photo.objectKey))}) then 1 else 0 end`,
+    })] : []),
     ...photos,
     reviewTransition(db, {
       review,
@@ -306,7 +311,8 @@ async function publishReviewerVisitInternal(
       ? [
           db
             .delete(reviewerPhotoCleanupJobs)
-            .where(eq(reviewerPhotoCleanupJobs.reviewId, cleanupJobReviewId)),
+            .where(and(eq(reviewerPhotoCleanupJobs.reviewId, cleanupJobReviewId), eq(reviewerPhotoCleanupJobs.purpose, "ORPHAN"), eq(reviewerPhotoCleanupJobs.status, "PENDING"), eq(reviewerPhotoCleanupJobs.attemptCount, 0))),
+          db.delete(reviewerPhotoCleanupGuards).where(eq(reviewerPhotoCleanupGuards.id, cleanupGuardId!)),
         ]
       : []),
   ]);
@@ -409,7 +415,8 @@ export async function publishReviewerVisitWithPhotos(
     ).catch(() => null);
     if (committed) return committed;
     try {
-      await cleanupUncommittedReviewerPhotoUpload(db, photoBucket, input.id);
+      await ensureUncommittedPhotoRecovery(db, { reviewId: input.id, objectKeys, now: input.now });
+      await cleanupUncommittedReviewerPhotoUpload(db, photoBucket, input.id, input.now);
     } catch {
       // Do not log keys, names, or user data. The job is the recovery source.
       console.error("REVIEW_PHOTO_COMPENSATION_PENDING", {

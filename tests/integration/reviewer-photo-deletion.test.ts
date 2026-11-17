@@ -67,8 +67,13 @@ beforeEach(async () => {
   ]);
 });
 
+async function authorizeOwnerDeletion() {
+  await env.DB.prepare("UPDATE users SET email='withdrawn.'||id||'@invalid.local' WHERE id=?").bind(reviewerUserId).run();
+}
+
 describe("reviewer photo deletion boundary", () => {
   it("deletes only one review's exact photo metadata and objects, and is idempotent", async () => {
+    await authorizeOwnerDeletion();
     const db = createDb(env.DB);
     await seedStoredVisit(db, env.REVIEW_PHOTOS, { ...reviewInput("delete-one-review"), photos: [photo("delete-one-photo")] });
     await seedStoredVisit(db, env.REVIEW_PHOTOS, { ...reviewInput("keep-one-review"), photos: [photo("keep-one-photo")] });
@@ -81,6 +86,7 @@ describe("reviewer photo deletion boundary", () => {
   });
 
   it("treats a missing object as deleted and then removes its exact metadata", async () => {
+    await authorizeOwnerDeletion();
     const db = createDb(env.DB);
     await seedStoredVisit(db, env.REVIEW_PHOTOS, { ...reviewInput("missing-object-review"), photos: [photo("missing-object-photo")] });
     await env.REVIEW_PHOTOS.delete(getReviewerPhotoObjectKey("missing-object-review", "missing-object-photo"));
@@ -90,6 +96,7 @@ describe("reviewer photo deletion boundary", () => {
   });
 
   it("does not delete metadata after a partial object delete failure, so retry can recover", async () => {
+    await authorizeOwnerDeletion();
     const db = createDb(env.DB);
     await seedStoredVisit(db, env.REVIEW_PHOTOS, {
       ...reviewInput("retry-review"),
@@ -109,6 +116,7 @@ describe("reviewer photo deletion boundary", () => {
   });
 
   it("deletes a reviewer's rows in bounded pages without bucket listing or touching another reviewer", async () => {
+    await authorizeOwnerDeletion();
     const db = createDb(env.DB);
     const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
     const photos = Array.from({ length: 101 }, (_, index) => ({
@@ -151,6 +159,7 @@ describe("reviewer photo deletion boundary", () => {
     await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey("other-review", "other-photo"))).resolves.toBeTruthy();
   });
   it("keeps a durable DELETE plan after failure and retries even while the review still exists", async () => {
+    await authorizeOwnerDeletion();
     const db=createDb(env.DB);
     await seedStoredVisit(db,env.REVIEW_PHOTOS,{...reviewInput('durable-delete-review'),photos:[photo('durable-delete-photo')]});
     await enqueueReviewerPhotoDeletion(db,{reviewId:'durable-delete-review',now});

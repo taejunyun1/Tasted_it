@@ -775,10 +775,30 @@ export const reviewerPhotoCleanupJobs = sqliteTable(
     objectKeysJson: text("object_keys_json").notNull(),
     nextAttemptAt: text("next_attempt_at").notNull(),
     attemptCount: integer("attempt_count").notNull().default(0),
+    revision: integer("revision").notNull().default(1),
+    status: text("status", { enum: ["PENDING", "RUNNING", "FAILED"] }).notNull().default("PENDING"),
+    leaseId: text("lease_id"),
+    leaseExpiresAt: text("lease_expires_at"),
+    lastError: text("last_error"),
     ...timestamps,
   },
   (table) => [index("reviewer_photo_cleanup_due_idx").on(table.nextAttemptAt, table.createdAt)],
 );
+
+export const reviewerPhotoCleanupGuards = sqliteTable("reviewer_photo_cleanup_guards", {
+  id: text("id").primaryKey(), passed: integer("passed").notNull(),
+});
+
+export const privacyRequests = sqliteTable("privacy_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  kind: text("kind", { enum: ["ACCESS", "CORRECTION", "DELETION", "RESTRICTION"] }).notNull(),
+  status: text("status", { enum: ["RECEIVED", "REVIEWING", "POLICY_HOLD", "GUIDANCE_RECORDED"] }).notNull().default("RECEIVED"),
+  revision: integer("revision").notNull().default(1),
+  decisionCode: text("decision_code", { enum: ["REVIEW_STARTED", "POLICY_UNRESOLVED", "SELF_SERVICE_GUIDANCE"] }),
+  decidedBy: text("decided_by").references(() => users.id, { onDelete: "restrict" }),
+  receivedAt: text("received_at").notNull(), updatedAt: text("updated_at").notNull(),
+}, (table) => [index("privacy_request_updated_idx").on(table.updatedAt, table.id)]);
 
 export const rateLimitWindows = sqliteTable(
   "rate_limit_windows",

@@ -4,6 +4,8 @@ import { createDb } from "../../db/client.server";
 
 export type AdminJson = null | boolean | number | string | AdminJson[] | { [key: string]: AdminJson };
 export const ADMIN_OPERATION_POLICY = {
+  PHOTO_CLEANUP_RETRY: { maxCount: 1, recentAuth: true },
+  PRIVACY_REQUEST_UPDATE: { maxCount: 1, recentAuth: true },
   PUBLIC_SYNC_CONTROL: { maxCount: 1, recentAuth: true },
   CSV_IMPORT: { maxCount: 200, recentAuth: true },
   RATING_RECOMPUTE: { maxCount: 1, recentAuth: false },
