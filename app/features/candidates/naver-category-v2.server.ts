@@ -38,9 +38,9 @@ async function searchWithOneRetry(
   input: { businessName: string; address: string; regionCode: "GWANGJU" | "JEONNAM" },
 ) {
   try {
-    return await adapter.search(input);
+    return await adapter.search(input, { source: "CATEGORY_V2" });
   } catch (error) {
     if (!(error instanceof NaverLocalSearchError) || !error.retryable) throw error;
-    return adapter.search(input);
+    return adapter.search(input, { source: "CATEGORY_V2" });
   }
 }

@@ -1242,3 +1242,17 @@ export const reviewerReviewTransitions = sqliteTable("reviewer_review_transition
   ruleVersion: text("rule_version").notNull(),
   createdAt: text("created_at").notNull(),
 }, (table) => [uniqueIndex("reviewer_review_transition_version_uidx").on(table.reviewId, table.toVersion)]);
+
+export const providerDailyQuotas = sqliteTable("provider_daily_quotas", {
+  provider: text("provider").notNull(), utcDay: text("utc_day").notNull(),
+  legacyTotal: integer("legacy_total").notNull().default(0), legacyGwangju: integer("legacy_gwangju").notNull().default(0), legacyJeonnam: integer("legacy_jeonnam").notNull().default(0),
+  reservedTotal: integer("reserved_total").notNull().default(0), reservedGwangju: integer("reserved_gwangju").notNull().default(0), reservedJeonnam: integer("reserved_jeonnam").notNull().default(0),
+  baselineAt: text("baseline_at").notNull(), baselineSource: text("baseline_source").notNull(), cutoverState: text("cutover_state").notNull(),
+  isCutoverAnchor: integer("is_cutover_anchor", { mode: "boolean" }).notNull().default(false), cutoverVerifiedAt: text("cutover_verified_at"), readyAfterUtcDay: text("ready_after_utc_day"), cutoverReceiptRef: text("cutover_receipt_ref"),
+  lastReservationId: text("last_reservation_id"), ...timestamps,
+}, (table) => [primaryKey({ columns: [table.provider, table.utcDay] })]);
+export const providerCallAttempts = sqliteTable("provider_call_attempts", {
+  id: text("id").primaryKey(), provider: text("provider").notNull(), utcDay: text("utc_day").notNull(), regionCode: text("region_code").notNull(), source: text("source").notNull(),
+  runId: text("run_id").references(() => naverLocalCategoryRuns.id, { onDelete: "restrict" }), reservedAt: text("reserved_at").notNull(), dispatchStartedAt: text("dispatch_started_at"), finishedAt: text("finished_at"),
+  outcome: text("outcome", { enum: ["PENDING", "SUCCEEDED", "FAILED", "UNKNOWN"] }).notNull().default("PENDING"), failureCode: text("failure_code"),
+}, (table) => [index("provider_attempts_day_region_idx").on(table.provider, table.utcDay, table.regionCode), index("provider_attempts_run_idx").on(table.runId)]);

@@ -43,8 +43,8 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A21", "원장 정합성", "privacy", "읽기 감사·누락 탐색", "READ_ONLY", "/admin/audit", "조회 상한과 불완전 결과를 표시하는 감사", "실행 간 비교와 발견 사항 처리 추적"),
   control("A22", "관리자 감사", "privacy", "변경 주체·대상·결과 확인", "PARTIAL", "/admin/activity", "50건 cursor 감사·영수증 조회, 작업별 연결과 재계산 상태 확인", "추가 도메인 이력 연결과 제한된 내보내기 검토"),
   control("A23", "공공데이터", "operations", "수집·진행·실패·재개", "PARTIAL", "/admin/data-sync", "인허가 수집 미리보기·재인증·페이지 원자 처리·중단 및 제한 재개", "외부 호출의 실측과 별도 검증 작업의 사용량 연결"),
-  control("A24", "NAVER·지도", "operations", "사용량·검증·좌표 확인", "PARTIAL", "/admin/place-operations", "지역별 예산·사용량과 장소 검증", "실측·추정 구분과 동시 호출 한도 보완"),
-  control("A25", "AI·부가 공급자", "operations", "호출·비용·실패 관측", "NOT_IMPLEMENTED", null, "통합 공급자 비용 관리 화면 없음", "비밀값 없이 규칙·건수·추정·실측 조회"),
+  control("A24", "NAVER·지도", "operations", "사용량·검증·좌표 확인", "PARTIAL", "/admin/providers", "서버 지역검색의 기존 추정·새 예약·응답 결과와 적용 한도 조회", "브라우저 지도·별도 좌표 검색 측정은 원장 범위 밖"),
+  control("A25", "AI·부가 공급자", "operations", "호출·비용·실패 관측", "READ_ONLY", "/admin/providers", "구성 여부와 공급자별 측정 범위 조회", "AI 서비스 실행 경로·청구 금액은 미측정"),
   control("A26", "주차·EV·코스", "operations", "신선도·동기화 확인", "PARTIAL", "/admin/jobs/parking", "주차·EV 작업 상태·현재 사용 자료·취소·제한 재시도 조회", "실제 수집 결과 검증과 코스 운영 연결"),
   control("A27", "기능·긴급 중단", "operations", "설정 조회·중단·재활성화", "NOT_IMPLEMENTED", null, "환경 설정은 지정 운영 절차로 관리", "허용된 설정의 기대값·실효값·복구 기록 조회"),
   control("A28", "정기·수동 작업", "operations", "진행·취소·회복", "PARTIAL", "/admin/operations", "일부 실행 처리량·실패 집계", "개별 작업 상태와 실행·취소 결과 연결"),
@@ -53,7 +53,7 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A31", "백업·복구", "recovery", "백업 확인·복원 검증", "NOT_IMPLEMENTED", null, "지정 운영 절차로 관리, 앱 내 복구 화면 없음", "백업 무결성과 격리 복구 검증 증거 연결"),
   control("A32", "배포·환경", "recovery", "승인·배포·복구 추적", "NOT_IMPLEMENTED", null, "PR과 지정 운영 도구로 배포", "배포 버전·환경·라이브 점검 결과 연결"),
   control("A33", "서비스 문안·신고", "content", "문안 검토·문의 접수", "PARTIAL", "/admin/place-operations", "제안·정정 처리, 법적 문안은 코드 검토로 변경", "문안 버전·검토자·시행일과 문의 처리 연결"),
-  control("A34", "메일 도메인", "operations", "지정 발신 도메인 확인", "PARTIAL", null, "보호된 단일 도메인 경로, 전용 관리 화면 없음", "도메인 검증과 실제 발신 성공을 구분해 확인"),
+  control("A34", "메일 도메인", "operations", "지정 발신 도메인 확인", "PARTIAL", "/admin/providers", "발신 설정 구성 여부만 조회", "도메인 검증·실제 발신 결과 조회는 후속 작업"),
 ];
 
 export function parseAdminControlArea(value: string | null): AdminControlFilter {

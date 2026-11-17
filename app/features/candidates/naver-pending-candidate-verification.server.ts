@@ -1,3 +1,4 @@
+import { countNaverDispatches } from "../operations/provider-usage.server";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
@@ -95,7 +96,7 @@ function immediatelyStop(error: unknown) {
   const code = safeFailureCode(error);
   return code === "NAVER_LOCAL_SEARCH_DISABLED"
     || code === "NAVER_LOCAL_SEARCH_QUOTA"
-    || code === "NAVER_LOCAL_SEARCH_REJECTED";
+    || code === "NAVER_LOCAL_SEARCH_REJECTED" || code === "NAVER_ACCOUNTING_UNAVAILABLE";
 }
 
 async function upsertVerification(db: AppDb, input: {
@@ -180,19 +181,19 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
         match = { status: "SKIPPED", mappedCategorySlug: null, matchScore: 0, specificityScore: 0, confidenceScore: 0, evidenceCodes: [] };
         failureCode = "NAVER_LOCAL_SEARCH_DISABLED";
       } else {
-        assertNaverRegionQuota({
+        if (!input.adapter.accounted) assertNaverRegionQuota({
           regionCode: row.regionCode,
           used: usedByRegion[row.regionCode],
           extraCalls: extraCalls[row.regionCode],
           dailyLimit: input.dailyLimit,
         });
         try {
-          const results = await input.adapter.search({ businessName: row.businessName, address: row.address, regionCode: row.regionCode });
-          apiCalls += 1;
+          const results = await input.adapter.search({ businessName: row.businessName, address: row.address, regionCode: row.regionCode }, { source: "PENDING_VERIFICATION", runId });
+          if (!input.adapter.accounted) apiCalls += 1;
           extraCalls[row.regionCode] += 1;
           match = matchNaverLocalCategory({ ...row, results, terminalSlugs });
         } catch (error) {
-          apiCalls += 1;
+          if (!input.adapter.accounted) apiCalls += 1;
           extraCalls[row.regionCode] += 1;
           if (immediatelyStop(error)) throw error;
           failureCode = safeFailureCode(error);
@@ -215,6 +216,7 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
       else manual += 1;
     }
 
+    if (input.adapter.accounted) apiCalls = await countNaverDispatches(db.$client, runId);
     const result = { runId, scanned, verified, automatic, manual, failed, apiCalls };
     await db.update(naverLocalCategoryRuns).set({
       status: "COMPLETED",
@@ -228,6 +230,7 @@ export async function verifyPendingCandidatesWithNaver(db: AppDb, input: NaverPe
     }).where(eq(naverLocalCategoryRuns.id, runId));
     return result;
   } catch (error) {
+    if (input.adapter.accounted) apiCalls = await countNaverDispatches(db.$client, runId);
     await db.update(naverLocalCategoryRuns).set({ status: "FAILED", apiCallCount: apiCalls, finishedAt: input.now, errorCode: safeFailureCode(error) }).where(eq(naverLocalCategoryRuns.id, runId));
     throw error;
   }

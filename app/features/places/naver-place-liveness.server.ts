@@ -1,3 +1,4 @@
+import { countNaverDispatches } from "../operations/provider-usage.server";
 import { eq, inArray } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
@@ -85,15 +86,15 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
       } else if (!isNaverRegionSearchEnabled(regionCode)) {
         status = "ERROR";
       } else {
-        assertNaverRegionQuota({
+        if (!input.adapter.accounted) assertNaverRegionQuota({
           regionCode,
           used: usedByRegion[regionCode],
           extraCalls: extraCalls[regionCode],
           dailyLimit: input.dailyLimit,
         });
         try {
-          const results = await input.adapter.search({ businessName: row.name, address: row.address, regionCode });
-          apiCalls += 1;
+          const results = await input.adapter.search({ businessName: row.name, address: row.address, regionCode }, { source: "PLACE_LIVENESS", runId });
+          if (!input.adapter.accounted) apiCalls += 1;
           extraCalls[regionCode] += 1;
           const match = matchNaverLocalCategory({ ...row, businessName: row.name, regionCode, results, terminalSlugs });
           status = naverStatus(match);
@@ -102,9 +103,9 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
           naverCategoryPath = match.matchedCategoryPath ?? null;
           naverMappedCategoryId = match.mappedCategorySlug ? categoryBySlug.get(match.mappedCategorySlug) ?? null : null;
         } catch (error) {
-          apiCalls += 1;
+          if (!input.adapter.accounted) apiCalls += 1;
           extraCalls[regionCode] += 1;
-          if (failureCode(error) === "NAVER_LOCAL_SEARCH_QUOTA" || failureCode(error) === "NAVER_LOCAL_SEARCH_DISABLED") throw error;
+          if (failureCode(error) === "NAVER_LOCAL_SEARCH_QUOTA" || failureCode(error) === "NAVER_LOCAL_SEARCH_DISABLED" || failureCode(error) === "NAVER_ACCOUNTING_UNAVAILABLE") throw error;
           failed += 1;
         }
       }
@@ -116,11 +117,13 @@ export async function verifyPlacesLivenessWithNaver(db: AppDb, input: {
         naverStatus: status, naverMatchScore: score, naverMappedCategoryId, naverEvidenceCodesJson: JSON.stringify(evidenceCodes), naverLastCheckedAt: input.now, naverCategoryPath, naverSubjectKey, updatedAt: input.now,
       } });
     }
+    if (input.adapter.accounted) apiCalls = await countNaverDispatches(db.$client, runId);
     const result = { runId, scanned, matched, manual, failed, apiCalls };
     await db.update(naverLocalCategoryRuns).set({ status: "COMPLETED", scannedCount: scanned, verifiedCount: matched, conflictCount: manual, failedCount: failed, apiCallCount: apiCalls, finishedAt: input.now })
       .where(eq(naverLocalCategoryRuns.id, runId));
     return result;
   } catch (error) {
+    if (input.adapter.accounted) apiCalls = await countNaverDispatches(db.$client, runId);
     await db.update(naverLocalCategoryRuns).set({ status: "FAILED", scannedCount: scanned, verifiedCount: matched, conflictCount: manual, failedCount: failed, apiCallCount: apiCalls, finishedAt: input.now, errorCode: failureCode(error) })
       .where(eq(naverLocalCategoryRuns.id, runId));
     throw error;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { RegionCode } from "./public-data";
+import { markNaverDispatch, NaverAccountingError, reserveNaverAttempt, settleNaverAttempt, type NaverAttemptContext } from "../operations/provider-usage.server";
 
 const NAVER_LOCAL_SEARCH_URL = "https://naverapihub.apigw.ntruss.com/search/v1/local";
 const NAVER_LOCAL_SEARCH_TIMEOUT_MS = 4_000;
@@ -36,11 +37,12 @@ export type NaverLocalSearchInput = {
 };
 
 export type NaverLocalSearchAdapter = {
-  search(input: NaverLocalSearchInput): Promise<NaverLocalSearchResult[]>;
+  readonly accounted?: boolean;
+  search(input: NaverLocalSearchInput, context?: NaverAttemptContext): Promise<NaverLocalSearchResult[]>;
 };
 
 export type NaverLocalSearchEnv = Pick<Cloudflare.Env,
-  "NAVER_LOCAL_SEARCH_ENABLED" | "NAVER_API_HUB_KEY_ID" | "NAVER_API_HUB_KEY"
+  "NAVER_LOCAL_SEARCH_ENABLED" | "NAVER_API_HUB_KEY_ID" | "NAVER_API_HUB_KEY" | "NAVER_LOCAL_SEARCH_DAILY_LIMIT"
 >;
 
 export class NaverLocalSearchError extends Error {
@@ -53,7 +55,8 @@ export class NaverLocalSearchError extends Error {
       | "NAVER_LOCAL_SEARCH_QUOTA"
       | "NAVER_LOCAL_SEARCH_REJECTED"
       | "NAVER_LOCAL_SEARCH_UNAVAILABLE"
-      | "NAVER_LOCAL_SEARCH_RESPONSE_INVALID",
+      | "NAVER_LOCAL_SEARCH_RESPONSE_INVALID"
+      | "NAVER_ACCOUNTING_UNAVAILABLE",
     retryable = false,
   ) {
     super(code);
@@ -70,12 +73,35 @@ export function assertNaverLocalSearchEnabled(env: NaverLocalSearchEnv) {
 
 export function createNaverLocalSearchAdapter(
   env: NaverLocalSearchEnv,
-  fetchImpl: typeof fetch = fetch,
+  options: { database: D1Database; fetchImpl?: typeof fetch; clock?: () => Date },
 ): NaverLocalSearchAdapter {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const clock = options.clock ?? (() => new Date());
   return {
-    async search(input) {
+    accounted: true,
+    async search(input, context) {
       assertNaverLocalSearchEnabled(env);
       if (!validInput(input)) throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_REJECTED");
+
+      if (!context) throw new NaverLocalSearchError("NAVER_ACCOUNTING_UNAVAILABLE");
+      let attemptId = "";
+      try {
+        for (let rollover = 0; rollover < 3; rollover++) {
+          const permit = await reserveNaverAttempt(options.database, { regionCode: input.regionCode, context, now: clock().toISOString(), env });
+          const dispatchAt = clock().toISOString();
+          if (dispatchAt.slice(0, 10) !== permit.utcDay) continue;
+          await markNaverDispatch(options.database, permit.id, dispatchAt);
+          if (clock().toISOString().slice(0, 10) !== permit.utcDay) {
+            await settleNaverAttempt(options.database, { id: permit.id, now: clock().toISOString(), outcome: "UNKNOWN", failureCode: "UTC_DAY_CHANGED" });
+            continue;
+          }
+          attemptId = permit.id;
+          break;
+        }
+        if (!attemptId) throw new NaverAccountingError("NAVER_ACCOUNTING_UNAVAILABLE");
+      } catch (error) {
+        throw new NaverLocalSearchError(error instanceof NaverAccountingError ? error.code : "NAVER_ACCOUNTING_UNAVAILABLE");
+      }
 
       const url = new URL(NAVER_LOCAL_SEARCH_URL);
       url.search = new URLSearchParams({
@@ -86,6 +112,7 @@ export function createNaverLocalSearchAdapter(
       }).toString();
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), NAVER_LOCAL_SEARCH_TIMEOUT_MS);
+      let responseReceived = false;
       try {
         let response: Response;
         try {
@@ -100,6 +127,7 @@ export function createNaverLocalSearchAdapter(
           throw new NaverLocalSearchError(controller.signal.aborted ? "NAVER_LOCAL_SEARCH_TIMEOUT" : "NAVER_LOCAL_SEARCH_UNAVAILABLE", !controller.signal.aborted);
         }
 
+        responseReceived = true;
         if (!response.ok) throw httpError(response.status);
         let payload: unknown;
         try {
@@ -114,7 +142,14 @@ export function createNaverLocalSearchAdapter(
         if (results.some((result) => !validCoordinates(result.latitude, result.longitude) || !result.name || !result.category || !result.address)) {
           throw new NaverLocalSearchError("NAVER_LOCAL_SEARCH_RESPONSE_INVALID");
         }
+        await settleNaverAttempt(options.database, { id: attemptId, now: clock().toISOString(), outcome: "SUCCEEDED" });
         return results;
+      } catch (error) {
+        if (error instanceof NaverAccountingError) throw new NaverLocalSearchError("NAVER_ACCOUNTING_UNAVAILABLE");
+        const code = error instanceof NaverLocalSearchError ? error.code : "NAVER_LOCAL_SEARCH_UNAVAILABLE";
+        try { await settleNaverAttempt(options.database, { id: attemptId, now: clock().toISOString(), outcome: !responseReceived || code === "NAVER_LOCAL_SEARCH_TIMEOUT" ? "UNKNOWN" : "FAILED", failureCode: code }); }
+        catch { throw new NaverLocalSearchError("NAVER_ACCOUNTING_UNAVAILABLE"); }
+        throw error;
       } finally {
         clearTimeout(timeout);
       }
@@ -123,7 +158,7 @@ export function createNaverLocalSearchAdapter(
 }
 
 function hasCredentials(env: NaverLocalSearchEnv) {
-  return env.NAVER_API_HUB_KEY_ID.trim().length > 0 && env.NAVER_API_HUB_KEY.trim().length > 0;
+  return typeof env.NAVER_API_HUB_KEY_ID === "string" && env.NAVER_API_HUB_KEY_ID.trim().length > 0 && typeof env.NAVER_API_HUB_KEY === "string" && env.NAVER_API_HUB_KEY.trim().length > 0;
 }
 
 function validInput(input: NaverLocalSearchInput) {
