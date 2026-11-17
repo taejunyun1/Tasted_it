@@ -46,7 +46,7 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A24", "NAVER·지도", "operations", "사용량·검증·좌표 확인", "PARTIAL", "/admin/place-operations", "지역별 예산·사용량과 장소 검증", "실측·추정 구분과 동시 호출 한도 보완"),
   control("A25", "AI·부가 공급자", "operations", "호출·비용·실패 관측", "NOT_IMPLEMENTED", null, "통합 공급자 비용 관리 화면 없음", "비밀값 없이 규칙·건수·추정·실측 조회"),
   control("A26", "주차·EV·코스", "operations", "신선도·동기화 확인", "NOT_IMPLEMENTED", null, "기존 데이터 경로 외 전용 관리 화면 없음", "소스별 성공·실패·부분 자료 확인"),
-  control("A27", "기능·긴급 중단", "operations", "설정 조회·중단·재활성화", "NOT_IMPLEMENTED", null, "환경 설정은 지정 운영 절차로 관리", "허용된 설정의 기대값·실효값·복구 기록 조회"),
+  control("A27", "기능·긴급 중단", "operations", "설정 조회·중단·재활성화", "PARTIAL", "/admin/settings", "허용 설정 조회·동기화 후 자동 검수의 새 실행 중단/해제", "다른 기능의 중단 제어는 후속 구현"),
   control("A28", "정기·수동 작업", "operations", "진행·취소·회복", "PARTIAL", "/admin/operations", "일부 실행 처리량·실패 집계", "개별 작업 상태와 실행·취소 결과 연결"),
   control("A29", "RSI 점검", "operations", "고정 공개 경로 점검", "PARTIAL", null, "보호된 점검 경로는 있으나 전용 결과 화면 없음", "최근 성공·실패와 감사 기록 연결"),
   control("A30", "경보·장애", "overview", "오류 조회·해결 처리", "PARTIAL", "/admin/operations", "열린 경보 조회와 사유를 남기는 해결 처리", "조사·해결·재개와 실제 복구 근거 구분"),

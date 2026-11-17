@@ -9,6 +9,7 @@
     "RESEND_API_KEY": "local-e2e-email-fake",
     "RESEND_FROM_EMAIL": "test@example.test",
     "ONBOARDING_ENABLED": "true",
+    "REVIEW_AUTO_PIPELINE_ENABLED": "true",
     "NAVER_MAPS_CLIENT_ID": "e2e-naver-map-client",
     "NAVER_PLACE_GEOCODING_ENABLED": "true",
     "REVIEW_PHOTO_UPLOAD_ENABLED": "true"

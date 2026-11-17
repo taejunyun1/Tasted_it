@@ -7,6 +7,7 @@ import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter } from "./
 import { verifyPendingCandidatesWithNaver } from "./naver-pending-candidate-verification.server";
 import { runAutoReviewPipeline } from "../places/place-review-auto-pipeline.server";
 import { recordOperationalAlert } from "../operations/alerts.server";
+import { isAutoReviewEnabled } from "../operations/admin-feature-stop.server";
 
 const jobs: Array<{ sourceType: PublicDataSource; addressField: AddressField }> = [
   "GENERAL_RESTAURANT", "REST_CAFE", "BAKERY", "ENTERTAINMENT_BAR",
@@ -53,7 +54,7 @@ export async function runScheduledCandidateSync(env: Env & { DATA_GO_KR_SERVICE_
       now: new Date().toISOString(),
     });
   }
-  if (env.REVIEW_AUTO_PIPELINE_ENABLED === "true") {
+  if (await isAutoReviewEnabled(env.DB,env.REVIEW_AUTO_PIPELINE_ENABLED)) {
     try {
       const naverEnv = {
         NAVER_LOCAL_SEARCH_ENABLED: env.NAVER_LOCAL_SEARCH_ENABLED,
