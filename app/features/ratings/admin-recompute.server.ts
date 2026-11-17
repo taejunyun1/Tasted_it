@@ -6,6 +6,7 @@ import { places, ratingRecomputeJobs } from "../../db/schema";
 import { commitAdminOperation, prepareAdminOperation } from "../operations/admin-operation.server";
 import { getAdminAssurance } from "../auth/admin-assurance.server";
 import { getActiveRatingConfig } from "./rating-config.server";
+import { CURRENT_RATING_CONFIG_ID_SQL } from "./rating-config-eligibility";
 import { processRatingJob, RATING_JOB_MAX_ATTEMPTS } from "./recompute.server";
 
 const snapshotSchema = z.object({
@@ -58,9 +59,9 @@ export async function commitRatingRecompute(database: D1Database, input: Operato
       throw new Error("ADMIN_RECENT_AUTH_REQUIRED");
     const scope = database.prepare(`INSERT INTO admin_operation_checks (operation_id, check_name, passed)
       SELECT ?, 'rating_scope', CASE WHEN EXISTS(SELECT 1 FROM places WHERE id=? AND updated_at=? AND vote_revision=?)
-      AND (SELECT id FROM rating_configs WHERE active_until IS NULL ORDER BY active_from DESC LIMIT 1)=?
+      AND ${CURRENT_RATING_CONFIG_ID_SQL}=?
       AND EXISTS(SELECT 1 FROM rating_configs WHERE id=? AND updated_at=?) THEN 1 ELSE 0 END`)
-      .bind(operation.id, snapshot.placeId, snapshot.placeUpdatedAt, snapshot.voteRevision, snapshot.configId, snapshot.configId, snapshot.configUpdatedAt);
+      .bind(operation.id, snapshot.placeId, snapshot.placeUpdatedAt, snapshot.voteRevision, input.now, snapshot.configId, snapshot.configId, snapshot.configUpdatedAt);
     const check = snapshot.existingJob
       ? database.prepare(`INSERT INTO admin_operation_checks (operation_id, check_name, passed)
           SELECT ?, 'rating_job', CASE WHEN EXISTS(SELECT 1 FROM rating_recompute_jobs WHERE id=? AND place_id=? AND config_id=? AND scope='PLACE' AND status=? AND attempts=? AND updated_at=? AND (?=0 OR (attempts<3 AND NOT EXISTS(SELECT 1 FROM rating_recompute_jobs other WHERE other.place_id=? AND other.config_id=? AND other.id<>? AND other.status IN ('PENDING','RUNNING'))))) THEN 1 ELSE 0 END`)

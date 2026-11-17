@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { castVote, withdrawVote } from "../../app/features/ratings/vote.server";
 
+// Vote timestamps follow the seeded rating config start (2026-08-06).
 const placeId = "vote-test-place";
 const userId = "vote-test-user";
 
@@ -48,14 +49,14 @@ describe("castVote", () => {
       placeId,
       userId,
       value: 1,
-      now: "2026-08-05T00:00:00Z",
+      now: "2026-08-06T00:00:00Z",
       eventId: "vote-1",
     });
     await castVote(db, {
       placeId,
       userId,
       value: -1,
-      now: "2026-08-05T00:01:00Z",
+      now: "2026-08-06T00:01:00Z",
       eventId: "vote-2",
     });
 
@@ -92,14 +93,14 @@ describe("castVote", () => {
       placeId,
       userId: isolatedUserId,
       value: 1,
-      now: "2026-08-05T00:05:00Z",
+      now: "2026-08-06T00:05:00Z",
       eventId: `vote-same-a-${suffix}`,
     });
     await castVote(db, {
       placeId,
       userId: isolatedUserId,
       value: 1,
-      now: "2026-08-05T00:06:00Z",
+      now: "2026-08-06T00:06:00Z",
       eventId: `vote-same-b-${suffix}`,
     });
 
@@ -122,13 +123,13 @@ describe("castVote", () => {
       placeId,
       userId,
       value: 1,
-      now: "2026-08-05T00:02:00Z",
+      now: "2026-08-06T00:02:00Z",
       eventId: `vote-withdraw-create-${suffix}`,
     });
     const withdrawn = await withdrawVote(db, {
       placeId,
       userId,
-      now: "2026-08-05T00:03:00Z",
+      now: "2026-08-06T00:03:00Z",
       eventId: `vote-withdraw-${suffix}`,
     });
 
@@ -151,7 +152,7 @@ describe("castVote", () => {
     const withdrawn = await withdrawVote(db, {
       placeId,
       userId: `no-current-vote-${suffix}`,
-      now: "2026-08-05T00:04:00Z",
+      now: "2026-08-06T00:04:00Z",
       eventId: `no-op-withdraw-${suffix}`,
     });
 
