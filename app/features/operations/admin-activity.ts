@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const ACTIVITY_KINDS = {
   OPERATIONAL_ALERT_RESOLVE: "운영 경보 검토 처리",
+  FEATURE_FLAG_CONTROL: "자동 검수 중단·해제",
   CSV_IMPORT: "CSV 반입", RATING_RECOMPUTE: "평가 재계산", RATING_JOB_CONTROL: "평가 작업 취소·복구", INTEGRITY_CASE_TRANSITION: "사건 상태 변경",
   VOTE_INVALIDATE: "투표 무효화", ADMIN_ROLE_CHANGE: "관리자 권한 변경", ADMIN_SESSIONS_REVOKE: "세션 회수",
   TEMP_PUBLISH: "TEMP 공개", TEMP_UNPUBLISH: "TEMP 공개 회수",
