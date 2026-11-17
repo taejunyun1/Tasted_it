@@ -9,7 +9,7 @@ import { readSessionId, requireAdmin } from "../features/auth/session.server";
 import { getActiveRatingConfig } from "../features/ratings/rating-config.server";
 import { commitIntegrityOperation, prepareIntegrityOperation, readIntegrityOperation, type IntegrityOperationKind } from "../features/ratings/admin-integrity.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
-import { getRatingJobResult } from "../features/ratings/recompute.server";
+import { getRatingJobResult, type RatingJobResult } from "../features/ratings/recompute.server";
 import { commitRatingRecompute, prepareRatingRecompute } from "../features/ratings/admin-recompute.server";
 import { commitRatingJobAction, inspectRatingJob, prepareRatingJobAction, readRatingJobAction, type RatingJobAction } from "../features/ratings/rating-job-admin.server";
 
@@ -29,8 +29,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   ]);
   const closedPicks = new Set(picks.filter((pick) => pick.eventType !== "GRANT" && pick.previousEventId).map((pick) => pick.previousEventId));
   const requestedJobId = new URL(request.url).searchParams.get("jobId");
-  const requestedJob = requestedJobId && requestedJobId.length <= 128
+  const foundJob = requestedJobId && requestedJobId.length <= 128
     ? await getRatingJobResult(db, requestedJobId) : null;
+  const requestedJob = foundJob ? { ...foundJob, inspectedStatus: inspectedResultStatus(foundJob, now) } : null;
   let integrityPreview: Awaited<ReturnType<typeof readIntegrityOperation>> | null = null;
   let integrityError: string | null = null;
   let jobPreview: Awaited<ReturnType<typeof readRatingJobAction>> | null = null;
@@ -84,9 +85,10 @@ export async function action({ request }: Route.ActionArgs) {
     const operationId = String(form.get("operationId") ?? "");
     try {
       if (intent === "confirm-rating-job") {
-        const requestedJob = await commitRatingJobAction(env.DB, { ...operator, operationId });
+        const result = await commitRatingJobAction(env.DB, { ...operator, operationId });
+        const requestedJob = { ...result, inspectedStatus: inspectedResultStatus(result, now) };
         return {
-          ok: requestedJob.status !== "UNKNOWN", message: ratingJobMessage(requestedJob.status),
+          ok: requestedJob.status !== "UNKNOWN", message: ratingJobMessage(requestedJob.inspectedStatus),
           requestedJob, jobPreview: null, jobOperationId: operationId,
           jobRetryOperationId: requestedJob.status === "UNKNOWN" ? operationId : null,
         };
@@ -119,9 +121,10 @@ export async function action({ request }: Route.ActionArgs) {
     if (intent === "confirm-recompute") {
       const operationId = String(form.get("operationId") ?? "");
       try {
-        const requestedJob = await commitRatingRecompute(env.DB, { ...operator, operationId });
+        const result = await commitRatingRecompute(env.DB, { ...operator, operationId });
+        const requestedJob = { ...result, inspectedStatus: inspectedResultStatus(result, now) };
         return {
-          ok: requestedJob.status === "COMPLETED", message: ratingJobMessage(requestedJob.status), requestedJob,
+          ok: requestedJob.status === "COMPLETED", message: ratingJobMessage(requestedJob.inspectedStatus), requestedJob,
           operationRetryId: requestedJob.status === "UNKNOWN" ? operationId : null,
         };
       } catch (error) {
@@ -189,11 +192,16 @@ function ratingJobMessage(status: string) {
   switch (status) {
     case "COMPLETED": return "요청한 장소의 재계산이 완료됐습니다.";
     case "RUNNING": return "요청한 작업을 처리 중입니다. 작업 상태를 다시 확인해 주세요.";
+    case "STALE": return "실행 기한이 지났습니다. 처리 결과와 복구 가능 여부를 확인해 주세요.";
     case "PENDING": return "요청한 작업이 대기 중입니다.";
     case "FAILED": return "요청한 작업이 실패했습니다. 작업 기록을 확인해 주세요.";
     case "CANCELLED": return "대기 작업을 취소했습니다. 기존 평가는 변경하지 않았습니다.";
     default: return "요청한 작업의 결과를 확인할 수 없습니다. 상태를 다시 확인해 주세요.";
   }
+}
+
+function inspectedResultStatus(result: Pick<RatingJobResult, "job" | "status">, now: string) {
+  return result.job ? inspectRatingJob(result.job, now).status : result.status;
 }
 
 function ratingJobFailureMessage(code: string) {
@@ -227,6 +235,7 @@ export default function AdminRatings({ loaderData, actionData }: Route.Component
   const jobPreview = actionData && "jobPreview" in actionData ? actionData.jobPreview : loaderData.jobPreview;
   const preview = actionData && "preview" in actionData ? actionData.preview : null;
   const requestedJob = actionData && "requestedJob" in actionData ? actionData.requestedJob : loaderData.requestedJob;
+  const requestedJobStatus = requestedJob?.inspectedStatus ?? "UNKNOWN";
   return <main id="main" className="admin-rating-shell"><header><p className="eyebrow">ADMIN / RATING OPERATIONS</p><h1>평가 운영</h1><Link to="/admin/reviewer-visits">방문 리뷰 검수 대기열</Link><p>활성 알고리즘 <strong>{loaderData.config.algorithmVersion}</strong> · 최소 공개 {loaderData.config.minimumVisibleSamples}표</p></header>{actionData?.message && <p className="admin-notice">{actionData.message}</p>}<section className="admin-rating-stats"><Stat label="반영 대기" value={loaderData.stats.stale}/><Stat label="재계산 대기" value={loaderData.stats.pending}/><Stat label="재계산 실패" value={loaderData.stats.failed}/><Stat label="검토·확인" value={loaderData.stats.openCases}/><Stat label="Golden Pick" value={loaderData.stats.activeGoldenPicks}/></section><section className="admin-rating-section"><h2>수동 재계산</h2><Form method="post"><input type="hidden" name="intent" value="recompute"/><select name="placeId" aria-label="재계산 장소">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name}</option>)}</select><button>선택 장소 재계산</button></Form>
       {actionData && "operationRetryId" in actionData && actionData.operationRetryId && <Form method="post">
         <input type="hidden" name="intent" value="confirm-recompute" />
@@ -246,8 +255,8 @@ export default function AdminRatings({ loaderData, actionData }: Route.Component
         <Link to="/admin/ratings">취소</Link>
       </div>}
       {requestedJob && <div role="status" aria-live="polite" className="admin-notice">
-        <p>{ratingJobMessage(requestedJob.status)}</p>
-        <p style={{ overflowWrap: "anywhere" }}>작업 ID <code>{requestedJob.jobId}</code> · {requestedJob.status}</p>
+        <p>{ratingJobMessage(requestedJobStatus)}</p>
+        <p style={{ overflowWrap: "anywhere" }}>작업 ID <code>{requestedJob.jobId}</code> · {jobStateLabel[requestedJobStatus] ?? requestedJobStatus} (저장 상태 {requestedJob.status})</p>
         <Link to={`?jobId=${encodeURIComponent(requestedJob.jobId)}`}>이 작업 상태 다시 확인</Link>
         {requestedJob.job && <>
           <p style={{ overflowWrap: "anywhere" }}>장소 <code>{requestedJob.job.placeId}</code> · 설정 <code>{requestedJob.job.configId}</code> · 시도 {requestedJob.job.attempts}회</p>
@@ -271,7 +280,7 @@ export default function AdminRatings({ loaderData, actionData }: Route.Component
         <h3 id="rating-job-preview-title">작업 변경 미리보기</h3>
         <p>{jobActionLabel[jobPreview.action]} · {jobPreview.placeName} 1곳</p>
         <p>작업 ID <code>{jobPreview.jobId}</code> · 설정 <code>{jobPreview.configId}</code></p>
-        <p>현재 {jobStateLabel[jobPreview.previousStatus] ?? jobPreview.previousStatus} · 시도 {jobPreview.attempts}회</p>
+        <p>미리보기 당시 {jobStateLabel[jobPreview.action === "RECOVER" ? "STALE" : jobPreview.previousStatus]} (저장 상태 {jobPreview.previousStatus}) · 시도 {jobPreview.attempts}회</p>
         <p>미리보기 만료 {jobTime(jobPreview.expiresAt)} (KST)</p>
         <p>사유: {jobPreview.reason}</p>
         {jobPreview.status === "PENDING" ? <>

@@ -49,6 +49,11 @@ test("admin confirms and observes exactly the requested rating job", async ({ pa
 
 test("admin reviews a bounded job action and resumes it after recent authentication", async ({ page }, testInfo) => {
   test.skip(Boolean(process.env.BASE_URL), "Requires isolated local D1 fixtures");
+  const browserErrors: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  page.on("response", (response) => {
+    if (response.status() >= 500) browserErrors.push(`HTTP ${response.status()}: ${new URL(response.url()).pathname}`);
+  });
   const suffix = testInfo.project.name === "chromium" ? "desktop" : "mobile";
   const pendingId = `qa-rating-cancel-${suffix}`;
   const staleId = `qa-rating-legacy-${suffix}`;
@@ -70,6 +75,12 @@ test("admin reviews a bounded job action and resumes it after recent authenticat
     await expect(legacy).not.toContainText("실행 중");
     await expect(legacy).toContainText("이전 실행의 소유권을 확인할 수 없어 자동 재실행할 수 없습니다.");
     await expect(legacy.getByRole("button")).toHaveCount(0);
+    await legacy.getByRole("link", { name: staleId, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`jobId=${staleId}$`));
+    const selectedLegacy = page.getByRole("status");
+    await expect(selectedLegacy).toContainText("실행 상태 미확인");
+    await expect(selectedLegacy).toContainText("저장 상태 RUNNING");
+    await expect(selectedLegacy).not.toContainText("처리 중입니다");
     await expect(exhausted).toContainText("3회");
     await expect(exhausted.getByRole("button")).toHaveCount(0);
     await pending.getByRole("textbox", { name: "작업 변경 사유" }).fill("합성 대기 작업 취소 검증");
@@ -95,6 +106,7 @@ test("admin reviews a bounded job action and resumes it after recent authenticat
     await expect(page.getByRole("article", { name: `재계산 작업 ${staleId}`, exact: true })).toContainText("RUNNING");
     await expect(page.getByRole("link", { name: "작업 변경 영수증 보기" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(browserErrors).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath("rating-job-cancelled.png"), fullPage: true });
   } finally {
     localD1(`DELETE FROM rating_recompute_jobs WHERE id IN (${ids}); DELETE FROM admin_session_assurances WHERE session_id='qa-admin-session';`);
