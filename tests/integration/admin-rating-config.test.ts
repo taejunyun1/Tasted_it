@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { readAdminRatingConfig } from "../../app/features/ratings/admin-rating-config.server";
 import { loader, action } from "../../app/routes/admin-rating-config";
+import { RATING_V2_VERSION } from "../../app/features/ratings/rating-v2";
 
 async function session(role: "USER" | "ADMIN") {
   const id = crypto.randomUUID(), sid = crypto.randomUUID(), now = new Date().toISOString();
@@ -23,19 +24,28 @@ describe("ADMIN rating config read-only comparison", () => {
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
-  it("separates fixed score defaults from DB consensus usage and flags future selection", async () => {
+  it("separates current DB metadata from runtime policy while keeping a future version unselected", async () => {
     const now = "2026-11-18T00:00:00.000Z", future = `future-${crypto.randomUUID()}`;
+    const current = await env.DB.prepare("SELECT id,minimum_visible_samples,alpha_prior,beta_prior,reviewer_max_share FROM rating_configs WHERE algorithm_version=?")
+      .bind(RATING_V2_VERSION).first<{ id: string; minimum_visible_samples: number; alpha_prior: number; beta_prior: number; reviewer_max_share: number }>();
+    if (!current) throw new Error("Current configuration fixture missing");
+    await env.DB.prepare("UPDATE rating_configs SET minimum_visible_samples=12,alpha_prior=3,beta_prior=4,reviewer_max_share=0.5 WHERE id=?").bind(current.id).run();
     await env.DB.prepare("INSERT INTO rating_configs(id,algorithm_version,minimum_visible_samples,alpha_prior,beta_prior,reviewer_max_share,settings_json,active_from,created_at,updated_at) VALUES(?,?,12,3,4,0.5,?,'2090-01-01T00:00:00.000Z',?,?)")
       .bind(future, future, '{"secret":"must-not-return"}', now, now).run();
     try {
       const result = await readAdminRatingConfig(createDb(env.DB), now);
-      expect(result.selectedConfigId).toBe(future);
+      expect(result.selectedConfigId).toBe(current.id);
       expect(result.fields.find(field => field.key === "minimumVisibleSamples")).toMatchObject({ runtimeValue: 8, selectedValue: 12, databaseConsumer: "REVIEWER_CONSENSUS" });
       expect(result.fields.find(field => field.key === "alphaPrior")).toMatchObject({ runtimeValue: 2, selectedValue: 3, databaseConsumer: "METADATA_ONLY" });
-      expect(result.warnings).toContain("SELECTED_FUTURE_CONFIG");
-      expect(result.warnings).toContain("SELECTED_UNSUPPORTED_VERSION");
+      expect(result.warnings).toContain("SELECTED_POLICY_DIFFERS");
+      expect(result.warnings).not.toContain("SELECTED_FUTURE_CONFIG");
+      expect(result.configs.find(config => config.id === future)).toMatchObject({ state: "FUTURE", selectedByRuntime: false, versionSupported: false });
       expect(JSON.stringify(result)).not.toContain("must-not-return");
-    } finally { await env.DB.prepare("DELETE FROM rating_configs WHERE id=?").bind(future).run(); }
+    } finally {
+      await env.DB.prepare("DELETE FROM rating_configs WHERE id=?").bind(future).run();
+      await env.DB.prepare("UPDATE rating_configs SET minimum_visible_samples=?,alpha_prior=?,beta_prior=?,reviewer_max_share=? WHERE id=?")
+        .bind(current.minimum_visible_samples, current.alpha_prior, current.beta_prior, current.reviewer_max_share, current.id).run();
+    }
   });
 
   it("previews synthetic inputs without changing config, votes, snapshots or jobs", async () => {
