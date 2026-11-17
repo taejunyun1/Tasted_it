@@ -53,7 +53,7 @@ export default [
   route("admin/reviewer-visits", "routes/admin-reviewer-visits.tsx"),
   route("admin/place-operations", "routes/admin-place-operations.tsx"),
   route("admin/operations", "routes/admin-operations.tsx"),
-  route("admin/operations/email-domain", "routes/admin-email-domain.ts"),
+  route("admin/operations/email-domain", "routes/admin-email-domain.tsx"),
   route("admin/operations/rsi-check", "routes/admin-rsi-check.ts"),
   route("admin/audit", "routes/admin-audit.tsx"),
   route("admin/activity", "routes/admin-activity.tsx"),
