@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { createDb } from "../../db/client.server";
 import { parkingSyncRuns } from "../../db/schema";
 import { syncEvDataSnapshot } from "./ev-sync.server";
@@ -15,9 +15,9 @@ export async function runScheduledParkingSync(env: Env & { DATA_GO_KR_SERVICE_KE
   const db = createDb(env.DB);
   const now = options?.now ?? new Date();
   const [runningParking, latestParking, runningEv, latestEv] = await Promise.all([
-    db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, "PARKING"), eq(parkingSyncRuns.status, "RUNNING")), orderBy: desc(parkingSyncRuns.startedAt) }),
+    db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, "PARKING"), inArray(parkingSyncRuns.status, ["PENDING", "RUNNING"])), orderBy: desc(parkingSyncRuns.startedAt) }),
     db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, "PARKING"), eq(parkingSyncRuns.status, "COMPLETED")), orderBy: desc(parkingSyncRuns.finishedAt) }),
-    db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, "EV"), eq(parkingSyncRuns.status, "RUNNING")), orderBy: desc(parkingSyncRuns.startedAt) }),
+    db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, "EV"), inArray(parkingSyncRuns.status, ["PENDING", "RUNNING"])), orderBy: desc(parkingSyncRuns.startedAt) }),
     db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, "EV"), eq(parkingSyncRuns.status, "COMPLETED")), orderBy: desc(parkingSyncRuns.finishedAt) }),
   ]);
   const parkingDue = Boolean(runningParking) || isParkingSyncDue(latestParking?.finishedAt ?? null, now);
