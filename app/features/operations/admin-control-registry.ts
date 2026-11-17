@@ -42,7 +42,7 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A20", "보존 정리", "privacy", "만료 자료·정리 결과 확인", "NOT_IMPLEMENTED", null, "정기 정리 작업의 개별 관리 화면 없음", "대상별 예상 건수·결과·실패 대기열 조회"),
   control("A21", "원장 정합성", "privacy", "읽기 감사·누락 탐색", "READ_ONLY", "/admin/audit", "조회 상한과 불완전 결과를 표시하는 감사", "실행 간 비교와 발견 사항 처리 추적"),
   control("A22", "관리자 감사", "privacy", "변경 주체·대상·결과 확인", "PARTIAL", "/admin/activity", "50건 cursor 감사·영수증 조회, 작업별 연결과 재계산 상태 확인", "추가 도메인 이력 연결과 제한된 내보내기 검토"),
-  control("A23", "공공데이터", "operations", "수집·진행·실패·재개", "PARTIAL", "/admin/data-sync", "수동 동기화와 실행 이력", "작업별 대상·외부 호출·중복·재시도 한도 표시"),
+  control("A23", "공공데이터", "operations", "수집·진행·실패·재개", "PARTIAL", "/admin/data-sync", "인허가 수집 미리보기·재인증·페이지 원자 처리·중단 및 제한 재개", "외부 호출의 실측과 별도 검증 작업의 사용량 연결"),
   control("A24", "NAVER·지도", "operations", "사용량·검증·좌표 확인", "PARTIAL", "/admin/place-operations", "지역별 예산·사용량과 장소 검증", "실측·추정 구분과 동시 호출 한도 보완"),
   control("A25", "AI·부가 공급자", "operations", "호출·비용·실패 관측", "NOT_IMPLEMENTED", null, "통합 공급자 비용 관리 화면 없음", "비밀값 없이 규칙·건수·추정·실측 조회"),
   control("A26", "주차·EV·코스", "operations", "신선도·동기화 확인", "NOT_IMPLEMENTED", null, "기존 데이터 경로 외 전용 관리 화면 없음", "소스별 성공·실패·부분 자료 확인"),

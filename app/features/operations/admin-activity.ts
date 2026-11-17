@@ -6,6 +6,7 @@ export const ACTIVITY_KINDS = {
   TEMP_PUBLISH: "TEMP 공개", TEMP_UNPUBLISH: "TEMP 공개 회수",
   MEMBER_ACCESS_CHANGE: "회원 접근·세션 관리",
   REVIEWER_ADMIN_CHANGE: "리뷰어 관리", STUDENT_ADMIN_CHANGE: "학생 관리", PLACE_ADMIN_CHANGE: "장소 공개·병합·회수",
+  PUBLIC_SYNC_CONTROL: "공공 인허가 동기화",
 } as const;
 export type ActivityKind = keyof typeof ACTIVITY_KINDS;
 export type ActivityView = "audit" | "operations";

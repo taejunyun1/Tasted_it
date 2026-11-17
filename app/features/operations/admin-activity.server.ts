@@ -88,10 +88,22 @@ async function readDetail(database: D1Database, operationId: string, now: string
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
   if ((kind === "RATING_RECOMPUTE" || kind === "RATING_JOB_CONTROL") && row.status === "COMMITTED") {
     const jobId = identifier(result?.jobId), placeId = identifier(result?.placeId), configId = identifier(result?.configId);
-    const current = linked && jobId && placeId && configId ? await database.prepare(`SELECT status,finished_at FROM rating_recompute_jobs
-      WHERE id=? AND place_id=? AND config_id=? AND scope='PLACE'`).bind(jobId, placeId, configId).first<{ status: string; finished_at: string | null }>() : null;
-    job = { reference: await reference(jobId), status: current && ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"].includes(current.status) ? current.status : "UNKNOWN",
+    const current = linked && jobId && placeId && configId ? await database.prepare(`SELECT status,lease_expires_at,finished_at FROM rating_recompute_jobs
+      WHERE id=? AND place_id=? AND config_id=? AND scope='PLACE'`).bind(jobId, placeId, configId).first<{ status: string; lease_expires_at: string | null; finished_at: string | null }>() : null;
+    let observed = current && ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"].includes(current.status) ? current.status : "UNKNOWN";
+    if (current?.status === "RUNNING") observed = !current.lease_expires_at ? "UNKNOWN" : current.lease_expires_at <= now ? "STALE" : "RUNNING";
+    job = { reference: await reference(jobId), status: observed,
       checkedAt: now, finishedAt: timestamp(current?.finished_at) };
+  }
+  if (kind === "PUBLIC_SYNC_CONTROL" && row.status === "COMMITTED") {
+    const runId = identifier(result?.runId);
+    const current = linked && runId && typeof result?.sourceType === "string" && typeof result?.addressField === "string"
+      ? await database.prepare(`SELECT status,lease_id,lease_expires_at,finished_at FROM public_data_sync_runs
+          WHERE id=? AND source_type=? AND address_field=? AND region_code='GWANGJU_JEONNAM'`)
+        .bind(runId, result.sourceType, result.addressField).first<{ status: string; lease_id: string | null; lease_expires_at: string | null; finished_at: string | null }>() : null;
+    const known = current && ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"].includes(current.status)
+      && !(current.status === "RUNNING" && !current.lease_id);
+    job = { reference: await reference(runId), status: known ? (current.status === "RUNNING" && current.lease_expires_at && current.lease_expires_at <= now ? "STALE" : current.status) : "UNKNOWN", checkedAt: now, finishedAt: timestamp(current?.finished_at) };
   }
   return {
     operationId: row.id, kind, title: kind ? ACTIVITY_KINDS[kind] : "기타 작업", state: status(row, now),

@@ -342,7 +342,7 @@ export const publicDataSyncRuns = sqliteTable("public_data_sync_runs", {
   sourceType: text("source_type").notNull(),
   regionCode: text("region_code").notNull(),
   addressField: text("address_field").notNull(),
-  status: text("status", { enum: ["RUNNING", "COMPLETED", "FAILED"] }).notNull(),
+  status: text("status", { enum: ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"] }).notNull(),
   nextPage: integer("next_page").notNull().default(1),
   totalCount: integer("total_count").notNull().default(0),
   fetchedCount: integer("fetched_count").notNull().default(0),
@@ -352,7 +352,17 @@ export const publicDataSyncRuns = sqliteTable("public_data_sync_runs", {
   startedAt: text("started_at").notNull(),
   finishedAt: text("finished_at"),
   errorSummary: text("error_summary"),
+  attempts: integer("attempts").notNull().default(0),
+  leaseId: text("lease_id"),
+  leaseExpiresAt: text("lease_expires_at"),
+  cancelRequestedAt: text("cancel_requested_at"),
+  requestCount: integer("request_count").notNull().default(0),
+  retryCount: integer("retry_count").notNull().default(0),
   ...timestamps,
+});
+
+export const publicDataSyncGuards = sqliteTable("public_data_sync_guards", {
+  id: text("id").primaryKey(), passed: integer("passed").notNull(),
 });
 
 export const adminAuditLogs = sqliteTable("admin_audit_logs", {

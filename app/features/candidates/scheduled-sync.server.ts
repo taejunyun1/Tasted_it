@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+import { asc, inArray } from "drizzle-orm";
 import { createDb } from "../../db/client.server";
 import { publicDataSyncRuns } from "../../db/schema";
-import { syncPublicDataBatch, type AddressField } from "./sync.server";
+import { describePublicSync, syncPublicDataBatch, type AddressField } from "./sync.server";
 import type { PublicDataSource } from "./public-data";
 import { assertNaverLocalSearchEnabled, createNaverLocalSearchAdapter } from "./naver-local-search.server";
 import { verifyPendingCandidatesWithNaver } from "./naver-pending-candidate-verification.server";
@@ -15,27 +15,20 @@ const jobs: Array<{ sourceType: PublicDataSource; addressField: AddressField }> 
 export async function runScheduledCandidateSync(env: Env & { DATA_GO_KR_SERVICE_KEY?: string; NAVER_API_HUB_KEY_ID?: string; NAVER_API_HUB_KEY?: string }) {
   if (!env.DATA_GO_KR_SERVICE_KEY) return;
   const db = createDb(env.DB);
-  const running = await db.query.publicDataSyncRuns.findFirst({ where: eq(publicDataSyncRuns.status, "RUNNING"), orderBy: asc(publicDataSyncRuns.startedAt) });
-  if (running && Date.now() - new Date(running.updatedAt).getTime() > 24 * 60 * 60 * 1000) {
-    const now = new Date().toISOString();
-    await db.update(publicDataSyncRuns).set({ status: "FAILED", errorSummary: "PUBLIC_DATA_SYNC_STALE", finishedAt: now, updatedAt: now }).where(eq(publicDataSyncRuns.id, running.id));
-    await recordOperationalAlert(db, {
-      alertType: "PUBLIC_DATA_SYNC", severity: "WARNING", sourceId: running.id,
-      message: "24시간 이상 RUNNING으로 남은 동기화 실행을 회수했습니다.",
-      details: { code: "PUBLIC_DATA_SYNC_STALE", nextPage: running.nextPage }, now,
-    });
-  }
-  const resumable = running && running.status === "RUNNING" && Date.now() - new Date(running.updatedAt).getTime() <= 24 * 60 * 60 * 1000 ? running : null;
-  const failed = resumable ? null : await db.query.publicDataSyncRuns.findFirst({
-    where: and(eq(publicDataSyncRuns.status, "FAILED"), gt(publicDataSyncRuns.nextPage, 1)),
-    orderBy: desc(publicDataSyncRuns.startedAt),
-  });
-  const resume = resumable ?? failed;
-  const job = resume ? {
-    sourceType: resume.sourceType as PublicDataSource,
-    addressField: resume.addressField as AddressField,
-  } : jobs[new Date().getUTCDate() % jobs.length];
-  await syncPublicDataBatch(db, { serviceKey: env.DATA_GO_KR_SERVICE_KEY, ...job, maxPages: 5 });
+  const pending = await db.select().from(publicDataSyncRuns)
+    .where(inArray(publicDataSyncRuns.status, ["PENDING", "RUNNING", "FAILED"]))
+    .orderBy(asc(publicDataSyncRuns.startedAt)).limit(50);
+  const now = new Date().toISOString();
+  if (pending.some((run) => run.leaseId && run.leaseExpiresAt && run.leaseExpiresAt > now)) return;
+  const resume = pending.find((run) => describePublicSync(run, now).canResume);
+  const job = resume ? { sourceType: resume.sourceType as PublicDataSource, addressField: resume.addressField as AddressField }
+    : jobs[new Date().getUTCDate() % jobs.length];
+  const result = await syncPublicDataBatch(db, { serviceKey: env.DATA_GO_KR_SERVICE_KEY, ...job,
+    ...(resume ? { runId: resume.id } : {}), maxPages: 5 });
+  // Only a claimed, non-cancelled public-data batch reaches these follow-ups.
+  // NAVER verification and automatic review have separate controls; cancelling
+  // a public-data run after its lease is released does not cancel those jobs.
+  if (!result.claimed || result.run?.status === "CANCELLED" || result.run?.status === "FAILED") return;
   try {
     const naverEnv = {
       NAVER_LOCAL_SEARCH_ENABLED: env.NAVER_LOCAL_SEARCH_ENABLED,

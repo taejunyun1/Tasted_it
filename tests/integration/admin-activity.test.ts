@@ -68,6 +68,10 @@ describe("read-only administrator activity", () => {
     expect(result.detail).toMatchObject({ operationId: op.operationId, state: "COMMITTED", auditLinked: true, count: 1, job: { status: "PENDING" } });
     expect(JSON.stringify(result)).not.toMatch(/private|summary_json|result_json|payload|session_id|@example/);
     expect(await snapshot()).toEqual(before);
+    await env.DB.prepare("UPDATE rating_recompute_jobs SET status='RUNNING',lease_expires_at=NULL WHERE id=?").bind(job.id).run();
+    expect((await read(`operation=${op.operationId}`)).detail?.job?.status).toBe("UNKNOWN");
+    await env.DB.prepare("UPDATE rating_recompute_jobs SET lease_expires_at='2000-01-01T00:00:00.000Z' WHERE id=?").bind(job.id).run();
+    expect((await read(`operation=${op.operationId}`)).detail?.job?.status).toBe("STALE");
     await env.DB.prepare("UPDATE rating_recompute_jobs SET status='COMPLETED',finished_at=? WHERE id=?").bind(now, job.id).run();
     expect((await read(`operation=${op.operationId}`)).detail?.job?.status).toBe("COMPLETED");
     await env.DB.prepare("INSERT INTO admin_audit_logs(id,actor_user_id,action,target_type,target_id,created_at) VALUES(?,?,'OTHER','ADMIN_OPERATION',?,?)")

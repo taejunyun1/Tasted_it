@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, like, notExists, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, notExists, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { AppDb } from "../../db/client.server";
+import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import {
   adminAuditLogs,
   businessLicenseExclusions,
@@ -11,6 +12,7 @@ import {
   placeRevalidationCases,
   places,
   placeSourceLinks,
+  placeReviewWorkItems,
 } from "../../db/schema";
 import type { NormalizedLicense, PublicDataSource, RegionCode } from "./public-data";
 import { slugifyPlaceNameForAddress } from "../places/place-slug";
@@ -18,7 +20,8 @@ import { extractNeighborhood } from "./category-suggestion";
 import { getTerminalCategoryIds } from "./category-selection";
 import { classifyAutomaticExclusion } from "./exclusion-policy";
 import { validateManualExclusion } from "./manual-exclusion";
-import { createReviewWorkItem } from "../places/place-review-work-items.server";
+import { createReviewWorkItem, newReviewWorkItemValues } from "../places/place-review-work-items.server";
+import { classifyLocalDining, diningReasonLabels } from "../places/local-dining-policy";
 
 export interface CandidateFilters {
   query?: string;
@@ -208,12 +211,55 @@ export async function excludeCandidates(db: AppDb, input: {
   return { excludedIds, skippedIds };
 }
 
-export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense, now: string) {
-  const existing = await db.query.businessLicenses.findFirst({
+export type BusinessLicenseUpsertContext = {
+  existing: Pick<typeof businessLicenses.$inferSelect, "id" | "sourceManagementNo" | "reviewStatus" | "reviewReason" | "reviewedBy" | "reviewedAt" | "firstSeenAt" | "createdAt" | "updatedAt"> | undefined;
+  exclusion: Pick<typeof businessLicenseExclusions.$inferSelect, "businessLicenseId" | "status" | "reason" | "excludedAt" | "createdAt" | "updatedAt"> | undefined;
+  link: Pick<typeof placeSourceLinks.$inferSelect, "businessLicenseId" | "placeId"> | undefined;
+  openCase: Pick<typeof placeRevalidationCases.$inferSelect, "placeId" | "reasonType"> | undefined;
+};
+
+/** Load one public-data page without spending a D1 request on every record. */
+export async function loadBusinessLicenseUpsertContexts(db: AppDb, inputs: NormalizedLicense[]) {
+  const contexts = new Map<string, BusinessLicenseUpsertContext>();
+  if (!inputs.length) return contexts;
+  const sourceType = inputs[0]!.sourceType;
+  if (inputs.some(input => input.sourceType !== sourceType)) throw new Error("PUBLIC_SYNC_SCOPE_CHANGED");
+  const existingRows = await loadInD1Chunks([...new Set(inputs.map(input => input.sourceManagementNo))],
+    ids => db.select({id:businessLicenses.id,sourceManagementNo:businessLicenses.sourceManagementNo,reviewStatus:businessLicenses.reviewStatus,
+      reviewReason:businessLicenses.reviewReason,reviewedBy:businessLicenses.reviewedBy,reviewedAt:businessLicenses.reviewedAt,
+      firstSeenAt:businessLicenses.firstSeenAt,createdAt:businessLicenses.createdAt,updatedAt:businessLicenses.updatedAt})
+      .from(businessLicenses).where(and(eq(businessLicenses.sourceType,sourceType),inArray(businessLicenses.sourceManagementNo,ids))),
+    {reservedBindings:1});
+  const existingByNumber = new Map(existingRows.map(row => [row.sourceManagementNo,row]));
+  const closedIds = inputs.filter(input => input.normalizedStatus !== "OPEN")
+    .flatMap(input => { const row=existingByNumber.get(input.sourceManagementNo); return row ? [row.id] : []; });
+  const [exclusions,links] = await Promise.all([
+    loadInD1Chunks(existingRows.map(row=>row.id),ids=>db.select({businessLicenseId:businessLicenseExclusions.businessLicenseId,status:businessLicenseExclusions.status,
+      reason:businessLicenseExclusions.reason,excludedAt:businessLicenseExclusions.excludedAt,createdAt:businessLicenseExclusions.createdAt,updatedAt:businessLicenseExclusions.updatedAt})
+      .from(businessLicenseExclusions).where(inArray(businessLicenseExclusions.businessLicenseId,ids))),
+    loadInD1Chunks([...new Set(closedIds)],ids=>db.select({businessLicenseId:placeSourceLinks.businessLicenseId,placeId:placeSourceLinks.placeId}).from(placeSourceLinks).where(inArray(placeSourceLinks.businessLicenseId,ids))),
+  ]);
+  const cases = await loadInD1Chunks([...new Set(links.map(row=>row.placeId))],
+    ids=>db.selectDistinct({placeId:placeRevalidationCases.placeId,reasonType:placeRevalidationCases.reasonType}).from(placeRevalidationCases).where(and(inArray(placeRevalidationCases.placeId,ids),inArray(placeRevalidationCases.status,["OPEN","REVIEWING"]))),
+    {reservedBindings:2});
+  const exclusionById=new Map(exclusions.map(row=>[row.businessLicenseId,row]));
+  const linkById=new Map(links.map(row=>[row.businessLicenseId,row]));
+  for(const input of inputs){
+    const existing=existingByNumber.get(input.sourceManagementNo),link=existing?linkById.get(existing.id):undefined;
+    const reasonType=input.normalizedStatus === "CLOSED" ? "CLOSED" : input.normalizedStatus === "TEMPORARILY_CLOSED" ? "TEMPORARILY_CLOSED" : "UNKNOWN";
+    contexts.set(input.sourceManagementNo,{existing,link,exclusion:existing?exclusionById.get(existing.id):undefined,
+      openCase:link?cases.find(row=>row.placeId===link.placeId && row.reasonType===reasonType):undefined});
+  }
+  return contexts;
+}
+
+export async function prepareBusinessLicenseUpsert(db: AppDb, input: NormalizedLicense, now: string, context?: BusinessLicenseUpsertContext) {
+  const existing = context ? context.existing : await db.query.businessLicenses.findFirst({
     where: and(eq(businessLicenses.sourceType, input.sourceType), eq(businessLicenses.sourceManagementNo, input.sourceManagementNo)),
   });
   const id = existing?.id ?? crypto.randomUUID();
-  await db.insert(businessLicenses).values({
+  const statements: BatchItem<"sqlite">[] = [];
+  statements.push(db.insert(businessLicenses).values({
     id,
     ...input,
     reviewStatus: existing?.reviewStatus ?? "PENDING",
@@ -246,18 +292,18 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
       lastSeenAt: now,
       updatedAt: now,
     },
-  });
+  }));
 
   const match = classifyAutomaticExclusion({
     businessName: input.businessName,
     businessSubtype: input.businessSubtype,
     sourceType: input.sourceType,
   });
-  const exclusion = await db.query.businessLicenseExclusions.findFirst({ where: eq(businessLicenseExclusions.businessLicenseId, id) });
+  const exclusion = context ? context.exclusion : await db.query.businessLicenseExclusions.findFirst({ where: eq(businessLicenseExclusions.businessLicenseId, id) });
   const canExclude = input.normalizedStatus === "OPEN" && (existing?.reviewStatus ?? "PENDING") === "PENDING";
   let excluded = false;
   if (match && canExclude && exclusion?.status !== "OVERRIDDEN") {
-    await db.insert(businessLicenseExclusions).values({
+    statements.push(db.insert(businessLicenseExclusions).values({
       businessLicenseId: id,
       reason: match.reason,
       exclusionCategory: match.exclusionCategory,
@@ -295,41 +341,62 @@ export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense,
         status: "ACTIVE",
         updatedAt: now,
       },
-    });
-    if (exclusion?.status !== "ACTIVE") await db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: match.reason === "CHAIN_STORE" ? "AUTO_EXCLUDE_CHAIN_STORE" : match.reason === "ADULT_ENTERTAINMENT" ? "AUTO_EXCLUDE_ADULT_ENTERTAINMENT" : "AUTO_EXCLUDE_NOT_RESTAURANT", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: exclusion?.status ?? "PENDING", afterState: "EXCLUDED", createdAt: now });
+    }));
+    if (exclusion?.status !== "ACTIVE") statements.push(db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: match.reason === "CHAIN_STORE" ? "AUTO_EXCLUDE_CHAIN_STORE" : match.reason === "ADULT_ENTERTAINMENT" ? "AUTO_EXCLUDE_ADULT_ENTERTAINMENT" : "AUTO_EXCLUDE_NOT_RESTAURANT", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: exclusion?.status ?? "PENDING", afterState: "EXCLUDED", createdAt: now }));
     excluded = true;
   } else if (!match && exclusion?.status === "ACTIVE" && exclusion.reason !== "ADMIN_EXCEPTION") {
-    await db.batch([
+    statements.push(
       db.update(businessLicenseExclusions).set({ status: "CLEARED", updatedAt: now }).where(eq(businessLicenseExclusions.businessLicenseId, id)),
       db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: null, action: "AUTO_CLEAR_CANDIDATE_EXCLUSION", targetType: "BUSINESS_LICENSE", targetId: id, beforeState: "EXCLUDED", afterState: "PENDING", createdAt: now }),
-    ]);
+    );
   }
 
   if (input.normalizedStatus !== "OPEN") {
-    const link = await db.query.placeSourceLinks.findFirst({ where: eq(placeSourceLinks.businessLicenseId, id) });
+    const link = context ? context.link : await db.query.placeSourceLinks.findFirst({ where: eq(placeSourceLinks.businessLicenseId, id) });
     if (link) {
       const reasonType = input.normalizedStatus === "CLOSED" ? "CLOSED" as const : input.normalizedStatus === "TEMPORARILY_CLOSED" ? "TEMPORARILY_CLOSED" as const : "UNKNOWN" as const;
-      const openCase = await db.query.placeRevalidationCases.findFirst({ where: and(eq(placeRevalidationCases.placeId, link.placeId), eq(placeRevalidationCases.reasonType, reasonType), inArray(placeRevalidationCases.status, ["OPEN", "REVIEWING"])) });
-      const statements: BatchItem<"sqlite">[] = [
+      const openCase = context ? context.openCase : await db.query.placeRevalidationCases.findFirst({ where: and(eq(placeRevalidationCases.placeId, link.placeId), eq(placeRevalidationCases.reasonType, reasonType), inArray(placeRevalidationCases.status, ["OPEN", "REVIEWING"])) });
+      const linkedStatements: BatchItem<"sqlite">[] = [
         db.insert(adminAuditLogs).values({
           id: crypto.randomUUID(), actorUserId: null, action: "AUTO_HIDE_SOURCE_STATUS",
           targetType: "PLACE", targetId: link.placeId,
           beforeState: "PUBLISHED", afterState: input.normalizedStatus, createdAt: now,
         }),
       ];
-      if (input.normalizedStatus === "CLOSED") statements.unshift(db.update(places).set({ status: "HIDDEN", closedAt: now, updatedAt: now }).where(eq(places.id, link.placeId)));
-      if (!openCase) statements.push(db.insert(placeRevalidationCases).values({ id: crypto.randomUUID(), placeId: link.placeId, reasonType, status: "OPEN", evidenceJson: JSON.stringify({ businessLicenseId: id, normalizedStatus: input.normalizedStatus, salesStatusName: input.salesStatusName }), createdAt: now, updatedAt: now }));
-      const [first, ...rest] = statements; if (first) await db.batch([first, ...rest]);
+      if (input.normalizedStatus === "CLOSED") linkedStatements.unshift(db.update(places).set({ status: "HIDDEN", closedAt: now, updatedAt: now }).where(eq(places.id, link.placeId)));
+      if (!openCase) linkedStatements.push(db.insert(placeRevalidationCases).values({ id: crypto.randomUUID(), placeId: link.placeId, reasonType, status: "OPEN", evidenceJson: JSON.stringify({ businessLicenseId: id, normalizedStatus: input.normalizedStatus, salesStatusName: input.salesStatusName }), createdAt: now, updatedAt: now }));
+      statements.push(...linkedStatements);
     }
   }
   if (!existing && input.normalizedStatus === "OPEN") {
-    await createReviewWorkItem(db, {
-      businessLicenseId: id,
-      sourceKind: "PUBLIC_DATA",
-      now,
-    });
+    const item = newReviewWorkItemValues({ businessLicenseId: id, sourceKind: "PUBLIC_DATA", now });
+    const decision = classifyLocalDining(input);
+    statements.push(db.insert(placeReviewWorkItems).values({ ...item,
+      ...(decision.decision === "EXCLUDE" ? { status: "EXCLUDED" as const,
+        holdCode: "AUTO_LOCAL_DINING_EXCLUSION", stageVersion: 1, lastTransitionAt: now,
+        holdNote: [...decision.reasons.map((reason) => diningReasonLabels[reason]), ...decision.matchedRules].join(" · ") } : {}),
+    }).onConflictDoNothing());
+    if (decision.decision === "EXCLUDE") statements.push(db.insert(adminAuditLogs).values({
+      id: crypto.randomUUID(), actorUserId: null, action: "PLACE_REVIEW_AUTO_EXCLUDE_LOCAL_DINING",
+      targetType: "PLACE_REVIEW_WORK_ITEM", targetId: item.id,
+      beforeState: JSON.stringify({ stage: item.stage, status: "ACTIVE" }),
+      afterState: JSON.stringify({ status: "EXCLUDED", ...decision }), createdAt: now,
+    }));
   }
-  return { id, inserted: !existing, excluded };
+  const unchanged = existing
+    ? sql`exists(select 1 from business_licenses where id=${id} and updated_at=${existing.updatedAt} and review_status=${existing.reviewStatus})`
+    : sql`not exists(select 1 from business_licenses where source_type=${input.sourceType} and source_management_no=${input.sourceManagementNo})`;
+  const exclusionUnchanged = exclusion
+    ? sql`exists(select 1 from business_license_exclusions where business_license_id=${id} and status=${exclusion.status} and updated_at=${exclusion.updatedAt})`
+    : sql`not exists(select 1 from business_license_exclusions where business_license_id=${id})`;
+  return { id, inserted: !existing, excluded, statements, unchanged: sql`${unchanged} and ${exclusionUnchanged}` };
+}
+
+export async function upsertBusinessLicense(db: AppDb, input: NormalizedLicense, now: string) {
+  const plan = await prepareBusinessLicenseUpsert(db, input, now);
+  const [first, ...rest] = plan.statements;
+  if (first) await db.batch([first, ...rest]);
+  return { id: plan.id, inserted: plan.inserted, excluded: plan.excluded };
 }
 
 export async function approveCandidate(db: AppDb, input: {
