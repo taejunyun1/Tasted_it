@@ -25,6 +25,7 @@ async function snapshot() {
     JSON.stringify((await env.DB.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()).results)));
 }
 describe("read-only administrator activity", () => {
+
   it("rejects anonymous, member and expired sessions, malformed input and direct POST", async () => {
     const member = await actor("USER"), expired = await actor("ADMIN", "2020-01-01T00:00:00.000Z"), admin = await actor();
     for (const [sid, expected] of [[undefined, 302], [member.sessionId, 403], [expired.sessionId, 302]] as const) {
@@ -103,4 +104,22 @@ describe("read-only administrator activity", () => {
     for (const description of descriptions) expect(description).toContain("INDEX admin_");
     expect(descriptions.join(" ")).not.toContain("TEMP B-TREE");
   });
+  it("links a cancelled rating job to its control receipt without disclosing its payload", async () => {
+    const admin = await actor(), placeId = crypto.randomUUID(), db = createDb(env.DB);
+    await db.insert(places).values({ id: placeId, slug: placeId, name: "private-place-name", status: "PUBLISHED", address: "private-address", neighborhood: "동명동", latitude: 35.1, longitude: 126.9, searchText: "private", createdAt: now, updatedAt: now });
+    const job = await enqueueRatingRecompute(db, { placeId, reason: "private-reason", now });
+    await env.DB.prepare("INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at) VALUES(?,?,'PASSWORD',?,?)")
+      .bind(admin.sessionId, admin.actorUserId, now, "2026-11-14T08:10:00.000Z").run();
+    const op = await prepareAdminOperation(env.DB, { ...admin, now, kind: "RATING_JOB_CONTROL", payload: { note: "private-note" }, summary: { title: "private-summary", count: 1 } });
+    await commitAdminOperation(env.DB, { ...admin, now, kind: "RATING_JOB_CONTROL", operationId: op.operationId }, () => ({
+      checks: [env.DB.prepare("INSERT INTO admin_operation_checks(operation_id,check_name,passed) VALUES(?,'scope',1)").bind(op.operationId)],
+      statements: [env.DB.prepare("UPDATE rating_recompute_jobs SET status='CANCELLED',finished_at=? WHERE id=?").bind(now, job.id)],
+      result: { jobId: job.id, placeId, configId: job.configId },
+    }));
+    const before = await snapshot(), result = await read(`view=operations&kind=RATING_JOB_CONTROL&operation=${op.operationId}`);
+    expect(result.detail).toMatchObject({ title: "평가 작업 취소·복구", state: "COMMITTED", auditLinked: true, job: { status: "CANCELLED", finishedAt: now } });
+    expect(JSON.stringify(result)).not.toMatch(/private|payload|session_id|@example/);
+    expect(await snapshot()).toEqual(before);
+  });
+
 });

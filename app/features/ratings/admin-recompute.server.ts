@@ -4,8 +4,9 @@ import { z } from "zod";
 import { createDb } from "../../db/client.server";
 import { places, ratingRecomputeJobs } from "../../db/schema";
 import { commitAdminOperation, prepareAdminOperation } from "../operations/admin-operation.server";
+import { getAdminAssurance } from "../auth/admin-assurance.server";
 import { getActiveRatingConfig } from "./rating-config.server";
-import { processRatingJob } from "./recompute.server";
+import { processRatingJob, RATING_JOB_MAX_ATTEMPTS } from "./recompute.server";
 
 const snapshotSchema = z.object({
   placeId: z.string().min(1).max(128),
@@ -34,8 +35,9 @@ export async function prepareRatingRecompute(database: D1Database, input: Operat
   const job = input.retryJobId
     ? await db.query.ratingRecomputeJobs.findFirst({ where: eq(ratingRecomputeJobs.id, input.retryJobId) })
     : await db.query.ratingRecomputeJobs.findFirst({ where: and(eq(ratingRecomputeJobs.placeId, placeId), eq(ratingRecomputeJobs.configId, config.id), inArray(ratingRecomputeJobs.status, ["PENDING", "RUNNING"])) });
-  if (input.retryJobId && (!job || job.status !== "FAILED" || job.placeId !== placeId || job.configId !== config.id))
+  if (input.retryJobId && (!job || job.status !== "FAILED" || job.placeId !== placeId || job.configId !== config.id || job.attempts >= RATING_JOB_MAX_ATTEMPTS))
     throw new Response("이 실패 작업을 다시 실행할 수 없습니다. 최신 상태를 확인해 주세요.", { status: 409 });
+  if (job?.status === "PENDING" && job.attempts >= RATING_JOB_MAX_ATTEMPTS) throw new Response("작업의 재시도 한도에 도달했습니다.", { status: 409 });
   const payload = snapshotSchema.parse({
     placeId, placeUpdatedAt: place.updatedAt, voteRevision: place.voteRevision,
     configId: config.id, configUpdatedAt: config.updatedAt, jobId: job?.id ?? crypto.randomUUID(),
@@ -52,6 +54,8 @@ export async function prepareRatingRecompute(database: D1Database, input: Operat
 export async function commitRatingRecompute(database: D1Database, input: Operator & { operationId: string }) {
   const accepted = await commitAdminOperation(database, { ...input, kind: "RATING_RECOMPUTE" }, async (operation) => {
     const snapshot = snapshotSchema.parse(operation.payload);
+    if (snapshot.retry && !await getAdminAssurance(database, { ...input, now: new Date(input.now) }))
+      throw new Error("ADMIN_RECENT_AUTH_REQUIRED");
     const scope = database.prepare(`INSERT INTO admin_operation_checks (operation_id, check_name, passed)
       SELECT ?, 'rating_scope', CASE WHEN EXISTS(SELECT 1 FROM places WHERE id=? AND updated_at=? AND vote_revision=?)
       AND (SELECT id FROM rating_configs WHERE active_until IS NULL ORDER BY active_from DESC LIMIT 1)=?
@@ -59,8 +63,8 @@ export async function commitRatingRecompute(database: D1Database, input: Operato
       .bind(operation.id, snapshot.placeId, snapshot.placeUpdatedAt, snapshot.voteRevision, snapshot.configId, snapshot.configId, snapshot.configUpdatedAt);
     const check = snapshot.existingJob
       ? database.prepare(`INSERT INTO admin_operation_checks (operation_id, check_name, passed)
-          SELECT ?, 'rating_job', CASE WHEN EXISTS(SELECT 1 FROM rating_recompute_jobs WHERE id=? AND place_id=? AND config_id=? AND scope='PLACE' AND status=? AND attempts=? AND updated_at=?) THEN 1 ELSE 0 END`)
-        .bind(operation.id, snapshot.jobId, snapshot.placeId, snapshot.configId, snapshot.existingJob.status, snapshot.existingJob.attempts, snapshot.existingJob.updatedAt)
+          SELECT ?, 'rating_job', CASE WHEN EXISTS(SELECT 1 FROM rating_recompute_jobs WHERE id=? AND place_id=? AND config_id=? AND scope='PLACE' AND status=? AND attempts=? AND updated_at=? AND (?=0 OR (attempts<3 AND NOT EXISTS(SELECT 1 FROM rating_recompute_jobs other WHERE other.place_id=? AND other.config_id=? AND other.id<>? AND other.status IN ('PENDING','RUNNING'))))) THEN 1 ELSE 0 END`)
+        .bind(operation.id, snapshot.jobId, snapshot.placeId, snapshot.configId, snapshot.existingJob.status, snapshot.existingJob.attempts, snapshot.existingJob.updatedAt, snapshot.retry ? 1 : 0, snapshot.placeId, snapshot.configId, snapshot.jobId)
       : database.prepare(`INSERT INTO admin_operation_checks (operation_id, check_name, passed)
           SELECT ?, 'rating_job', CASE WHEN NOT EXISTS(SELECT 1 FROM rating_recompute_jobs WHERE id=? OR (place_id=? AND config_id=? AND status IN ('PENDING','RUNNING'))) THEN 1 ELSE 0 END`)
         .bind(operation.id, snapshot.jobId, snapshot.placeId, snapshot.configId);
@@ -71,7 +75,10 @@ export async function commitRatingRecompute(database: D1Database, input: Operato
       : database.prepare(`INSERT INTO rating_recompute_jobs (id,place_id,config_id,scope,status,reason,attempts,created_at,updated_at)
           VALUES (?,?,?,'PLACE','PENDING','ADMIN_REQUEST',0,?,?)`)
         .bind(snapshot.jobId, snapshot.placeId, snapshot.configId, input.now, input.now);
-    return { checks: [scope, check], statements: [statement], result: { jobId: snapshot.jobId, placeId: snapshot.placeId, configId: snapshot.configId, status: "PENDING" } };
+    const authCheck = database.prepare(`INSERT INTO admin_operation_checks(operation_id,check_name,passed)
+      SELECT ?, 'rating_retry_auth', CASE WHEN ?=0 OR EXISTS(SELECT 1 FROM admin_session_assurances WHERE session_id=? AND actor_user_id=? AND verified_at<=? AND expires_at>?) THEN 1 ELSE 0 END`)
+      .bind(operation.id, snapshot.retry ? 1 : 0, input.sessionId, input.actorUserId, input.now, input.now);
+    return { checks: [scope, check, authCheck], statements: [statement], result: { jobId: snapshot.jobId, placeId: snapshot.placeId, configId: snapshot.configId, status: "PENDING" } };
   });
   const job = resultSchema.parse(accepted.result);
   let result;
