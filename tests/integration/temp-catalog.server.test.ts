@@ -7,6 +7,7 @@ import { photoObjectKey, TEMP_SOURCE_HASH, type TempManifest } from "../../app/f
 import { buildTemp100PublicationSql } from "../../scripts/temp100-publication-sql.mjs";
 import { loader as tempAdminLoader } from "../../app/routes/admin-temp-catalog";
 import { loader as tempPhotoLoader } from "../../app/routes/temp-photo";
+import { createNaverLocalSearchAdapter } from "../../app/features/candidates/naver-local-search.server";
 
 const now = "2026-11-14T01:00:00.000Z";
 async function fixture() {
@@ -22,6 +23,18 @@ async function fixture() {
   return { actorUserId, sessionId, manifest };
 }
 describe("TEMP catalog publication", () => {
+  it("returns only the claimed TEMP entry to pending when the central quota blocks before HTTP", async () => {
+    const input = await fixture();
+    const staged = await stageTempCatalog(env.DB, { ...input, now });
+    let calls = 0;
+    const adapter = createNaverLocalSearchAdapter({ NAVER_LOCAL_SEARCH_ENABLED: "true", NAVER_LOCAL_SEARCH_DAILY_LIMIT: "20000", NAVER_API_HUB_KEY: "synthetic", NAVER_API_HUB_KEY_ID: "synthetic" }, {
+      database: env.DB, clock: () => new Date(now), fetchImpl: async () => { calls++; return new Response("{}"); },
+    });
+    await expect(geocodeNextTempEntry(env.DB, { ...input, batchId: staged.batchId, now, adapter })).rejects.toThrow("NAVER_LOCAL_SEARCH_QUOTA");
+    expect(calls).toBe(0);
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM temp_catalog_entries WHERE batch_id=? AND geo_status='PENDING'").bind(staged.batchId).first()).toEqual({ n: 100 });
+    expect(await env.DB.prepare("SELECT api_call_count,failed_count FROM naver_local_category_runs WHERE created_by=?").bind(input.actorUserId).first()).toEqual({ api_call_count: 0, failed_count: 0 });
+  });
   it("applies an explicitly bounded operator SQL atomically and removes its one-time trigger", async () => {
     const input = await fixture();
     const staged = await stageTempCatalog(env.DB, { ...input, now });

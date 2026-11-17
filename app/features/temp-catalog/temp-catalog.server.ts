@@ -1,3 +1,4 @@
+import { countNaverDispatches } from "../operations/provider-usage.server";
 import { and, eq, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { createDb } from "../../db/client.server";
@@ -80,28 +81,31 @@ export async function geocodeNextTempEntry(database: D1Database, input: { batchI
   const entry = tempEntrySchema.parse(JSON.parse(row.payload_json));
   const regionCode = entry.region.startsWith("광주") ? "GWANGJU" as const : "JEONNAM" as const;
   const db = createDb(database);
-  assertNaverRegionQuota({ regionCode, used: await getNaverLocalSearchApiCallsToday(db, input.now, regionCode) });
+  if (!input.adapter.accounted) assertNaverRegionQuota({ regionCode, used: await getNaverLocalSearchApiCallsToday(db, input.now, regionCode) });
   const claimed = await database.prepare("UPDATE temp_catalog_entries SET geo_status='CLAIMED',updated_at=? WHERE id=? AND geo_status='PENDING' RETURNING id").bind(input.now, row.id).first();
   if (!claimed) throw new Error("TEMP_GEOCODE_CONFLICT");
   const runId = crypto.randomUUID();
-  await db.insert(naverLocalCategoryRuns).values({ id: runId, mode: "PREVIEW", scope: "PENDING", status: "RUNNING", requestedLimit: 1, apiCallCount: 1, regionCode, startedAt: input.now, createdBy: input.actorUserId });
+  await db.insert(naverLocalCategoryRuns).values({ id: runId, mode: "PREVIEW", scope: "PENDING", status: "RUNNING", requestedLimit: 1, apiCallCount: 0, regionCode, startedAt: input.now, createdBy: input.actorUserId });
   try {
-    const hits = (await input.adapter.search({ businessName: entry.name, address: entry.address, regionCode })).filter((hit) => identityKey(hit) === identityKey(entry) && verifiedCoordinates(hit.latitude, hit.longitude));
+    const hits = (await input.adapter.search({ businessName: entry.name, address: entry.address, regionCode }, { source: "TEMP_GEOCODE", runId })).filter((hit) => identityKey(hit) === identityKey(entry) && verifiedCoordinates(hit.latitude, hit.longitude));
     if (hits.length !== 1) throw new Error("TEMP_GEOCODE_EXACT_MATCH_REQUIRED");
     const hit = hits[0];
+    const calls = input.adapter.accounted ? await countNaverDispatches(database, runId) : 1;
     await database.batch([
       database.prepare("UPDATE temp_catalog_entries SET latitude=?,longitude=?,geo_status='MATCHED',geo_code='NAVER_EXACT_NAME_ADDRESS',updated_at=? WHERE id=? AND geo_status='CLAIMED'").bind(hit.latitude, hit.longitude, input.now, row.id),
       database.prepare("UPDATE temp_catalog_batches SET version=version+1,updated_at=? WHERE id=? AND status='STAGED'").bind(input.now, batch.id),
-      database.prepare("UPDATE naver_local_category_runs SET status='COMPLETED',scanned_count=1,verified_count=1,finished_at=? WHERE id=?").bind(input.now, runId),
+      database.prepare("UPDATE naver_local_category_runs SET status='COMPLETED',scanned_count=1,verified_count=1,api_call_count=?,finished_at=? WHERE id=?").bind(calls, input.now, runId),
       database.prepare("INSERT INTO admin_audit_logs(id,actor_user_id,action,target_type,target_id,after_state,created_at) VALUES(?,?,'TEMP_COORDINATE_MATCH','TEMP_ENTRY',?,?,?)").bind(crypto.randomUUID(), input.actorUserId, row.id, JSON.stringify({ code: "NAVER_EXACT_NAME_ADDRESS" }), input.now),
     ]);
     return { complete: false, matched: rows.filter((r) => r.geo_status === "MATCHED").length + 1, sourceId: entry.sourceId };
   } catch (error) {
     const code = error instanceof Error && "code" in error ? String(error.code) : "TEMP_GEOCODE_EXACT_MATCH_REQUIRED";
+    const calls = input.adapter.accounted ? await countNaverDispatches(database, runId) : 1;
+    const waiting = calls === 0 && ["NAVER_LOCAL_SEARCH_QUOTA", "NAVER_LOCAL_SEARCH_DISABLED", "NAVER_ACCOUNTING_UNAVAILABLE"].includes(code);
     await database.batch([
-      database.prepare("UPDATE temp_catalog_entries SET geo_status='FAILED',geo_code=?,updated_at=? WHERE id=?").bind(code, input.now, row.id),
+      database.prepare("UPDATE temp_catalog_entries SET geo_status=?,geo_code=?,updated_at=? WHERE id=? AND geo_status='CLAIMED' AND updated_at=?").bind(waiting ? "PENDING" : "FAILED", code, input.now, row.id, input.now),
       database.prepare("UPDATE temp_catalog_batches SET version=version+1,updated_at=? WHERE id=?").bind(input.now, batch.id),
-      database.prepare("UPDATE naver_local_category_runs SET status='FAILED',failed_count=1,error_code=?,finished_at=? WHERE id=?").bind(code, input.now, runId),
+      database.prepare("UPDATE naver_local_category_runs SET status='FAILED',failed_count=?,api_call_count=?,error_code=?,finished_at=? WHERE id=?").bind(waiting ? 0 : 1, calls, code, input.now, runId),
     ]);
     throw new Error(code);
   }

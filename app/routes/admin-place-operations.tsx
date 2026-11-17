@@ -324,7 +324,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "verify-review-items-with-naver") {
     try {
       assertNaverLocalSearchEnabled(env);
-      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env), confidentAdvanceEnabled });
+      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env, { database: env.DB }), confidentAdvanceEnabled });
       const deferred = result.deferred ? ` · 다음 실행 ${result.deferred}곳` : "";
       return { ok: true, message: `선택 ${workItemIds.length}곳 중 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}${deferred}`, skipped: result.skipped, processedWorkItemIds: result.processedWorkItemIds, nextStep: 3 as const };
     } catch (error) {
@@ -342,7 +342,7 @@ export async function action({ request }: Route.ActionArgs) {
       }
       assertNaverLocalSearchEnabled(env);
       const result = await verifyReviewItemsWithNaver(db, {
-        workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env), confidentAdvanceEnabled,
+        workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env, { database: env.DB }), confidentAdvanceEnabled,
       });
       return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, passed: result.passed, attention: result.attention, failed: result.failed, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
     } catch (error) {

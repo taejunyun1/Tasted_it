@@ -36,7 +36,7 @@ export async function action({ request }: Route.ActionArgs) {
       const result = await stageTempCatalog(env.DB, { actorUserId: admin.id, manifest: JSON.parse(await file.text()), now });
       return redirect(`/admin/temp-catalog?batch=${encodeURIComponent(result.batchId)}`);
     }
-    if (intent === "geocode") return { ok: true, ...(await geocodeNextTempEntry(env.DB, { actorUserId: admin.id, batchId, now, adapter: createNaverLocalSearchAdapter(env) })) };
+    if (intent === "geocode") return { ok: true, ...(await geocodeNextTempEntry(env.DB, { actorUserId: admin.id, batchId, now, adapter: createNaverLocalSearchAdapter(env, { database: env.DB }) })) };
     if (intent === "coordinate-source") {
       const raw = form.get("evidence");
       if (typeof raw !== "string" || raw.length > 8192) throw new Error("TEMP_COORDINATE_INVALID");
