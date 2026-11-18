@@ -1,4 +1,5 @@
 import { calculateRating } from "../ratings/rating-v1";
+import { publicRatingFromPlace, type PublicRatingInput } from "../ratings/public-rating";
 import type { TasteBadgeSource } from "../members/profile-taste-badges";
 import type { PlaceSummary } from "./place.types";
 import { seasonForMonth, TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
@@ -133,12 +134,16 @@ export function formatRatingSummary(place: Pick<PlaceSummary, "positive" | "nega
 
 export const PUBLIC_RATING_FALLBACK_COPY = "표본 수집 중";
 
-export function formatPublicRatingSummary(place: Pick<PlaceSummary, "ratingScore" | "ratingSampleCount">) {
-  if (place.ratingScore != null) {
-    return `추천 ${place.ratingScore}% · ${place.ratingSampleCount ?? 0}명 평가`;
+export function formatPublicRatingSummary(place: PublicRatingInput) {
+  const rating = publicRatingFromPlace(place);
+  if (rating.overallScore != null) {
+    return `추천 ${rating.overallScore}% · ${rating.overallSampleCount}명 평가`;
   }
-  if (place.ratingSampleCount != null && place.ratingSampleCount > 0) {
-    return `${PUBLIC_RATING_FALLBACK_COPY} · ${place.ratingSampleCount}/8`;
+  if (rating.overallSampleCount >= 8) {
+    return `추천 지표 계산 대기 · ${rating.overallSampleCount}명 평가`;
+  }
+  if (rating.overallSampleCount > 0) {
+    return `${PUBLIC_RATING_FALLBACK_COPY} · ${rating.overallSampleCount}/8`;
   }
   return PUBLIC_RATING_FALLBACK_COPY;
 }

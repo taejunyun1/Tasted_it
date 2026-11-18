@@ -434,7 +434,8 @@ export async function getPlaceBySlug(
       statusText: "PLACE_NOT_FOUND",
     });
   }
-  return place;
+  const [withRating] = await attachLatestNonStaleRatingSnapshots(db, [place]);
+  return withRating;
 }
 
 export async function resolvePlaceSlugRedirect(

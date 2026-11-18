@@ -6,6 +6,10 @@ import { safePlaceDetailRequestPath } from "./PlaceCard";
 import { GuestSaveControl } from "../onboarding/GuestSaveControl";
 import { TempCatalogNotice } from "../../features/temp-catalog/TempCatalogNotice";
 import type { PlaceDetailLoadFailure } from "../../features/places/place-detail-client";
+import { formatPublicRatingSummary } from "../../features/places/place-discovery";
+import { formatRatingGroup } from "../../features/ratings/public-rating";
+import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
+import { FlavorMeter } from "../ratings/FlavorMeter";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
 type MutationData = { ok: boolean; error?: string; resultUnknown?: boolean; status?: number };
@@ -82,15 +86,15 @@ function PlaceDetailRequest({ requestPath, onClose, onRetry }: { requestPath: st
           <button type="button" onClick={onClose}>목록으로 돌아가기</button>
         </div>
       </div> : <>
-        <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>
+        <div className="place-detail-sheet__hero" data-has-photo={Boolean(data.place.heroImageUrl)}>{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>
         <div className="place-detail-sheet__body">
           <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "검수 완료"}</span></div>
           <h2>{data.place.name}</h2>
           {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
           <address>{data.place.address}</address>
-          <div className="place-detail-sheet__score"><strong>{data.rating.overallScore === null ? `${data.rating.overallSampleCount}/8` : `${data.rating.overallScore}%`}</strong><span>{data.rating.overallScore === null ? "평가 공개까지" : "추천 지표"}</span></div>
-          <div className="place-detail-sheet__breakdown"><span>일반 회원 <b>{data.rating.userScore ?? `${data.rating.userSampleCount}/8`}</b></span><span>리뷰어 <b>{data.rating.reviewerScore ?? `${data.rating.reviewerSampleCount}/8`}</b></span></div>
-          {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} aria-label={`${dimension.key} 점수`}>{dimension.median}/5</meter><b>{dimension.median}/5</b></div>)}</section>}
+          <div className="place-detail-sheet__score"><div><strong>{data.rating.overallScore !== null ? `${data.rating.overallScore}%` : data.rating.overallSampleCount < 8 ? `${data.rating.overallSampleCount}/8` : `${data.rating.overallSampleCount}명`}</strong><p className="public-rating-summary">{formatPublicRatingSummary(data.place)}</p></div><PublicRatingMeta place={data.place} /></div>
+          <div className="place-detail-sheet__breakdown"><span>일반 회원 <b>{formatRatingGroup(data.rating.userScore, data.rating.userSampleCount)}</b></span><span>리뷰어 <b>{formatRatingGroup(data.rating.reviewerScore, data.rating.reviewerSampleCount)}</b></span></div>
+          {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
           <dl><div><dt>주소</dt><dd>{data.place.address}</dd></div><div><dt>주차</dt><dd>{data.place.parkingSummary ?? "정보 확인 중"}</dd></div>{data.place.phone && <div><dt>전화</dt><dd>{data.place.phone}</dd></div>}</dl>
           {busy && <p role="status">{submission?.intent === "withdraw" ? "평가를 취소하고 있어요." : "저장 상태를 바꾸고 있어요."}</p>}
           {!busy && submission && save.data?.ok && <p role="status">{submission.intent === "withdraw" ? "평가를 취소했어요." : submission.saved ? "맛집지도에 추가했어요." : "맛집지도에서 뺐어요."}</p>}

@@ -4,7 +4,10 @@ import { z } from "zod";
 import type { Route } from "./+types/place-detail";
 import { createDb } from "../db/client.server";
 import { getPlaceBySlug, resolvePlaceSlugRedirect } from "../features/places/place.server";
-import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
+import { publicRatingFromPlace, formatRatingGroup, reviewerWeightExplanation } from "../features/ratings/public-rating";
+import { formatPublicRatingSummary } from "../features/places/place-discovery";
+import { PublicRatingMeta } from "../components/ratings/PublicRatingMeta";
+import { FlavorMeter } from "../components/ratings/FlavorMeter";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
@@ -90,32 +93,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
-    getLatestRatingSnapshot(db, place.id),
+  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
     listPublishedPlaceReviewPhotos(db, place.id, 12),
   ]);
-  const rating = snapshot ? {
-    overallScore: snapshot.overallScore,
-    userScore: snapshot.userScore,
-    reviewerScore: snapshot.reviewerScore,
-    overallSampleCount: snapshot.overallSampleCount,
-    userSampleCount: snapshot.userSampleCount,
-    reviewerSampleCount: snapshot.reviewerSampleCount,
-    isStale: snapshot.isStale,
-    algorithmVersion: "rating-v2.0",
-  } : {
-    overallScore: null,
-    userScore: null,
-    reviewerScore: null,
-    overallSampleCount: place.positive + place.negative,
-    userSampleCount: (place.userPositive ?? 0) + (place.userNegative ?? 0),
-    reviewerSampleCount: (place.reviewerPositive ?? 0) + (place.reviewerNegative ?? 0),
-    isStale: true,
-    algorithmVersion: "rating-recomputing",
-  };
+  const rating = publicRatingFromPlace(place);
   if (provenance) {
     await recordPlaceProductEvent(db, {
       eventName: "RECOMMENDATION_DETAIL_OPENED",
@@ -226,15 +210,15 @@ export default function PlaceDetail({ loaderData, actionData }: Route.ComponentP
     <main id="main" className="detail shell">
       <Link className="back-link" to={`/?category=${encodeURIComponent(place.primaryCategory.slug)}`}>← {place.primaryCategory.name} 지도로</Link>
       <div className="detail-grid">
-        <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>
+        <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>
         <article className="detail-copy">
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
           {place.tempCatalog && <TempCatalogNotice info={place.tempCatalog} />}
           {loaderData.hasGoldenPick && <span className="rating-badge">GOLDEN PICK · 90일</span>}
           {loaderData.hiddenGem.eligible && <span className="rating-badge rating-badge-hidden">HIDDEN GEM · 노출 대비 높은 평가</span>}
-          <div className="score"><strong>{rating.overallScore === null ? `표본 수집 중 · ${rating.overallSampleCount}/8` : `${rating.overallScore}%`}</strong><span>{rating.isStale ? "새 평가 반영 중" : "검증된 최신 결과"}</span></div>
-          <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
-          {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
+          <div className="score"><div><strong>{rating.overallScore !== null ? `${rating.overallScore}%` : rating.overallSampleCount < 8 ? `${rating.overallSampleCount}/8` : `${rating.overallSampleCount}명`}</strong><p className="public-rating-summary">{formatPublicRatingSummary(place)}</p></div><PublicRatingMeta place={place} /></div>
+          <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{formatRatingGroup(rating.userScore, rating.userSampleCount)}</strong></div><div><span>리뷰어</span><strong>{formatRatingGroup(rating.reviewerScore, rating.reviewerSampleCount)}</strong></div><small>{reviewerWeightExplanation(rating.userSampleCount)}</small></section>
+          {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
           {mutationFailed && <div role="alert"><p>{mutationUnknown ? "처리 결과를 확인하지 못했어요. 다시 반응하기 전에 현재 상태를 확인해 주세요." : "요청을 처리하지 못했어요. 현재 상태를 확인한 뒤 다시 시도해 주세요."}</p><button type="button" onClick={() => window.location.reload()}>현재 상태 다시 확인</button></div>}
           <fieldset disabled={mutationUnknown} className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>

@@ -46,6 +46,12 @@ export interface PlaceSummary {
   reviewerNegative?: number;
   ratingScore?: number | null;
   ratingSampleCount?: number;
+  userRatingScore?: number | null;
+  userRatingSampleCount?: number;
+  reviewerRatingScore?: number | null;
+  reviewerRatingSampleCount?: number;
+  ratingIsStale?: boolean;
+  ratingComputedAt?: string | null;
   tempCatalog?: import("../temp-catalog/temp-catalog").TempPublicInfo;
 }
 

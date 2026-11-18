@@ -1,14 +1,17 @@
 import { useRef } from "react";
 import { Link } from "react-router";
-import { formatPublicRatingSummary, PUBLIC_RATING_FALLBACK_COPY } from "../../features/places/place-discovery";
+import { formatPublicRatingSummary } from "../../features/places/place-discovery";
+import { publicRatingFromPlace } from "../../features/ratings/public-rating";
+import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 import type { PlaceSummary } from "../../features/places/place.types";
 import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
 
 export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSummary; onBack: () => void; onOpenDetail: (slug: string) => void }) {
   const sheetRef = useRef<HTMLElement>(null);
-  const score = place.ratingScore;
+  const rating = publicRatingFromPlace(place);
+  const score = rating.overallScore;
   const isVisible = score != null;
-  const voteCount = place.ratingSampleCount ?? 0;
+  const voteCount = rating.overallSampleCount;
   const progressValue = score ?? Math.min(voteCount, 8);
   const progressMax = isVisible ? 100 : 8;
   const progressPercent = (progressValue / progressMax) * 100;
@@ -28,13 +31,14 @@ export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSu
     </div>
     <div className="map-place-sheet__rating">
       <div className="map-place-sheet__rating-head">
-        <span>{isVisible ? "추천 지표" : "평가 공개까지"}</span>
-        <strong>{isVisible ? `${score}%` : voteCount ? `${voteCount}/8` : PUBLIC_RATING_FALLBACK_COPY}</strong>
+        <span>{isVisible ? "추천 지표" : voteCount < 8 ? "평가 공개까지" : "추천 지표 계산 대기"}</span>
+        <strong>{isVisible ? `${score}%` : voteCount < 8 ? `${voteCount}/8` : `${voteCount}명 평가`}</strong>
       </div>
-      <div className="map-rating-bar" role="progressbar" aria-label="추천 지표" aria-valuemin={0} aria-valuemax={progressMax} aria-valuenow={progressValue}>
+      <div className="map-rating-bar" role="progressbar" aria-label={isVisible ? "추천 지표" : "평가 표본 수"} aria-valuemin={0} aria-valuemax={progressMax} aria-valuenow={progressValue} aria-valuetext={formatPublicRatingSummary(place)}>
         <span style={{ width: `${progressPercent}%` }} />
       </div>
       <small>{formatPublicRatingSummary(place)}</small>
+      <PublicRatingMeta place={place} />
     </div>
     <div className="map-place-sheet__actions">
       <a className="map-place-sheet__route" href={naverUrl} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
