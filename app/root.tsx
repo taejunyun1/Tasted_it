@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { Form, isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from "react-router";
+import { Form, isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation, type ShouldRevalidateFunction } from "react-router";
 import type { Route } from "./+types/root";
 import { authEntryHref } from "./features/auth/login";
 import { getOptionalUser } from "./features/auth/session.server";
@@ -8,8 +8,12 @@ import { getStudentSeat } from "./features/students/invitations.server";
 import { getGuestChoiceMergeState } from "./features/onboarding/guest-saves.server";
 import { GuestMergeRetry } from "./components/onboarding/GuestMergeRetry";
 import { PlaceSearchError } from "./components/places/PlaceSearchError";
+import { keepMapShell } from "./features/maps/map-read-recovery";
+import { mapViewerKey } from "./features/maps/map-viewer-key.server";
 import "./app.css";
 import "./styles/design-system.css";
+
+export const shouldRevalidate: ShouldRevalidateFunction = (input) => keepMapShell(input) ? false : input.defaultShouldRevalidate;
 
 export const links: Route.LinksFunction = () => [
   { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/sunn-us/SUIT/fonts/static/woff2/SUIT.css" },
@@ -22,7 +26,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const studentWorkspaceEnabled = env.STUDENT_WORKSPACE_ENABLED === "true";
   const student = user && user.role !== "ADMIN" && studentWorkspaceEnabled ? await getStudentSeat(createDb(env.DB), { userId: user.id, now: new Date().toISOString() }) : null;
   const guestMergeState = user && env.ONBOARDING_ENABLED === "true" ? await getGuestChoiceMergeState(createDb(env.DB), request, new Date().toISOString()) : "NONE";
-  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student), guestMergeState };
+  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student), guestMergeState, mapViewerKey: await mapViewerKey(request, user) };
 }
 export function Layout({ children }: { children: React.ReactNode }) { return <html lang="ko"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><Meta/><Links/></head><body><a className="skip-link" href="#main">본문으로 건너뛰기</a>{children}<ScrollRestoration/><Scripts/></body></html>; }
 export default function App({ loaderData }: Route.ComponentProps) {

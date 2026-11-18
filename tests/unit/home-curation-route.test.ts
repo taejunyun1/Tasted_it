@@ -9,7 +9,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   env: { DB: {}, ONBOARDING_ENABLED: "true", NAVER_MAPS_CLIENT_ID: "map-client" },
-  getOptionalUser: vi.fn(async (): Promise<{ id: string } | null> => null),
+  getOptionalUser: vi.fn(async (): Promise<{ id: string; role?: string } | null> => null),
   getGuestOnboardingFromRequest: vi.fn(async (): Promise<{
     foodBadgeIds: string[];
     styleBadgeIds: string[];
@@ -36,9 +36,10 @@ function memoryStorage() {
 
 vi.mock("cloudflare:workers", () => ({ env: mocks.env }));
 vi.mock("../../app/db/client.server", () => ({ createDb: () => ({}) }));
-vi.mock("../../app/features/auth/session.server", () => ({ getOptionalUser: mocks.getOptionalUser }));
+vi.mock("../../app/features/auth/session.server", () => ({ getOptionalUser: mocks.getOptionalUser, readSessionId: () => null }));
 vi.mock("../../app/features/onboarding/guest-session.server", () => ({
   getGuestOnboardingFromRequest: mocks.getGuestOnboardingFromRequest,
+  readGuestSessionId: () => null,
 }));
 vi.mock("../../app/features/places/home-curation.server", () => ({
   getHomeCurationPage: mocks.getHomeCurationPage,
@@ -121,6 +122,17 @@ describe("home curated route", () => {
     expect(shouldRevalidate({
       currentUrl: new URL("https://retaste.example/?mode=now"),
       nextUrl: new URL("https://retaste.example/?view=browse"),
+      defaultShouldRevalidate: true,
+    } as never)).toBe(true);
+    expect(shouldRevalidate({
+      currentUrl: new URL("https://retaste.example/?mode=now"),
+      nextUrl: new URL("https://retaste.example/?mode=taste"),
+      formMethod: "POST",
+      defaultShouldRevalidate: true,
+    } as never)).toBe(true);
+    expect(shouldRevalidate({
+      currentUrl: new URL("https://retaste.example/?mode=now"),
+      nextUrl: new URL("https://retaste.example/?mode=now"),
       defaultShouldRevalidate: true,
     } as never)).toBe(true);
   });
@@ -555,7 +567,7 @@ describe("home curated route", () => {
     expect(source).toContain('loadRecommendations(liveHomeState.mode, result.bbox, "gps")');
     expect(source).toContain('loadRecommendations(liveHomeState.mode, pendingBounds, "map_center")');
     expect(source).toContain('onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, liveHomeState.locationSource)');
-    expect(source).not.toContain("clientLoader");
+    expect(source).not.toMatch(/clientLoader\.hydrate\s*=\s*true/);
     expect(source).not.toMatch(/useEffect\(\(\) => \{\s*loadRecommendations/);
     expect(source).not.toContain("localStorage");
     expect(source).not.toContain("document.cookie");

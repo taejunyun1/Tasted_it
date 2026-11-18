@@ -11,11 +11,17 @@ import { PlaceCard } from "../components/places/PlaceCard";
 import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 import { categories } from "../db/schema";
 import { eq } from "drizzle-orm";
+import { MapReadBoundary, MapReadError, useMapViewerKey } from "../components/map/MapReadBoundary";
+import { isMapReadFailure, readMapData } from "../features/maps/map-read-recovery";
 
 export function meta({ params, loaderData }: Route.MetaArgs) {
-  const category = loaderData?.categoryName ?? "맛집";
-  return publicPageMeta({ title: `${category} 지도 — Re:Taste`, description: `광주·전남 ${category} 장소를 지도와 목록에서 확인하세요.`, path: `/maps/${encodeURIComponent(params.categorySlug ?? "")}`, origin: loaderData?.publicOrigin });
+  const loaded = loaderData && !isMapReadFailure(loaderData) ? loaderData : null;
+  const category = loaded?.categoryName ?? "맛집";
+  return publicPageMeta({ title: `${category} 지도 — Re:Taste`, description: `광주·전남 ${category} 장소를 지도와 목록에서 확인하세요.`, path: `/maps/${encodeURIComponent(params.categorySlug ?? "")}`, origin: loaded?.publicOrigin });
 }
+
+export async function clientLoader({ request, serverLoader }: Route.ClientLoaderArgs) { return readMapData(request, serverLoader); }
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) { return <MapReadError error={error} />; }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const state = parseMapState(new URL(request.url).search);
@@ -30,6 +36,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function CategoryMap({ loaderData }: Route.ComponentProps) {
+  const viewer = useMapViewerKey();
+  return <MapReadBoundary<Awaited<ReturnType<typeof loader>>> incoming={loaderData} scope={`category:${viewer ?? "guest"}`}>
+    {(data) => <CategoryMapView key={viewer ?? "guest"} loaderData={data} />}
+  </MapReadBoundary>;
+}
+
+function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
   const [params, setParams] = useSearchParams();
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
