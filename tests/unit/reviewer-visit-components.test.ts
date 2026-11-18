@@ -78,6 +78,13 @@ describe("ReviewerVisitFlow", () => {
     expect(html).not.toContain("peerUserId");
   });
 
+  it("includes the inactive Golden Pick decision in the final confirmation", () => {
+    const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, props));
+    const preview = html.slice(html.indexOf("STEP 05 / PREVIEW"));
+    expect(preview).toContain("<dt>Golden Pick</dt><dd>요청하지 않음</dd>");
+    expect(preview).not.toContain("<dt>Golden Pick 이유</dt>");
+  });
+
   it("renders the provided owner photo preview without leaking storage keys", () => {
     const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, { ...props, history: [{
       id: "visit-photo-1",

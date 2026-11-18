@@ -405,7 +405,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
         <input type="hidden" name="categoryName" value={selectedCategory?.name ?? ""} />
         <input type="hidden" name="evaluation" value={evaluation ?? ""} />
         <input type="hidden" name="golden" value={golden ? "1" : "0"} />
-        <input type="hidden" name="goldenReason" value={goldenReason} />
+        <input type="hidden" name="goldenReason" value={golden ? goldenReason : ""} />
         {badges.map((badge) => <input key={badge} type="hidden" name="badges" value={badge} />)}
 
         {formError && <p className="reviewer-form-error" role="alert">{formError}</p>}
@@ -494,6 +494,8 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
             <dl>
               <div><dt>장소</dt><dd>{selectedPlace?.placeName ?? "선택 전"}</dd></div>
               <div><dt>평가</dt><dd>{evaluation ? evaluationLabels[evaluation] : "선택 전"}</dd></div>
+              <div><dt>Golden Pick</dt><dd>{golden ? "검수 요청함" : "요청하지 않음"}</dd></div>
+              {golden && <div><dt>Golden Pick 이유</dt><dd>{goldenReason.trim() || "이유를 입력해 주세요."}</dd></div>}
               <div><dt>카테고리</dt><dd>{selectedCategory ? `${selectedCategory.emoji} ${selectedCategory.name}` : "선택 전"}</dd></div>
               <div><dt>맛 배지</dt><dd>{badges.length ? badges.join(" · ") : "선택 안 함"}</dd></div>
               <div><dt>사진</dt><dd>제출 {photos.length}장{photos.length ? " · 관리자 승인 후 공개" : ""}</dd></div>
