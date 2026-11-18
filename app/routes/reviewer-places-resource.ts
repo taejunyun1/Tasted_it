@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { data } from "react-router";
+import { data, isRouteErrorResponse } from "react-router";
 import type { Route } from "./+types/reviewer-places-resource";
 import { createDb } from "../db/client.server";
 import { reviewerProfiles } from "../db/schema";
@@ -28,7 +28,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 export async function clientLoader({ request, serverLoader }: Route.ClientLoaderArgs): Promise<ReviewerPlaceResponse> {
   try { return await serverLoader() as ReviewerPlaceResponse; }
-  catch {
+  catch (error) {
+    const status = error instanceof Response || isRouteErrorResponse(error) ? error.status : 503;
+    // React Router single-fetch throws authentication redirects here. Preserve
+    // their navigation semantics instead of showing a retryable network error.
+    if (status >= 300 && status < 400) throw error;
     const key = new URL(request.url).searchParams.get("requestKey") ?? "";
     return { ok: false, requestKey: /^[A-Za-z0-9_-]{0,80}$/.test(key) ? key : "", message: "장소를 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요." };
   }

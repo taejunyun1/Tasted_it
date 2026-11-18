@@ -71,3 +71,21 @@ test("keeps the current results when search fails and allows an explicit retry",
   await page.getByRole("button", { name: "다시 시도", exact: true }).click();
   await expect(results).toContainText("끝까지선택검증 42");
 });
+
+test("an expired reviewer session redirects to login during a place search", async ({ page, context }, testInfo) => {
+  const sessionId = testInfo.project.name === "mobile-chromium" ? "qa-picker-expiry-mobile" : "qa-picker-expiry-desktop";
+  const execute = (sql: string) => execFileSync(process.execPath, ["node_modules/wrangler/bin/wrangler.js", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", sql], { stdio: "pipe" });
+  execute(`INSERT OR REPLACE INTO sessions(id,user_id,expires_at,created_at) VALUES('${sessionId}','qa-active-reviewer','2099-01-01T00:00:00Z','2026-11-18T00:00:00Z')`);
+  try {
+    await context.addCookies([{ name: "retaste_session", value: sessionId, url: String(testInfo.project.use.baseURL) }]);
+    await page.goto("/reviewer/ratings");
+    const search = page.getByPlaceholder("다녀온 장소 검색");
+    await expect(search).toBeEnabled();
+    execute(`UPDATE sessions SET expires_at='2000-01-01T00:00:00Z' WHERE id='${sessionId}' AND user_id='qa-active-reviewer'`);
+    await search.fill("끝까지선택검증 42");
+    await expect(page).toHaveURL(/\/login\?/);
+    await expect(page.getByLabel("이메일", { exact: true })).toBeVisible();
+  } finally {
+    execute(`DELETE FROM sessions WHERE id='${sessionId}' AND user_id='qa-active-reviewer'`);
+  }
+});
