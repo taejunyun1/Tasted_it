@@ -1,11 +1,13 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { Form, Link, redirect } from "react-router";
+import { data, Form, isRouteErrorResponse, Link, redirect } from "react-router";
+import { z } from "zod";
 
 import type { Route } from "./+types/me";
 import { AccountConnections } from "../components/me/AccountConnections";
 import { ActivityCollection } from "../components/me/ActivityCollection";
 import { TasteSignals } from "../components/me/TasteSignals";
+import { MemberSavedPlaces } from "../components/me/MemberSavedPlaces";
 import { createDb } from "../db/client.server";
 import { authIdentities, users } from "../db/schema";
 import { withdrawAccount } from "../features/auth/account.server";
@@ -17,6 +19,15 @@ import { listMemberTaste } from "../features/members/member.server";
 import { getMemberTasteProfile } from "../features/members/profile-taste.server";
 import { getMemberTasteGraph } from "../features/ratings/flavor-print.server";
 import { setSavedAndRefreshTaste } from "../features/saves/save.server";
+import { unknownMemberSave, type MemberSaveResult } from "../features/saves/member-save-feedback";
+
+const unsaveSchema = z.object({ intent: z.literal("unsave"), placeId: z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value)) });
+const privateHeaders = { "Cache-Control": "private, no-store", Vary: "Cookie" };
+export const headers: Route.HeadersFunction = ({ actionHeaders }) => {
+  const result = new Headers(actionHeaders);
+  for (const [name, value] of Object.entries(privateHeaders)) result.set(name, value);
+  return result;
+};
 
 export function meta() {
   return [{ title: "나의 취향 — Re:Taste" }, { name: "description", content: "저장과 평가를 바탕으로 쌓이는 나의 맛 취향 기록" }];
@@ -77,16 +88,35 @@ export async function action({ request }: Route.ActionArgs) {
     }
     throw redirect("/", { headers: { "Set-Cookie": await destroyUserSession(request) } });
   }
-  await setSavedAndRefreshTaste(createDb(env.DB), {
-    userId: user.id,
-    placeId: String(form.get("placeId") ?? ""),
-    saved: false,
-    now: new Date().toISOString(),
-  });
-  return redirect("/me");
+  const parsed = unsaveSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return data({ kind: "member-save", ok: false, outcome: "REJECTED", placeId: "", message: "저장 해제할 장소를 확인한 뒤 다시 시도해 주세요." } satisfies MemberSaveResult, { status: 400, headers: privateHeaders });
+  try {
+    await setSavedAndRefreshTaste(createDb(env.DB), {
+      userId: user.id,
+      placeId: parsed.data.placeId,
+      saved: false,
+      now: new Date().toISOString(),
+    });
+    return data({ kind: "member-save", ok: true, outcome: "REMOVED", placeId: parsed.data.placeId, message: "저장을 해제했습니다." } satisfies MemberSaveResult, { headers: privateHeaders });
+  } catch {
+    console.error("MEMBER_UNSAVE_FAILED");
+    return data(unknownMemberSave(parsed.data.placeId), { status: 503, headers: privateHeaders });
+  }
+}
+
+export async function clientAction({ request, serverAction }: Route.ClientActionArgs) {
+  const form = await request.clone().formData();
+  if (form.get("intent") !== "unsave") return serverAction();
+  try {
+    return await serverAction();
+  } catch (error) {
+    if (error instanceof Response || isRouteErrorResponse(error)) throw error;
+    return unknownMemberSave(String(form.get("placeId") ?? "").slice(0, 128));
+  }
 }
 
 export default function Me({ loaderData, actionData }: Route.ComponentProps) {
+  const withdrawError = actionData && "withdrawError" in actionData ? actionData.withdrawError : undefined;
   return <main id="main" className="member-hub">
     <div className="shell">
       <header className="member-profile">
@@ -124,24 +154,7 @@ export default function Me({ loaderData, actionData }: Route.ComponentProps) {
           <h2 id="member-activity-title">내가 남긴 맛의 기록</h2>
         </div>
         <div className="member-activity-grid">
-          <ActivityCollection
-            title="저장한 장소"
-            count={loaderData.saved.length}
-            emptyText="지도에서 다시 보고 싶은 장소를 저장해 보세요."
-            emptyHref="/places"
-          >
-            {loaderData.saved.map((place) => <article className="member-place-row" key={place.id}>
-              <div>
-                <p>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p>
-                <h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3>
-              </div>
-              <Form method="post">
-                <input type="hidden" name="intent" value="unsave" />
-                <input type="hidden" name="placeId" value={place.id} />
-                <button>저장 해제</button>
-              </Form>
-            </article>)}
-          </ActivityCollection>
+          <MemberSavedPlaces places={loaderData.saved} />
 
           <ActivityCollection
             title="내가 평가한 장소"
@@ -167,7 +180,7 @@ export default function Me({ loaderData, actionData }: Route.ComponentProps) {
           <summary>회원 탈퇴</summary>
           <h2 id="member-withdraw-title">회원 탈퇴</h2>
           <p>탈퇴하면 로그인, 소셜 연동, 저장한 장소는 삭제되고 복구할 수 없습니다. 이미 반영된 추천·비추천은 점수 유지를 위해 익명으로 남습니다.</p>
-          {actionData?.withdrawError && <p role="alert" className="member-notice member-notice--error">{actionData.withdrawError}</p>}
+          {withdrawError && <p role="alert" className="member-notice member-notice--error">{withdrawError}</p>}
           <Form method="post">
             <input type="hidden" name="intent" value="withdraw" />
             <label>
