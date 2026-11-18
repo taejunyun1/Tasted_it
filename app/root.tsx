@@ -8,6 +8,7 @@ import { getStudentSeat } from "./features/students/invitations.server";
 import { getGuestChoiceMergeState } from "./features/onboarding/guest-saves.server";
 import { GuestMergeRetry } from "./components/onboarding/GuestMergeRetry";
 import { PlaceSearchError } from "./components/places/PlaceSearchError";
+import { CourseSearchError } from "./components/courses/CourseSearchError";
 import { keepMapShell } from "./features/maps/map-read-recovery";
 import { mapViewerKey } from "./features/maps/map-viewer-key.server";
 import "./app.css";
@@ -75,6 +76,9 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   const forbidden = isRouteErrorResponse(error) && error.status === 403;
   if (location.pathname === "/places" && !notFound && !forbidden) {
     return <PlaceSearchError search={location.search} />;
+  }
+  if (location.pathname === "/courses" && !notFound && !forbidden) {
+    return <CourseSearchError search={location.search} />;
   }
   return (
     <main id="main" className="error-page">
