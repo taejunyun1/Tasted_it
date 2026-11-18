@@ -23,7 +23,7 @@ export function MapReadBoundary<T extends object>({ incoming, scope, allowIncomi
       <p>지도를 새로 불러오지 못했어요. 마지막으로 확인한 결과를 표시합니다. 요청한 검색 조건은 주소에 남아 있습니다.</p>
       <button type="button" className="min-h-11 border border-current px-4" disabled={pending} onClick={() => void revalidator.revalidate()}>{pending ? "지도 다시 불러오는 중…" : "지도 다시 불러오기"}</button>
     </div> : pending && <p className="shell" role="status">지도 정보를 불러오는 중…</p>}
-    <div inert={state.failed}>{children(state.data, state.failed)}</div>
+    <fieldset className="contents" disabled={state.failed}>{children(state.data, state.failed)}</fieldset>
   </>;
 }
 

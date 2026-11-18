@@ -46,6 +46,15 @@ test("a category transport failure retains results and the requested search cont
   await page.getByRole("button", { name: "찾기", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "마지막으로 확인한 결과" })).toBeVisible();
   await expect(page.locator(".result-panel .place-card")).toHaveCount(1);
+  const accessibility = await page.context().newCDPSession(page);
+  try {
+    const { nodes } = await accessibility.send("Accessibility.getFullAXTree");
+    expect(nodes.some(node => !node.ignored && node.role?.value === "heading" && String(node.name?.value).includes("라멘 지도"))).toBe(true);
+  } finally { await accessibility.detach(); }
+  await expect(page.getByRole("button", { name: "찾기", exact: true })).toBeDisabled();
+  const detailLink = page.getByRole("link", { name: "Re:Taste 샘플 라멘 동명 상세 보기", exact: true });
+  await detailLink.focus();
+  await expect(detailLink).toBeFocused();
   const search = new URL(page.url()).searchParams;
   expect(search.get("q")).toBe("동명동");
   expect(search.get("view")).toBe("list");
@@ -116,12 +125,7 @@ test("a logout action revalidates identity and removes the previous personal vie
   await page.goto("/?qa=1");
   await expect(page.locator(".home-curation-list:visible").first()).toBeVisible();
   await page.getByRole("button", { name: "메뉴", exact: true }).click();
-  if (testInfo.project.name === "mobile-chromium") {
-    // Exercise action revalidation separately from the existing mobile menu/sheet overlap.
-    await page.locator('form[action="/logout"]').evaluate((form: HTMLFormElement) => form.requestSubmit());
-  } else {
-    await page.getByRole("button", { name: "로그아웃", exact: true }).click();
-  }
+  await page.getByRole("button", { name: "로그아웃", exact: true }).click();
   await expect(page.getByLabel("로그인됨 · QA 관리자")).toHaveCount(0);
   await expect(page.locator(".home-curation-list:visible").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "로그인 상태가 변경되었습니다." })).toHaveCount(0);

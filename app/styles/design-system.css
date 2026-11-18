@@ -943,6 +943,9 @@
 .site-head{
   padding-inline:max(var(--layout-gutter),calc((100vw - var(--layout-max))/2));
 }
+.site-head:has(.site-menu[open]){
+  z-index:20;
+}
 .site-head .site-menu__primary-link{display:none}
 
 @media(max-width:760px){
