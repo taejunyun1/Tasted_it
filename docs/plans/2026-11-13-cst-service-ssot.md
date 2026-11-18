@@ -2,6 +2,8 @@
 
 ## 2026-11-18 UI 접근성 마무리와 정정 검색 후속
 
+직전 확인 head `25155ad`의 [CI44220942904](https://github.com/taejunyun1/Tasted_it/actions/runs/44220942904)는 필수4개 job 모두 계정 결제/지출 한도로 실행 전에 중단됐다. 각 annotation을 확인했으며 [CI 증거](../evidence/2026-11-18-ui-admin-ci-blocked.json)에 기록한다. 새 head의 검사 결과로 재사용하지 않는다.
+
 `8248172`에서 목록/listitem·카테고리 그룹/선택 의미와768px 제어44px을 보완했다. `4267bce` 통합 검증에 더해 compiled 브라우저11건과 시험 기대값 교정 후1건이 통과했다. [접근성 증거](../evidence/2026-11-18-explorer-accessibility.json)와 [완료 원장](2026-11-18-cst-ui-feature-completion.md)을 따른다. 정정 대상1,000건 제한은 실제 누락으로 확인해 별도 구현을 진행한다. 전체 T01~T08·main 병합·운영 배포는 완료로 올리지 않는다.
 
 ## 2026-11-18 UI·ADMIN 합동 검증

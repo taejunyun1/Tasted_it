@@ -1,0 +1,122 @@
+{
+  "source_sha": "25155ad91b76e70bdfdf2a485feea8882899d06b",
+  "environment": "LOCAL_COMPILED_WORKER_EXISTING_SYNTHETIC_ACCOUNT",
+  "account_fixture": "qa-reviewer-member",
+  "executed_at": "2026-11-18T02:08:49.188Z",
+  "read_only": true,
+  "post_requests": 0,
+  "states": [
+    {
+      "width": 320,
+      "status": 200,
+      "path": "/me",
+      "progress_count": 1,
+      "badges": 0,
+      "h1_count": 1,
+      "main_count": 1,
+      "horizontal_overflow": false,
+      "errors": [],
+      "progress": {
+        "name": "취향 학습 진행도",
+        "value": 0,
+        "max": 5,
+        "text": "0/5",
+        "visible": true
+      },
+      "accessibility": "- progressbar \"취향 학습 진행도\": 0/5",
+      "learning_text": "취향 학습 중 0/5\n\n좋아하는 장소를 저장하고 평가하면 음식·맛·식당 스타일 배지가 생겨요.\n\n맛집 둘러보기",
+      "empty_saved": 0,
+      "discovery_link": {
+        "href": "/places",
+        "name": "맛집 둘러보기"
+      },
+      "learning_bounds": {
+        "x": 28,
+        "y": 340.046875,
+        "width": 264,
+        "height": 200.5625
+      },
+      "screenshot": "2026-11-18-learning-ui-320.png"
+    },
+    {
+      "width": 390,
+      "status": 200,
+      "path": "/me",
+      "progress_count": 1,
+      "badges": 0,
+      "h1_count": 1,
+      "main_count": 1,
+      "horizontal_overflow": false,
+      "errors": [],
+      "progress": {
+        "name": "취향 학습 진행도",
+        "value": 0,
+        "max": 5,
+        "text": "0/5",
+        "visible": true
+      },
+      "accessibility": "- progressbar \"취향 학습 진행도\": 0/5",
+      "learning_text": "취향 학습 중 0/5\n\n좋아하는 장소를 저장하고 평가하면 음식·맛·식당 스타일 배지가 생겨요.\n\n맛집 둘러보기",
+      "empty_saved": 0,
+      "discovery_link": {
+        "href": "/places",
+        "name": "맛집 둘러보기"
+      },
+      "learning_bounds": {
+        "x": 28,
+        "y": 320.859375,
+        "width": 334,
+        "height": 200.5625
+      },
+      "screenshot": "2026-11-18-learning-ui-390.png"
+    },
+    {
+      "width": 768,
+      "status": 200,
+      "path": "/me",
+      "progress_count": 1,
+      "badges": 0,
+      "h1_count": 1,
+      "main_count": 1,
+      "horizontal_overflow": false,
+      "errors": [],
+      "progress": {
+        "name": "취향 학습 진행도",
+        "value": 0,
+        "max": 5,
+        "text": "0/5",
+        "visible": true
+      },
+      "accessibility": "- progressbar \"취향 학습 진행도\": 0/5",
+      "learning_text": "취향 학습 중 0/5\n\n좋아하는 장소를 저장하고 평가하면 음식·맛·식당 스타일 배지가 생겨요.\n\n맛집 둘러보기",
+      "empty_saved": 0,
+      "discovery_link": {
+        "href": "/places",
+        "name": "맛집 둘러보기"
+      },
+      "learning_bounds": {
+        "x": 40,
+        "y": 350.234375,
+        "width": 688,
+        "height": 150.375
+      },
+      "screenshot": "2026-11-18-learning-ui-768.png"
+    }
+  ],
+  "pass": true,
+  "limits": [
+    "Existing synthetic member only; no account/DB/session mutation.",
+    "No VISIBLE state fabricated; current getPlaceFlavorPrint returns LEARNING unconditionally.",
+    "No external assets loaded and no real-user or production state tested."
+  ],
+  "diagnostic_note": "empty_saved=0 only means the old expected empty-copy literal was not found; the screenshot shows actual empty saved/rated collections. This diagnostic was not a pass condition.",
+  "source_conditions": {
+    "learning_ui": "TasteSignals: profile.badges.length === 0",
+    "progress_value": "min(tasteGraph.placeCount,5)",
+    "visible_graph": "Currently unreachable because getPlaceFlavorPrint returns LEARNING for every place."
+  },
+  "visual_review": [
+    "320px full screenshot reviewed: heading, 0/5 label, explanation, browse link and empty collections readable.",
+    "768px full screenshot reviewed: no clipping/overlap; same 0/5 state."
+  ]
+}

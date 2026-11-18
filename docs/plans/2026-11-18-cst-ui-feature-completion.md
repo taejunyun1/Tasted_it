@@ -60,7 +60,7 @@
 | UX-9.10b | 검색 pending·결과 건수 live 안내·실제 네트워크 오류 복구·필터 유지. | `VERIFIED_LOCAL_SCOPED` | 검색 pending·현재 결과 수·실제 root+list 네트워크 실패 후 검색 조건을 보존하는 오류 화면과 명시적 문서 GET 재검색을 desktop/mobile로 확인했다. |
 | UX-9.10c | 모바일 카드 탐색·의미 있는 목록·44px 링크. | `VERIFIED_LOCAL_SCOPED` / `SUPERSEDED_VISUAL` | `8248172`에서 이름 있는 list/listitem과 다음 카드 Tab/뷰포트 진입을390/768px에서 확인했다. 현행 guide는 단일 열도 허용하므로 과거74vw 제안은 대체한다. Golden 가로 레일 키보드의 별도 상태는 이 결과에 포함하지 않는다. |
 | UX-9.11a | 회원 취향 집계의 DB 반복 조회 방지. | `CODE_PRESENT` | 현재 getPlaceFlavorPrint는 공개 근거 결속 전 LEARNING/0을 반환하며 DB를 조회하지 않는다. getMemberTasteGraph는 SQL1회다. 기존 반복 JS 호출을 N+1 DB로 판정하지 않고, 추후 유효 Flavor 공개 시 batch 요구를 유지한다. |
-| UX-9.11b | meter 이름/대체 텍스트·학습중·빈 상태·모바일 줄바꿈. 현재 회원 허브/학습 UI가 존재한다. | `VERIFY` | LEARNING/VISIBLE 각각의 합성 입력과 접근성 트리. 근거 없는 VISIBLE 값을 생성하지 않음. |
+| UX-9.11b | meter 이름/대체 텍스트·학습중·빈 상태·모바일 줄바꿈. | `VERIFIED_LOCAL_SCOPED` | `25155ad`의 기존 합성 회원을 읽기 전용으로 확인했다. 320/390/768px에서 배지0개·이름 있는 progress0/5·설명/탐색 링크·빈 저장/평가 화면과 넘침0을 확인했다. [학습 화면 증거](../evidence/2026-11-18-learning-ui.json). VISIBLE 그래프는 현재 서버가 항상LEARNING을 반환하는 미도달 상태이며 가짜 값으로 활성화하지 않는다. |
 | UX-9.11c | 저장 해제 pending·중복 방지·성공/실패 안내. | `VERIFIED_LOCAL_SCOPED` | `3b70923`: 요청 중1회/결과 초점·목록 갱신, 전송 전 실패와 commit 뒤 응답 유실 모두 명시적 현재 목록 재조회 전 잠금. compiled Worker desktop/mobile4건·집중 단위/D1, 기존 탈퇴·소유권 경계 유지. |
 | UX-9.12 | 리뷰어 신청 오류 SR/필드 연결·수집 용도·선택 복원·pending. | `VERIFIED_LOCAL_SCOPED` | 사전 필드 검증·일반 오류 비노출·입력/카테고리 보존·pending 중 Enter 재제출 차단·첫 오류 초점을 확인했다. 집중단위8건과 desktop/mobile 신청/좁은 footer4건 PASS. |
 | UX-9.13a | 평가 대상의 한정 검색·모든 적격 장소 접근·만료 세션 복귀. | `VERIFIED_LOCAL_SCOPED` | `f61d26e`~`fac9a96`: 페이지20건으로43건 전체 접근, 이름/주소 검색·선택/초안/HOLD 보존. 실제 만료 세션은 로그인 뒤 평가 화면으로 복귀한다. compiled Worker6건·D1 6건·집중 단위에서 확인했다. |
@@ -84,7 +84,7 @@
 | U05 반응·취소 | VoteControl, `place-detail.tsx` action, vote-event/withdraw 경로, `vote-withdraw.spec.ts` | `CODE_PRESENT/VERIFY`: 본인/타인·중복/취소·재계산과 UI 결과 일치·T02/T06. |
 | U06 guest 저장·승계 | GuestSaveControl/GuestMergeRetry, guest-saves/merge 서비스, `guest-save-merge.spec.ts` | `CODE_PRESENT/IN_PROGRESS`: 이메일 복귀 누락 보완, commit 전 실패·만료·동시 재시도/누락0·T02/T03. |
 | U07 리뷰어 공개 | reviewer-publication/reviewer-moderation, 공개 프로필/방문·사진 경로와 관련 통합/e2e | `CODE_PRESENT/VERIFY`: 승인 전/회수/다른 소유자·직접 사진 접근·T04/T06. 실제 권리는 `EXTERNAL_GATE`. |
-| U08 코스·주차/충전 | `course-recommendation.tsx`, course/parking 서비스, course 정책/통합 검증 | `CODE_PRESENT/VERIFY`: 코스 위치 거부/시간초과/미지원 안내는 구현·로컬 검증했다. 제공/미제공·시간/거리·T08은 별도 조합 검증이다. 기존 false flag는 임의 활성화하지 않음. |
+| U08 코스·주차/충전 | `course-recommendation.tsx`, course/parking 서비스, course 정책/통합 검증 | `VERIFIED_LOCAL_SCOPED/VERIFY`: `25155ad` 합성 통합8건·단위7건과 추가13건으로 주차제공/미제공·KST시간·거리/요금·EV순수함수를 확인했다. [U08 증거](../evidence/2026-11-18-course-parking-acceptance.json). 페이지정책3건은 소스문자열 검사다. 다중후보DB→화면·EV후보없음·공급자오류와 실제flag/전체T08은 미검증이며 false flag는 임의 활성화하지 않는다. |
 | U09 인증·권한·탈퇴 | login/signup/verify/OAuth/me, session/account 서비스·인증 통합 검증 | `IN_PROGRESS/VERIFY`: UX-9.4의 모든 링크/실패/복귀, 역할·만료·탈퇴 부정경로·T03/T04. 실제 외부 인증 전달은 별도. |
 | D01 출처·반입 | admin-import/data-sync, import 서비스·`place-import.test.ts` | `CODE_PRESENT/VERIFY`: 같은 원천 재반입·시각/결과/원천키·감사, T05. 원격 수집 운영은 별도 gate. |
 | D02 분류·중복·제외 | place-review pipeline, category/duplicate/exclusion 정책·통합 검증 | `CODE_PRESENT/VERIFY`: 체인·비음식점·폐업/이전·동명이점/중복 fixture·이유, T05. 실제 영업 사실은 별도. |

@@ -1,0 +1,308 @@
+{
+  "source_sha": "25155ad91b76e70bdfdf2a485feea8882899d06b",
+  "requested_source_sha": "25155ad91b76e70bdfdf2a485feea8882899d06b",
+  "environment": "LOCAL_VITEST_POOL_MINIFLARE_SYNTHETIC_D1_AND_NODE_UNIT",
+  "result": "PASS_SCOPED",
+  "execution": {
+    "integration": {
+      "exitCode": 0,
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/course-recommendation.server.test.ts tests/integration/parking-recommendation.server.test.ts tests/integration/place-course-context.server.test.ts tests/integration/parking-repository.server.test.ts --reporter=default --reporter=json --outputFile.json=/tmp/cst-u08-integration-20261118.json",
+      "success": true,
+      "startTime": "2026-11-18T02:08:47.312Z",
+      "totalTests": 8,
+      "passed": 8,
+      "failed": 0,
+      "pending": 0,
+      "files": [
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/integration/course-recommendation.server.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "course recommendation service keeps a published meal and cafe course when parking data is unavailable",
+              "status": "passed",
+              "durationMs": 20
+            },
+            {
+              "name": "course recommendation service uses contextual v2 safely when no verified hours exist",
+              "status": "passed",
+              "durationMs": 6
+            }
+          ]
+        },
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/integration/parking-recommendation.server.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "parking recommendation service returns a safe unavailable result without an active snapshot",
+              "status": "passed",
+              "durationMs": 9
+            },
+            {
+              "name": "parking recommendation service ranks an eligible active facility and returns snapshot metadata",
+              "status": "passed",
+              "durationMs": 16
+            },
+            {
+              "name": "parking recommendation service honors a user-selected separate-parking preference when a plan exists",
+              "status": "passed",
+              "durationMs": 8
+            }
+          ]
+        },
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/integration/parking-repository.server.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "parking repository returns active A/B facilities inside the bounding box",
+              "status": "passed",
+              "durationMs": 11
+            },
+            {
+              "name": "parking repository uses onsite EV only from the active EV snapshot",
+              "status": "passed",
+              "durationMs": 7
+            }
+          ]
+        },
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/integration/place-course-context.server.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "place course context uses admin-verified KST hours and constrained manual traits",
+              "status": "passed",
+              "durationMs": 16
+            }
+          ]
+        }
+      ]
+    },
+    "unit": {
+      "exitCode": 0,
+      "command": "pnpm exec vitest run --config vitest.config.ts tests/unit/operating-hours.test.ts tests/unit/parking-hours.test.ts tests/unit/parking-distance.test.ts --reporter=default --reporter=json --outputFile.json=/tmp/cst-u08-unit-20261118.json",
+      "success": true,
+      "startTime": "2026-11-18T02:08:50.439Z",
+      "totalTests": 7,
+      "passed": 7,
+      "failed": 0,
+      "pending": 0,
+      "files": [
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/unit/operating-hours.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "operating hours evaluates KST, closed days, and midnight-spanning intervals",
+              "status": "passed",
+              "durationMs": 10.482458000000008
+            }
+          ]
+        },
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/unit/parking-distance.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "parking distance applies a walking correction and rounds to 10 meters",
+              "status": "passed",
+              "durationMs": 0.8138749999999959
+            },
+            {
+              "name": "parking distance penalizes the longest walking leg",
+              "status": "passed",
+              "durationMs": 0.135083999999992
+            },
+            {
+              "name": "parking distance keeps auxiliary ranking inside the distance cohort only",
+              "status": "passed",
+              "durationMs": 0.0854580000000027
+            }
+          ]
+        },
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/unit/parking-hours.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "parking hours requires an exit margin",
+              "status": "passed",
+              "durationMs": 10.814208000000008
+            },
+            {
+              "name": "parking hours supports windows crossing midnight",
+              "status": "passed",
+              "durationMs": 0.393416000000002
+            },
+            {
+              "name": "parking hours uses saturday and holiday schedules",
+              "status": "passed",
+              "durationMs": 0.4600410000000039
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "isolation": {
+    "config": "vitest.workers.config.ts",
+    "remoteBindings": false,
+    "main": "tests/integration/test-worker.ts",
+    "databases": [
+      "DB",
+      "MIGRATION_DB"
+    ],
+    "persistent_path_configured": false,
+    "setup": "tests/integration/apply-migrations.ts applies TEST_MIGRATIONS inside the pool",
+    "root_5199_database_accessed": false,
+    "source_or_repo_documents_modified": false,
+    "feature_flags_changed": false
+  },
+  "covered": [
+    "Published meal+cafe remain recommendable when parking data is unavailable; hidden and recommendation-excluded places are omitted.",
+    "Course-context-v2 selected safely when no verified hours exist; algorithm version and maximum2 badges are asserted.",
+    "D1 course context returns OPEN at verified Saturday KST hours and filters unsupported manual traits.",
+    "Parking returns PARKING_DATA_UNAVAILABLE without active snapshot; single active eligible facility returns READY with snapshot metadata; explicit separate-parking choice is respected.",
+    "Repository returns active B facility rather than retired snapshot; active EV linkage can set hasOnsiteEv true.",
+    "Operating-hours helper covers no-hours UNKNOWN, in-hours OPEN, after-hours CLOSED, previous-day overnight interval.",
+    "Parking-hours helper covers exit margin, crossing midnight, Saturday and holiday schedules.",
+    "Distance helper checks rounding/walking uplift, worst-leg burden ordering, and same-distance cohort true/false."
+  ],
+  "not_covered": [
+    "No browser acceptance of course/parking result rendering, controls, errors, or feature-flag paths. No /courses or5199 requests were made.",
+    "No full DB-integrated CLOSED/UNKNOWN hours matrix, explicit isClosed=true holiday, or opening/closing exact-minute boundary.",
+    "READY ranking has one eligible facility, so multi-candidate distance ranking, far-away exclusion, and numerical returned travel/fee correctness are not proven.",
+    "Recommendation calls use EV NONE; strict/prefer EV outcomes are not exercised. Repository test has both active and retired EV links, so retired-only exclusion is not independently proven by that assertion.",
+    "NO_ELIGIBLE_PARKING, underlying DB/provider errors, kill-switch/recovery, backup/restore, live data quality/rights remain outside this run.",
+    "No runtime/dependency/flag/provider changes and no claim of full U08 or T08 completion."
+  ],
+  "supplemental_runs": [
+    {
+      "id": "unit-policy-supplement-1",
+      "source_sha": "25155ad91b76e70bdfdf2a485feea8882899d06b",
+      "environment": "NODE_UNIT_SOURCE_CONTRACT",
+      "command": "pnpm exec vitest run --config vitest.config.ts tests/unit/parking-score.test.ts tests/unit/parking-fee.test.ts tests/unit/course-page-policy.test.ts --reporter=default --reporter=json --outputFile.json=/tmp/cst-u08-supplement-20261118.json",
+      "exitCode": 0,
+      "raw_report_file": "/tmp/cst-u08-supplement-20261118.json",
+      "raw_log_file": "/tmp/cst-u08-supplement-20261118.log",
+      "success": true,
+      "startTime": "2026-11-18T02:09:38.620Z",
+      "totalTests": 13,
+      "passed": 13,
+      "failed": 0,
+      "pending": 0,
+      "files": [
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/unit/course-page-policy.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "course page contract registers the route and preserves every shareable filter",
+              "status": "passed",
+              "durationMs": 1.4320419999999956
+            },
+            {
+              "name": "course page contract marks the initial mobile filter and parking fallback accessibly",
+              "status": "passed",
+              "durationMs": 0.25574999999999193
+            },
+            {
+              "name": "course page contract uses toggle badges instead of dropdowns and explains the two-item limit",
+              "status": "passed",
+              "durationMs": 0.18283300000000224
+            }
+          ]
+        },
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/unit/parking-fee.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "parking fee does not treat unknown pricing as free",
+              "status": "passed",
+              "durationMs": 0.6302919999999972
+            },
+            {
+              "name": "parking fee rounds up additional units and honors the daily cap",
+              "status": "passed",
+              "durationMs": 0.1543750000000017
+            },
+            {
+              "name": "parking fee returns zero only when the source says free",
+              "status": "passed",
+              "durationMs": 0.050499999999999545
+            }
+          ]
+        },
+        {
+          "path": "/Users/jaysong/.codex/worktrees/jay-admin-b17-integration-20261118/tastedit/tests/unit/parking-score.test.ts",
+          "status": "passed",
+          "assertions": [
+            {
+              "name": "parking ranking does not let a distant public lot beat a nearby private lot",
+              "status": "passed",
+              "durationMs": 0.7219580000000008
+            },
+            {
+              "name": "parking ranking prefers balanced access and then public capacity inside a close cohort",
+              "status": "passed",
+              "durationMs": 0.31262499999999704
+            },
+            {
+              "name": "parking ranking requires onsite charging only for REQUIRED",
+              "status": "passed",
+              "durationMs": 4.165374999999997
+            },
+            {
+              "name": "parking ranking includes return walking and seven minutes in separate parking",
+              "status": "passed",
+              "durationMs": 0.4484999999999957
+            },
+            {
+              "name": "parking ranking accepts a separate plan when EV is installed at either stop",
+              "status": "passed",
+              "durationMs": 0.3116669999999999
+            },
+            {
+              "name": "parking ranking tightens separate-parking access for rain and children before using fallback",
+              "status": "passed",
+              "durationMs": 0.05412499999999909
+            },
+            {
+              "name": "parking ranking returns BOTH_SIMILAR when normalized mode scores differ by less than five",
+              "status": "passed",
+              "durationMs": 0.1410410000000013
+            }
+          ]
+        }
+      ],
+      "covered": [
+        "Pure ranking prefers nearby over distant public parking and balances both walking legs before same-cohort public/capacity tie breaks.",
+        "REQUIRED and PREFERRED choose an EV-equipped shared candidate; NONE chooses closer normal candidate in the same fixture.",
+        "Separate parking includes round-trip walking and7minute overhead; REQUIRED allows one EV-equipped stop.",
+        "Rain+child fixture chooses the nearer separate-parking candidate; close normalized mode scores return BOTH_SIMILAR.",
+        "Estimated fees preserve UNKNOWN asnull and FREE as0;31minutes rounds to1500 and180minutes caps at3000 under the supplied rule.",
+        "Static page source declares /courses, all8shareable filter fields, mobile initial dialog behavior, parking fallback and walking-distance labels, toggle controls and2-item limit."
+      ],
+      "limitations": [
+        "Course-page-policy assertions read source strings only: they do not execute loader, prove browser accessibility, prove live feature-flag state, or interact with the UI.",
+        "EV shared test asserts the top candidate, not that every non-EV candidate is removed under REQUIRED; no-EV available outcome is not tested.",
+        "Ranking and fee proofs are pure functions with supplied synthetic candidates/rules, not multi-candidate D1-to-UI end-to-end behavior.",
+        "Provider-error/NO_ELIGIBLE_PARKING, live data, operational flags/gates and full U08/T08 completion remain unverified."
+      ]
+    }
+  ],
+  "current_scope_summary": {
+    "baseline_integration_passed": 8,
+    "baseline_unit_passed": 7,
+    "supplemental_unit_passed": 13,
+    "interpretation": "Additional pure ranking/fee policy and static page-contract proof; original8+7results preserved. No fullU08/T08 claim.",
+    "remaining": [
+      "Multi-candidate D1 ranking-to-rendered UI, EV-required/fee/distance integration and actual browser result controls.",
+      "Strict EV no-candidate exclusion, NO_ELIGIBLE_PARKING and provider/DB errors.",
+      "Feature-flag activation/state changes, operational data correctness/rights, recovery and fullU08/T08."
+    ]
+  }
+}
