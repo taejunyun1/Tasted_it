@@ -1,0 +1,209 @@
+{
+  "source_sha": "2f8642a07e5e42f7a613ecabaedb8f9d06821ed0",
+  "base_sha": "c3147a95c107b33e31df13deffaf06c1915c70d3",
+  "branch": "codex/jay_cst_publication_completion_20261118",
+  "scope": "U07 / D04 / S04 publication boundaries; test changes only, no product defect reproduced",
+  "runtime": {
+    "compiled": true,
+    "url": "http://127.0.0.1:5207",
+    "config": "wrangler.e2e.jsonc -> build/server/wrangler.json",
+    "state": ".wrangler/e2e-state",
+    "fixtures": "scripts/seed-week1.sql + scripts/seed-admin-qa.sql",
+    "production_changes": false,
+    "production_flags_changed": false
+  },
+  "results": {
+    "existing_integration": {
+      "files": [
+        "reviewer-moderation.server.test.ts",
+        "reviewer-public-consumers.test.ts",
+        "reviewer-photo-route.test.ts",
+        "reviewer.server.test.ts"
+      ],
+      "passed": 44
+    },
+    "admin_integration": {
+      "file": "place-admin-command.test.ts",
+      "passed": 10,
+      "new_cases": 1
+    },
+    "compiled_publication_browser": {
+      "startTime": "2026-11-18T02:31:10.426Z",
+      "duration": 61547.640999999996,
+      "expected": 10,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "final_focused_browser": {
+      "startTime": "2026-11-18T02:32:17.947Z",
+      "duration": 13951.661,
+      "expected": 4,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "build": "PASS",
+    "typecheck": "PASS",
+    "production_dependency_audit": "no known vulnerabilities"
+  },
+  "coverage": [
+    {
+      "boundary": "Unapproved/rejected/recalled/legacy photo",
+      "proof": "Existing direct photo route GET/HEAD status matrix; no R2 read on rejection; owner/admin private preview; other/withdrawn actor denial"
+    },
+    {
+      "boundary": "Wrong bound owner/place/evaluation and suspended author",
+      "proof": "Existing public-consumer D1 tests exclude mismatches from public counts and recompute; stale snapshots/epoch invalidated"
+    },
+    {
+      "boundary": "Public reviewer profile status",
+      "proof": "Existing service tests hide dormant/suspended profiles; browser pending/rejected has zero approved visits"
+    },
+    {
+      "boundary": "End-to-end reviewer publication",
+      "proof": "Real browser synthetic photo upload, pending privacy, ADMIN checks/approval, profile link to place gallery, private evidence absent; rejected photo GET/HEAD404 while owner preview200"
+    },
+    {
+      "boundary": "Authenticated other user",
+      "proof": "Cookie first verified via no-redirect /me200; same cookie preview GET/HEAD404. Browser other actor is a member, not a second active reviewer"
+    },
+    {
+      "boundary": "Edit/recall/delete",
+      "proof": "Browser edit removes public photo/visit until reapproval, ADMIN recall removes public photo/visit, owner deletion removes private preview"
+    },
+    {
+      "boundary": "D04 single-place recall",
+      "proof": "New D1 service+photo route-loader test: preview leaves detail200/search/candidate/visit/photo200; commit produces detail404/empty search+candidate+visit/photo404; originals and owner preview retained"
+    },
+    {
+      "boundary": "ADMIN publication controls",
+      "proof": "Existing place-admin-command tests enforce current role/recent auth/session/one target, exact restore receipt, audit/replay/atomic rollback; compiled B09 actual recall+reloadable receipt on desktop/mobile"
+    },
+    {
+      "boundary": "Native moderation fallback",
+      "proof": "Existing compiled JavaScript-disabled browser test: missing checks400, stale409, normal result status and cursor preservation"
+    }
+  ],
+  "commands": [
+    "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/reviewer-moderation.server.test.ts tests/integration/reviewer-public-consumers.test.ts tests/integration/reviewer-photo-route.test.ts tests/integration/reviewer.server.test.ts",
+    "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/place-admin-command.test.ts",
+    "pnpm exec playwright test --config /tmp/cst-publication.playwright.config.ts reviewer-moderation.spec.ts --grep 'reviewer submits|administrator requests|correcting and withdrawing|administrator rejection|native administrator' --workers=1",
+    "pnpm exec playwright test --config /tmp/cst-publication.playwright.config.ts reviewer-moderation.spec.ts admin-place-b09.spec.ts --grep 'reviewer submits|recall confirmation' --workers=1",
+    "CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH=wrangler.e2e.jsonc pnpm run build",
+    "pnpm run typecheck",
+    "pnpm audit --prod --audit-level high"
+  ],
+  "initial_test_correction": "First new integration test assumed missing getPlaceBySlug returned false; existing API throws Response404. Assertion corrected to verify actual status. No product fix.",
+  "independent_review": "guest_uncertain_default_review final diff PASS, no additional blockers; read-only review, separate from execution results",
+  "screenshots": [
+    {
+      "file": "01-approved-profile.png",
+      "sha256": "27eb4e32e179f12a0dc206185459ba646b100c3ebae1281b37b812e26d822313"
+    },
+    {
+      "file": "02-admin-approved.png",
+      "sha256": "2f9ddaaf957821ed46df2b65d355dd51d4a51b390187041aa46c4f684267e704"
+    },
+    {
+      "file": "03-owner-pending.png",
+      "sha256": "61090a3b32a0df60c79da4f4f22a302802ac37923ca35b113687d193cbd05a6f"
+    },
+    {
+      "file": "04-visit-declarations.png",
+      "sha256": "51690819f6b8c4dec684a77c93ce4f1eed16667ea21aab8b9a35073f798d73d3"
+    },
+    {
+      "file": "05-photo-declarations.png",
+      "sha256": "f6c502634c6ac68bc9e586ad46cb27146d54742105028085516abe1ca355ed9e"
+    },
+    {
+      "file": "06-owner-pending.png",
+      "sha256": "bd2d71ee7b3919da51aa27b99903b959416069e08fd9d1d33359a532db889fc5"
+    },
+    {
+      "file": "07-visit-declarations.png",
+      "sha256": "35f3982efc262cfbcd233a1aa35f3ac497e54a72fe56cd5434b8072b3238b477"
+    },
+    {
+      "file": "08-photo-declarations.png",
+      "sha256": "5f1047be0b732398a2fe64a250169d177367c3f3c37091cdfb71f3522c3ec8f7"
+    },
+    {
+      "file": "09-rejected-owner-preview.png",
+      "sha256": "2c8d9e73ab3f66b7d00cc62f91e2a2b940b69007a35c3d1dd9367e61f9bc23d3"
+    },
+    {
+      "file": "10-rejected-public-detail.png",
+      "sha256": "efe192ad5cd4ad19d837ea69fe12619368d6d37c1fdca8a619f920b332ced58d"
+    },
+    {
+      "file": "11-rejected-owner-preview.png",
+      "sha256": "c8efa34b49c2fbeb939e6032f638c88743e5f3515322dad8f63f4fbae9528614"
+    },
+    {
+      "file": "12-rejected-public-detail.png",
+      "sha256": "1e9b8efe11e96200b0ecc4e6e91aee8bab49d14c899005956ab66779c54c15c1"
+    },
+    {
+      "file": "13-approved-profile.png",
+      "sha256": "c3d340643d6aea9890125b83253ecaa3e3546988161aefa38350247020a28f04"
+    },
+    {
+      "file": "14-admin-approved.png",
+      "sha256": "5ddf44bd6684b27e3188307713340d3468c0170a2f5cc30402636485e10af8f1"
+    },
+    {
+      "file": "15-owner-pending.png",
+      "sha256": "6b2b19b89955cfcb81c0588c85a9f2a8586d9b6ed2469c99e0d56d2a0c2271bf"
+    },
+    {
+      "file": "16-visit-declarations.png",
+      "sha256": "51690819f6b8c4dec684a77c93ce4f1eed16667ea21aab8b9a35073f798d73d3"
+    },
+    {
+      "file": "17-photo-declarations.png",
+      "sha256": "6cfec568ba819162c164161022742b2c5305d0b05213b0307cf503a7a07ded18"
+    },
+    {
+      "file": "18-place-recall-receipt.png",
+      "sha256": "c156fe28a00d0a8c901b9759948b3c23ef09322979bd18936b38d78317766678"
+    },
+    {
+      "file": "19-owner-pending.png",
+      "sha256": "5e482a7b71833efad18f76b434806266a65c1e143b72560b5f42b69174f612ae"
+    },
+    {
+      "file": "20-visit-declarations.png",
+      "sha256": "35f3982efc262cfbcd233a1aa35f3ac497e54a72fe56cd5434b8072b3238b477"
+    },
+    {
+      "file": "21-photo-declarations.png",
+      "sha256": "5f1047be0b732398a2fe64a250169d177367c3f3c37091cdfb71f3522c3ec8f7"
+    },
+    {
+      "file": "22-place-recall-receipt.png",
+      "sha256": "6b4242601440d6b826c3ce1e3c880096720afde284661e876993671ff299e21d"
+    }
+  ],
+  "cleanup": {
+    "server_5207_stopped": true,
+    "state_existed_before_task": false,
+    "task_created_d1_r2_state_removed": true,
+    "before_removal": {
+      "photo_rows": 0,
+      "pending_or_approved_reviews": 0,
+      "withdrawn_synthetic_reviews": 12
+    }
+  },
+  "limits": [
+    "Local synthetic only; actual visit/rights/privacy facts not established",
+    "D04 downstream test calls actual services and resource loader with synthetic D1/R2, not all browser routes",
+    "Recommendation candidate exclusion is covered, not every final ranking/personalization configuration",
+    "No second active-reviewer browser identity; other-owner service binding and authenticated other-member preview covered",
+    "No remote DB/R2, provider/production/policy/CI/deploy changes or verification",
+    "SSR client-entry barrier test is dev-only and was intentionally not run against compiled worker"
+  ],
+  "test_guard_opt_in": "When BASE_URL is set, CST_REVIEWER_LOCAL_FIXTURE=1 also required; only loopback host allowed.",
+  "integrated_commit": "2552e45"
+}

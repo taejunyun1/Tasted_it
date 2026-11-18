@@ -1,0 +1,261 @@
+{
+  "code_source_sha": "3d31a98118bf5d0158704d3b5b6e57b916718074",
+  "test_source_sha": "f7d2732bd64e018d574369b9d36dd615285702c8",
+  "app_tree": "a87403c2923bae39d43f92778955ded8d3459331",
+  "executed_at_kst": "2026-11-18T11:40:21.025751+09:00",
+  "environment": "LOCAL_VALIDATION_WITH_SYNTHETIC_DATA",
+  "source_units": {
+    "public_information": "91a87a1",
+    "vote_outcomes": "3d31a98",
+    "guest_merge": "830a333",
+    "data_acceptance": "7ad5f09",
+    "publication": "2552e45",
+    "home": "1624fb3",
+    "home_artifact_isolation": "f7d2732"
+  },
+  "checks": [
+    {
+      "name": "typecheck / production build / deploy dry-run / production dependency audit",
+      "source_sha": "3d31a98118bf5d0158704d3b5b6e57b916718074",
+      "result": "PASS",
+      "audit_vulnerabilities": 0,
+      "build": {
+        "source": "3d31a98",
+        "kind": "production",
+        "server_entry_sha256": "ea2539f83385ca54ae238126cee2d37f64eb271875d0641caddfadc9407112be",
+        "bytes": 110973
+      },
+      "environment": "LOCAL_BUILD_AND_STATIC_CHECKS"
+    },
+    {
+      "name": "targeted integrated D1",
+      "source_sha": "3d31a98118bf5d0158704d3b5b6e57b916718074",
+      "files": 10,
+      "passed": 67,
+      "result": "PASS",
+      "environment": "LOCAL_VITEST_WORKERS_D1"
+    },
+    {
+      "name": "targeted integrated unit",
+      "source_sha": "3d31a98118bf5d0158704d3b5b6e57b916718074",
+      "files": 3,
+      "passed": 14,
+      "result": "PASS",
+      "environment": "LOCAL_NODE_UNIT"
+    },
+    {
+      "name": "compiled desktop/mobile integration",
+      "source_sha": "3d31a98118bf5d0158704d3b5b6e57b916718074",
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "result": "PASS",
+      "cases": {
+        "public_information_and_reverse_response": 6,
+        "vote_and_existing_withdrawal": 8,
+        "reviewer_approval_and_rejection": 4
+      },
+      "command": "BASE_URL=http://127.0.0.1:5199 CST_REVIEWER_LOCAL_FIXTURE=1 pnpm exec playwright test tests/e2e/place-public-information.spec.ts tests/e2e/vote-outcomes.spec.ts tests/e2e/vote-withdraw.spec.ts tests/e2e/reviewer-moderation.spec.ts --grep 'place detail presents|late previous detail|vote pending|lost add|changed vote blocks|public vote change|administrator requests corrections|administrator rejection'",
+      "environment": "LOCAL_COMPILED_WORKER"
+    },
+    {
+      "name": "home public eligibility, food selection, and empty results",
+      "source_sha": "f7d2732bd64e018d574369b9d36dd615285702c8",
+      "app_tree_unchanged": true,
+      "passed": 2,
+      "result": "PASS",
+      "command": "BASE_URL=http://127.0.0.1:5199 pnpm exec playwright test tests/e2e/home-public-acceptance.spec.ts --output=/tmp/cst-home-integrated-20261118",
+      "environment": "LOCAL_COMPILED_WORKER"
+    }
+  ],
+  "cleanup": [
+    {
+      "results": [
+        {
+          "public_info_places": 0
+        }
+      ],
+      "success": true,
+      "meta": {
+        "duration": 0
+      }
+    },
+    {
+      "results": [
+        {
+          "home_places": 0
+        }
+      ],
+      "success": true,
+      "meta": {
+        "duration": 0
+      }
+    },
+    {
+      "results": [
+        {
+          "vote_places": 0
+        }
+      ],
+      "success": true,
+      "meta": {
+        "duration": 0
+      }
+    },
+    {
+      "results": [
+        {
+          "vote_users": 0
+        }
+      ],
+      "success": true,
+      "meta": {
+        "duration": 0
+      }
+    }
+  ],
+  "local_server_stopped": true,
+  "screenshots": [
+    {
+      "file": "01-desktop-public-information-unknown-date.png",
+      "sha256": "8106dc0b5b694c2d361a529a84376f651ec2f9ea4c607ba0492633d1921f2d5b"
+    },
+    {
+      "file": "02-desktop-public-information-unknown.png",
+      "sha256": "8106dc0b5b694c2d361a529a84376f651ec2f9ea4c607ba0492633d1921f2d5b"
+    },
+    {
+      "file": "03-mobile-public-information-unknown-date.png",
+      "sha256": "133480f15ed5a117e2ee04abb86058382aba87e1bf3837e790e6e20870b08d2e"
+    },
+    {
+      "file": "04-mobile-public-information-unknown.png",
+      "sha256": "8c1015aacd243e9aaef6fd23a088627fb5c0b6c20b5f968e539698478f06244c"
+    },
+    {
+      "file": "05-desktop-public-information-recorded-date.png",
+      "sha256": "0f76dec7531e21480ef404afe53a56593b2335e57d1e78cf58222851771c9ace"
+    },
+    {
+      "file": "06-desktop-public-information-recorded.png",
+      "sha256": "0f76dec7531e21480ef404afe53a56593b2335e57d1e78cf58222851771c9ace"
+    },
+    {
+      "file": "07-mobile-public-information-recorded-date.png",
+      "sha256": "648269109956a179a9ab9a720d487b29f869ab57684c62ae8c694bbebd8fd37b"
+    },
+    {
+      "file": "08-mobile-public-information-recorded.png",
+      "sha256": "73cde2995361f7dd74c4c85e3c176140fdcc2cc33fc2f17ebd83b4e29b13fafc"
+    },
+    {
+      "file": "09-desktop-rejected-owner-preview.png",
+      "sha256": "673aa8b0a6c92f93577b68b06c4c936248c3656bc24e0505d4efb7180aee79a6"
+    },
+    {
+      "file": "10-desktop-rejected-public-detail.png",
+      "sha256": "2d5d900a87e072e0ce6af5e14a751645c147cb0490ba1c308a66b06cdd9f3c0d"
+    },
+    {
+      "file": "11-mobile-rejected-owner-preview.png",
+      "sha256": "fb452ef48cb21534601c5239923ef0b6c1535d48b9155f2057f30586a8de61f0"
+    },
+    {
+      "file": "12-mobile-rejected-public-detail.png",
+      "sha256": "299526bf91b943cdd25d44aa8654554b3533ec8438fe644cc771a726144e130a"
+    },
+    {
+      "file": "13-desktop-admin-approved.png",
+      "sha256": "5ddf44bd6684b27e3188307713340d3468c0170a2f5cc30402636485e10af8f1"
+    },
+    {
+      "file": "14-desktop-approved-profile.png",
+      "sha256": "c3d340643d6aea9890125b83253ecaa3e3546988161aefa38350247020a28f04"
+    },
+    {
+      "file": "15-mobile-admin-approved.png",
+      "sha256": "d48d2432605ee6b8aef13b222b020ee1f685db86fe53f8e5d5f3f1a1b2a6c2c0"
+    },
+    {
+      "file": "16-mobile-approved-profile.png",
+      "sha256": "27eb4e32e179f12a0dc206185459ba646b100c3ebae1281b37b812e26d822313"
+    },
+    {
+      "file": "17-desktop-u05-vote-unknown.png",
+      "sha256": "dc8d5d1bd9a79437c6958952d4c6b569dba5420d780cdb9592a06425c65fb5f6"
+    },
+    {
+      "file": "18-mobile-u05-vote-unknown.png",
+      "sha256": "beb2d0a0dcac3e8cd4c6108a588053c03056e56d8a9a5e1db01e523c99d37534"
+    },
+    {
+      "file": "19-desktop-u05-vote-success.png",
+      "sha256": "f7c32d1d77d75b147cfd67f226b30f2984c50e08c638c764fc006d78b6cb5afa"
+    },
+    {
+      "file": "20-mobile-u05-vote-success.png",
+      "sha256": "fd93139798ea5a924fc2f971a0f2665c1932a953197743ec8a5d3bf36f0d405f"
+    },
+    {
+      "file": "21-desktop-after-withdraw.png",
+      "sha256": "d7a5a2592b15c340cca8a1346a8b012319fa83ce55749c717bc3c0f33c452e6d"
+    },
+    {
+      "file": "22-desktop-before-withdraw.png",
+      "sha256": "01bdf065d7a777b48fd99308432e89decb905af9a59b98bb46b3ac39cec0d031"
+    },
+    {
+      "file": "23-mobile-after-withdraw.png",
+      "sha256": "f9eec03aef822a5daa94d1761a54c3c3766eb26757ca4c09f586afb8cda33d7e"
+    },
+    {
+      "file": "24-mobile-before-withdraw.png",
+      "sha256": "315f413855c89a998837cbe38d41e5d221069a3695fe3b14724502bd907443b0"
+    },
+    {
+      "file": "25-desktop-home-category.png",
+      "sha256": "ce3c230658f9841c108c6149b6b605c1207534c6a53ae59ad17561043209c41d"
+    },
+    {
+      "file": "26-desktop-home-curated.png",
+      "sha256": "4d243ddd23711679ddf8ea9d24d7095e6f877fe4109de1bcc1c3cd6d9871d631"
+    },
+    {
+      "file": "27-desktop-home-empty-category.png",
+      "sha256": "dedb2277d12fa5b4dc40db1df83c5378c4adc32c1827c71b1a0e33f70ad622c0"
+    },
+    {
+      "file": "28-desktop-home-empty-region.png",
+      "sha256": "49cd89be7102c8984abc8c2fe342108da058fcb5df9a78cd0cbceef42154e90c"
+    },
+    {
+      "file": "29-mobile-home-category.png",
+      "sha256": "16f37cade6cff3563297a95fd7e7ac75a5f39de8b45524035e67bc81b0a7fea6"
+    },
+    {
+      "file": "30-mobile-home-curated.png",
+      "sha256": "f6e9e4b165813a9ff6c7f20aca32066b9f42da4c2785732cdb54859b7014cd01"
+    },
+    {
+      "file": "31-mobile-home-empty-category.png",
+      "sha256": "bc9386a0c84646a37f80ca9caf289b73d51d100865d4d38300a3c2ede73a6031"
+    },
+    {
+      "file": "32-mobile-home-empty-region.png",
+      "sha256": "13c807d88ff1a31f92f0cc70c63141d3c09f7472b14713263832eff033ed9842"
+    }
+  ],
+  "independent_review": {
+    "result": "PASS",
+    "app_tree": "a87403c2923bae39d43f92778955ded8d3459331",
+    "place_detail_blob": "d2731f201f08cb590f0106af500a939c3faff3eb"
+  },
+  "limits": [
+    "This is not required GitHub CI, production deployment, actual external mail/OAuth, content rights confirmation, or field demonstration.",
+    "The original T01-T08 whole acceptance records remain NOT_RUN; the new rows record explicit scoped cases.",
+    "Production build and local E2E-entry build are separate; only the latter uses existing fake email/test flags.",
+    "The home fixture uses HIDDEN to represent recalled state; actual confirmation and downstream exclusion use separate B09/publication evidence.",
+    "The browser publication batch reruns only approval/rejection, not every previously verified moderation case.",
+    "Only named temporary place/account prefixes were asserted zero; local synthetic historical event records are preserved."
+  ]
+}

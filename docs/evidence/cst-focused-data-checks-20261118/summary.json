@@ -1,0 +1,46 @@
+{
+  "source_sha": "c3147a95c107b33e31df13deffaf06c1915c70d3",
+  "scope": "Existing D01/D02/D05 and home policy assertions, selected from current acceptance gaps; no source changes",
+  "checks": [
+    {
+      "kind": "unit",
+      "files": [
+        "rating-v2.test.ts",
+        "reviewer-similarity.test.ts",
+        "place-import.test.ts",
+        "place-duplicate-policy.test.ts",
+        "exclusion-policy.test.ts"
+      ],
+      "passed": 48
+    },
+    {
+      "kind": "unit",
+      "files": [
+        "naver-local-search.test.ts"
+      ],
+      "passed": 9
+    },
+    {
+      "kind": "D1",
+      "files": [
+        "rating-recompute.server.test.ts",
+        "reviewer-trust.server.test.ts",
+        "admin-import-safety.test.ts",
+        "place-review-duplicates.server.test.ts",
+        "home-curation.server.test.ts"
+      ],
+      "passed": 26
+    }
+  ],
+  "claims": [
+    "Minimum sample7/8/9 and subgroup visibility, reviewer mass30%cap and no-general exception",
+    "Independent reliability/damping results and id/hash/single-snapshot repeated computation",
+    "External rating/count omitted from safe adapter projection",
+    "Same CSV receipt replay and no public-content overwrite",
+    "Explicit chain/nonrestaurant exclusion, duplicate identity and home candidate policies"
+  ],
+  "limits": [
+    "These are scoped existing assertions, not the whole T01-T08 acceptance process.",
+    "No external API, live data or operating-policy decisions were exercised."
+  ]
+}

@@ -3,7 +3,7 @@
 사용자 목표 **“UI/UX 개선안을 적용한 기능구현 100% 달성”**을 요구사항별 코드·화면·검증 증거로 추적한다. 이 원장은 목표를 첫 수정 묶음으로 줄이지 않으며, 코드 존재·부분 테스트·배포 준비를 전체 완료로 세지 않는다.
 
 - 추적: [#471](https://github.com/taejunyun1/Tasted_it/issues/471). 통합·완료 판단 담당은 Codex root다.
-- 작성 기준: 2026-11-18, `origin/main@941a205`, UI 코드 `a5ce06a`([PR #472](https://github.com/taejunyun1/Tasted_it/pull/472), 가독성 `03b624c`·목록 `a4912db`·지도 `6afcdc3` 포함). ADMIN 통합은 `df80fed`(S07·코스·Golden·guest·탈퇴 복구 합류) / [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)이다.
+- 작성 기준: 2026-11-18, `origin/main@941a205`, UI 코드 `a5ce06a`([PR #472](https://github.com/taejunyun1/Tasted_it/pull/472), 가독성 `03b624c`·목록 `a4912db`·지도 `6afcdc3` 포함). ADMIN 통합은 `f7d2732`(U01·U04~U07 및 D01/D02 수용 경계 합류; 제품 코드 `3d31a98`) / [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)이다.
 - 요구 원본: [CST 서비스 SSOT](2026-11-13-cst-service-ssot.md), [전체 감사 §9](../audits/2026-08-07-full-product-design-technical-audit.md), [기술 검수 T01~T08](../operations/cst-acceptance.md).
 - 시각 기준: [현행 디자인 가이드](../design-system/retaste-design-guide.md)와 `app/styles/design-system.css`. 구 감사의 결함·상태 요구는 대조하되 과거 흑백·폰트·모서리 수치를 최신 크림·녹색·라임/역할별 토큰 위에 되돌리지 않는다.
 - 외부 조건: #397은 HOLD. 운영자 명칭·문의처·보관/삭제 기간은 사용자 답변대로 **정책 확인 필요**다. 필수 CI는 결제 제한으로 막혀 있으며 우회하지 않는다.
@@ -37,7 +37,7 @@
 | UX-9.3a | 목록/지도/시트/상세의 동일 평가 출처·표본 미달·stale. | `VERIFIED_LOCAL_SCOPED` | `e9634b6`: 공개 적격 표본 수를 batch로 통일하고 stale 점수는 노출하지 않는다. fresh/stale/missing3상태×4뷰를 desktop/320px에서 확인했다. 기존 재계산4건·추가 D1 4건 통과. |
 | UX-9.3b | 평가 근거·조건부 리뷰어 상한·실제 계산 시각. | `VERIFIED_LOCAL_SCOPED` | 유효 결과의 실제 시각은 공개 결과 계산, stale-only의 기존 시각은 이전 계산으로 구분한다. 근거 없음은 미계산. 일반 반응이 있을 때의30% 상한 설명을 현행 정책에 맞췄다. |
 | UX-9.3c | 실제 장소명과 공개 적격 자료의 고유 meta/공유 정보. | `VERIFIED_LOCAL_SCOPED` | `b2d4dfe`에서 slug 대신 공개 이름/설명·canonical·OG·JSON-LD를 연결했다. compiled Worker 공개/비공개/TEMP·악성 텍스트/host·sitemap 분할 브라우저6건, 관련 단위28·D1 2건의 범위다. |
-| UX-9.3d | 상세 시트 요청 식별·실패/재시도·저장 pending/결과 피드백. | `VERIFIED_LOCAL_SCOPED` | 통합 브라우저4건으로 A→B 전환 중 이전 자료 비노출, 실제 읽기 실패·수동 재시도, 저장 응답 유실 후 재조회 전 잠금,404 확인. 진짜 동시 역순 응답·403 브라우저는 미실행으로 남긴다. |
+| UX-9.3d | 상세 시트 요청 식별·실패/재시도·저장 pending/결과 피드백. | `VERIFIED_LOCAL_SCOPED` | 통합 브라우저4건으로 A→B 전환 중 이전 자료 비노출, 실제 읽기 실패·수동 재시도, 저장 응답 유실 후 재조회 전 잠금,404 확인. 실제 A 응답 보류→B 표시→늦은 A 해제도 추가 검증했다. 403 구분은 client 단위 증거이며 실제 공개 적격성 거절은404 경계로 확인한다. |
 | UX-9.3e | 사진 없음 설명/높이와 이름 있는 평가 지표. | `VERIFIED_LOCAL_SCOPED` | `e9634b6`/`a5ce06a`: 미제공 설명·Flavor meter 이름/대체값, 모바일 no-photo220px, 점수/메타 줄바꿈·정렬을 실제 화면/경계 값으로 확인했다. |
 | UX-9.4a | 안전한 로그인·이메일 가입·인증 뒤 맥락 복귀. | `VERIFIED_LOCAL_SCOPED` | 가입→합성 메일함→인증→로그인→원래 상세 복귀를 desktop/mobile로 확인. 토큰 fragment와 위험 returnTo 차단 유지. 실제 외부 메일은 호출하지 않았다. |
 | UX-9.4b | 가입 실패에도 이름/이메일·폼 유지, 비밀번호 재직렬화 금지. | `VERIFIED_LOCAL_SCOPED` | 허용된 이름/이메일 보존과 비밀번호 HTML 기본값 비직렬화를 집중 단위로 확인했다. signup의 성공 알림을 status로 통합했다. |
@@ -67,9 +67,9 @@
 | UX-9.13b | 공개 적격 이력·권한·Golden Pick 최종 확인·조작 영역. | `VERIFIED_LOCAL_SCOPED` / `EXTERNAL_GATE` | `ad15c2c`: STEP05 요청/비요청·사유와 실제 multipart 일치를 desktop/mobile4건 검증했다. 관리자 승인 전 공개0을 유지한다. 실제 자료의 권리는 별도 사실이다. |
 | UX-9.14a | 관리자 skip-link/403/표 이름·빈 상태. | `VERIFIED_LOCAL_SCOPED` / `VERIFY` | `4267bce` ADMIN 결과 회귀와 읽기 점검에서 skip-link 후 실제 본문 Tab 이동, h1/main 각1개, 표 caption/열 이름과 동기화403 구분을 확인했다. 읽기 점검 표는13행이므로0행 화면은 재실행하지 않았으며 모든 ADMIN 경로의 전체 상태 검증으로 확대하지 않는다. |
 | UX-9.14b | 관리자 입력 검증·실패 피드백·pending·영수증/실제 결과 구분. B01~B09 배포 기록, B10~B16 통합 로컬 증거가 있다. | `VERIFIED_LOCAL_SCOPED` / `EXTERNAL_GATE` | 기존 범위별 증거 유지. #470 정확한 최종 CI·병합·배포·해당 live 검증 후 운영 상태를 별도 갱신. |
-| UX-9.15a | 상세 fetcher 실패/재시도 및 요청별 데이터 결속. | `VERIFIED_LOCAL_SCOPED` | `b757ae2`: A→B 전환 중 A 자료 비노출, 실제 읽기 실패의 사용자 재시도, 저장 결과불명 잠금·재조회,404를 compiled Worker4건으로 확인했다. 브라우저403과 진짜 동시 역순은 아직 별도 확인 대상이다. |
+| UX-9.15a | 상세 fetcher 실패/재시도 및 요청별 데이터 결속. | `VERIFIED_LOCAL_SCOPED` | `b757ae2`: A→B 전환 중 A 자료 비노출, 실제 읽기 실패의 사용자 재시도, 저장 결과불명 잠금·재조회,404를 compiled Worker4건으로 확인했다. 실제 늦은 A 응답은 B 선택을 덮지 않는다. 403 구분은 client 단위 증거이며 실제 공개 거절은404로 확인한다. |
 | UX-9.15b | 지도 데이터 재검증 실패에서 마지막 결과·연결 안내·명시적 재시도. | `VERIFIED_LOCAL_SCOPED` | `6afcdc3`/`a901b5a`: 홈/추천/카테고리 실제 전송 실패, 지연 응답, 세션/로그아웃/역할 변화 후 이전 개인화 폐기·Back 재노출 차단. AX 제목/본문과 읽기 링크는 유지하고 입력/버튼만 잠근다. 통합 브라우저24건에는 목록 페이지/실제 메뉴 클릭도 포함한다. |
-| UX-9.15c | 실패 중 결과 불명의 파괴적 요청을 자동 재시도하지 않음. 서비스워커/오프라인 캐시 추가 없음. | `VERIFIED_LOCAL_SCOPED` / `VERIFY` | guest 저장과 회원 탈퇴의 전송 전/commit후 유실·재조회 실패에서 추가 쓰기0, 명시적현재조회 후 복구를 `df80fed`에서 확인했다. 기존 회원저장/시트 결과불명 증거를 유지하며 투표의 모든 유실 조합은 별도다. 새worker/cache0. |
+| UX-9.15c | 실패 중 결과 불명의 파괴적 요청을 자동 재시도하지 않음. 서비스워커/오프라인 캐시 추가 없음. | `VERIFIED_LOCAL_SCOPED` / `VERIFY` | guest 저장과 회원 탈퇴의 전송 전/commit후 유실·재조회 실패에서 추가 쓰기0, 명시적현재조회 후 복구를 `df80fed`에서 확인했다. 기존 회원저장/시트 증거에 더해 투표·취소의 전송 전/commit 후 유실과409 경합도 현재 조회 전 잠금·자동 재전송0으로 확인했다. 새worker/cache0. |
 
 ## 3. CST 이용자·데이터 기능 전체 연결
 
@@ -77,20 +77,20 @@
 
 | ID | 현재 코드·기존 증거 위치 | 현재 상태와 다음 증거 |
 |---|---|---|
-| U01 홈 큐레이션 | `routes/home.tsx`, `home-curation.server.ts`, `tests/e2e/home-curation.spec.ts` | `VERIFIED_LOCAL_SCOPED/VERIFY`: Golden 조회 실패를 EMPTY/fallback과 분리하고 마지막 성공 결과·이력을 보존했다(`5f76ee8`/compiled2건). 정상 fallback은 유지한다. 공개 적격/지역/음식종류 전체 조합은 UX-9.1·T01/T04에 연결. |
+| U01 홈 큐레이션 | `routes/home.tsx`, `home-curation.server.ts`, `tests/e2e/home-public-acceptance.spec.ts` | `VERIFIED_LOCAL_SCOPED`: 기존 Golden 실패 복구에 더해 공개 적격 후보와 홈 카드의 ID 일치, 전체 지도 전환 뒤 실제 음식 분류·0건 및 빈 지역을 로컬 D1→브라우저로 확인했다. 회수 상태는 HIDDEN fixture이며 실제 회수 조작은 U07/D04 증거를 따른다. |
 | U02 검색·목록 | `routes/place-list.tsx`, `place.server.ts`, `tests/e2e/map-category-query.spec.ts` | `VERIFIED_LOCAL_SCOPED`: `4267bce` 통합에서100건 초과 페이지·실제 총계·0건 복구·metadata 경계를 확인했다. 지역/초기화/0건/뒤로가기·T01/T07은 조합 증거를 연결한다. |
 | U03 지도/목록 상태 | `routes/map-category.tsx`, `PlaceMap.tsx`, map-state·location-policy, 관련 e2e | `VERIFIED_LOCAL_SCOPED`: `4267bce` 지도 읽기 실패·조건 보존·세션 경계와 `8248172` 그룹/선택 의미를 확인했다. UX-9.1/2/15·T01/T07의 하위 범위다. |
-| U04 상세·사진·외부 정보 | `routes/place-detail.tsx`, PlaceDetailSheet, `place-correction-entry` 검증 파일 | `IN_PROGRESS/VERIFY`: 시트 오류/저장, 확인일·미확인/미제공 표시, 정정 접수·T04/T05/T07. |
-| U05 반응·취소 | VoteControl, `place-detail.tsx` action, vote-event/withdraw 경로, `vote-withdraw.spec.ts` | `CODE_PRESENT/VERIFY`: 본인/타인·중복/취소·재계산과 UI 결과 일치·T02/T06. |
-| U06 guest 저장·승계 | GuestSaveControl/GuestMergeRetry, guest-saves/merge 서비스, `guest-save-merge.spec.ts` | `VERIFIED_LOCAL_SCOPED/VERIFY`: 기존 이메일 복귀/승계 증거와 guest 결과불명 재조회 잠금을 연결했다. `4ef8192` 및 통합6건이 전송 전/후 유실·조회실패·명백한 거절을 검증한다. 만료·동시 승계 전체 조합은T02/T03 범위로 남긴다. |
-| U07 리뷰어 공개 | reviewer-publication/reviewer-moderation, 공개 프로필/방문·사진 경로와 관련 통합/e2e | `CODE_PRESENT/VERIFY`: 승인 전/회수/다른 소유자·직접 사진 접근·T04/T06. 실제 권리는 `EXTERNAL_GATE`. |
+| U04 상세·사진·외부 정보 | `routes/place-detail.tsx`, PlaceDetailSheet/PlaceInformation, public-information 및 관련 검증 | `VERIFIED_LOCAL_SCOPED`: 장소 정보 확인일·기록된 영업시간·미제공/미확인 상태를 상세와 시트에 동일하게 표시한다. 일반 장소의 일괄 검수 완료 배지를 제거했다. 실제 A 지연→B 표시→A 늦은 응답에서도 B를 유지하며, S07 접수/검토는 별도 연결한다. 영업시간 기록은 현재 영업 증명이 아니다. |
+| U05 반응·취소 | VoteControl, vote service, `vote-outcomes`·`vote-withdraw` 검증 | `VERIFIED_LOCAL_SCOPED`: 같은 값 재제출은 이력을 늘리지 않고 이유만 변경하면 포인터·집계를 보존한다. 무효화 이후 재입력·경합409, 제출 잠금·진행/완료 안내, 전송 전/commit 후 응답 유실 뒤 명시적 현재 조회를 확인했다. 산식의 전체 조건은 D05를 따른다. |
+| U06 guest 저장·승계 | GuestSaveControl/GuestMergeRetry, guest-saves/merge 서비스 및 관련 검증 | `VERIFIED_LOCAL_SCOPED/EXTERNAL_GATE`: 기존 결과 불명 복구에 더해 만료 전/정확 만료/만료 후, 다른 두 계정 동시 승계, 늦은 실패의 원본/목적지 rollback·재시도, 인증 세션의 목적지 제한을 합성 D1으로 확인했다. 기존 이메일 복귀·승계 UI 증거를 유지하며 실제 외부 인증 전달은 별도다. |
+| U07 리뷰어 공개 | reviewer-publication/moderation, 공개 프로필/방문·사진 경로 및 관련 검증 | `VERIFIED_LOCAL_SCOPED/EXTERNAL_GATE`: 승인 전·반려·회수·수정 상태와 본인/타인의 공개/preview, 프로필→상세 사진을 확인했다. 실제 자료의 권리와 운영 적용은 별도다. [공개 경계 증거](../evidence/cst-publication-completion-20261118/summary.json). |
 | U08 코스·주차/충전 | `course-recommendation.tsx`, course/parking 서비스, course 정책/통합 검증 | `VERIFIED_LOCAL_SCOPED/VERIFY`: 기존 [U08 증거](../evidence/2026-11-18-course-parking-acceptance.json)에 더해 `df80fed`의 [통합 증거](../evidence/recovery-integrated-20261118/summary.json)에서 주차 제공/미제공, 거리·요금 우선순위, EV 후보 없음/복구, 조회 실패 후 조건 보존을 실제 로컬 D1→화면 10건으로 확인했다. 조회 실패는 브라우저 HTTP 503 주입이며 실제 공급자 장애가 아니다. 로컬 시험에만 기존 flag를 켰고 운영 flag·실제 공급자·전체 T08은 미검증이다. |
 | U09 인증·권한·탈퇴 | login/signup/verify/OAuth/me, session/account 서비스·인증 통합 검증 | `VERIFIED_LOCAL_SCOPED/VERIFY`: UX-9.4의 링크/실패/복귀와 `b2228c1` 탈퇴 중복 방지·결과불명·명시적 인증 확인·성공 탈퇴 후 접근 거절을 연결했다. 통합탈퇴4건은 합성 계정이며 실제 외부 인증 전달/전체T03/T04는 별도. |
-| D01 출처·반입 | admin-import/data-sync, import 서비스·`place-import.test.ts` | `CODE_PRESENT/VERIFY`: 같은 원천 재반입·시각/결과/원천키·감사, T05. 원격 수집 운영은 별도 gate. |
-| D02 분류·중복·제외 | place-review pipeline, category/duplicate/exclusion 정책·통합 검증 | `CODE_PRESENT/VERIFY`: 체인·비음식점·폐업/이전·동명이점/중복 fixture·이유, T05. 실제 영업 사실은 별도. |
+| D01 출처·반입 | admin-import/data-sync, import·candidate-sync 검증 | `VERIFIED_LOCAL_SCOPED`: 서로 다른 완료 run으로 동일 원천을 재수집해 source ID·firstSeen·기존 검수 건수·장소를 보존하고 lastSeen·원천 변경 자료·수집 결과를 갱신함을 확인했다. CSV 반입의 재전송 영수증·감사 및 공개 자료 덮어쓰기 차단은 기존 집중 검증을 따른다. 실제 외부 수집 실행은 별도다. |
+| D02 분류·중복·제외 | place-review pipeline, 분류/제외/중복 및 재검증 서비스 | `VERIFIED_LOCAL_SCOPED`: 기존 체인·비음식점 분류에 더해 DISTINCT/LINK_EXISTING/MERGE 결정·사유·감사·stale 거절과 MOVED의 주소 보존·공개/추천 제외를 확인했다. 중복 결정 기록은 실제 장소 병합·공개가 아니며 B09 별도 확정 절차를 따른다. 실제 영업 사실은 별도다. |
 | D03 검수·보완 | reviewer/admin 검수와 후보/정정 UI, moderator CAS·감사·결과 | `VERIFIED_LOCAL_SCOPED/VERIFY`: `4267bce`의 항목별 결과·제안201번째 접근·독립 페이지 상태는 확인했다. 승인/반려/보완/경합·권리 전체 조합은 T04/T05 범위로 남긴다. |
-| D04 공개/회수 | place-operations/publication-recall, B09 증거·관련 통합/e2e | `CODE_PRESENT/VERIFY`: ADMIN만 확정, hidden 검색/추천/직접 조회 제외·전후/사유, T04/T05. |
-| D05 평가 규칙 | rating/recompute·eligible input, 고정 기대값/무효화·재계산 검증 | `VERIFIED_LOCAL_SCOPED/VERIFY`: `4267bce` 표본·stale·유효설정/시점 집계는 확인했다. 최소표본 경계·리뷰어 상한·외부평점 배제·재계산 전체 조합은 T06 범위로 남긴다. 새 수치 정책 생성0. |
+| D04 공개/회수 | place-operations/publication-recall, B09 및 public-consumer 검증 | `VERIFIED_LOCAL_SCOPED`: 관리자 미리보기에는 변화가 없고 확정 뒤 상세404·검색/추천 후보/공개 방문 제외·직접 사진404가 함께 적용됨을 D1과 리소스 로더로 확인했다. 원본·본인 preview는 보존하며 B09의 실제 브라우저 회수/영수증 증거와 연결한다. |
+| D05 평가 규칙 | rating/recompute·eligible input, rating-v2·reviewer-similarity/trust·NAVER adapter 검증 | `VERIFIED_LOCAL_SCOPED`: 7/8/9 및 하위집단 최소표본, 일반 반응이 있을 때의 리뷰어30% 상한과 일반0 예외, 신뢰·감쇠의 독립 기대값, 같은 입력의 id/hash/단일 snapshot, 외부 별점 필드 배제를 기존 집중 시험으로 재확인했다. 새 수치 정책 생성0이며 실제 운영 재계산/수용은 별도다. |
 | D06 운영·복구 | 운영 런북, 합성 D1 복원 증거, B17 migration 보존 리허설 | `VERIFIED_LOCAL_SCOPED/EXTERNAL_GATE`: 합성 보존/복원과 실제 운영 R2/삭제 후 복원을 구분. T08 실제 복구 증거·보존/RPO/RTO 정책은 미완료. |
 
 ## 4. 화면 흐름 전체 연결
@@ -176,3 +176,15 @@ UI PR #472의 `711eabc`와 기존 B17을 `1a8c250`으로 합치고 ADMIN UX `064
 Golden 오류의 원래 EMPTY/허위fallback, 같은 mode 재선택으로 마지막 성공을 덮는 문제, guest의 즉시재전송, 탈퇴의 중복/결과불명, 확인전 정정 우회/동시처리·감사 누락, 코스 오류 시 조건유실을 보완했다. 전체시험이 의도치 않게 시작되며 관측된 onboarding-events 실패는 사용하지 않는 rating mock이 원인이었다. 현재 상세 읽기에 실패를 주입하도록 `9782138`에서 시험만 수정하고 원래 이벤트미기록 불변식을 단일 RED→GREEN으로 확인했다.
 
 전체 U/D/S/T 수용·실제 외부 제공자·운영 복구와 미정 정책은 아직 미완료다. 이 결과를 CI 성공이나 배포·실증 완료로 세지 않는다.
+
+## 12. 기능 누락과 수용 경계 — 2026-11-18
+
+제품 코드 `3d31a98`와 수용 시험 `f7d2732`의 app tree는 동일하다. [최종 통합 증거](../evidence/cst-acceptance-integrated-20261118/summary.json)에 필요한 단위 14건·D1 67건, compiled 데스크톱/모바일 18건과 홈 2건을 연결했다. 타입·production build·배포 dry-run·production 의존성 감사도 통과했다. 앞선 7~11절은 당시의 확인·미완료 이력이며, 현재 기능 상태는 위 요구별 표와 이 절을 따른다.
+
+- 일반 장소의 확인일/영업시간·미확인 표시 누락과 모바일 일괄 검수 완료 표시는 수정했다. 기존 관리자 확인 기록만 사용하며 확인자 ID와 현재 영업 여부는 공개 사실로 만들지 않는다.
+- 반복 평가의 불필요한 변경 이력과 이유 변경의 무결성 오탐을 보완했다. 같은 값은 평가 포인터·집계를 보존하며, 결과 불명/경합 뒤에는 현재 상태를 확인할 때까지 추가 쓰기를 잠근다.
+- 비회원 저장+취향 승계, 공개/반려/회수 권한, 서로 다른 수집 run의 재반입, 중복 판정·이전 처리는 부족했던 수용 사례를 추가했다. 이 범위에서는 추가 제품 결함이 재현되지 않아 테스트만 보완했다.
+- 홈의 공개 후보와 카드, 전체 지도의 실제 음식 분류·빈 결과를 연결했다. 분류 선택은 큐레이션 화면에 새로 만들지 않고 기존 전체 지도에서 확인했다.
+- D05 산식·신뢰/감쇠·동일 입력 재계산·외부 별점 배제는 기존 고정 기대값을 재확인했다. [집중 데이터 검증](../evidence/cst-focused-data-checks-20261118/summary.json)은 57개 단위·26개 D1 실행이며 전체 T 수용으로 합산하지 않는다.
+
+필수 CI·main 병합·새 운영 배포는 아직 미완료다. 전체 T01~T08의 운영/실제 인증·복구·실증 수용과 운영자·문의처·보관 정책도 별도이며, 원래 NOT_RUN 행을 그대로 보존한다. #397 HOLD와 실제 정책 확인 필요는 변경하지 않는다.
