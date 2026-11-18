@@ -62,6 +62,8 @@ test("invalid and no-longer-available pages retain filters and offer a working f
   expect(duplicate?.status()).toBe(400);
   await page.goto(`/places?${search()}&page=3`);
   await expect(page.getByText("이 페이지에 표시할 장소가 없습니다.", { exact: false })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex,follow");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${new URL(page.url()).origin}/places`);
   await page.locator("#all-places").scrollIntoViewIfNeeded();
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `output/playwright/public-place-page-recovery-${testInfo.project.name}.png` });

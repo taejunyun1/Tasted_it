@@ -42,6 +42,10 @@ for (const width of [320, 390, 768, 1440]) {
       for (const label of await labels.all()) {
         if (await label.isVisible()) expect(await label.evaluate(node => Number.parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(12);
       }
+      if (item.id === "courses") {
+        const minimumHeight = width <= 760 ? 44 : width <= 900 ? 54 : 50;
+        expect((await page.locator(".course-apply").boundingBox())!.height).toBeGreaterThanOrEqual(minimumHeight);
+      }
       if (width < 761) {
         for (const target of await page.locator(".site-head .brand, .course-choice-chip").all()) {
           if (await target.isVisible()) expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(44);

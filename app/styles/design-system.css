@@ -944,6 +944,22 @@
 .site-head{
   padding-inline:max(var(--layout-gutter),calc((100vw - var(--layout-max))/2));
 }
+
+.map-category-groups button,
+.map-category-children button,
+.map-mobile-tabs button,
+.site-menu summary{
+  min-height:var(--control-height);
+  min-width:var(--control-height);
+}
+
+.site-head .brand,
+.site-head__primary a,
+.site-menu__panel a{
+  display:inline-flex;
+  align-items:center;
+  min-height:var(--control-height);
+}
 .site-head:has(.site-menu[open]){
   z-index:20;
 }

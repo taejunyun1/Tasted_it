@@ -55,7 +55,7 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
   };
 
   return <aside className="map-explorer-panel" data-mobile-view={mobileView} aria-label="장소 탐색">
-    <div className="map-mobile-tabs" aria-label="모바일 보기 방식">
+    <div className="map-mobile-tabs" role="group" aria-label="모바일 보기 방식">
       <button type="button" aria-pressed={mobileView === "map"} onClick={() => setMobileView("map")}>지도</button>
       <button type="button" aria-pressed={mobileView === "list"} onClick={() => setMobileView("list")}>목록</button>
     </div>
@@ -73,9 +73,9 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
         </form>
         <button type="button" className="map-locate" onClick={onLocate}>◎ 내 주변</button>
       </div>
-      <div className="map-category-groups" aria-label="대표 카테고리">
+      <div className="map-category-groups" role="group" aria-label="대표 카테고리">
         <button type="button" aria-pressed={!category} data-active={!category || undefined} onClick={() => { setGroupId(null); onCategory(null); }}>전체</button>
-        {groups.map((group) => <button type="button" key={group.id} aria-expanded={group.id === groupId} data-expanded={group.id === groupId || undefined} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}
+        {groups.map((group) => <button type="button" key={group.id} aria-expanded={group.id === groupId} aria-pressed={group.id === selectedGroup} data-expanded={group.id === groupId || undefined} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}
       </div>
       {groupId && <div className="map-category-children" role="group" aria-label="세부 카테고리">
         {children.map((child) => <button type="button" key={child.id} aria-label={`${child.name}, 현재 범위 ${child.count}곳, 전체 검색 결과 ${child.overallCount ?? child.count}곳`} aria-pressed={child.slug === category} data-active={child.slug === category || undefined} onClick={() => onCategory(child.slug)}>{child.emoji} {child.name} <small>범위 안 {child.count} · 전체 {child.overallCount ?? child.count}</small></button>)}
