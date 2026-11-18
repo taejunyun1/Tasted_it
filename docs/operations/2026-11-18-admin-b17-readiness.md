@@ -2,17 +2,30 @@
 
 2026-11-18 · #460 / #470. 사용자는 GitHub 결제·Actions 한도를 지금 복구하기 어렵다고 밝혔고, 운영자 명칭·문의처·보관/삭제 기간은 미정으로 유지했다. 이 문서는 배포 준비를 위한 로컬 검증과 재개 조건을 구분한다. CI 우회·운영 배포·원격 SQL·실제 정리 작업은 수행하지 않는다.
 
+## 도구 지원 범위와 남은 중단점
+
+- `b17-preservation-evidence.mjs`: 실제 0049 D1 schema에서 추출한 기존82개 테이블·853개 열과 schema object hash를 기준으로 전체 원장을 수집·비교한다. 기존 열·rowid·SQLite 자료형을 보존하며, 학생 권한/업무·원시 평가·사진 권리·설정·감사도 포함한다. 새로운9개 테이블의 존재와 schema는 전환 후 catalog로 확인하되 새 기본값·권한/trigger 검증은 기존 B17 리허설과 구분한다.
+- `b17-rollout-runner.mjs prepare`: 네트워크 없이 파일 해시·고정201 SQL·수집 비용·실행 한도를 점검한다.
+- `preflight`: 병합된 정확한 소스/PR head CI/동일 tree, 실제 현재 설정·binding·cron·pending 목록을 읽는 경로다. 현재 운영 전환 후속 경로가 없으므로 `LIVE_CONTINUATION_UNAVAILABLE`로 중단한다. **fence·배포·migration을 실행하는 명령이 아니다.** 이번에는 이 원격 사전 점검도 실행하지 않았다.
+- `rehearseB17Lifecycle`: 단계 순서·예산·정리 예약과 실패/30분 경계를 합성 adapter로 검사한다. `SIMULATED_*` 결과는 실제 SQL 전환·배포·HTTP55개 실행이나 운영 복구 성공이 아니다. 실제 HTTP/R2 종료 증거와 지원되는 후속 경로 없이 서비스부터 중단하지 않는다.
+
 ## 지금 실행할 수 있는 로컬 확인
 
 ```sh
 pnpm test:integration tests/integration/b17-rollout-rehearsal.test.ts
-pnpm test tests/unit/b17-rollout-evidence.test.ts
+pnpm test:integration tests/integration/b17-preservation-evidence.test.ts
+pnpm test tests/unit/b17-rollout-evidence.test.ts tests/unit/b17-preservation-evidence.test.ts tests/unit/b17-rollout-runner.test.ts
 node scripts/b17-rollout-evidence.mjs manifest --root .
+node scripts/b17-rollout-runner.mjs prepare --root .
 ```
 
 manifest는 현재 checkout의 0050/0051/0052/0053/0054/0055/0056/0059/0060 파일과 커밋된 같은 파일의 SHA-256을 비교한다. 지정 목록 밖의 신규 migration, 누락 또는 커밋과 다른 내용은 통과로 처리하지 않는다. 이 출력은 `LOCAL_PREPARATION`, `executed:false`이며 원격 적용 상태를 뜻하지 않는다.
 
-보존 비교는 다음 형식의 비공개 JSON 두 파일을 읽는다. `tables`에는 아래 7개 테이블을 모두 넣고 `columns`에는 0049의 기존 열 전체와 `rowid`를 넣는다. `rows`는 그 열들의 실제 값이다. 수동으로 열을 줄이거나 값·rowid를 재작성하지 않는다.
+전체 보존은 `verifyB17PreservationSources`로 모든 migration 소스를 확인한 뒤 `buildB17PreservationCatalogQuery` → `planB17PreservationCapture` → `collectB17PreservationSnapshot` → `compareB17PreservationSnapshots` 순서로 실행한다. 전후 catalog를 각각 검증하며 caller의 `complete:true`나 줄인 projection을 신뢰하지 않는다. 각 시점에 catalog1회+수집7회, 전후 총16 D1 요청/관리 SQL이다. 최대12표/SQL90KiB의 묶음이며 실제 D1에서 compound SELECT 한도를 넘던 초안은 bounded `json_each` 방식으로 바꿨다.
+
+상한은 표당10,000행·전체50,000행·셀256KiB·묶음10,000행/4MiB·전체64MiB다. 초과·누락·중복 rowid·잘린 응답은 실패한다. 64bit 정수는 문자열, BLOB은 hex로 비교하고 원문 값 대신 표별 건수/digest·불일치 위치만 보고한다. 원문 snapshot은 저장소 밖0700 디렉터리/0600 파일로만 보관한다. runtime catalog나 실제 행 없이 offline 비용 설명만으로 보존 PASS를 만들지 않는다.
+
+아래 기존 `compare` 명령은 이전7개 재구성 표 형식의 호환 도구로 유지한다. **전체 원장 보존을 대신하지 않는다.**
 
 ```sh
 node scripts/b17-rollout-evidence.mjs compare \
@@ -26,7 +39,7 @@ node scripts/b17-rollout-evidence.mjs compare \
 - 로컬 연속 적용 리허설에서 함께 보존을 확인하는 11개 테이블: users, sessions, places, rating_configs, rating_snapshots, reviewer_visit_reviews, vote_events, current_votes, parking_data_snapshots, naver_local_category_runs, admin_audit_logs.
 - 리허설은 빈 테이블 통과를 피하도록 위 11개에도 합성 행을 넣는다. 9개 migration 후 기존 열·rowid·값, FK, 불변 영수증, 모든 작업 종류, 새 열 기본값, quota 초기 HOLD와 마지막 publication trigger를 확인한다.
 
-이 18개 테이블의 합성 리허설은 전체 운영 DB 복원 시험이 아니다. 실제 전환의 보존 범위와 입력 자료는 [B17 운영 계획](2026-11-18-admin-b17-rollout.md)을 따르며, 원격 적용 전 현재 데이터로 다시 비교해야 한다.
+이전18개 테이블의 합성 리허설은 원래 범위의 증거로 유지한다. 새 전체82표 비교도 합성 로컬 검증이며 실제 운영 DB 복원 시험이 아니다. 실제 전환의 보존 범위와 입력 자료는 [B17 운영 계획](2026-11-18-admin-b17-rollout.md)을 따르며, 원격 적용 전 현재 데이터로 다시 비교해야 한다.
 
 ## 기존 B10 스크립트의 재사용 제한
 
@@ -36,11 +49,13 @@ node scripts/b17-rollout-evidence.mjs compare \
 |---|---|
 | 코드/환경 고정 | 실제 merged main·정확한 통합 CI head·현재 Worker 버전·설정/binding/2개 cron 일치 |
 | migration 고정 | 지정9개 pending 목록 및 현재 manifest 해시 일치, 그 밖의 pending이 있으면 중단 |
-| 보존 대상 | 재구성7개뿐 아니라 사용자 권한·학생 seat/업무·원시표·설정·감사 등 승인된 원장을 같은 projection으로 비교 |
-| 한도 원장 | 읽기와 mutation·D1 관리 명령을 모두 HTTP90/D1명령50/SQL180에 합산. export1·migration9·임시세션1·RSI1 별도 계수 |
+| 보존 대상 | 새82표/853열 collector의 정확한 runtime catalog·동일 projection·typed rowid/값 비교. 실제 운영 비교는 미실행 |
+| 한도 원장 | 애플리케이션 HTTP90·D1 요청50·관리 SQL180(장부11 포함)·고정9파일 본문 SQL201, SQL 총381. CLI 내부 요청도 계수. 제어 API 호출은 별도 기록. export1·migration9·임시세션1·RSI1 별도 계수 |
 | 정리 예약 | 최종 정리에 D1명령5/SQL12를 남김. 잔여량이 부족하면 새 변경을 시작하지 않음. 예약은 전체 한도 안의 몫 |
-| 전체 finally | 임시 세션 생성 직후부터 대기 전환·quota 전환·live 확인 전체를 finally로 감싸고 이번 정확 ID만 정리 |
+| 전체 finally | 합성 단계 실패/결과 불명에서 정리 예약과 finally를 확인. 실제 세션 생성·대기/quota 전환·live 확인에 적용할 후속 경로는 아직 없음 |
 | drain 증거 | 이번 fence 버전·시각에 연결된 관측. 외부 JSON의 `safeToMigrate:true` 값만 믿지 않음 |
+
+offline 할당 계산은 catalog 포함 수집16회와 Wrangler 장부11회를 반영한다. 성공 경로 가정은 D1 44회/관리 SQL58문장+본문201문장, 정리 예약 전체 사용 가정은46회/63+201문장이다. HTTP61회 중 후반55회는 아직 구현되지 않은 live probe의 할당값이다. 이 수치는 실제 운영 실행량이나 완성된 전체 runner의 보장이 아니며, 후속 구현 시 실제 모든 호출을 다시 대조해야 한다. 원래 총상한50회/381문장/HTTP90회는 자동 확대하지 않는다.
 
 ## live 검증에서 구분할 증거
 

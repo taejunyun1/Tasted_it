@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T02:51:49.760Z",
+  "status": "VERIFIED_LOCAL_SCOPED",
+  "sourceHead": "7f5a4ba52cd46869abf218a8528392ea80db2324",
+  "appTree": "a87403c2923bae39d43f92778955ded8d3459331",
+  "appChanged": false,
+  "suites": [
+    {
+      "id": "preservation-unit",
+      "sourceHead": "b0beebbd1a52534f71f845cf797644994b31ef9e",
+      "environment": "LOCAL_UNIT",
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "preservation-d1",
+      "sourceHead": "b0beebbd1a52534f71f845cf797644994b31ef9e",
+      "environment": "LOCAL_VITEST_WORKERS_D1",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "id": "runner-unit",
+      "sourceHead": "7f5a4ba52cd46869abf218a8528392ea80db2324",
+      "environment": "LOCAL_UNIT",
+      "passed": 20,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "files": {
+    "scripts/b17-preservation-evidence.mjs": "96d6b1cafbed12a769605f181ab79968ebcf35f966b23bc87a2a3cc904ec3b09",
+    "tests/integration/b17-preservation-evidence.test.ts": "595f34141a38e6759ad580b55810e4d6a1a86cb4190c2503128cc6e8c9ac37e0",
+    "tests/unit/b17-preservation-evidence.test.ts": "337b6990eed34bdd03fb50ee9f39bfeecad4e69e06a5beef0690964f78dfecae",
+    "scripts/b17-rollout-runner.mjs": "523ad8fb11936a2e6939146c62204d2cfa2b1a32adec44a56b1130d08569dbb9",
+    "tests/unit/b17-rollout-runner.test.ts": "9ae512a7706fe9d3bee6368254ff208dbc78ec14c36a1c64b8b22fce272b4bba"
+  },
+  "preservation": {
+    "baselineTables": 82,
+    "baselineColumns": 853,
+    "upgradedTables": 91,
+    "upgradedColumns": 930,
+    "populatedCoreTables": 16,
+    "originalRowidAndTypes": true,
+    "originalRowsMismatch": 0,
+    "catalogQueries": 2,
+    "captureQueries": 14,
+    "totalD1Queries": 16,
+    "remote": false
+  },
+  "prepare": {
+    "mode": "LOCAL_PREPARATION",
+    "executed": false,
+    "postDrainExecutionImplemented": false,
+    "limits": {
+      "http": 90,
+      "d1Commands": 50,
+      "manualSql": 180,
+      "migrationSql": 201,
+      "migrations": 9,
+      "exports": 1,
+      "sessions": 1,
+      "rsi": 1
+    },
+    "costModel": {
+      "simulationOnly": true,
+      "capturePerPhase": {
+        "d1Commands": 8,
+        "manualSql": 8
+      },
+      "success": {
+        "http": 61,
+        "d1Commands": 44,
+        "manualSql": 58,
+        "migrationSql": 201,
+        "migrations": 9,
+        "exports": 1,
+        "sessions": 1,
+        "rsi": 1
+      },
+      "reservedWorstCase": {
+        "http": 61,
+        "d1Commands": 46,
+        "manualSql": 63,
+        "migrationSql": 201,
+        "migrations": 9,
+        "exports": 1,
+        "sessions": 1,
+        "rsi": 1
+      },
+      "aggregateSqlSuccess": 259,
+      "aggregateSqlLimit": 381,
+      "httpAllocation": "5 fence probes + 55 reserved read/deny/preview probes + 1 RSI trigger; post-drain probe execution is not implemented"
+    }
+  },
+  "verification": {
+    "syntax": "PASS",
+    "diffCheck": "PASS",
+    "productionDependencyVulnerabilities": 0,
+    "browser": "NOT_REPEATED_APP_UNCHANGED"
+  },
+  "initialFindings": [
+    {
+      "kind": "SQL_LIMIT_COUNT_ERROR",
+      "detail": "The original aggregate SQL180 draft omitted the fixed 201 migration-body statements. Administrative180 now includes 11 Wrangler bookkeeping statements; aggregate limit381."
+    },
+    {
+      "kind": "LOCAL_D1_QUERY_FAILURE",
+      "detail": "Initial compound SELECT batching hit the local D1 compound SELECT limit. Bounded json_each batching passed the populated migration test."
+    },
+    {
+      "kind": "REVIEW_FIX",
+      "detail": "D1 SELECT uses command transport; parent-symlink containment, post-finally budget accounting and exact PR-head/squash-tree checks were verified."
+    },
+    {
+      "kind": "SCOPE_CORRECTION",
+      "detail": "The CLI supports prepare and read-only preflight only. It does not knowingly deploy a maintenance fence without a supported continuation."
+    }
+  ],
+  "remoteExecution": {
+    "d1": 0,
+    "deploy": 0,
+    "sessions": 0,
+    "email": 0,
+    "paidProvider": 0
+  },
+  "remaining": [
+    "Required CI remains blocked; no merge or deployment performed.",
+    "Read-only preflight has not been executed against production.",
+    "Live HTTP/R2 drain proof and post-drain executor are not implemented/verified.",
+    "Real policy values, external-provider acceptance and full T01-T08 remain incomplete."
+  ],
+  "independentReview": {
+    "status": "PASS",
+    "blockingFindings": 0,
+    "scope": "Preservation, preparation/preflight and corresponding tests; current documentation distinguishes simulated and unimplemented live work.",
+    "reviewedSourceHead": "7f5a4ba52cd46869abf218a8528392ea80db2324",
+    "reviewedFiles": {
+      "scripts/b17-rollout-runner.mjs": "523ad8fb11936a2e6939146c62204d2cfa2b1a32adec44a56b1130d08569dbb9",
+      "tests/unit/b17-rollout-runner.test.ts": "9ae512a7706fe9d3bee6368254ff208dbc78ec14c36a1c64b8b22fce272b4bba",
+      "scripts/b17-preservation-evidence.mjs": "96d6b1cafbed12a769605f181ab79968ebcf35f966b23bc87a2a3cc904ec3b09"
+    }
+  }
+}

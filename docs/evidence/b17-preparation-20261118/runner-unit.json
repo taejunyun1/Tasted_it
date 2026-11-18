@@ -1,0 +1,110 @@
+{
+  "id": "runner-unit",
+  "sourceHead": "7f5a4ba52cd46869abf218a8528392ea80db2324",
+  "environment": "LOCAL_UNIT",
+  "passed": 20,
+  "failed": 0,
+  "skipped": 0,
+  "cases": [
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "B17 bounded rollout keeps cleanup reservations inside fixed limits and separately accounts fixed migration SQL",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "B17 bounded rollout rejects stale heads, unmerged PRs, missing or duplicate checks before any live action",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "B17 bounded rollout accepts required checks on the exact PR head only when its tree matches the squash merge",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "B17 bounded rollout never promotes elapsed cron time, an operator boolean or completion-only tail to HTTP drain proof",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "B17 bounded rollout preparation only reads the checkout and reports current blockers without an adapter or network",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "the full fixed lifecycle fits real migration/capture costs including cleanup",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "keeps the fence and cleans exact synthetic state after SESSION fails",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "keeps the fence and cleans exact synthetic state after LEGACY_TRANSITION fails",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "keeps the fence and cleans exact synthetic state after QUOTA_TRANSITION fails",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "keeps the fence and cleans exact synthetic state after NORMAL_DEPLOY fails",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "keeps the fence and cleans exact synthetic state after LIVE_PROBES fails",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "keeps the fence and cleans exact synthetic state after RSI fails",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "refuses a preservation plan that consumes the reserved cleanup allocation",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "does not accept an arbitrary adapter or boolean as a live continuation proof",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "requires exact current binding, plain vars, crons and 100-percent version",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "validates preflight but cannot deploy a fence even if an adapter claims drain is safe",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "a deadline after session creation still preserves cleanup and the fence",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "reads actual CLI response shapes through bounded argv and keeps the bearer out of arguments",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "rejects a private-directory parent symlink that resolves inside the repository",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-runner.test.ts",
+      "name": "rejects command/SQL injection fields and malformed runtime identities at the CLI boundary",
+      "status": "passed"
+    }
+  ]
+}

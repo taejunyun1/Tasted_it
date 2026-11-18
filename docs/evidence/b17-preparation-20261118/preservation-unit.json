@@ -1,0 +1,65 @@
+{
+  "id": "preservation-unit",
+  "sourceHead": "b0beebbd1a52534f71f845cf797644994b31ef9e",
+  "environment": "LOCAL_UNIT",
+  "passed": 11,
+  "failed": 0,
+  "skipped": 0,
+  "cases": [
+    {
+      "file": "tests/unit/b17-preservation-evidence.test.ts",
+      "name": "complete B17 preservation evidence rejects hand-authored or incomplete catalogues",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-preservation-evidence.test.ts",
+      "name": "complete B17 preservation evidence rejects hand-authored completion rather than inferring preservation",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-preservation-evidence.test.ts",
+      "name": "complete B17 preservation evidence budgets capture without pretending a runtime catalogue was verified",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-preservation-evidence.test.ts",
+      "name": "complete B17 preservation evidence binds the catalogue to the exact committed migration sources",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-evidence.test.ts",
+      "name": "compares every prior value and rowid while allowing reordered and added columns",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-evidence.test.ts",
+      "name": "reports changed cells and removed rows without exposing either cell value",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-evidence.test.ts",
+      "name": "rejects invalid shapes, missing tables, duplicate or missing rowids and oversized inputs",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-evidence.test.ts",
+      "name": "rejects removal of a prior column and hashes scalar types distinctly",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-evidence.test.ts",
+      "name": "builds exactly the nine local migration hashes with pinned HEAD information",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-evidence.test.ts",
+      "name": "CLI comparison exits nonzero on mismatch and emits only the safe report",
+      "status": "passed"
+    },
+    {
+      "file": "tests/unit/b17-rollout-evidence.test.ts",
+      "name": "manifest CLI fails when a tracked migration differs from HEAD",
+      "status": "passed"
+    }
+  ]
+}

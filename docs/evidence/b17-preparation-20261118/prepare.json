@@ -1,0 +1,184 @@
+{
+  "mode": "LOCAL_PREPARATION",
+  "executed": false,
+  "sourceSha": "7f5a4ba52cd46869abf218a8528392ea80db2324",
+  "stages": [
+    "PREPARE",
+    "AUTHORITY",
+    "FENCE",
+    "DRAIN",
+    "BACKUP",
+    "PRESERVATION_BEFORE",
+    "MIGRATIONS",
+    "PRESERVATION_AFTER",
+    "SESSION",
+    "GUARDED_TRANSITIONS",
+    "NORMAL_DEPLOY",
+    "LIVE_PROBES",
+    "RSI",
+    "CLEANUP"
+  ],
+  "implementedCommands": [
+    "prepare",
+    "preflight"
+  ],
+  "postDrainExecutionImplemented": false,
+  "preservation": {
+    "requiresRuntimeCatalog": true,
+    "tableCount": 82,
+    "columnCount": 853,
+    "perPhase": {
+      "catalogD1Commands": 1,
+      "catalogSqlStatements": 1,
+      "captureD1Commands": 7,
+      "captureSqlStatements": 7,
+      "maxResponseBytes": 16777216,
+      "queries": [
+        {
+          "tableCount": 12,
+          "sqlBytes": 49471
+        },
+        {
+          "tableCount": 12,
+          "sqlBytes": 48471
+        },
+        {
+          "tableCount": 12,
+          "sqlBytes": 66731
+        },
+        {
+          "tableCount": 12,
+          "sqlBytes": 59929
+        },
+        {
+          "tableCount": 12,
+          "sqlBytes": 64809
+        },
+        {
+          "tableCount": 12,
+          "sqlBytes": 57526
+        },
+        {
+          "tableCount": 10,
+          "sqlBytes": 34806
+        }
+      ]
+    },
+    "limits": {
+      "maxTableRows": 10000,
+      "maxBatchRows": 10000,
+      "maxTotalRows": 50000,
+      "maxCellBytes": 262144,
+      "maxBatchBytes": 4194304,
+      "maxSnapshotBytes": 67108864,
+      "maxSqlBytes": 92160,
+      "maxTablesPerQuery": 12,
+      "maxResponseBytes": 16777216
+    }
+  },
+  "costModel": {
+    "simulationOnly": true,
+    "capturePerPhase": {
+      "d1Commands": 8,
+      "manualSql": 8
+    },
+    "success": {
+      "http": 61,
+      "d1Commands": 44,
+      "manualSql": 58,
+      "migrationSql": 201,
+      "migrations": 9,
+      "exports": 1,
+      "sessions": 1,
+      "rsi": 1
+    },
+    "reservedWorstCase": {
+      "http": 61,
+      "d1Commands": 46,
+      "manualSql": 63,
+      "migrationSql": 201,
+      "migrations": 9,
+      "exports": 1,
+      "sessions": 1,
+      "rsi": 1
+    },
+    "aggregateSqlSuccess": 259,
+    "aggregateSqlLimit": 381,
+    "httpAllocation": "5 fence probes + 55 reserved read/deny/preview probes + 1 RSI trigger; post-drain probe execution is not implemented"
+  },
+  "limits": {
+    "http": 90,
+    "d1Commands": 50,
+    "manualSql": 180,
+    "migrationSql": 201,
+    "migrations": 9,
+    "exports": 1,
+    "sessions": 1,
+    "rsi": 1
+  },
+  "cleanupReserve": {
+    "d1Commands": 5,
+    "manualSql": 12
+  },
+  "migrationCount": 9,
+  "migrationSql": 201,
+  "migrations": [
+    {
+      "name": "0050_admin_rating_job_control.sql",
+      "sha256": "1040b11608b58469cb15ec962fc121dfbb9ff20b5874ff1f0771d4cd1af620b0",
+      "statements": 29
+    },
+    {
+      "name": "0051_admin_public_sync.sql",
+      "sha256": "d38c755489c5596650ef02b99db81b190f60190a90b0166afdcae72695210524",
+      "statements": 28
+    },
+    {
+      "name": "0052_admin_parking_job_control.sql",
+      "sha256": "e4c44dec46df44255c54fb3fec62e30749a4828fe8a3ad2a84dffaf40c290c7a",
+      "statements": 27
+    },
+    {
+      "name": "0053_provider_usage.sql",
+      "sha256": "e42daaf0482e9d8bffbe8598630122e35d7944a810182765d6147247070bec28",
+      "statements": 11
+    },
+    {
+      "name": "0054_admin_feature_stop.sql",
+      "sha256": "5e34fb63940ea081f399f679e4fafc331906df0203b9e2e5f72d3d846826cfa8",
+      "statements": 24
+    },
+    {
+      "name": "0055_admin_privacy_operations.sql",
+      "sha256": "d34c91135a5e778c0e5ea1d8c462615edb75420d6c40720e8abc512b8e67ace1",
+      "statements": 32
+    },
+    {
+      "name": "0056_admin_reliability.sql",
+      "sha256": "238a828cfab3ab85a414ab66d00343758ae7ab5b2c1c32f0219c15dbf19f4638",
+      "statements": 22
+    },
+    {
+      "name": "0059_email_domain_control.sql",
+      "sha256": "89bf9926bd02a77814a0735af59e07df6df1161ef4e44c759d7cc8dd58e679dd",
+      "statements": 26
+    },
+    {
+      "name": "0060_rating_config_eligibility.sql",
+      "sha256": "fd1a4035c86a9f5ac58396246e274b737c11986b7c27abf3d7f1b508f209309a",
+      "statements": 2
+    }
+  ],
+  "blockers": [
+    "MERGED_MAIN_AND_EXACT_FOUR_CI_REQUIRED",
+    "CURRENT_RUNTIME_BINDINGS_VARS_CRONS_REQUIRED",
+    "LIVE_HTTP_DRAIN_OBSERVATION_REQUIRED",
+    "LIVE_CONTINUATION_UNAVAILABLE"
+  ],
+  "costUnits": {
+    "http": "application HTTP probes (including RSI trigger); CLI control-plane traffic is separately recorded, not mislabeled as probes",
+    "d1Commands": "D1 management invocations",
+    "manualSql": "explicit administrative/capture statements and migration bookkeeping",
+    "migrationSql": "fixed nine file statements counted by readD1Migrations"
+  }
+}
