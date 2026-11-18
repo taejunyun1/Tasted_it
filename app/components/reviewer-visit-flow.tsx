@@ -3,6 +3,8 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useFetcher } from "react-router";
 
 import { AppToast, type AppToastValue } from "./app-toast";
+import { ReviewerPlacePicker } from "./reviewer-place-picker";
+import { reviewerPlaceSearchHref, type ReviewerPlacePage, type ReviewerPlaceResponse } from "../features/ratings/reviewer-place-search";
 import { OwnerVisitActions, PhotoRightsFields, VisitEvidenceFields, photoRightsFromForm, reviewerModerationErrorMessage, reviewerVisitStatusLabels, type ReviewerVisitStatus } from "./reviewer-visit-moderation";
 import {
   prepareReviewerPhotoFiles,
@@ -53,6 +55,7 @@ type Props = {
   historyNextHref?: string | null;
   historyHasCursor?: boolean;
   places: ReviewerPlace[];
+  placePage?: ReviewerPlacePage;
   categories: ReviewerCategory[];
   history: ReviewerHistory[];
   goldenQuota: { used: number; limit: number; remaining: number };
@@ -98,14 +101,19 @@ function parseBadges(value: string) {
   }
 }
 
-export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, notice }: Props) {
+export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, placePage, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, notice }: Props) {
   const fetcher = useFetcher<{ ok: false; error: string }>();
+  const restoreFetcher = useFetcher<ReviewerPlaceResponse>();
   const [step, setStep] = useState(1);
   const [placeId, setPlaceId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [evaluation, setEvaluation] = useState<ReviewerEvaluation | null>(null);
   const [badges, setBadges] = useState<string[]>([]);
-  const [placeQuery, setPlaceQuery] = useState("");
+  const [chosenPlace, setChosenPlace] = useState<ReviewerPlace | null>(null);
+  const [restoreError, setRestoreError] = useState("");
+  const initialized = useRef(false);
+  const restoreSequence = useRef(0);
+  const pendingDraft = useRef<{ draft: Draft; key: string } | null>(null);
   const [categoryQuery, setCategoryQuery] = useState("");
   const [badgeError, setBadgeError] = useState("");
   const [photos, setPhotos] = useState<Array<{ file: File; position: number; previewUrl: string; selectionKey: string }>>([]);
@@ -123,32 +131,28 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   const [hydrated, setHydrated] = useState(false);
   const [draftVersion, setDraftVersion] = useState(0);
 
-  const selectedPlace = places.find((place) => place.placeId === placeId) ?? null;
+  const selectedPlace = chosenPlace?.placeId === placeId ? chosenPlace : places.find((place) => place.placeId === placeId) ?? null;
+  const initialPlacePage = useMemo(() => placePage ?? { query: "", places, nextCursor: null }, [placePage, places]);
   const selectedCategory = categories.find((category) => category.id === categoryId) ?? null;
   const categoryName = selectedCategory?.name as ReviewerCategoryName | undefined;
   const badgeOptions = categoryName ? REVIEWER_BADGE_CATALOG[categoryName] ?? [] : [];
-  const filteredPlaces = useMemo(() => {
-    const query = placeQuery.trim().toLocaleLowerCase("ko");
-    if (!query) return places.slice(0, 12);
-    return places.filter((place) => `${place.placeName} ${place.neighborhood ?? ""} ${place.categoryName}`.toLocaleLowerCase("ko").includes(query)).slice(0, 20);
-  }, [placeQuery, places]);
   const filteredCategories = useMemo(() => {
     const query = categoryQuery.trim().toLocaleLowerCase("ko");
     return categories.filter((category) => !query || `${category.emoji} ${category.name}`.toLocaleLowerCase("ko").includes(query));
   }, [categories, categoryQuery]);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    if (!canSubmit) { setHydrated(true); return; }
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
       if (saved) {
         const draft = JSON.parse(saved) as Draft;
-        if (draft.placeId && places.some((place) => place.placeId === draft.placeId)) {
-          setStep(Math.max(1, Math.min(5, draft.step)));
-          setPlaceId(draft.placeId);
-          setCategoryId(draft.categoryId);
-          setEvaluation(draft.evaluation);
-          setBadges(draft.badges.slice(0, 2));
-          setRestored(true);
+        if (typeof draft.placeId === "string" && draft.placeId.length > 0 && draft.placeId.length <= 128 && Array.isArray(draft.badges)) {
+          const available = places.find((place) => place.placeId === draft.placeId);
+          if (available) applyRestoredDraft(draft, available);
+          else { requestDraftPlace(draft); return; }
         }
       }
     } catch {
@@ -156,6 +160,34 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
     }
     setHydrated(true);
   }, [places]);
+
+  useEffect(() => {
+    const pending = pendingDraft.current;
+    if (!pending || !restoreFetcher.data || restoreFetcher.state !== "idle" || restoreFetcher.data.requestKey !== pending.key) return;
+    if (!restoreFetcher.data.ok) { setRestoreError(restoreFetcher.data.message); return; }
+    applyRestoredDraft(pending.draft, restoreFetcher.data.selectedPlace);
+    pendingDraft.current = null;
+    setHydrated(true);
+  }, [restoreFetcher.data, restoreFetcher.state]);
+
+  function requestDraftPlace(draft: Draft) {
+    const key = `draft-${++restoreSequence.current}`;
+    pendingDraft.current = { draft, key };
+    setRestoreError("");
+    void restoreFetcher.load(reviewerPlaceSearchHref("", key, null, draft.placeId));
+  }
+
+  function applyRestoredDraft(draft: Draft, place: ReviewerPlace | null) {
+    const category = categories.find((item) => item.id === draft.categoryId) ?? categories.find((item) => item.id === place?.categoryId);
+    const allowed = category ? REVIEWER_BADGE_CATALOG[category.name as ReviewerCategoryName] ?? [] : [];
+    setStep(place ? Math.max(1, Math.min(5, Number.isInteger(draft.step) ? draft.step : 1)) : 1);
+    setPlaceId(place?.placeId ?? ""); setChosenPlace(place);
+    setCategoryId(category?.id ?? "");
+    setEvaluation(["RECOMMEND", "HOLD", "NOT_RECOMMEND"].includes(draft.evaluation ?? "") ? draft.evaluation : null);
+    setBadges(draft.badges.filter((badge) => typeof badge === "string" && (allowed as readonly string[]).includes(badge)).slice(0, 2));
+    setRestored(Boolean(place));
+    if (!place) setToast({ kind: "info", message: "작성 중이던 장소를 더 이상 선택할 수 없어요. 다른 검수 장소를 골라주세요." });
+  }
 
   useEffect(() => {
     if (!hydrated || (publishedReviewId && !placeId)) return;
@@ -191,6 +223,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   }, [fetcher.state]);
 
   function choosePlace(nextPlace: ReviewerPlace) {
+    if (nextPlace.placeId === placeId) return;
     if (nextPlace.placeId !== placeId) {
       setEvaluation(null);
       replacePhotos([]);
@@ -200,6 +233,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
       if (placeId) setToast({ kind: "info", message: "장소를 바꿨어요. 방문 근거와 사진을 다시 확인해 주세요." });
     }
     setPlaceId(nextPlace.placeId);
+    setChosenPlace(nextPlace);
     const primary = categories.find((category) => category.id === nextPlace.categoryId);
     setCategoryId(primary?.id ?? "");
     setBadges([]);
@@ -227,6 +261,8 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   }
 
   function discardDraft() {
+    pendingDraft.current = null;
+    setRestoreError(""); setHydrated(true); setChosenPlace(null);
     removeStoredDraft();
     setStep(1);
     setPlaceId("");
@@ -353,6 +389,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
       {!canSubmit && <p className="reviewer-moderation-notice">새 리뷰 제출과 내용 수정은 활동 리뷰어만 할 수 있어요. 본인이 남긴 자료의 상태 확인과 철회·사진 삭제는 아래 제출 기록에서 할 수 있습니다.</p>}
       {canSubmit && <>
       {!hydrated && <p className="reviewer-moderation-notice" role="status">화면 준비 중이에요. 준비가 끝나면 장소를 선택해 주세요.</p>}
+      {restoreError && <div role="alert"><p>{restoreError}</p><button type="button" className="reviewer-secondary" disabled={restoreFetcher.state !== "idle"} onClick={() => { if (pendingDraft.current) requestDraftPlace(pendingDraft.current.draft); }}>작성 중인 장소 다시 확인</button><button type="button" className="reviewer-secondary" onClick={discardDraft}>새로 작성</button></div>}
       <nav className="reviewer-steps" aria-label="리뷰 제출 단계">
         {["1. 장소", "2. 평가", "3. 맛 배지", "4. 사진·Golden", "5. 확인"].map((label, index) => (
           <button key={label} type="button" aria-current={step === index + 1 ? "step" : undefined} disabled={!hydrated || index + 1 > step || publishing || preparingPhotos} onClick={() => setStep(index + 1)}>
@@ -378,20 +415,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
             <p className="eyebrow">STEP 01 / PLACE</p>
             <h2 id="review-step-place">어디를 다녀오셨나요?</h2>
             <p>검수된 장소를 검색해 선택하세요. 선택한 장소의 대표 카테고리를 먼저 보여드려요.</p>
-            <label className="reviewer-search">
-              <span>장소 검색</span>
-              <input value={placeQuery} onChange={(event) => setPlaceQuery(event.target.value)} placeholder="다녀온 장소 검색" />
-            </label>
-            <div className="reviewer-place-grid" aria-label="장소 검색 결과">
-              {filteredPlaces.map((place) => (
-                <button key={place.placeId} type="button" aria-pressed={placeId === place.placeId} onClick={() => choosePlace(place)}>
-                  <span>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</span>
-                  <strong>{place.placeName}</strong>
-                  <small>{placeId === place.placeId ? "선택됨" : "이 장소 선택"}</small>
-                </button>
-              ))}
-              {!filteredPlaces.length && <p className="reviewer-empty">일치하는 검수 장소가 없어요. 장소 제안에서 먼저 알려주세요.</p>}
-            </div>
+            <ReviewerPlacePicker initialPage={initialPlacePage} selectedPlace={selectedPlace} onChoose={choosePlace} />
           </section>
 
           <section className="reviewer-step-card" hidden={step !== 2} aria-labelledby="review-step-evaluation">
