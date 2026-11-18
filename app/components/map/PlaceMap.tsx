@@ -29,6 +29,7 @@ const GWANGJU_OVERVIEW_BOUNDS = {
 const MUDEUNGSAN_OVERVIEW_ICON_POINT = { x: 95, y: 63 } as const;
 const YEONGSAN_RIVER_OVERVIEW_LINE = "44,3 35,24 22,41 16,62 12,88";
 const MAP_UNAVAILABLE_MESSAGE = "지도를 불러오지 못했습니다. 목록에서 장소를 계속 확인해 주세요.";
+const MAX_MAP_RETRIES = 2;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -96,7 +97,7 @@ export function mapBoundsDeliveryTarget(input: {
   return input.viewportDirty ? "pending" : "ignore";
 }
 
-export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, initialBounds, locationBounds, locationNotice = null }: {
+export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
@@ -111,12 +112,16 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   onPendingBounds?: (bbox: [number, number, number, number]) => void;
   onZoom?: (zoom: number) => void;
   onClusterSelect?: (cluster: RegionCluster) => void;
+  onViewportIntent?: () => void;
   initialBounds?: [number, number, number, number];
   locationBounds?: [number, number, number, number] | null;
   locationNotice?: string | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [mapLoading, setMapLoading] = useState(false);
+  const loadingRef = useRef(false);
   const [map, setMap] = useState<naver.maps.Map | null>(null);
   const initialClientId = useRef(clientId);
   const initialBoundsRef = useRef(initialBounds);
@@ -158,6 +163,8 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       return;
     }
 
+    loadingRef.current = true;
+    setMapLoading(true);
     setError(null);
     void loadNaverMaps(initialClientId.current).then(({ maps }) => {
       if (disposed || !host.current) return;
@@ -170,6 +177,8 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       });
       instance = created;
       setMap(created);
+      loadingRef.current = false;
+      setMapLoading(false);
 
       if (initialBoundsRef.current) {
         const [west, south, east, north] = initialBoundsRef.current;
@@ -208,7 +217,11 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       });
       zoomRef.current(created.getZoom());
     }).catch(() => {
-      if (!disposed) setError(MAP_UNAVAILABLE_MESSAGE);
+      if (!disposed) {
+        loadingRef.current = false;
+        setMapLoading(false);
+        setError(MAP_UNAVAILABLE_MESSAGE);
+      }
     });
 
     return () => {
@@ -221,7 +234,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       setMap((current) => current === instance ? null : current);
       instance?.destroy();
     };
-  }, []);
+  }, [retryAttempt]);
 
   useEffect(() => {
     if (!map || !window.naver?.maps) return;
@@ -317,6 +330,12 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
 
   const handleViewportIntent = () => {
     viewportDirtyRef.current = true;
+    onViewportIntent?.();
+  };
+  const retryMap = () => {
+    if (loadingRef.current || !error || retryAttempt >= MAX_MAP_RETRIES) return;
+    loadingRef.current = true;
+    setRetryAttempt((attempt) => attempt + 1);
   };
   const deliverQaBounds = (bbox: [number, number, number, number]) => {
     const target = mapBoundsDeliveryTarget({ deferBounds, viewportDirty: true });
@@ -366,9 +385,14 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     })}
   </div>;
 
-  return <div className="map-canvas" aria-label="장소 지도" data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
+  return <div className="map-canvas" aria-label="장소 지도" aria-busy={mapLoading} data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
     <div className="map-canvas__host" ref={host} aria-hidden="true" />
-    {(error || locationNotice) && <p className="map-error" role="status" aria-live="polite">{error || locationNotice}</p>}
+    {(error || locationNotice) && <div className="map-error" role="status" aria-live="polite">
+      <span>{error || locationNotice}</span>
+      {error && initialClientId.current && (retryAttempt < MAX_MAP_RETRIES
+        ? <button type="button" className="mt-3 block min-h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-current bg-[var(--surface-card)] px-3 py-2 font-semibold disabled:opacity-60" disabled={mapLoading} onClick={retryMap}>지도 다시 불러오기</button>
+        : <span> 다시 시도하려면 페이지를 새로고침해 주세요.</span>)}
+    </div>}
     {selectedOverview}
   </div>;
 }
