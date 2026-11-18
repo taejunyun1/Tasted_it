@@ -155,7 +155,7 @@ function publicFilterConditions(filters: PlaceFilters, slug?: string) {
   return and(...conditions);
 }
 
-function publicConditions(filters: PlaceFilters, slug?: string) {
+export function publicConditions(filters: PlaceFilters, slug?: string) {
   return and(
     eq(places.status, "PUBLISHED"),
     eq(placeCategories.isPrimary, true),

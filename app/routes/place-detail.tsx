@@ -24,6 +24,7 @@ import { VoteControl } from "../components/ratings/VoteControl";
 import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
 import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
 import { loadPlaceDetailSafely, mutatePlaceDetailSafely } from "../features/places/place-detail-client";
+import { placePageMeta, publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
 const actionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -131,7 +132,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const returnTo = provenance
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
-  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+  const publicOrigin = resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL);
+  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -199,16 +201,10 @@ export async function clientAction({ serverAction }: Route.ClientActionArgs) {
   return mutatePlaceDetailSafely(serverAction);
 }
 
-export function meta({ params, loaderData }: Route.MetaArgs) {
-  const name = params.placeSlug ?? "장소 상세";
-  return [
-    { title: `${name} — Re:Taste` },
-    { name: "description", content: "광주·전남 맛 지도" },
-    { property: "og:title", content: `${name} — Re:Taste` },
-    { property: "og:description", content: "광주·전남 맛 지도" },
-    { property: "og:type", content: "article" },
-    ...(loaderData && !("detailError" in loaderData) && loaderData.place.tempCatalog ? [{ name: "robots", content: "noindex,follow" }] : []),
-  ];
+export function meta({ loaderData }: Route.MetaArgs) {
+  return loaderData && !("detailError" in loaderData) && loaderData.place
+    ? placePageMeta(loaderData.place, loaderData.publicOrigin)
+    : publicPageMeta({ title: "장소 상세 — Re:Taste", description: "광주·전남 맛 지도", path: "/places", noindex: true });
 }
 
 export default function PlaceDetail({ loaderData, actionData }: Route.ComponentProps) {

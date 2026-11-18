@@ -15,9 +15,10 @@ import { getPlaceRecommendationPage } from "../features/places/place-recommendat
 import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
 import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
 import { useEffect, useState } from "react";
+import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
-export function meta() {
-  return [{ title: "맛집 리스트 — Re:Taste" }];
+export function meta({ loaderData }: Route.MetaArgs) {
+  return publicPageMeta({ title: "맛집 리스트 — Re:Taste", description: "광주·전남의 장소를 취향과 평가 근거로 찾아보세요.", path: "/places", origin: loaderData?.publicOrigin, noindex: Boolean(loaderData?.tempOnly) });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -48,7 +49,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     }),
   ]);
   const category = groups.flatMap((group) => group.children).find((child) => child.slug === categorySlug);
-  return { places, recommendations, state, category: category ?? null, search: url.search, tempOnly };
+  return { places, recommendations, state, category: category ?? null, search: url.search, tempOnly, publicOrigin: resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL) };
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

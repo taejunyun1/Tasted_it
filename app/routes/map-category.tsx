@@ -8,18 +8,25 @@ import { resolveLocationViewport } from "../features/maps/location-policy";
 import { getPublicPlaceCounts, listPlaces } from "../features/places/place.server";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { PlaceCard } from "../components/places/PlaceCard";
+import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
+import { categories } from "../db/schema";
+import { eq } from "drizzle-orm";
 
-export function meta({ params }: Route.MetaArgs) {
-  return [{ title: `${params.categorySlug} 지도 — Re:Taste` }];
+export function meta({ params, loaderData }: Route.MetaArgs) {
+  const category = loaderData?.categoryName ?? "맛집";
+  return publicPageMeta({ title: `${category} 지도 — Re:Taste`, description: `광주·전남 ${category} 장소를 지도와 목록에서 확인하세요.`, path: `/maps/${encodeURIComponent(params.categorySlug ?? "")}`, origin: loaderData?.publicOrigin });
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const state = parseMapState(new URL(request.url).search);
   const db = createDb(env.DB);
   const filters = { categorySlug: params.categorySlug, query: state.query, bbox: state.bbox };
-  const [places, counts] = await Promise.all([listPlaces(db, filters), getPublicPlaceCounts(db, filters)]);
+  const [places, counts, category] = await Promise.all([
+    listPlaces(db, filters), getPublicPlaceCounts(db, filters),
+    db.query.categories.findFirst({ columns: { name: true }, where: eq(categories.slug, params.categorySlug) }),
+  ]);
   const clientId = (env as Env & { NAVER_MAPS_CLIENT_ID?: string }).NAVER_MAPS_CLIENT_ID ?? "";
-  return { places, counts, state, categorySlug: params.categorySlug, clientId };
+  return { places, counts, state, categorySlug: params.categorySlug, categoryName: category?.name ?? null, clientId, publicOrigin: resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL) };
 }
 
 export default function CategoryMap({ loaderData }: Route.ComponentProps) {

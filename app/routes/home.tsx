@@ -40,6 +40,7 @@ import {
 } from "../features/places/home-curation-history.client";
 import { getHomeCurationPage } from "../features/places/home-curation.server";
 import { getPublicPlaceCounts, listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
+import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
 type RecommendationFetcherState = "idle" | "loading" | "submitting";
 
@@ -156,17 +157,10 @@ export function getRecordableHomeRecommendation(
   return { requestKey, page: page as HomeCurationPage };
 }
 
-export function meta() {
+export function meta({ loaderData }: Route.MetaArgs) {
   const title = "Re:Taste — 내 주변 맛 지도";
   const description = "현재 위치에서 찾는 광주·전남 맛 지도";
-  return [
-    { title },
-    { name: "description", content: description },
-    { property: "og:title", content: title },
-    { property: "og:description", content: description },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary" },
-  ];
+  return publicPageMeta({ title, description, path: "/", origin: loaderData?.publicOrigin });
 }
 
 export const shouldRevalidate: ShouldRevalidateFunction = ({
@@ -190,6 +184,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const db = createDb(env.DB);
   const common = {
     state,
+    publicOrigin: resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL),
     category: category ?? null,
     // QA is deliberately self-contained: it must not call the external map SDK
     // just because an operator's local `.dev.vars` has a real Client ID.
