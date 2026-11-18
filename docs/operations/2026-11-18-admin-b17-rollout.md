@@ -54,6 +54,26 @@
 
 [배포 재개 준비표](2026-11-18-admin-b17-readiness.md)는 기존 B10 스크립트 재사용 제한과 현재 로컬 검증/미실행 범위를 정리한다.
 
+## 후속 실행 경로와 기존 요청 종료 확인
+
+`prepare`로 고정 소스·migration을 확인한다. 필수 CI를 통과한 통합 PR 병합 후 `preflight`로 현재 100% Worker·vars·D1/R2·두 cron과 pending을 확인한다. 기존 요청 전체를 확인할 수 있는 방법을 확보한 뒤, 같은 빌드의 점검 버전을 배포하고 5개 경로에서 503 및 no-store를 검증한다. 현재 B09에서 그 방법이 확보되지 않아 서비스 점검 전 단계가 HOLD다.
+
+정상 동작 확인의 기준 입력은 운영 버전 조회에서 얻은 이전 Worker 버전과 100% 점검 버전, 점검 deployment 시각(UTC), 빌드 SHA-256, 9개 migration 이름/해시의 SHA-256이다. 원본 입력과 checkpoint는 저장소 밖 동일 0700 폴더의 0600 파일로 다룬다. 예상 시점과 버전의 불일치, 변경된 빌드나 장부, 종료 근거 부족은 후속 경로에서 차단한다. 입력 파일의 임의 증명값으로 진행할 수 없다.
+
+```sh
+node scripts/b17-rollout-runner.mjs prepare
+node scripts/b17-rollout-runner.mjs preflight --private-dir "$B17_PRIVATE_DIR" --input "$B17_PRIVATE_DIR/input.json"
+node scripts/b17-rollout-runner.mjs continue --private-dir "$B17_PRIVATE_DIR" --input "$B17_PRIVATE_DIR/input.json" --checkpoint "$B17_PRIVATE_DIR/checkpoint.json"
+```
+
+- 기존 요청 관측은 현재 승인된 자격으로 Observability keys와 events를 최대 한 번씩 조회한다. Worker 이름·이전 버전 ID·invocation 유형을 고정하고 최대30분/100행/1MiB/요청당10초를 적용한다. 로그 원문·헤더·URL은 출력하지 않고 요청 종류·종료 결과·점검 이후 명시 종료 건수와 누락 가능성만 보고한다. 조회 거부와 불완전 응답도 HOLD다. [Cloudflare Observability API](https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry/methods/query/)
+- B09의 입구 점검을 이미 통과한 요청은 R2 삭제·업로드 또는 D1 변경을 이어갈 수 있다. Worker 교체 시각, 마지막 로그, 샘플링이 없는 조회, Cron 15분 경과는 그 요청 집합을 열거하지 못한다. 정기 런타임 업데이트의 최대 20분 grace period도 별도 플랫폼 동작이다. [Workers 실행 한도](https://developers.cloudflare.com/workers/platform/limits/#duration), [실시간 로그](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/#limits)
+- 전환을 열려면 Cloudflare에서 이전 버전에 대한 새 요청 차단 시각, HTTP·cron·waitUntil의 모든 실행 종료 또는 취소, 이미 발행된 D1/R2 작업의 종료를 확인할 수 있는 근거가 필요하다. 계정·Worker·버전 쌍·점검 UTC에 결속된 근거를 기존 지원 경로에서 확인한다. 공개 API에서 이 보장을 제공하는 응답은 확인하지 못했다. 향후 인증된 근거 수집 경로가 추가되기 전까지 네이티브 판정은 UNKNOWN이다. 서명처럼 보이는 입력 필드나 수동 문서는 실행 권한을 부여하지 않는다.
+
+`continue`는 종료 판정 뒤 bookmark·비공개 export, 기존82표 보존 수집, 고정9 migration, 적용 장부·보존·FK/초기값 대조, 단일 임시 ADMIN·한정 읽기와 거절 검증·RSI·정확 ID 정리를 순서대로 연결한다. export 반복은 동일 bookmark에서 최대3회로 제한한다. 초기 준비 단계의 가상 비용과 별도로 실제 단계별 요청을 계수한다. SQL/보존 raw는 저장소 밖에서만 다룬다. 정상 배포를 시도한 뒤 확인이나 정리가 실패하면 같은 소스의 점검 상태 복구를 시도하고 결과를 기록한다. 부분 migration 및 불명확한 쓰기는 원장·증거를 조사한다.
+
+공공 대기 전환을 포함하면 현재 실제 전체 스냅샷의 검토된 SHA-256이 checkpoint와 일치해야 한다. 새 NAVER anchor 시각은 0053 적용 때 생성되므로 합동 실행에서는 quota HOLD를 유지한다. 후속 APPLY는 실제 anchor를 검토한 뒤 기존 [NAVER 전환 도구 절차](2026-11-18-b17-provider-cutover.md)를 따른다.
+
 
 ## UI 후속 합류 — #471 / #472
 

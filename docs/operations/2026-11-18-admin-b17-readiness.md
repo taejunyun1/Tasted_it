@@ -6,8 +6,9 @@
 
 - `b17-preservation-evidence.mjs`: 실제 0049 D1 schema에서 추출한 기존82개 테이블·853개 열과 schema object hash를 기준으로 전체 원장을 수집·비교한다. 기존 열·rowid·SQLite 자료형을 보존하며, 학생 권한/업무·원시 평가·사진 권리·설정·감사도 포함한다. 새로운9개 테이블의 존재와 schema는 전환 후 catalog로 확인하되 새 기본값·권한/trigger 검증은 기존 B17 리허설과 구분한다.
 - `b17-rollout-runner.mjs prepare`: 네트워크 없이 파일 해시·고정201 SQL·수집 비용·실행 한도를 점검한다.
-- `preflight`: 병합된 정확한 소스/PR head CI/동일 tree, 실제 현재 설정·binding·cron·pending 목록을 읽는 경로다. 현재 운영 전환 후속 경로가 없으므로 `LIVE_CONTINUATION_UNAVAILABLE`로 중단한다. **fence·배포·migration을 실행하는 명령이 아니다.** 이번에는 이 원격 사전 점검도 실행하지 않았다.
-- `rehearseB17Lifecycle`: 단계 순서·예산·정리 예약과 실패/30분 경계를 합성 adapter로 검사한다. `SIMULATED_*` 결과는 실제 SQL 전환·배포·HTTP55개 실행이나 운영 복구 성공이 아니다. 실제 HTTP/R2 종료 증거와 지원되는 후속 경로 없이 서비스부터 중단하지 않는다.
+- `preflight`는 병합된 소스와 해당 PR head의 CI, 실제 현재 설정·binding·cron·pending을 읽는다. B09의 HTTP/R2 종료를 확정할 방법이 없어 `LIVE_HTTP_DRAIN_OBSERVATION_REQUIRED`로 보류한다.
+- `continue`는 확인된 점검 버전에서 백업·원장 보존·migration·정상 배포 확인·정리를 잇는 코드다. 현행 네이티브 판정은 기존 요청을 최대 두 번의 Observability 조회로 관측하며 UNKNOWN을 반환한다. 로컬 검증은 HTTP/Cloudflare 전송을 대체하고 실제 D1 SQL을 실행했다. [운영 순서](2026-11-18-admin-b17-rollout.md#후속-실행-경로와-기존-요청-종료-확인)
+- 초기 `rehearseB17Lifecycle` 회귀의 단계·할당 검증과 새 continuation의 실행 검증을 각각 기록한다. 배포 및 shutdown 근거를 확인하기 전 서비스 점검 시작을 보류한다.
 
 ## 지금 실행할 수 있는 로컬 확인
 
@@ -15,6 +16,8 @@
 pnpm test:integration tests/integration/b17-rollout-rehearsal.test.ts
 pnpm test:integration tests/integration/b17-preservation-evidence.test.ts
 pnpm test tests/unit/b17-rollout-evidence.test.ts tests/unit/b17-preservation-evidence.test.ts tests/unit/b17-rollout-runner.test.ts
+pnpm test tests/unit/b17-drain-evidence.test.ts tests/unit/b17-rollout-continuation.test.ts
+pnpm test:integration tests/integration/b17-rollout-continuation.test.ts tests/integration/b17-continuation-*.test.ts
 node scripts/b17-rollout-evidence.mjs manifest --root .
 node scripts/b17-rollout-runner.mjs prepare --root .
 ```
@@ -52,10 +55,12 @@ node scripts/b17-rollout-evidence.mjs compare \
 | 보존 대상 | 새82표/853열 collector의 정확한 runtime catalog·동일 projection·typed rowid/값 비교. 실제 운영 비교는 미실행 |
 | 한도 원장 | 애플리케이션 HTTP90·D1 요청50·관리 SQL180(장부11 포함)·고정9파일 본문 SQL201, SQL 총381. CLI 내부 요청도 계수. 제어 API 호출은 별도 기록. export1·migration9·임시세션1·RSI1 별도 계수 |
 | 정리 예약 | 최종 정리에 D1명령5/SQL12를 남김. 잔여량이 부족하면 새 변경을 시작하지 않음. 예약은 전체 한도 안의 몫 |
-| 전체 finally | 합성 단계 실패/결과 불명에서 정리 예약과 finally를 확인. 실제 세션 생성·대기/quota 전환·live 확인에 적용할 후속 경로는 아직 없음 |
+| 전체 finally | 세션 생성 전 정확 ID를 비공개 저장. 응답 유실과 정상 배포 후 확인 실패에서 임시 세션/대기/등록 trigger를 정확히 정리하고 동일 빌드의 점검 상태 복구를 시도. 운영 실행은 미확인 |
 | drain 증거 | 이번 fence 버전·시각에 연결된 관측. 외부 JSON의 `safeToMigrate:true` 값만 믿지 않음 |
 
-offline 할당 계산은 catalog 포함 수집16회와 Wrangler 장부11회를 반영한다. 성공 경로 가정은 D1 44회/관리 SQL58문장+본문201문장, 정리 예약 전체 사용 가정은46회/63+201문장이다. HTTP61회 중 후반55회는 아직 구현되지 않은 live probe의 할당값이다. 이 수치는 실제 운영 실행량이나 완성된 전체 runner의 보장이 아니며, 후속 구현 시 실제 모든 호출을 다시 대조해야 한다. 원래 총상한50회/381문장/HTTP90회는 자동 확대하지 않는다.
+초기 offline 할당 계산은 준비 증거에 남겼다. 새 후속 경로는 실제로 실행할 요청마다 계수하고, 시작 전 D1 정리 몫5회·관리 SQL12문장을 예약한다. export는 동일 작업을 최대3번 조회하며, 정리 몫을 포함해 D1 50회·SQL381문장·HTTP90회 상한을 적용한다.
+
+정상 로컬 시나리오의 계수는 사전 점검·점검 probe·정리 몫을 포함해 D1 46회, 관리 SQL59문장, migration 본문201문장, HTTP39회다. D1은 실제 로컬 SQL, HTTP와 플랫폼 응답은 대체 전송이며 export의 D1 4회는 bookmark 및 최대 3회의 예약치다. 이전 버전 종료·실제 export 응답·RSI 로그의 운영 관측은 별도로 확인한다. [검증 증거](../evidence/b17-continuation-20261118/summary.json)
 
 ## live 검증에서 구분할 증거
 
