@@ -1,0 +1,148 @@
+{
+  "source_sha": "a901b5ab57a98a6544c555779263196d20105bdc",
+  "environment": "local compiled Worker with anonymous QA home; public font CDNs only",
+  "recorded_at": "2026-11-18T01:52:41.005817+00:00",
+  "scope": "anonymous local /?qa=1; GET/HEAD only; allowed external hosts cdn.jsdelivr.net,fonts.googleapis.com,fonts.gstatic.com; 320/1440 each uncached+cached",
+  "cases": [
+    {
+      "width": 320,
+      "cacheMode": "uncached",
+      "httpStatus": 200,
+      "documentFontsReady": true,
+      "fontReadyAdditionalWaitMs": 188,
+      "externalResponses": {
+        "stylesheets": 2,
+        "fontFiles": 6,
+        "all200": true,
+        "servedFromCache": 0,
+        "total": 8
+      },
+      "layout": {
+        "before": {
+          "scrollWidth": 320,
+          "width": 320,
+          "headerHeight": 64,
+          "summaryHeight": 76,
+          "fontStatus": "loading"
+        },
+        "after": {
+          "width": 320,
+          "scrollWidth": 320,
+          "headerHeight": 64,
+          "summaryHeight": 76
+        },
+        "observedCLS": 0
+      },
+      "assetMismatchCount": 0,
+      "failedRequestCount": 0,
+      "pageErrorCount": 0
+    },
+    {
+      "width": 320,
+      "cacheMode": "cached",
+      "httpStatus": 200,
+      "documentFontsReady": true,
+      "fontReadyAdditionalWaitMs": 0,
+      "externalResponses": {
+        "stylesheets": 2,
+        "fontFiles": 6,
+        "all200": true,
+        "servedFromCache": 8,
+        "total": 8
+      },
+      "layout": {
+        "before": {
+          "scrollWidth": 320,
+          "width": 320,
+          "headerHeight": 64,
+          "summaryHeight": 76,
+          "fontStatus": "loaded"
+        },
+        "after": {
+          "width": 320,
+          "scrollWidth": 320,
+          "headerHeight": 64,
+          "summaryHeight": 76
+        },
+        "observedCLS": 0
+      },
+      "assetMismatchCount": 0,
+      "failedRequestCount": 0,
+      "pageErrorCount": 0
+    },
+    {
+      "width": 1440,
+      "cacheMode": "uncached",
+      "httpStatus": 200,
+      "documentFontsReady": true,
+      "fontReadyAdditionalWaitMs": 191,
+      "externalResponses": {
+        "stylesheets": 2,
+        "fontFiles": 6,
+        "all200": true,
+        "servedFromCache": 0,
+        "total": 8
+      },
+      "layout": {
+        "before": {
+          "scrollWidth": 1440,
+          "width": 1440,
+          "headerHeight": 78,
+          "summaryHeight": 0,
+          "fontStatus": "loading"
+        },
+        "after": {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "headerHeight": 78,
+          "summaryHeight": 0
+        },
+        "observedCLS": 0
+      },
+      "assetMismatchCount": 0,
+      "failedRequestCount": 0,
+      "pageErrorCount": 0
+    },
+    {
+      "width": 1440,
+      "cacheMode": "cached",
+      "httpStatus": 200,
+      "documentFontsReady": true,
+      "fontReadyAdditionalWaitMs": 0,
+      "externalResponses": {
+        "stylesheets": 2,
+        "fontFiles": 6,
+        "all200": true,
+        "servedFromCache": 8,
+        "total": 8
+      },
+      "layout": {
+        "before": {
+          "scrollWidth": 1440,
+          "width": 1440,
+          "headerHeight": 78,
+          "summaryHeight": 0,
+          "fontStatus": "loaded"
+        },
+        "after": {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "headerHeight": 78,
+          "summaryHeight": 0
+        },
+        "observedCLS": 0
+      },
+      "assetMismatchCount": 0,
+      "failedRequestCount": 0,
+      "pageErrorCount": 0
+    }
+  ],
+  "limitations": [
+    "SUIT400/500/600/700/800 and IBM Plex Mono600 loaded in each case.",
+    "1440px actual card text uses SUIT, numeric rank/eyebrow uses IBM Plex Mono SemiBold. Brand includes system Korean fallback and emoji uses Apple Color Emoji.",
+    "Noto Sans KR was declared by Google stylesheet but no Noto font file was requested or observed on sampled text; this is not a network failure.",
+    "The raw Mono500 font check is false because that face was not needed/loaded; Mono600 use is proven by loaded face and CDP.",
+    "320px card/eyebrow nodes had zero layout size in sampled state, so actual-font proof there is limited to visible brand; downloaded fonts still succeeded.",
+    "CLS is a single-page buffered observation in this controlled local run, not field performance."
+  ]
+}

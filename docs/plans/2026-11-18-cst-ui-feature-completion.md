@@ -3,7 +3,7 @@
 사용자 목표 **“UI/UX 개선안을 적용한 기능구현 100% 달성”**을 요구사항별 코드·화면·검증 증거로 추적한다. 이 원장은 목표를 첫 수정 묶음으로 줄이지 않으며, 코드 존재·부분 테스트·배포 준비를 전체 완료로 세지 않는다.
 
 - 추적: [#471](https://github.com/taejunyun1/Tasted_it/issues/471). 통합·완료 판단 담당은 Codex root다.
-- 작성 기준: 2026-11-18, `origin/main@941a205`, UI 코드 `a4912db`(가독성 `03b624c` 포함). ADMIN 후속 비교 기준은 별도 통합 브랜치 `e23ccf4` / [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)이다.
+- 작성 기준: 2026-11-18, `origin/main@941a205`, UI 코드 `a5ce06a`([PR #472](https://github.com/taejunyun1/Tasted_it/pull/472), 가독성 `03b624c`·목록 `a4912db`·지도 `6afcdc3` 포함). ADMIN 후속 비교 기준은 별도 통합 브랜치 `e23ccf4` / [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)이다.
 - 요구 원본: [CST 서비스 SSOT](2026-11-13-cst-service-ssot.md), [전체 감사 §9](../audits/2026-08-07-full-product-design-technical-audit.md), [기술 검수 T01~T08](../operations/cst-acceptance.md).
 - 시각 기준: [현행 디자인 가이드](../design-system/retaste-design-guide.md)와 `app/styles/design-system.css`. 구 감사의 결함·상태 요구는 대조하되 과거 흑백·폰트·모서리 수치를 최신 크림·녹색·라임/역할별 토큰 위에 되돌리지 않는다.
 - 외부 조건: #397은 HOLD. 운영자 명칭·문의처·보관/삭제 기간은 사용자 답변대로 **정책 확인 필요**다. 필수 CI는 결제 제한으로 막혀 있으며 우회하지 않는다.
@@ -30,15 +30,15 @@
 |---|---|---|---|
 | UX-9.1a | 카테고리 개수와 bbox 결과, 동일 검색의 전체 개수 의미 일치. | `VERIFIED_LOCAL_SCOPED` | 같은 공개/검색/TEMP 조건으로 범위·전체 건수와 전체 경계를 분리했다. 통합 D1 3건, 125개 집계와 desktop/mobile 4건 범위 확장 확인. 대량 목록 처리 자체는 별도 #428 및 검색 접근성 범위를 따른다. |
 | UX-9.1b | 범위 0건 안내와 사용자가 선택한 경우에만 광역 이동. | `VERIFIED_LOCAL_SCOPED` | 0건에서 클릭 전 bbox 불변, 전체 결과 버튼 후 동일 검색/선택/보기 유지와 결과2곳을 desktop/mobile로 확인했다. |
-| UX-9.1c | 카테고리 전환 중 기존 지도와 마지막 성공 결과 보존. | `IN_PROGRESS` | 느린 요청·연속 선택·실제 전송 실패에서 이전 지도/마커와 최종 요청의 결속을 별도 단위로 검증 중이다. |
+| UX-9.1c | 카테고리 전환·지연 응답·읽기 실패에서 기존 지도와 마지막 성공 결과 보존. | `VERIFIED_LOCAL_SCOPED` | `6afcdc3`/`a901b5a`: 이전 응답이 새 검색을 덮지 않으며 실패는 명시적으로 재시도한다. root의 같은 지도 경로 GET query 변경만 재검증을 줄이고, POST/수동 재검증/경로 변경은 보존했다. |
 | UX-9.1d | 단일 h1·모바일 탭 타깃·카테고리 그룹 이름/선택 상태. `header-layout.spec.ts`, `MapExplorerPanel` 관련 구현이 있다. | `VERIFY` | 320/390/768/1440에서 h1 1개, 44px 조작 영역, 실제 접근성 트리의 그룹/pressed 의미 확인. |
 | UX-9.2a | 내 주변의 대기/권한 거부/권역 안/권역 밖/timeout/미지원 상태. | `VERIFIED_LOCAL_SCOPED` | 위치 성공/거부/timeout/미지원/권역 밖 안내 및 URL 조건 보존 구현. 네이티브 브라우저 허용/거부4건과 모의 실패 상태 검증. Permissions-Policy는 self만 허용한다. |
 | UX-9.2b | 권역 밖 기본 bbox와 읽을 수 있는 안내, 지도 조작 후 상태 정리. | `VERIFIED_LOCAL_SCOPED` | 기존 위치 정책과 사용자 조작 시 안내 정리를 유지한다. 모바일 거절 안내가 전환 버튼 아래에 표시되는 실제 좌표/화면 검증 완료. 실제 사용자 GPS 실증은 별도다. |
-| UX-9.3a | 목록/지도/시트/상세의 동일 평가 출처·표본 미달·stale. `place.server.ts`의 snapshot 결합과 상세 평가 경로가 있다. | `VERIFY` | 같은 fixture의 네 화면 점수/표본·stale 대조, 무효화→재계산 후 일치. |
-| UX-9.3b | 회원/리뷰어 근거·영향 상한·마지막 계산 시각을 현재 정책과 일치하게 표시. | `VERIFY` | 실제 렌더 값과 평가 서비스 응답 비교. 과거 감사의 임의 예시 숫자를 고정 정책으로 사용하지 않음. |
+| UX-9.3a | 목록/지도/시트/상세의 동일 평가 출처·표본 미달·stale. | `VERIFIED_LOCAL_SCOPED` | `e9634b6`: 공개 적격 표본 수를 batch로 통일하고 stale 점수는 노출하지 않는다. fresh/stale/missing3상태×4뷰를 desktop/320px에서 확인했다. 기존 재계산4건·추가 D1 4건 통과. |
+| UX-9.3b | 평가 근거·조건부 리뷰어 상한·실제 계산 시각. | `VERIFIED_LOCAL_SCOPED` | 유효 결과의 실제 시각은 공개 결과 계산, stale-only의 기존 시각은 이전 계산으로 구분한다. 근거 없음은 미계산. 일반 반응이 있을 때의30% 상한 설명을 현행 정책에 맞췄다. |
 | UX-9.3c | 실제 장소명과 공개 적격 자료의 고유 meta/공유 정보. | `VERIFIED_LOCAL_SCOPED` | `b2d4dfe`에서 slug 대신 공개 이름/설명·canonical·OG·JSON-LD를 연결했다. compiled Worker 공개/비공개/TEMP·악성 텍스트/host·sitemap 분할 브라우저6건, 관련 단위28·D1 2건의 범위다. |
 | UX-9.3d | 상세 시트 요청 식별·실패/재시도·저장 pending/결과 피드백. | `VERIFIED_LOCAL_SCOPED` | 통합 브라우저4건으로 A→B 전환 중 이전 자료 비노출, 실제 읽기 실패·수동 재시도, 저장 응답 유실 후 재조회 전 잠금,404 확인. 진짜 동시 역순 응답·403 브라우저는 미실행으로 남긴다. |
-| UX-9.3e | 사진 미제공 시 공간·설명, meter 이름/대체 텍스트, 점수 변경 안내. | `VERIFY` | 사진 없음/미확인/있음과 부족/갱신 상태의 데스크톱·모바일 화면 및 접근성 확인. |
+| UX-9.3e | 사진 없음 설명/높이와 이름 있는 평가 지표. | `VERIFIED_LOCAL_SCOPED` | `e9634b6`/`a5ce06a`: 미제공 설명·Flavor meter 이름/대체값, 모바일 no-photo220px, 점수/메타 줄바꿈·정렬을 실제 화면/경계 값으로 확인했다. |
 | UX-9.4a | 안전한 로그인·이메일 가입·인증 뒤 맥락 복귀. | `VERIFIED_LOCAL_SCOPED` | 가입→합성 메일함→인증→로그인→원래 상세 복귀를 desktop/mobile로 확인. 토큰 fragment와 위험 returnTo 차단 유지. 실제 외부 메일은 호출하지 않았다. |
 | UX-9.4b | 가입 실패에도 이름/이메일·폼 유지, 비밀번호 재직렬화 금지. | `VERIFIED_LOCAL_SCOPED` | 허용된 이름/이메일 보존과 비밀번호 HTML 기본값 비직렬화를 집중 단위로 확인했다. signup의 성공 알림을 status로 통합했다. |
 | UX-9.4c | 로그인/가입/비밀번호 제출 상태·중복 방지·오류 역할/필드 연결/초점. | `VERIFIED_LOCAL_SCOPED` | 인증 폼별 pending/오류/초점과 비밀번호 재설정429 후 재시도 폼을 desktop/mobile4건으로 확인했다. |
@@ -52,9 +52,9 @@
 | UX-9.7b | 상세 OG·요약 카드와 Restaurant JSON-LD. | `VERIFIED_LOCAL_SCOPED` | 공개 확인된 이름·주소·음식 분류만 구조화했다. 미검수 사진/좌표/평점은 생성하지 않는다. TEMP는 noindex·JSON-LD 제외. 브라우저와 escaping 단위 범위 확인. |
 | UX-9.7c | robots/sitemap과 공개 적격 장소/카테고리 포함. | `VERIFIED_LOCAL_SCOPED` | sitemap index와 100개 단위 하위 문서, 공통 공개 조건·TEMP 제외, XML escaping·마지막 페이지/중복 경계를 실제 로컬 D1/브라우저에서 확인했다. |
 | UX-9.8a | 최신 레이아웃/색/간격/반경 토큰. 현행 guide/CSS·design-system-contract 시험이 있다. | `CODE_PRESENT` | 수정 화면이 기존 토큰/가이드 사용, 고유 정보 위계 유지. 구 색·모서리 수치의 역적용 금지. |
-| UX-9.8b | 본문 줄 간격·한글 줄바꿈·12px 라벨·44px 조작·숫자 정렬. | `VERIFIED_LOCAL_SCOPED` / `VERIFY` | `03b624c`: 실제 small-text를 확인한 뒤 기존 CSS의12px 미만 크기152개만 공통 토큰으로 바꿨다. 가독성6건(320/390/1440, 공개·회원·ADMIN), 실패 지도320/200% 확대2건, 읽기 전용19조합의 구조/오버플로 확인. 실제 외부 폰트 로드·전체 대비 측정은 별도다. |
+| UX-9.8b | 본문 줄 간격·한글 줄바꿈·12px 라벨·44px 조작·숫자 정렬. | `VERIFIED_LOCAL_SCOPED` / `VERIFY` | `03b624c`: 실제 small-text를 확인한 뒤 기존 CSS의12px 미만 크기152개만 공통 토큰으로 바꿨다. 가독성8건(320/390/768/1440, 공개·회원·ADMIN), 실패 지도320/200% 확대2건, 읽기 전용19조합의 구조/오버플로 확인. 기존 대비 미달6쌍과 상세2쌍은5.40–6.63:1로 보완·재확인했다. 이미지/그라데이션 등 전체 대비는 별도 범위다. |
 | UX-9.8c | 오류·필드·빈 상태·pending·sheet의 일관된 접근성 계약. 기존 공통 패턴과 개별 구현이 혼재한다. | `IN_PROGRESS` | 진행 중 폼/sheet의 필수 동작을 먼저 통일하고 나머지 화면 대조. 불필요한 거대 컴포넌트 프레임워크 도입 금지. |
-| UX-9.8d | 폰트 전달 비용/레이아웃 안정성. 현행 root는 외부 stylesheet를 사용한다. | `VERIFY` | 실제 font load·fallback/CLS 확인 후 필요 최소 보완. 현행 SUIT 스택을 과거 Noto-only 제안으로 바꾸지 않음. |
+| UX-9.8d | 외부 폰트의 실제 전달·fallback·레이아웃 안정성. | `VERIFIED_LOCAL_SCOPED` | `a901b5a`의 익명 QA 홈 320/1440 최초·캐시4회에서 CSS2/폰트6 HTTP200, 재방문8개 캐시, SUIT/Mono 실제 사용·관측CLS0. 숨은 모바일 카드·실사용자 필드 성능은 검증 범위 밖이다. [폰트 증거](../evidence/2026-11-18-font-delivery.json). |
 | UX-9.9 | 의미 없는 그라디언트·통일 pill·마케팅 블록·가짜 수치·장식 아이콘 확장 금지. | `SUPERSEDED_VISUAL` / `VERIFY` | 시각 수치는 최신 guide 우선, 내용/의미를 해치는 장식 금지 원칙 유지. 수정 화면 시각 리뷰로 확인. |
 | UX-9.10a | 목록 조회와 추천 후보 조회의 목적/범위 구분. | `CODE_PRESENT` | 현재 목록 조회는 1회다. 추천은 별도 정렬·liveness/적격 조건의 최대500 후보이고 검색 목록100건과 동등하지 않다. 이전 감사의 동일 listPlaces 중복은 현 소스에서 재현되지 않아 두 조회를 합치지 않는다. U02의 조용한100건 절단은 `a4912db`에서 페이지 처리로 보완했다. 문자열 검색은 D1 LIKE 패턴 한도 오류를 피하고 %/_를 실제 문자로 취급한다. |
 | UX-9.10b | 검색 pending·결과 건수 live 안내·실제 네트워크 오류 복구·필터 유지. | `VERIFIED_LOCAL_SCOPED` | 검색 pending·현재 결과 수·실제 root+list 네트워크 실패 후 검색 조건을 보존하는 오류 화면과 명시적 문서 GET 재검색을 desktop/mobile로 확인했다. |
@@ -64,11 +64,11 @@
 | UX-9.11c | 저장 해제 pending·중복 방지·성공/실패 안내. | `VERIFIED_LOCAL_SCOPED` | `3b70923`: 요청 중1회/결과 초점·목록 갱신, 전송 전 실패와 commit 뒤 응답 유실 모두 명시적 현재 목록 재조회 전 잠금. compiled Worker desktop/mobile4건·집중 단위/D1, 기존 탈퇴·소유권 경계 유지. |
 | UX-9.12 | 리뷰어 신청 오류 SR/필드 연결·수집 용도·선택 복원·pending. | `VERIFIED_LOCAL_SCOPED` | 사전 필드 검증·일반 오류 비노출·입력/카테고리 보존·pending 중 Enter 재제출 차단·첫 오류 초점을 확인했다. 집중단위8건과 desktop/mobile 신청/좁은 footer4건 PASS. |
 | UX-9.13a | 평가 대상의 한정 검색·모든 적격 장소 접근·만료 세션 복귀. | `VERIFIED_LOCAL_SCOPED` | `f61d26e`~`fac9a96`: 페이지20건으로43건 전체 접근, 이름/주소 검색·선택/초안/HOLD 보존. 실제 만료 세션은 로그인 뒤 평가 화면으로 복귀한다. compiled Worker6건·D1 6건·집중 단위에서 확인했다. |
-| UX-9.13b | 공개 적격 이력·403/읽기 가능 상태·Golden Pick 확인·44px. 기존 ReviewerVisitFlow와 공개 적격/권리 gate가 있다. | `VERIFY` | 일반/휴면/정지/리뷰어의 진입 및 부정 요청, Golden Pick 전 확인·실패 복구·이력 cursor. |
+| UX-9.13b | 공개 적격 이력·권한·Golden Pick 최종 확인·조작 영역. | `VERIFIED_LOCAL_SCOPED` / `EXTERNAL_GATE` | `ad15c2c`: STEP05 요청/비요청·사유와 실제 multipart 일치를 desktop/mobile4건 검증했다. 관리자 승인 전 공개0을 유지한다. 실제 자료의 권리는 별도 사실이다. |
 | UX-9.14a | 관리자 skip-link/403/표 이름·빈 상태. root의 전용403과 다수 admin id=main은 구현되어 있다. | `VERIFY` | ADMIN 각 화면 및 차단 화면의 main 1개·skip-link 목적지·표 이름·빈 목록 실제 확인. |
 | UX-9.14b | 관리자 입력 검증·실패 피드백·pending·영수증/실제 결과 구분. B01~B09 배포 기록, B10~B16 통합 로컬 증거가 있다. | `VERIFIED_LOCAL_SCOPED` / `EXTERNAL_GATE` | 기존 범위별 증거 유지. #470 정확한 최종 CI·병합·배포·해당 live 검증 후 운영 상태를 별도 갱신. |
 | UX-9.15a | 상세 fetcher 실패/재시도 및 요청별 데이터 결속. | `VERIFIED_LOCAL_SCOPED` | `b757ae2`: A→B 전환 중 A 자료 비노출, 실제 읽기 실패의 사용자 재시도, 저장 결과불명 잠금·재조회,404를 compiled Worker4건으로 확인했다. 브라우저403과 진짜 동시 역순은 아직 별도 확인 대상이다. |
-| UX-9.15b | 지도 재검증 실패에서 마지막 성공 상태·연결 안내·명시적 재시도. | `IN_PROGRESS` | map 담당: SDK 실패 재시도와 별개로 데이터 요청 실패/응답 순서 확인. 온라인 복귀 안내 수명 검증. |
+| UX-9.15b | 지도 데이터 재검증 실패에서 마지막 결과·연결 안내·명시적 재시도. | `VERIFIED_LOCAL_SCOPED` | `6afcdc3`/`a901b5a`: 홈/추천/카테고리 실제 전송 실패, 지연 응답, 세션/로그아웃/역할 변화 후 이전 개인화 폐기·Back 재노출 차단. AX 제목/본문과 읽기 링크는 유지하고 입력/버튼만 잠근다. 통합 브라우저24건에는 목록 페이지/실제 메뉴 클릭도 포함한다. |
 | UX-9.15c | 실패 중 결과 불명의 파괴적 요청을 자동 재시도하지 않음. 서비스워커/오프라인 캐시 추가 없음. | `VERIFY` | 저장·투표 응답 유실 시 현재 상태 조회 후 재시도, 새 worker/cache 등록0. |
 
 ## 3. CST 이용자·데이터 기능 전체 연결
@@ -137,3 +137,15 @@
 - `03b624c`: 가독성·조작 검증6건 통과. 기존 핵심 흐름34건은 최초30 PASS/2 SKIP/2 FAIL이었다. 실패는 지도 재시도 안내와 위치 미니맵의 겹침이며, 정상 흐름 배치 및 여백 교정 후 해당2건을 재실행해 PASS했다. 두 SKIP은 데스크톱에서의 모바일 전용 시트다. 기존11/13 스크린샷을 덮지 않고 이번 guest 증거는 `cst-guest-save-20261118/`로 분리했다.
 - `a4912db`: 공개 목록 페이지 처리와 검색 literal 비교. 세부 범위/초기 실패/공식 함수 근거는 [페이지 처리 증거](../evidence/2026-11-18-public-place-pagination.md)를 따른다.
 - 이 기록은 로컬 합성 Worker/D1과 브라우저 증거다. 실제 운영 배포·외부 메일/OAuth·권리 확인·전체 T01~T08 또는 현장 실증 성공이 아니다. 남은 코드 수정/통합과 필수 CI 후에만 새 운영 버전을 검증한다.
+
+### 지도 통합 후 추가 검증
+
+`a901b5a`에서 `map-read-recovery`·`public-place-pagination`·`header-overlay` desktop/mobile24건을 실행해 전부 PASS했다. 동시 root 전송 실패로 화면이 사라지는 원래 결함, viewer 변경 후 Back으로 개인화가 되살아나는 결함, 모바일 메뉴를 가리는 시트, 마지막 결과의 과도한 inert를 각각 수정했다. 원래 오류 재현과 수정 전/후 검증은 해당 시험과 커밋에 남는다. 모바일 로그아웃은 form 강제 제출을 제거하고 실제 클릭으로 재검증했다.
+
+남은 구현은 평가 표본수/시각/조건부 문구·사진/지표 접근성, Golden Pick 최종 확인, ADMIN 항목별 결과/페이지/표/403 구분이다. 이전 감사의 중복 조회·N+1 등 현재 재현되지 않는 가설을 수정 목적으로 되살리지 않는다. #470 합류·최종 필수 CI·운영 적용은 여전히 별도다.
+
+### 평점·최종 확인·가독성 합류
+
+`e9634b6`·`ad15c2c`·`a5ce06a`를 통합했다. 집중 단위13건, D1 추가4건+기존 재계산4건, 평점/Golden Pick 브라우저6건, 화면8건과 모바일 시트 재확인1건이 통과했다. 페이지별 title/canonical과 필터/noindex, 범위 밖/반복 badge 경계는 추가 단위5건으로 확인했다. 기존 공개 metadata/페이지 브라우저10건은 마지막 경계2건 보완 전 실행이므로 최종 통합에서 해당 경계만 재확인한다.
+
+[대비 검증](../evidence/2026-11-18-contrast.json)은 계산 가능한 단색 배경의 확인된 실패만 보완한 증거다. 전 페이지·모든 상태의 WCAG 인증으로 확대하지 않는다. ADMIN 후속 5개 표현/탐색 누락은 `0644633`에서 별도 검증했으며 #470에 합류 후 실제 통합 화면을 확인해야 한다.
