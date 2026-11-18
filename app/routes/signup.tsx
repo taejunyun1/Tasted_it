@@ -8,7 +8,7 @@ import { sendAccountEmail } from "../features/auth/email.server";
 import { AuthDivider, GoogleAuthButton } from "../features/auth/google-auth-ui";
 import { retainedAuthFields, safeReturnTo } from "../features/auth/login";
 import { describeSignupFailure } from "../features/auth/signup-failure";
-import { accountActionUrl } from "../features/auth/token-link";
+import { verificationEmailUrl } from "../features/auth/verification-link";
 import { consumeMailRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 import { AuthInput, AuthPage } from "./login";
 import { NaverAuthButton } from "../features/auth/naver-auth-ui";
@@ -22,6 +22,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const form = Object.fromEntries(await request.formData());
   const fields = retainedAuthFields(form);
+  const returnTo = safeReturnTo(typeof form.returnTo === "string"
+    ? form.returnTo : new URL(request.url).searchParams.get("returnTo"));
   if (String(form.ageConfirmed ?? "") !== "yes") {
     return data({ ok: false, message: "만 14세 이상만 가입할 수 있습니다.", ...fields }, { status: 400 });
   }
@@ -43,7 +45,7 @@ export async function action({ request }: Route.ActionArgs) {
     const account = await registerAccount(createDb(env.DB), { ...parsed.data, adminEmail: env.ADMIN_EMAIL, now: new Date() });
     if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) throw new Error("EMAIL_NOT_CONFIGURED");
     const baseUrl = env.APP_BASE_URL || new URL(request.url).origin;
-    await sendAccountEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM_EMAIL, to: account.email, purpose: "VERIFY_EMAIL", url: accountActionUrl(baseUrl, "/verify-email", account.token) });
+    await sendAccountEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM_EMAIL, to: account.email, purpose: "VERIFY_EMAIL", url: verificationEmailUrl(baseUrl, account.token, returnTo) });
   } catch (error) {
     const failure = describeSignupFailure(error);
     console.error("SIGNUP_FAILED", failure.logCode);
