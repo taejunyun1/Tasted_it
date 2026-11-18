@@ -59,6 +59,8 @@ export interface PlaceDetail extends PlaceSummary {
   phone: string | null;
   parkingSummary: string | null;
   kakaoPlaceId: string | null;
+  informationVerifiedOn?: string | null;
+  operatingHours?: import("./public-information").PublicOperatingDay[];
 }
 
 export interface PlaceFilters {

@@ -9,6 +9,7 @@ import {
   voteEvents,
   placeCategories,
   placeLivenessStates,
+  placeOperatingHours,
   placeSlugRedirects,
   places,
 } from "../../db/schema";
@@ -24,6 +25,7 @@ import type {
 import { publicVenueVisibilityCondition } from "./public-venue-visibility.server";
 import { attachTempCatalog } from "../temp-catalog/temp-catalog.server";
 import { PUBLIC_PLACE_PAGE_SIZE } from "./public-place-pagination";
+import { informationDate, publicOperatingDays } from "./public-information";
 
 interface UpsertPlaceInput {
   id: string;
@@ -208,6 +210,7 @@ async function selectPublicPlaces(
       heroImageUrl: places.heroImageUrl,
       searchText: places.searchText,
       kakaoPlaceId: places.kakaoPlaceId,
+      lastVerifiedAt: places.lastVerifiedAt,
       categorySlug: categories.slug,
       categoryName: categories.name,
       categoryEmoji: categories.emoji,
@@ -249,6 +252,7 @@ async function selectPublicPlaces(
     heroImageUrl: row.heroImageUrl,
     searchText: row.searchText,
     kakaoPlaceId: row.kakaoPlaceId,
+    informationVerifiedOn: informationDate(row.lastVerifiedAt),
     primaryCategory: {
       slug: row.categorySlug,
       name: row.categoryName,
@@ -434,8 +438,12 @@ export async function getPlaceBySlug(
       statusText: "PLACE_NOT_FOUND",
     });
   }
-  const [withRating] = await attachLatestNonStaleRatingSnapshots(db, [place]);
-  return withRating;
+  const [[withRating], hours] = await Promise.all([
+    attachLatestNonStaleRatingSnapshots(db, [place]),
+    db.select({ weekday: placeOperatingHours.weekday, opensAt: placeOperatingHours.opensAt, closesAt: placeOperatingHours.closesAt, isClosed: placeOperatingHours.isClosed, lastVerifiedAt: placeOperatingHours.lastVerifiedAt })
+      .from(placeOperatingHours).where(eq(placeOperatingHours.placeId, place.id)),
+  ]);
+  return { ...withRating, operatingHours: publicOperatingDays(hours) };
 }
 
 export async function resolvePlaceSlugRedirect(
