@@ -477,6 +477,11 @@
   transform:translateX(-50%);
 }
 
+.map-explorer-map .map-error{
+  inset:calc(var(--space-4) + 2 * var(--control-height) + var(--space-3)) var(--space-4) auto;
+  max-width:none;
+}
+
 .home-curation-reload-area{
   position:absolute;
   z-index:7;

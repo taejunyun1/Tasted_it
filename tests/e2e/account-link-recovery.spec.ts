@@ -29,7 +29,7 @@ test("email signup returns to the selected place after verification and login", 
   await page.getByLabel("비밀번호 · 10자 이상", { exact: true }).fill(password);
   await page.getByRole("checkbox", { name: /만 14세 이상/ }).check();
   await page.getByRole("button", { name: "인증 메일 받고 가입하기", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("인증 안내가 등록된 이메일로 전송됩니다.");
+  await expect(page.getByRole("status")).toContainText("인증 안내가 등록된 이메일로 전송됩니다.");
   const delivery = await context.request.get(`/__e2e/email?email=${encodeURIComponent(email)}`);
   expect(delivery.status()).toBe(200);
   const { html } = await delivery.json() as { html: string };

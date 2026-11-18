@@ -15,6 +15,11 @@ test.beforeAll(() => {
   execFileSync(process.execPath, ["node_modules/wrangler/bin/wrangler.js", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", sql], { stdio: "pipe" });
 });
 
+test.afterAll(() => {
+  const ids = Array.from({ length: 43 }, (_, index) => `'qa-picker-${String(index).padStart(2, "0")}'`).join(",");
+  execFileSync(process.execPath, ["node_modules/wrangler/bin/wrangler.js", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", `DELETE FROM place_categories WHERE place_id IN (${ids}); DELETE FROM places WHERE id IN (${ids});`], { stdio: "pipe" });
+});
+
 test.beforeEach(async ({ context, page }, testInfo) => {
   const seen: Error[] = []; errors.set(page, seen); page.on("pageerror", (error) => seen.push(error));
   await context.addCookies([{ name: "retaste_session", value: "qa-active-reviewer-session", url: String(testInfo.project.use.baseURL) }]);

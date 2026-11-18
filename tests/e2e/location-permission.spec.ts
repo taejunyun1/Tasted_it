@@ -37,6 +37,11 @@ test("native permission denial keeps the existing map and explains how to retry"
   const before = new URL(page.url()).searchParams.get("bbox");
   await page.getByRole("button", { name: /내 주변/ }).click();
   await expect(page.getByRole("status")).toHaveText("위치 권한을 확인한 뒤 다시 시도해주세요.");
+  const notice = await page.getByRole("status").boundingBox();
+  const toggle = await page.locator(".home-curation-view-toggle").boundingBox();
+  expect(notice).not.toBeNull();
+  expect(toggle).not.toBeNull();
+  expect(notice!.y).toBeGreaterThanOrEqual(toggle!.y + toggle!.height);
   expect(new URL(page.url()).searchParams.get("locationSource")).not.toBe("gps");
   expect(new URL(page.url()).searchParams.get("bbox")).toBe(before);
   expect(response.headers()["permissions-policy"]).toContain("geolocation=(self)");
