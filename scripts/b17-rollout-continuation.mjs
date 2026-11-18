@@ -80,7 +80,18 @@ export async function continueB17Rollout({ input, checkpoint, prepared, budget }
     if (!iso(runtime.deployment?.created_on) || Date.parse(runtime.deployment.created_on) !== Date.parse(checkpoint.fencedAt)) fail("B17_FENCE_CHANGED");
     fenceObserved = true;
     stage = "DRAIN";
-    return requireDrain(await adapter.verifyDrain({ sourceSha: input.sourceSha, previousVersion: checkpoint.previousVersion, fenceVersion: checkpoint.fenceVersion, fencedAt: checkpoint.fencedAt }), checkpoint, time());
+    const proof = await adapter.verifyDrain({ sourceSha: input.sourceSha, previousVersion: checkpoint.previousVersion, fenceVersion: checkpoint.fenceVersion, fencedAt: checkpoint.fencedAt });
+    if (proof?.status === "UNKNOWN") {
+      const observation = proof.observation;
+      const counts = Object.fromEntries(["returnedEvents", "reportedMatches", "observedTerminalOutcomes", "explicitEndsAfterFence", "fetchEvents", "scheduledEvents", "otherEvents"]
+        .filter(key => Number.isSafeInteger(observation?.[key]) && observation[key] >= 0)
+        .map(key => [key, observation[key]]));
+      safeProofs.drain = { status: "UNKNOWN", cronWindowElapsed: proof.cronWindowElapsed === true,
+        observation: observation?.status === "OBSERVED" ? "OBSERVED" : "UNAVAILABLE", ...counts,
+        coveragePartial: observation?.partial !== false, querySampled: observation?.querySampled === true ? true : observation?.querySampled === false ? false : null,
+        ingestionSampling: "UNKNOWN" };
+    }
+    return requireDrain(proof, checkpoint, time());
   };
   const capture = async phase => {
     const catalogQuery = buildB17PreservationCatalogQuery();
@@ -135,7 +146,7 @@ export async function continueB17Rollout({ input, checkpoint, prepared, budget }
     sessionId = candidateSessionId;
     await createSession(query, input.operatorId, sessionId, time());
     stage = "GUARDED_TRANSITIONS";
-    const transitions = await guardedTransitions({ query, input, checkpoint, sessionId, now: time(), proofSha: safeProofs.drainSha256,
+    const transitions = await guardedTransitions({ query, adapter, input, checkpoint, sessionId, now: time(), proofSha: safeProofs.drainSha256,
       register: names => { triggerNames.push(...names); } });
     safeProofs.transitions = transitions;
     if (triggerNames.length) await dropTriggers(query, triggerNames);
@@ -206,7 +217,7 @@ async function dropTriggers(query, names, cleanup = false) {
   if (names.some(name => !/^(b10_resume_(identity|apply)|b17_provider_(guard|apply))_[a-f0-9]{24}$/.test(name))) fail("B17_TRIGGER_ID_INVALID");
   await query(names.map(name => `DROP TRIGGER IF EXISTS ${name};`).join("\n"), names.length, { cleanup });
 }
-async function guardedTransitions({ query, input, checkpoint, sessionId, now, proofSha, register }) {
+async function guardedTransitions({ query, adapter, input, checkpoint, sessionId, now, proofSha, register }) {
   const reports = [], plans = [], sql = [];
   if (input.legacyRunId) sql.push(`SELECT rowid,* FROM public_data_sync_runs WHERE id=${quote(input.legacyRunId)};`);
   if (!sql.length) return { legacy: "NOT_REQUESTED", quota: "HOLD" };
@@ -222,6 +233,8 @@ async function guardedTransitions({ query, input, checkpoint, sessionId, now, pr
   const names = plans.flatMap(row => row.plan.triggerNames);
   const [existing] = await query(`SELECT name FROM sqlite_master WHERE type='trigger' AND name IN (${names.map(quote).join(",")});`);
   if (existing.length) fail("B17_TRANSITION_TRIGGER_COLLISION");
+  const receipt = JSON.stringify({ sourceSha: input.sourceSha, names });
+  if ((await adapter.savePrivate("legacy-trigger-recovery.json", receipt))?.sha256 !== hash(receipt)) fail("B17_TRANSITION_RECEIPT_INVALID");
   register(names);
   for (const { plan } of plans) {
     await query(`${plan.installSql}\n${plan.applySql}`, 3);

@@ -126,7 +126,7 @@ it("validates preflight but cannot deploy a fence even if an adapter claims drai
     migrationLedger: async () => ({ expected: ["0049.sql", ...B17_MIGRATIONS], applied: ["0049.sql"] }),
     controlCalls: () => 0, deploy: async () => { effects.push("deploy"); }, observeDrain: async () => ({ safeToMigrate: true }),
   });
-  expect(result).toMatchObject({ mode: "LIVE_PREFLIGHT_HOLD", executed: false, error: "LIVE_CONTINUATION_UNAVAILABLE" });
+  expect(result).toMatchObject({ mode: "LIVE_PREFLIGHT_HOLD", executed: false, error: "LIVE_HTTP_DRAIN_OBSERVATION_REQUIRED" });
   expect(effects).toEqual([]);
 });
 
@@ -142,7 +142,7 @@ it("a deadline after session creation still preserves cleanup and the fence", as
   expect(effects).not.toContain("NORMAL_DEPLOY");
 });
 
-import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createB17LiveAdapter } from "../../scripts/b17-rollout-runner.mjs";
@@ -158,15 +158,19 @@ it("reads actual CLI response shapes through bounded argv and keeps the bearer o
       if (args.includes("status")) return JSON.stringify(runtime().deployment);
       if (args.includes("view")) return JSON.stringify(runtime().version);
       if (args.includes("token")) return JSON.stringify({ type: "oauth", token: "synthetic-private-bearer" });
-      if (file === "curl") return `HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n${JSON.stringify({ success: true, result: { schedules: B17_TARGET.crons.map(cron => ({ cron })) } })}`;
-      if (args.includes("execute")) return JSON.stringify([{ success: true, results: [{ name: "0049.sql" }] }]);
+      if (file === "curl") {
+        const result = options.stdin.includes("/query") ? [{ success: true, results: [{ name: "0049.sql" }] }] : { schedules: B17_TARGET.crons.map(cron => ({ cron })) };
+        return `HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n${JSON.stringify({ success: true, result })}`;
+      }
       throw new Error("unexpected synthetic command");
     } });
     expect(await adapter.runtime()).toEqual(runtime());
-    expect(await adapter.d1("SELECT name FROM d1_migrations ORDER BY name;")).toHaveLength(1);
-    expect(calls.some(call => call.args.includes("--command"))).toBe(true);
+    expect(await adapter.query("SELECT name FROM d1_migrations ORDER BY name;")).toHaveLength(1);
+    await expect(adapter.query("SELECT 1; SELECT 2;", { expectedStatements: 2 })).rejects.toThrow("B17_D1_RESPONSE_INVALID");
+    expect(calls.some(call => call.options.stdin?.includes("SELECT name FROM d1_migrations"))).toBe(true);
     expect(calls.some(call => call.args.includes("--file"))).toBe(false);
     expect(JSON.stringify(calls.map(call => call.args))).not.toContain("synthetic-private-bearer");
+    expect(JSON.stringify(calls.map(call => call.args))).not.toContain("SELECT name");
     expect(calls.find(call => call.file === "curl")?.options.stdin).toContain("Authorization: Bearer synthetic-private-bearer");
     expect(calls.every(call => call.options.env.WRANGLER_WRITE_LOGS === "false")).toBe(true);
     expect(calls.every(call => call.options.timeout === undefined || call.options.timeout <= 50_000)).toBe(true);
@@ -180,6 +184,36 @@ it("rejects a private-directory parent symlink that resolves inside the reposito
     await symlink(root, join(dir, "alias"));
     await expect(createB17LiveAdapter({ root, privateDirectory: join(dir, "alias/private"), input: { sourceSha: sha, previousVersion: version, operatorId: "operator", legacyRunId: null, quotaCutover: "HOLD", budgetPolicy: "MANUAL_180_INCLUDES_BOOKKEEPING_MIGRATION_201" } })).rejects.toThrow("B17_PRIVATE_DIRECTORY_INVALID");
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+it("downloads a single backup privately and never puts the signed URL in argv", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "b17-backup-"));
+  const root = join(directory, "root"), privateDirectory = join(directory, "private");
+  const signed = "https://bucket.example.r2.cloudflarestorage.com/export.sql?credential=synthetic";
+  const calls: string[][] = [];
+  try {
+    await mkdir(root); await mkdir(privateDirectory, { mode: 0o700 });
+    const adapter = await createB17LiveAdapter({ root, privateDirectory, input: { sourceSha: sha, previousVersion: version, operatorId: "operator", legacyRunId: null, quotaCutover: "HOLD", budgetPolicy: "MANUAL_180_INCLUDES_BOOKKEEPING_MIGRATION_201" },
+      exec: async (_file: string, args: string[], { stdin }: { stdin?: string }) => {
+        calls.push(args);
+        if (args.includes("token")) return JSON.stringify({ type: "api_token", token: "fixture-token" });
+        if (stdin?.includes(signed)) {
+          const filename = stdin.match(/^output = "(.*)"$/m)?.[1];
+          if (!filename) throw new Error("missing output");
+          await writeFile(filename, "synthetic export\n");
+          return "200";
+        }
+        const result = stdin?.includes("time_travel/bookmark") ? { bookmark: "synthetic-bookmark" }
+          : { success: true, at_bookmark: "export-bookmark", status: "complete", result: { signed_url: signed } };
+        return `HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ success: true, result })}`;
+      },
+    });
+    const receipt = await adapter.backup();
+    const evidence = JSON.parse(await readFile(join(privateDirectory, "backup.json"), "utf8"));
+    expect(receipt).toMatchObject({ bookmark: "synthetic-bookmark", bytes: 17 });
+    expect((await stat(join(privateDirectory, evidence.file))).mode & 0o777).toBe(0o600);
+    expect(JSON.stringify([calls, receipt, evidence])).not.toContain(signed);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 it("rejects command/SQL injection fields and malformed runtime identities at the CLI boundary", async () => {

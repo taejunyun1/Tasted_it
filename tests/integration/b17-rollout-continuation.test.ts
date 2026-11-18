@@ -10,7 +10,15 @@ it("executes fixed post-fence operations on synthetic D1 and preserves unrelated
   expect(f.probedPaths).toContain("/places/continuation-place");
   expect(f.probedPaths).not.toContain("/places/private-place");
   expect(f.metrics()).toEqual({applyCalls:1,normal:true,locked:false,fenceRestored:false});
-  expect(f.privateArtifacts.size).toBe(3);
+  expect([...f.privateArtifacts.keys()].sort()).toEqual([
+    "legacy-trigger-recovery.json", "preservation-after.json", "preservation-before.json", "session-recovery.json",
+  ]);
+  const triggerReceipt = JSON.parse(f.privateArtifacts.get("legacy-trigger-recovery.json")!);
+  expect(triggerReceipt.sourceSha).toBe(f.args.input.sourceSha);
+  expect(triggerReceipt.names).toEqual([
+    expect.stringMatching(/^b10_resume_identity_[a-f0-9]{24}$/),
+    expect.stringMatching(/^b10_resume_apply_[a-f0-9]{24}$/),
+  ]);
   const receipt=JSON.parse(f.privateArtifacts.get("session-recovery.json")!);
   expect(receipt).toMatchObject({operatorId:"continuation-admin",maxAgeSeconds:1800});
   expect(receipt.sessionId).toMatch(/^[a-f0-9-]{36}$/);

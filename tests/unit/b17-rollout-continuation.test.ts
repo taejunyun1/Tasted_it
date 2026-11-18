@@ -32,6 +32,19 @@ it("does not elevate a canMigrate boolean or an unrelated fence into proof",asyn
   const f=setup();f.adapter.verifyDrain=async()=>evidence;expect((await continueB17Rollout(f.args,f.adapter)).status).toBe("HOLD");expect(f.calls).not.toContain("backup");
  }
 });
+
+it("preserves redacted observation counts on HOLD without unlocking writes", async () => {
+  const f = setup();
+  f.adapter.verifyDrain = async () => ({ status: "UNKNOWN", cronWindowElapsed: true, observation: {
+    status: "OBSERVED", returnedEvents: 3, observedTerminalOutcomes: 2, partial: true, secret: "source-log-private",
+  } });
+  const outcome = await continueB17Rollout(f.args, f.adapter);
+  expect(outcome).toMatchObject({ status: "HOLD", stage: "DRAIN", proofs: { drain: {
+    observation: "OBSERVED", returnedEvents: 3, observedTerminalOutcomes: 2, coveragePartial: true,
+  } } });
+  expect(JSON.stringify(outcome)).not.toContain("source-log-private");
+  expect(f.calls).not.toContain("backup");
+});
 it("rejects a changed artifact before database work",async()=>{
  const f=setup();f.adapter.buildDigest=async()=>({artifactDigest:"e".repeat(64),config:f.args.prepared.config});
  expect(await continueB17Rollout(f.args,f.adapter)).toMatchObject({status:"HOLD",code:"B17_ARTIFACT_CHANGED"});expect(f.calls).not.toContain("query");
