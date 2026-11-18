@@ -1,0 +1,113 @@
+{
+  "code_source_sha": "4267bce77462f661979ae4cdd6fc597673957c9d",
+  "environment": "LOCAL_COMPILED_WORKER_SYNTHETIC_D1",
+  "executed_at_kst": "2026-11-18T11:01:34.464714+09:00",
+  "source_relationship": {
+    "admin_base": "e23ccf4",
+    "ui_pr": 472,
+    "ui_head": "711eabc",
+    "merge": "1a8c250",
+    "admin_ux_source": "0644633",
+    "admin_ux_integrated": "4267bce"
+  },
+  "merge_resolutions": [
+    "Keep the B17 effective-date now parameter and reserved binding count while adding public rating fallback fields.",
+    "Preserve both ADMIN operational status and UI completion sections in the SSOT."
+  ],
+  "checks": [
+    {
+      "name": "combined typecheck",
+      "command": "pnpm run typecheck",
+      "result": "PASS"
+    },
+    {
+      "name": "combined production build",
+      "command": "pnpm run build",
+      "result": "PASS",
+      "server_entry_sha256": "bed1d07513e364e540b13bd81032fbcac6bcbd37203c42e839bbf5d69cc6c596"
+    },
+    {
+      "name": "rating eligibility merge D1",
+      "files": [
+        "rating-config-eligibility.test.ts",
+        "rating-config-eligibility-migration.test.ts",
+        "public-rating-summary.test.ts"
+      ],
+      "passed": 19,
+      "result": "PASS"
+    },
+    {
+      "name": "focused unit",
+      "files": [
+        "admin-review-feedback.test.ts",
+        "admin-review-skipped-action.test.ts",
+        "map-read-recovery.test.ts",
+        "map-viewer-key.test.ts",
+        "public-metadata.test.ts"
+      ],
+      "passed": 24,
+      "result": "PASS"
+    },
+    {
+      "name": "focused D1",
+      "files": [
+        "place-suggestion-pagination.server.test.ts",
+        "place-suggestion.server.test.ts",
+        "rating-config-eligibility.test.ts",
+        "public-rating-summary.test.ts"
+      ],
+      "passed": 19,
+      "result": "PASS"
+    },
+    {
+      "name": "compiled desktop/mobile flows",
+      "files": [
+        "admin-review-feedback.spec.ts",
+        "map-read-recovery.spec.ts",
+        "public-place-pagination.spec.ts",
+        "public-rating-summary.spec.ts",
+        "reviewer-golden-preview.spec.ts"
+      ],
+      "passed": 28,
+      "failed": 0,
+      "skipped": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "out-of-range metadata boundary",
+      "files": [
+        "public-place-pagination.spec.ts"
+      ],
+      "passed": 2,
+      "result": "PASS"
+    },
+    {
+      "name": "local synthetic migrations",
+      "count": 9,
+      "files": [
+        "0050",
+        "0051",
+        "0052",
+        "0053",
+        "0054",
+        "0055",
+        "0056",
+        "0059",
+        "0060"
+      ],
+      "result": "PASS"
+    },
+    {
+      "name": "production dependencies",
+      "command": "pnpm audit --prod --audit-level high",
+      "vulnerabilities": 0,
+      "result": "PASS"
+    }
+  ],
+  "limitations": [
+    "Local tests and a local migration fixture are not remote deployment or preservation evidence.",
+    "Required CI, main merge and production deployment remain unperformed.",
+    "Operator/contact/retention facts remain policy-confirmation-needed; #397 remains HOLD.",
+    "Full T01-T08 acceptance, real OAuth/mail, real rights and field demonstration are not declared complete."
+  ]
+}

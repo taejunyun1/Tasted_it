@@ -187,6 +187,7 @@
       "pass": true
     }
   ],
-  "source_sha": "a5ce06adaba197102d33f3a3ed7e6fa38396873d",
-  "scope_note": "단색 배경의 확인된 실패 쌍 및 상세 사진 없음/평가 메타만. 전체 WCAG 인증이나 모든 배경의 대비 검증이 아님."
+  "scope_note": "단색 배경의 확인된 실패 쌍 및 상세 사진 없음/평가 메타만. 전체 WCAG 인증이나 모든 배경의 대비 검증이 아님.",
+  "preserved_css_commit": "a5ce06adaba197102d33f3a3ed7e6fa38396873d",
+  "source_note": "The measurement ran on the stated worktree base with uncommitted CSS. The CSS was subsequently preserved in this commit; it is not an assertion that the whole build was compiled from that later commit."
 }

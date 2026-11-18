@@ -1,5 +1,15 @@
 # CST 서비스 준비 실행계획 SSOT — 2026-12-10
 
+## 2026-11-18 UI 접근성 마무리와 정정 검색 후속
+
+`8248172`에서 목록/listitem·카테고리 그룹/선택 의미와768px 제어44px을 보완했다. `4267bce` 통합 검증에 더해 compiled 브라우저11건과 시험 기대값 교정 후1건이 통과했다. [접근성 증거](../evidence/2026-11-18-explorer-accessibility.json)와 [완료 원장](2026-11-18-cst-ui-feature-completion.md)을 따른다. 정정 대상1,000건 제한은 실제 누락으로 확인해 별도 구현을 진행한다. 전체 T01~T08·main 병합·운영 배포는 완료로 올리지 않는다.
+
+## 2026-11-18 UI·ADMIN 합동 검증
+
+PR #472의 UI를 기존 PR #470에 합류하고 ADMIN 항목별 결과/제안 페이지/표·403 보완을 적용했다. 코드 `4267bce`는 타입·production build·집중 단위24/D1 19·병합 D1 19·compiled desktop/mobile28건과 범위 밖 metadata2건을 통과했다. 정확한 범위는 [통합 증거](../evidence/cst-ui-admin-integrated-20261118.json), 남은 요구는 [기능 완료 원장](2026-11-18-cst-ui-feature-completion.md)을 따른다. 아래 이전 단계의 통합 head/CI 기록은 역사이며 새 head의 CI를 대신하지 않는다.
+
+신규 main 병합·운영 배포는0이다. 필수 CI 결제 제한, 실제 정책·복구·실증 사실 미확정, #397 HOLD는 유지한다.
+
 ## 2026-11-18 UI/UX 기능 완성 후속
 
 [#471](https://github.com/taejunyun1/Tasted_it/issues/471)의 구현·화면·실패 복구 범위는 [기능 완료 원장](2026-11-18-cst-ui-feature-completion.md)에 전체 U/D/S 및 감사§9와 연결한다. 인증/정정·리뷰어 검색·회원 저장·상세 요청 결속·위치/지도 SDK·공개 meta/sitemap을 통합했고, `03b624c` 가독성과 `a4912db` 공개 목록 페이지 처리와 `a901b5a` 지도 실패/세션 경계·접근성·실제 메뉴 클릭 검증을 추가했다. 원장은 구현·지정 범위 로컬 검증·실제 운영 상태를 구분하며 전체 목표는 진행 중이다.
