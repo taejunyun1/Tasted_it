@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeB17DrainRequirements, verifyB17DrainEvidence } from "../../scripts/b17-drain-evidence.mjs";
+import { buildB17DrainObservationPlan, describeB17DrainRequirements, summarizeB17DrainObservation, verifyB17DrainEvidence } from "../../scripts/b17-drain-evidence.mjs";
 
 const expected = {
   previousVersion: "d285759b-d529-4ea0-a7e9-9cf88b3e7cf1",
@@ -66,5 +66,35 @@ describe("B17 legacy drain evidence", () => {
     const getter = Object.defineProperty({}, "secret", { enumerable: true, get() { throw new Error("must not execute"); } });
     expect(verifyB17DrainEvidence({ expected, evidence: evidence("wrangler_tail", getter) }).reason).toBe("MALFORMED_OR_OVERSIZED_EVIDENCE");
     expect(verifyB17DrainEvidence({ expected, evidence: evidence("wrangler_tail", new Array(2001)) }).reason).toBe("MALFORMED_OR_OVERSIZED_EVIDENCE");
+  });
+
+  it("plans bounded version-scoped observation requests without remote execution or persisted query", () => {
+    const plan = buildB17DrainObservationPlan({ expected });
+    expect(plan.maxRequests).toBe(2);
+    expect(plan.query.body).toMatchObject({ dry: true, view: "events", limit: 100 });
+    expect(plan.query.body.parameters.filters).toContainEqual({ key: "$workers.scriptVersion.id", operation: "eq", type: "string", value: expected.previousVersion });
+    expect(plan.query.body.timeframe.to - plan.query.body.timeframe.from).toBeLessThanOrEqual(30 * 60_000);
+    expect(plan.canMigrate).toBe(false);
+  });
+
+  it("redacts authenticated-transport event shapes and keeps sampled, partial or empty observations non-authoritative", () => {
+    for (const response of [null, true, 1, "invalid", []]) {
+      expect(summarizeB17DrainObservation({ expected, response })).toMatchObject({ status: "UNAVAILABLE", canMigrate: false });
+    }
+    const plan = buildB17DrainObservationPlan({ expected });
+    const row = { dataset: "cloudflare-workers", timestamp: Date.parse(expected.now), source: { privateUrl: "DO_NOT_LEAK" },
+      $metadata: { id: "private-id", service: "retaste-beta", type: "cf-worker-event", endTime: Date.parse(expected.now) },
+      $workers: { scriptName: "retaste-beta", scriptVersion: { id: expected.previousVersion }, eventType: "fetch", outcome: "ok" } };
+    const response = { success: true, errors: [], messages: [], result: {
+      run: { accountId: "7543330c65069ee2df1b7b353fb0201c", status: "COMPLETED", dry: true, timeframe: plan.query.body.timeframe },
+      events: { count: 2, events: [row] }, statistics: { abr_level: 2 },
+    } };
+    const summary = summarizeB17DrainObservation({ expected, response });
+    expect(summary).toMatchObject({ status: "OBSERVED", canMigrate: false, exhaustive: false, returnedEvents: 1, reportedMatches: 2, explicitEndsAfterFence: 1, partial: true, querySampled: true, ingestionSampling: "UNKNOWN" });
+    expect(JSON.stringify(summary)).not.toMatch(/DO_NOT_LEAK|private-id/);
+    response.result.events = { count: 0, events: [] };
+    expect(summarizeB17DrainObservation({ expected, response })).toMatchObject({ returnedEvents: 0, canMigrate: false, exhaustive: false });
+    response.result.events = { count: 1, events: [{ ...row, $workers: { ...row.$workers, scriptVersion: { id: expected.fenceVersion } } }] };
+    expect(summarizeB17DrainObservation({ expected, response }).status).toBe("UNAVAILABLE");
   });
 });
