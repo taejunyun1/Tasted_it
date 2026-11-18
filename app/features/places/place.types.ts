@@ -63,6 +63,12 @@ export interface PlaceFilters {
   limit?: number;
 }
 
+export interface PublicPlaceCounts {
+  count: number;
+  overallCount: number;
+  overallBounds: [number, number, number, number] | null;
+}
+
 export interface AdminPlaceSummary {
   id: string;
   slug: string;

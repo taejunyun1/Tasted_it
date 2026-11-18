@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   })),
   listPlaces: vi.fn(async () => []),
   listPublicCategoryGroups: vi.fn(async () => []),
+  getPublicPlaceCounts: vi.fn(async () => ({ count: 0, overallCount: 0, overallBounds: null })),
 }));
 
 function memoryStorage() {
@@ -45,6 +46,7 @@ vi.mock("../../app/features/places/home-curation.server", () => ({
 vi.mock("../../app/features/places/place.server", () => ({
   listPlaces: mocks.listPlaces,
   listPublicCategoryGroups: mocks.listPublicCategoryGroups,
+  getPublicPlaceCounts: mocks.getPublicPlaceCounts,
 }));
 
 afterEach(() => {
@@ -55,6 +57,7 @@ afterEach(() => {
   mocks.getHomeCurationPage.mockClear();
   mocks.listPlaces.mockClear();
   mocks.listPublicCategoryGroups.mockClear();
+  mocks.getPublicPlaceCounts.mockClear();
 });
 
 describe("home curated route", () => {
@@ -102,6 +105,8 @@ describe("home curated route", () => {
     expect(result.view).toBe("browse");
     expect(mocks.listPlaces).toHaveBeenCalled();
     expect(mocks.listPublicCategoryGroups).toHaveBeenCalled();
+    expect(mocks.listPublicCategoryGroups).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ query: "국밥", bbox: expect.any(Array) }));
+    expect(mocks.getPublicPlaceCounts).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ query: "국밥", bbox: expect.any(Array) }));
     expect(mocks.getHomeCurationPage).not.toHaveBeenCalled();
   });
 

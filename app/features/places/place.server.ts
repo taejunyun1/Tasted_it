@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, lte, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
@@ -128,12 +128,8 @@ export async function importPlaceRows(
   if (first) await db.batch([first, ...rest]);
 }
 
-function publicConditions(filters: PlaceFilters, slug?: string) {
-  const conditions = [
-    eq(places.status, "PUBLISHED"),
-    eq(placeCategories.isPrimary, true),
-    publicVenueVisibilityCondition(),
-  ];
+function publicFilterConditions(filters: PlaceFilters, slug?: string) {
+  const conditions: SQL[] = [];
   if (filters.tempOnly) conditions.push(sql`exists (select 1 from temp_catalog_entries t join temp_catalog_batches b on b.id=t.batch_id where t.place_id=${places.id} and b.status='PUBLISHED')`);
 
   if (slug) conditions.push(eq(places.slug, slug));
@@ -157,6 +153,15 @@ function publicConditions(filters: PlaceFilters, slug?: string) {
   }
 
   return and(...conditions);
+}
+
+function publicConditions(filters: PlaceFilters, slug?: string) {
+  return and(
+    eq(places.status, "PUBLISHED"),
+    eq(placeCategories.isPrimary, true),
+    publicVenueVisibilityCondition(),
+    publicFilterConditions(filters, slug),
+  );
 }
 
 function recommendationLivenessCondition() {
@@ -278,7 +283,28 @@ export async function listRecommendationCandidates(
   );
 }
 
-export async function listPublicCategoryGroups(db: AppDb) {
+export async function getPublicPlaceCounts(db: AppDb, filters: PlaceFilters = {}) {
+  const [row] = await db.select({
+    count: sql<number>`count(distinct case when ${publicFilterConditions({ bbox: filters.bbox }) ?? sql`1`} then ${places.id} end)`,
+    overallCount: sql<number>`count(distinct ${places.id})`,
+    west: sql<number | null>`min(${places.longitude})`,
+    south: sql<number | null>`min(${places.latitude})`,
+    east: sql<number | null>`max(${places.longitude})`,
+    north: sql<number | null>`max(${places.latitude})`,
+  }).from(places)
+    .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
+    .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
+    .where(publicConditions({ ...filters, bbox: undefined }));
+  const count = Number(row?.count ?? 0), overallCount = Number(row?.overallCount ?? 0);
+  let overallBounds: [number, number, number, number] | null = null;
+  if (overallCount > 0 && row && [row.west, row.south, row.east, row.north].every((value) => typeof value === "number" && Number.isFinite(value))
+    && row.west! >= 124 && row.east! <= 132 && row.south! >= 33 && row.north! <= 39) {
+    overallBounds = [Math.max(124, row.west! - 0.001), Math.max(33, row.south! - 0.001), Math.min(132, row.east! + 0.001), Math.min(39, row.north! + 0.001)];
+  }
+  return { count, overallCount, overallBounds };
+}
+
+export async function listPublicCategoryGroups(db: AppDb, filters: Omit<PlaceFilters, "categorySlug" | "limit"> = {}) {
   const parents = alias(categories, "category_parents");
   const rows = await db
     .select({
@@ -292,7 +318,8 @@ export async function listPublicCategoryGroups(db: AppDb) {
       name: categories.name,
       emoji: categories.emoji,
       sortOrder: categories.sortOrder,
-      count: sql<number>`count(distinct ${places.id})`,
+      count: sql<number>`count(distinct case when ${publicFilterConditions(filters) ?? sql`1`} then ${places.id} end)`,
+      overallCount: sql<number>`count(distinct case when ${publicFilterConditions({ ...filters, bbox: undefined }) ?? sql`1`} then ${places.id} end)`,
     })
     .from(categories)
     .innerJoin(parents, eq(parents.id, categories.parentId))
@@ -314,7 +341,7 @@ export async function listPublicCategoryGroups(db: AppDb) {
       and(
         eq(categories.isActive, true),
         eq(parents.isActive, true),
-        publicVenueVisibilityCondition(),
+        publicConditions({}),
       ),
     )
     .groupBy(categories.id, parents.id)
@@ -332,6 +359,7 @@ export async function listPublicCategoryGroups(db: AppDb) {
         name: string;
         emoji: string;
         count: number;
+        overallCount: number;
       }>;
     }
   >();
@@ -352,6 +380,7 @@ export async function listPublicCategoryGroups(db: AppDb) {
         name: row.name,
         emoji: row.emoji,
         count: Number(row.count),
+        overallCount: Number(row.overallCount),
       });
   }
   return [...groups.values()];

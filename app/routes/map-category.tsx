@@ -5,7 +5,7 @@ import type { Route } from "./+types/map-category";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
 import { resolveLocationViewport } from "../features/maps/location-policy";
-import { listPlaces } from "../features/places/place.server";
+import { getPublicPlaceCounts, listPlaces } from "../features/places/place.server";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { PlaceCard } from "../components/places/PlaceCard";
 
@@ -15,9 +15,11 @@ export function meta({ params }: Route.MetaArgs) {
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const state = parseMapState(new URL(request.url).search);
-  const places = await listPlaces(createDb(env.DB), { categorySlug: params.categorySlug, query: state.query, bbox: state.bbox });
+  const db = createDb(env.DB);
+  const filters = { categorySlug: params.categorySlug, query: state.query, bbox: state.bbox };
+  const [places, counts] = await Promise.all([listPlaces(db, filters), getPublicPlaceCounts(db, filters)]);
   const clientId = (env as Env & { NAVER_MAPS_CLIENT_ID?: string }).NAVER_MAPS_CLIENT_ID ?? "";
-  return { places, state, categorySlug: params.categorySlug, clientId };
+  return { places, counts, state, categorySlug: params.categorySlug, clientId };
 }
 
 export default function CategoryMap({ loaderData }: Route.ComponentProps) {
@@ -78,9 +80,10 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
           <PlaceMap places={loaderData.places} selected={selected} clientId={loaderData.clientId} initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined} locationBounds={locationBounds} onViewportIntent={() => setLocationNotice(null)} onSelect={(id) => { setState("selected", id); document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" }); }} onBounds={(bbox) => setState("bbox", bbox.map((n) => n.toFixed(5)).join(","))} />
         </section>
         <section className="result-panel" aria-label="장소 목록">
-          <p className="result-count">{loaderData.places.length} PLACES</p>
+          <p className="result-count" aria-live="polite">{loaderData.counts.count} PLACES</p>
+          {loaderData.counts.count > loaderData.places.length && <p role="status">전체 {loaderData.counts.count}곳 중 이름순 첫 {loaderData.places.length}곳을 표시합니다. 검색어나 지도 범위를 좁혀 주세요.</p>}
           {loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} />)}
-          {!loaderData.places.length && <p className="empty">이 범위에서 등록된 장소를 찾지 못했어요.</p>}
+          {!loaderData.places.length && <div className="empty" role="status"><p>이 범위에서 조건에 맞는 장소를 찾지 못했어요.</p>{loaderData.counts.overallBounds && <button type="button" className="mt-3 min-h-[var(--control-height)] border border-current px-4" onClick={() => { const bounds = loaderData.counts.overallBounds!; setLocationBounds(bounds); setLocationNotice(null); setState("bbox", bounds.join(",")); }}>전체 결과 {loaderData.counts.overallCount}곳 보기</button>}</div>}
         </section>
       </div>
     </main>

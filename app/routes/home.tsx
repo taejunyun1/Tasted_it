@@ -39,7 +39,7 @@ import {
   recordHomeRecommendation,
 } from "../features/places/home-curation-history.client";
 import { getHomeCurationPage } from "../features/places/home-curation.server";
-import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
+import { getPublicPlaceCounts, listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
 
 type RecommendationFetcherState = "idle" | "loading" | "submitting";
 
@@ -198,11 +198,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 
   if (homeState.view === "browse") {
-    const [places, groups] = await Promise.all([
+    const [places, groups, placeCounts] = await Promise.all([
       listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
-      listPublicCategoryGroups(db),
+      listPublicCategoryGroups(db, { query: state.query, bbox: state.bbox }),
+      getPublicPlaceCounts(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
     ]);
-    return { ...common, view: "browse" as const, places, groups, curation: null };
+    return { ...common, view: "browse" as const, places, groups, placeCounts, curation: null };
   }
 
   const now = new Date().toISOString();
@@ -227,6 +228,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     view: "curated" as const,
     places: curation.places,
     groups: [],
+    placeCounts: null,
     curation,
   };
 }
@@ -487,11 +489,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       clusterLevel={clusterLevel}
       query={liveMapState.query}
       category={loaderData.category}
+      counts={loaderData.placeCounts}
       hasSelectedPlace={Boolean(selectedPlace)}
       onSelect={(id) => setSearch({ selected: id })}
       onSearch={(q) => setSearch({ q, selected: null })}
       onCategory={(category) => setSearch({ category, selected: null })}
       onLocate={locate}
+      onExpandBounds={(bounds) => { setLocationBounds(bounds); setBounds(bounds); }}
       onGroupSelect={focusRegion}
     />}
     <section className="map-explorer-map" aria-label="지도 영역">
