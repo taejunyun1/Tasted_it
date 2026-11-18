@@ -28,6 +28,7 @@
   --surface-card:#fff;
   --surface-soft:var(--atlas-forest-soft,#dfe9df);
   --color-ink:var(--atlas-ink,#17221c);
+  --color-ink-muted:#526056;
   --color-accent:var(--atlas-forest,#2d674d);
   --color-signal:var(--signal,#e7ff55);
   --color-line:var(--atlas-line,#c8cdc2);
@@ -1384,5 +1385,70 @@ small{
 
   .map-place-sheet__actions{
     padding-right:calc(var(--control-height) + var(--space-2));
+  }
+}
+
+.public-rating-summary{
+  margin:var(--space-2) 0 0;
+  font-size:.875rem;
+  line-height:var(--line-height-body);
+}
+
+.public-rating-meta{
+  display:block;
+  max-width:100%;
+  font-size:var(--font-size-label);
+  line-height:var(--line-height-body);
+  overflow-wrap:anywhere;
+  color:var(--color-ink-muted);
+}
+
+.public-rating-meta span{
+  color:inherit;
+}
+
+.discovery-heading > p,
+.course-context > small,
+.course-meal-group legend small,
+.course-meal-chip small,
+.member-empty > p,
+.member-connection-badges > span{
+  color:var(--color-ink-muted);
+}
+
+.score,
+.place-detail-sheet__score{
+  flex-wrap:wrap;
+  align-items:flex-start;
+  gap:var(--space-3);
+}
+
+.score > div,
+.place-detail-sheet__score > div{
+  min-width:0;
+  max-width:100%;
+}
+
+.score > .public-rating-meta,
+.place-detail-sheet__score > .public-rating-meta{
+  flex-basis:100%;
+}
+
+.detail-hero[data-has-photo="false"],
+.place-detail-sheet__hero[data-has-photo="false"]{
+  padding:var(--space-5);
+  font-size:1rem;
+  letter-spacing:normal;
+  text-align:center;
+  color:var(--color-ink-muted);
+}
+
+@media(max-width:760px){
+  .detail-hero[data-has-photo="false"]{
+    min-height:220px;
+  }
+
+  .place-detail-sheet__actions{
+    align-items:start;
   }
 }

@@ -23,18 +23,19 @@ export function resolvePublicOrigin(requestUrl: string, appBaseUrl?: string | nu
   return null;
 }
 
-function canonicalPublicUrl(path: string, origin?: string | null): string | null {
+function canonicalPublicUrl(path: string, origin?: string | null, page?: number): string | null {
   if (!origin || !path.startsWith("/") || path.startsWith("//") || /[\\\u0000-\u001f]/u.test(path)) return null;
   const trusted = resolvePublicOrigin("", origin);
   if (!trusted) return null;
   const url = new URL(path, trusted);
   if (url.origin !== trusted) return null;
   url.search = "";
+  if (url.pathname === "/places" && page && Number.isSafeInteger(page) && page > 1) url.searchParams.set("page", String(page));
   url.hash = "";
   return url.href;
 }
 
-export function publicPageMeta(input: { title: string; description: string; path: string; origin?: string | null; noindex?: boolean }): MetaDescriptor[] {
+export function publicPageMeta(input: { title: string; description: string; path: string; origin?: string | null; noindex?: boolean; page?: number }): MetaDescriptor[] {
   const descriptors: MetaDescriptor[] = [
     { title: input.title },
     { name: "description", content: input.description },
@@ -43,7 +44,7 @@ export function publicPageMeta(input: { title: string; description: string; path
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
   ];
-  const canonical = canonicalPublicUrl(input.path, input.origin);
+  const canonical = canonicalPublicUrl(input.path, input.origin, input.page);
   if (canonical) {
     descriptors.push({ tagName: "link", rel: "canonical", href: canonical }, { property: "og:url", content: canonical });
   }

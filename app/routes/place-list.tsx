@@ -19,7 +19,11 @@ import { useEffect, useRef, useState } from "react";
 import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return publicPageMeta({ title: "맛집 리스트 — Re:Taste", description: "광주·전남의 장소를 취향과 평가 근거로 찾아보세요.", path: "/places", origin: loaderData?.publicOrigin, noindex: Boolean(loaderData?.tempOnly) });
+  const page = loaderData?.pagination?.page ?? 1;
+  const outOfRange = Boolean(loaderData?.pagination?.outOfRange);
+  const search = new URLSearchParams(loaderData?.search ?? "");
+  const filtered = ["q", "category", "badge", "bbox", "temp"].some(key => search.getAll(key).some(Boolean));
+  return publicPageMeta({ title: `맛집 리스트${page > 1 ? ` · ${page}페이지` : ""} — Re:Taste`, description: "광주·전남의 장소를 취향과 평가 근거로 찾아보세요.", path: "/places", origin: loaderData?.publicOrigin, noindex: Boolean(loaderData?.tempOnly || filtered || outOfRange), page: outOfRange ? 1 : page });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

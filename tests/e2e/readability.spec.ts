@@ -3,7 +3,7 @@ import { isControlledLocalBaseUrl } from "./local-test-target";
 
 test.skip(!isControlledLocalBaseUrl(), "Uses synthetic sessions on the loopback test Worker only");
 
-for (const width of [320, 390, 1440]) {
+for (const width of [320, 390, 768, 1440]) {
   test(`discovery text and filter targets remain readable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/places");

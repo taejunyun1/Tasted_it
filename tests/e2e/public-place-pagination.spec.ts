@@ -31,6 +31,9 @@ test("all 125 results are reachable and a new search returns to page one", async
   await expect(page.locator("#place-search-status")).toContainText("전체 125곳 · 101–125번째 표시");
   await expect(page.locator("#all-places")).toBeFocused();
   await expect(page.locator(".discovery-grid > article")).toHaveCount(25);
+  await expect(page).toHaveTitle("맛집 리스트 · 2페이지 — Re:Taste");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${new URL(page.url()).origin}/places?page=2`);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex,follow");
   await expect(page.getByRole("link", { name: "다음 페이지", exact: true })).toHaveCount(0);
   await page.locator("#all-places").scrollIntoViewIfNeeded();
   await page.evaluate(() => document.fonts.ready);

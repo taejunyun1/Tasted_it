@@ -60,8 +60,10 @@ test("card, map, sheet and detail share current, stale and missing rating states
       await expect(sheet.locator(".public-rating-summary")).toHaveText(state.summary);
       await expect(sheet.locator("time")).toContainText(state.time);
       await expect(sheet.locator(".place-detail-sheet__hero")).toHaveAttribute("data-has-photo", "false");
+      expect((await sheet.locator(".place-detail-sheet__actions > a").boundingBox())!.height).toBeLessThanOrEqual(75);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await sheet.screenshot({ path: `docs/evidence/2026-11-18-rating-${state.suffix}-sheet-320.png` });
+      await sheet.evaluate(node => { node.scrollTop = 0; });
+      await page.screenshot({ path: `docs/evidence/2026-11-18-rating-${state.suffix}-sheet-320.png` });
       await page.getByRole("button", { name: "상세 정보 닫기" }).click();
     }
 
@@ -77,6 +79,10 @@ test("card, map, sheet and detail share current, stale and missing rating states
     await expect(page.locator(".score time")).toContainText(state.time);
     await expect(page.locator(".detail-hero")).toHaveAttribute("data-has-photo", "false");
     await expect(page.locator(".detail-hero")).toContainText("아직 등록된 사진이 없어요.");
+    if (mobile) expect((await page.locator(".detail-hero").boundingBox())!.height).toBeLessThanOrEqual(221);
+    const score = (await page.locator(".score").boundingBox())!;
+    const metadata = (await page.locator(".score .public-rating-meta").boundingBox())!;
+    expect(metadata.x + metadata.width).toBeLessThanOrEqual(score.x + score.width + 1);
     if (state.stale) await expect(page.locator(".rating-breakdown")).not.toContainText("99%");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `docs/evidence/2026-11-18-rating-${state.suffix}-${mobile ? "320" : "desktop"}.png`, fullPage: true });

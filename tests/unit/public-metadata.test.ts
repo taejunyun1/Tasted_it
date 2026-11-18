@@ -9,6 +9,24 @@ const place = {
   heroImageUrl: "https://unverified.example/photo.jpg",
 };
 
+it("keeps page identities bounded and makes filtered listings non-indexable", async () => {
+  const { meta } = await import("../../app/routes/place-list");
+  const base = { publicOrigin: "https://public.example", pagination: { page: 2 }, search: "?page=2" };
+  const page = meta({ loaderData: base } as never);
+  expect(page).toContainEqual({ title: "맛집 리스트 · 2페이지 — Re:Taste" });
+  expect(page).toContainEqual({ tagName: "link", rel: "canonical", href: "https://public.example/places?page=2" });
+  expect(page.some(item => "name" in item && item.name === "robots")).toBe(false);
+  expect(meta({ loaderData: { ...base, search: "?page=2&q=라멘" } } as never)).toContainEqual({ name: "robots", content: "noindex,follow" });
+  expect(meta({ loaderData: { ...base, search: "?badge=&badge=food-ramen" } } as never)).toContainEqual({ name: "robots", content: "noindex,follow" });
+  const missing = meta({ loaderData: { ...base, pagination: { page: 999999, outOfRange: true }, search: "?page=999999" } } as never);
+  expect(missing).toContainEqual({ name: "robots", content: "noindex,follow" });
+  expect(missing).toContainEqual({ tagName: "link", rel: "canonical", href: "https://public.example/places" });
+  for (const page of [0, -1, Number.NaN, 2.5]) {
+    expect(publicPageMeta({ title: "t", description: "d", path: "/places?untrusted=1", origin: base.publicOrigin, page }))
+      .toContainEqual({ tagName: "link", rel: "canonical", href: "https://public.example/places" });
+  }
+});
+
 it("uses the public place name rather than its technical slug for share metadata", async () => {
   const { meta } = await import("../../app/routes/place-detail");
   const result = meta({ params: { placeSlug: place.slug }, loaderData: { place, publicOrigin: "https://public.example" } } as never);
