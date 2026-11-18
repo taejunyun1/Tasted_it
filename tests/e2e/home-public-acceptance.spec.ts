@@ -51,7 +51,7 @@ test("home candidates, real food selection and empty results agree with public D
     await expect(presentation).not.toContainText("U01 비공개");
     await expect(presentation).not.toContainText("U01 회수");
     await expect(presentation).not.toContainText("PC방");
-    await page.screenshot({ path: `docs/evidence/cst-home-public-acceptance-20261118/${testInfo.project.name}-curated.png` });
+    await page.screenshot({ path: testInfo.outputPath("home-curated.png") });
 
     await page.getByRole("button", { name: "전체 지도", exact: true }).click();
     if (testInfo.project.name === "mobile-chromium") await page.getByRole("button", { name: "목록", exact: true }).click();
@@ -67,7 +67,7 @@ test("home candidates, real food selection and empty results agree with public D
     await children.getByRole("button", { name: /^U01 면,/ }).click();
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText("U01 검수 면");
-    await page.screenshot({ path: `docs/evidence/cst-home-public-acceptance-20261118/${testInfo.project.name}-category.png` });
+    await page.screenshot({ path: testInfo.outputPath("home-category.png") });
     const beforeEmptyBounds = new URL(page.url()).searchParams.get("bbox");
     await children.getByRole("button", { name: /^U01 회,/ }).click();
     await expect(rows).toHaveCount(0);
@@ -76,12 +76,12 @@ test("home candidates, real food selection and empty results agree with public D
     await expand.scrollIntoViewIfNeeded();
     await expect(expand).toBeInViewport();
     expect(new URL(page.url()).searchParams.get("bbox")).toBe(beforeEmptyBounds);
-    await page.screenshot({ path: `docs/evidence/cst-home-public-acceptance-20261118/${testInfo.project.name}-empty-category.png` });
+    await page.screenshot({ path: testInfo.outputPath("home-empty-category.png") });
 
     await page.goto("/?qa=1&bbox=128.49,37.79,128.51,37.81");
     await expect(presentation.locator(".home-curation-card")).toHaveCount(0);
     await expect(presentation.getByText("이 지도 범위에서는 추천할 장소를 찾지 못했어요.", { exact: true })).toBeVisible();
     await expect(presentation.locator(".home-curation-error")).toHaveCount(0);
-    await page.screenshot({ path: `docs/evidence/cst-home-public-acceptance-20261118/${testInfo.project.name}-empty-region.png` });
+    await page.screenshot({ path: testInfo.outputPath("home-empty-region.png") });
   } finally { cleanup(); }
 });
