@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { isControlledLocalBaseUrl } from "./local-test-target";
 
-test.skip(Boolean(process.env.BASE_URL), "Uses the isolated local category fixture and synthetic map responses");
+test.skip(!isControlledLocalBaseUrl(), "Uses the isolated local category fixture and synthetic map responses");
 
 function categoryPath() {
   return `/maps/ramen-detail?${new URLSearchParams({ q: "라멘", bbox: "126.90,35.14,126.93,35.16", selected: "sample-place-1", view: "map" })}`;

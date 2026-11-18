@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { isControlledLocalBaseUrl } from "./local-test-target";
 
-test.skip(Boolean(process.env.BASE_URL), "Uses the isolated local place fixture only");
+test.skip(!isControlledLocalBaseUrl(), "Uses the isolated local place fixture only");
 test("detail correction link retains its exact target without submitting mail", async ({ page }, testInfo) => {
   await page.goto("/places/sample-dongmyeong-ramen");
   const link = page.getByRole("link", { name: "이 장소 정보 정정 요청", exact: true });
