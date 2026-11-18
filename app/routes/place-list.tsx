@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
-import { Form, Link, useFetcher, useSearchParams } from "react-router";
+import { Link, isRouteErrorResponse, useFetcher, useLocation, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/place-list";
 import type { loader as recommendationLoader } from "./place-recommendations-resource";
 import { PlaceCard, safePlaceDetailRequestPath } from "../components/places/PlaceCard";
 import { PlaceDiscoveryRail } from "../components/places/PlaceDiscoveryRail";
 import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
 import { PlaceRecommendationControls } from "../components/places/PlaceRecommendationControls";
+import { PlaceSearchError, PlaceSearchForm } from "../components/places/PlaceSearchError";
 import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
 import { parseMapState } from "../features/maps/map-state";
@@ -50,8 +51,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { places, recommendations, state, category: category ?? null, search: url.search, tempOnly };
 }
 
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const location = useLocation();
+  const status = isRouteErrorResponse(error) ? error.status : 500;
+  return <PlaceSearchError search={location.search} status={status} />;
+}
+
 export default function PlaceList({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
+  const navigation = useNavigation();
+  const searchPending = navigation.state !== "idle" && navigation.formMethod?.toLowerCase() === "get" && navigation.location?.pathname === "/places";
   const recommendationFetcher = useFetcher<typeof recommendationLoader>();
   const [selectedBadges, setSelectedBadges] = useState(loaderData.recommendations.selectedBadges);
   const [recommendations, setRecommendations] = useState(loaderData.recommendations);
@@ -114,16 +123,9 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
         <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places">{loaderData.tempOnly ? "TEMP 베타 전체 장소" : "전체 장소"}</h2></div>
         <p>공식 출처 기반 임시 정보는 TEMP로 구분하며 현재 영업 여부는 확인 중입니다.</p>
       </header>
-      <Form action="/places" className="discovery-search">
-        <label htmlFor="place-query">장소 검색</label>
-        <input id="place-query" name="q" defaultValue={loaderData.state.query} placeholder="장소 이름이나 주소 검색" />
-        <input type="hidden" name="category" value={loaderData.category?.slug ?? ""} />
-        <input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} />
-        {loaderData.tempOnly && <input type="hidden" name="temp" value="1" />}
-        <button>찾기</button>
-      </Form>
-      <p className="discovery-count">{loaderData.places.length} PLACES · {categoryName}</p>
-      <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
+      <PlaceSearchForm context={{ query: loaderData.state.query, categorySlug: loaderData.category?.slug ?? "", bbox: loaderData.state.bbox, tempOnly: loaderData.tempOnly, badges: selectedBadges }} pending={searchPending} />
+      <p id="place-search-status" className="discovery-count" role="status" aria-live="polite" aria-atomic="true">{searchPending ? "장소를 찾고 있어요. 검색이 끝날 때까지 기존 결과를 표시합니다." : `${loaderData.places.length}곳 · ${categoryName}`}</p>
+      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
       {!loaderData.places.length && <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>}
     </section>
     <PlaceDetailSheet detailPath={detailPath} onClose={closeDetail} />

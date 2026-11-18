@@ -7,6 +7,7 @@ import { createDb } from "./db/client.server";
 import { getStudentSeat } from "./features/students/invitations.server";
 import { getGuestChoiceMergeState } from "./features/onboarding/guest-saves.server";
 import { GuestMergeRetry } from "./components/onboarding/GuestMergeRetry";
+import { PlaceSearchError } from "./components/places/PlaceSearchError";
 import "./app.css";
 import "./styles/design-system.css";
 
@@ -65,8 +66,12 @@ export default function App({ loaderData }: Route.ComponentProps) {
   </>;
 }
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const location = useLocation();
   const notFound = isRouteErrorResponse(error) && error.status === 404;
   const forbidden = isRouteErrorResponse(error) && error.status === 403;
+  if (location.pathname === "/places" && !notFound && !forbidden) {
+    return <PlaceSearchError search={location.search} />;
+  }
   return (
     <main id="main" className="error-page">
       <p className="eyebrow">{notFound ? "404 / NOT FOUND" : forbidden ? "403 / FORBIDDEN" : "ERROR"}</p>

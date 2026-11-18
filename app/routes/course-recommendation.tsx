@@ -4,6 +4,7 @@ import { Form, Link } from "react-router";
 import type { Route } from "./+types/course-recommendation";
 import { createDb } from "../db/client.server";
 import { toggleMealCategorySelection } from "../features/courses/course-filter-selection";
+import { courseLocationMessage, resolveCourseDeviceLocation, type CourseLocationStatus } from "../features/courses/course-location-feedback";
 import { parseCourseOptions } from "../features/courses/course-options";
 import { recommendCourses } from "../features/courses/course-recommendation.server";
 import { listPublicCategoryGroups } from "../features/places/place.server";
@@ -48,7 +49,42 @@ function Conditions({ data, onClose }: { data: Route.ComponentProps["loaderData"
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(data.context.locationSource === "USER" ? { lat: data.context.latitude, lng: data.context.longitude } : null);
   const [mealCategories, setMealCategories] = useState(data.options.mealCategories);
   const [mealLimitReached, setMealLimitReached] = useState(false);
-  const locate = () => navigator.geolocation?.getCurrentPosition(({ coords: next }) => setCoords({ lat: next.latitude, lng: next.longitude }), () => undefined, { enableHighAccuracy: true, timeout: 8_000 });
+  const [locationStatus, setLocationStatus] = useState<CourseLocationStatus>("IDLE");
+  const locationActive = useRef(true);
+  const locationPending = useRef(false);
+  useEffect(() => {
+    locationActive.current = true;
+    return () => { locationActive.current = false; };
+  }, []);
+  const locate = () => {
+    if (locationPending.current) return;
+    if (!navigator.geolocation) {
+      setLocationStatus("UNSUPPORTED");
+      return;
+    }
+    locationPending.current = true;
+    setLocationStatus("PENDING");
+    try {
+      navigator.geolocation.getCurrentPosition(({ coords: next }) => {
+        if (!locationActive.current) return;
+        locationPending.current = false;
+        const location = resolveCourseDeviceLocation(next);
+        if (!location) {
+          setLocationStatus("OUTSIDE");
+          return;
+        }
+        setCoords({ lat: location.latitude, lng: location.longitude });
+        setLocationStatus("SUCCESS");
+      }, (error) => {
+        if (!locationActive.current) return;
+        locationPending.current = false;
+        setLocationStatus(error.code === 1 ? "DENIED" : error.code === 3 ? "TIMEOUT" : "UNAVAILABLE");
+      }, { enableHighAccuracy: true, timeout: 8_000 });
+    } catch {
+      locationPending.current = false;
+      setLocationStatus("UNAVAILABLE");
+    }
+  };
   const toggleMeal = (slug: string) => {
     const next = toggleMealCategorySelection(mealCategories, slug);
     setMealCategories(next.values);
@@ -58,7 +94,8 @@ function Conditions({ data, onClose }: { data: Route.ComponentProps["loaderData"
     <input type="hidden" name="apply" value="1" />
     {coords && <><input type="hidden" name="lat" value={coords.lat} /><input type="hidden" name="lng" value={coords.lng} /></>}
     <div className="course-filter-title"><div><span>COURSE SETUP</span><h2>선택 조건</h2></div><button className="course-filter-close" type="button" onClick={onClose} aria-label="조건 닫기">×</button></div>
-    <button type="button" className="course-location" onClick={locate}><span aria-hidden="true">◎</span>{coords ? "현재 위치 반영됨" : "내 위치 사용"}</button>
+    <button type="button" className="course-location" onClick={locate} disabled={locationStatus === "PENDING"} aria-describedby="course-location-status" aria-busy={locationStatus === "PENDING"}><span aria-hidden="true">◎</span>{locationStatus === "PENDING" ? "위치 확인 중…" : coords ? "현재 위치 반영됨" : "내 위치 사용"}</button>
+    <p id="course-location-status" role="status" aria-live="polite">{courseLocationMessage(locationStatus, Boolean(coords))}</p>
     <ChoiceGroup legend="시간대" name="time" value={data.options.time} options={Object.entries(timeLabels).map(([value, label]) => ({ value, label }))} />
     <fieldset className="course-filter-group course-meal-group"><legend>한 끼 메뉴 <small>최대 2개</small></legend><p>먹고 싶은 메뉴를 골라주세요. 선택하지 않으면 전체를 봅니다.</p><div className="course-chip-grid course-meal-grid">
       <button type="button" className="course-choice-chip course-all-meals" aria-pressed={!mealCategories.length} data-selected={!mealCategories.length || undefined} onClick={() => { setMealCategories([]); setMealLimitReached(false); }}>전체 한 끼</button>
