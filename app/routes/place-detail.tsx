@@ -23,6 +23,7 @@ import {
 import { VoteControl } from "../components/ratings/VoteControl";
 import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
 import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
+import { loadPlaceDetailSafely, mutatePlaceDetailSafely } from "../features/places/place-detail-client";
 
 const actionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -190,6 +191,14 @@ export async function action({ request, params }: Route.ActionArgs) {
   return { ok: true };
 }
 
+export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
+  return loadPlaceDetailSafely(serverLoader);
+}
+
+export async function clientAction({ serverAction }: Route.ClientActionArgs) {
+  return mutatePlaceDetailSafely(serverAction);
+}
+
 export function meta({ params, loaderData }: Route.MetaArgs) {
   const name = params.placeSlug ?? "장소 상세";
   return [
@@ -198,12 +207,24 @@ export function meta({ params, loaderData }: Route.MetaArgs) {
     { property: "og:title", content: `${name} — Re:Taste` },
     { property: "og:description", content: "광주·전남 맛 지도" },
     { property: "og:type", content: "article" },
-    ...(loaderData?.place.tempCatalog ? [{ name: "robots", content: "noindex,follow" }] : []),
+    ...(loaderData && !("detailError" in loaderData) && loaderData.place.tempCatalog ? [{ name: "robots", content: "noindex,follow" }] : []),
   ];
 }
 
-export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
+export default function PlaceDetail({ loaderData, actionData }: Route.ComponentProps) {
+  if ("detailError" in loaderData) {
+    const unavailable = loaderData.status === 404 || loaderData.status === 403;
+    return <main id="main" className="error-page">
+      <p className="eyebrow">{unavailable ? `${loaderData.status} / UNAVAILABLE` : "CONNECTION / RETRY"}</p>
+      <h1>{loaderData.status === 404 ? "이 장소를 찾을 수 없어요." : loaderData.status === 403 ? "이 장소를 볼 수 없어요." : "장소 정보를 불러오지 못했어요."}</h1>
+      <p role="status">{unavailable ? "공개된 다른 장소를 찾아보세요." : "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p>
+      {!unavailable && <button type="button" onClick={() => window.location.reload()}>다시 불러오기</button>}
+      <Link to="/places">맛집 리스트로</Link>
+    </main>;
+  }
   const { place, rating, flavorPrint, reviewPhotos } = loaderData;
+  const mutationFailed = actionData && typeof actionData === "object" && "ok" in actionData && actionData.ok === false;
+  const mutationUnknown = Boolean(mutationFailed && "resultUnknown" in actionData && actionData.resultUnknown);
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
@@ -219,7 +240,8 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
-          <VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
+          {mutationFailed && <div role="alert"><p>{mutationUnknown ? "처리 결과를 확인하지 못했어요. 다시 반응하기 전에 현재 상태를 확인해 주세요." : "요청을 처리하지 못했어요. 현재 상태를 확인한 뒤 다시 시도해 주세요."}</p><button type="button" onClick={() => window.location.reload()}>현재 상태 다시 확인</button></div>}
+          <fieldset disabled={mutationUnknown} className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>
           <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
           {reviewPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="review-photo-gallery-title">
