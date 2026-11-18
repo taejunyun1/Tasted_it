@@ -1017,7 +1017,7 @@ describe("product event route wiring", () => {
     const db = createDb(env.DB);
     const userId = await seedUser(db);
     routeMocks.getOptionalUser.mockResolvedValue({ id: userId });
-    routeMocks.getLatestRatingSnapshot.mockRejectedValueOnce(new Error("DETAIL_LOADER_FAILED"));
+    routeMocks.getPlaceBySlug.mockRejectedValueOnce(new Error("DETAIL_LOADER_FAILED"));
     const cardPath = recommendationPlacePath("place-event-test", { variant: "personal" });
     const requestPath = recommendationRequestPath(cardPath, crypto.randomUUID());
     const { loader } = await import("../../app/routes/place-detail");
@@ -1026,6 +1026,7 @@ describe("product event route wiring", () => {
       request: new Request(`https://retaste.test${requestPath}`),
       params: { placeSlug: "place-event-test" },
     } as never)).rejects.toThrow("DETAIL_LOADER_FAILED");
+    expect(routeMocks.getPlaceBySlug).toHaveBeenCalledOnce();
     await expect(db.select().from(productEvents).where(eq(productEvents.userId, userId)))
       .resolves.toEqual([]);
   });
