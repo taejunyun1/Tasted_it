@@ -25,11 +25,22 @@
 
 ## GitHub CI 차단
 
-최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 통합 head `d6916c5`의 [CI 44148152396](https://github.com/taejunyun1/Tasted_it/actions/runs/44148152396)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
+최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 직전 확인 head `484aba9`의 [CI 44148261161](https://github.com/taejunyun1/Tasted_it/actions/runs/44148261161)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
 
 PR #448의 run [44141185490](https://github.com/taejunyun1/Tasted_it/actions/runs/44141185490)은 4개 job 모두 step 0에서 종료했다. annotation은 계정 최근 결제 실패 또는 지출 한도라고 명시한다. 이후 #455·#457에서도 동일 사유를 확인했다. 코드 시험 실패로 오인하지 않으며 CI 성공으로 표시하지 않는다. 결제/한도를 변경하거나 필수 검사를 우회하지 않았다.
 
 [통합 전환 검토안](../operations/2026-11-18-admin-b17-rollout.md)은 전체값 보존·한 번의 검증 창·실행 상한과 NAVER 전환의 추가 확인을 명시한다. 아직 실행하지 않았다.
+
+## 11/18 결제 복구 전 후속 준비
+
+사용자는 결제 복구가 당장 어렵고 운영자·문의처·보관/삭제 기간도 미정이라고 답했다. 정책은 `정책 확인 필요`, CI는 차단 상태로 유지한다. 필수 CI를 수동 재실행하거나 우회하지 않았다.
+
+- 정확한 9개 migration을 0049 합성 DB에 연속 적용하는 D1 리허설 1건 PASS. 7개 재구성 테이블의 기존 열·rowid·값과 11개 비어 있지 않은 핵심 테이블을 보존했다. FK·작업 종류·불변 영수증·quota HOLD·철회 trigger도 확인했다.
+- migration/보존 비교 도구 단위 7건, 타입 검사, production 의존성 감사 PASS. manifest의 지정9개 파일은 직전 커밋과 해시가 일치했다.
+- 독립 리뷰 PASS. 런타임 코드·migration·의존성 변경은 없다. [로컬 증거](admin-b17-offline-readiness-20261118.json)와 [재개 준비표](../operations/2026-11-18-admin-b17-readiness.md)를 추가했다.
+- 기존 B10 실행 도구는 9개 migration·전체 예산·finally 정리·정확한 RSI 증거 연결을 보완하기 전에는 재사용하지 않는다. 일반회원403의 live 확인은 별도 회원 세션 없이는 `NOT_RUN`이다.
+
+합성 보존 검사는 전체 운영 DB 복원이나 실제 인계가 아니다. 원격 사전조회·백업·migration·배포·live·정리는 이번 준비에서 모두 미실행이다.
 
 ## 재개 순서
 

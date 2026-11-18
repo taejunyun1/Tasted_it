@@ -16,10 +16,10 @@
 4. TimeTravel 정보와 비공개 export 1개를 확보한다. 각 관련 원장·job·설정의 기존 필드와 rowid·권한·감사를 정렬해 건수/digest를 남긴다. 백업 확보는 실제 복원 성공이 아니다. 특히 기존 admin operations/commits/checks, public/rating/parking runs, reviewer photo cleanup, rating config/원시표/사진/학생 권한을 포함한다.
 5. 지정 migration을 순서대로 적용한다. 새 열을 제외한 기존 자료·관계·rowid/FK가 같아야 한다. 새 quota는 역사 추정치와 초기 HOLD, feature stop 기본0, privacy/domain 표 빈 상태, cleanup 신규 소유권 값, 최종 kind union/trigger 조건을 확인한다. 실패 시 새 schema를 이해하는 fence를 유지하고 전진 수정한다. 구버전 정상 운영 재개·전체 DB 덮어쓰기는 하지 않는다.
 6. B10 계획의 정확한 기존 공공 대기 작업 한 건만 그 계획의 현재 전체값/운영자/감사/중복 guard로 RUNNING→PENDING 전환할 수 있다. 기존 사전조회 이후 값이 변했으면 새 고정 manifest를 작성하고 값과 범위를 다시 검토한다. 다른 기존 작업/점수/권한/사진/개인정보 요청은 변경하지 않는다.
-7. 정상 설정으로 같은 main을 100% 배포한다. 기존 ADMIN 계정의 고유 임시 세션 한 개(최대30분)로 각 새 화면의 읽기, 익명/일반회원 거절, no-store, 제한된 오류·미확정 미리보기·재인증 없는 확정 거절을 확인한다. 실제 설정 중단, 회원/장소 변경, 사진 삭제, 개인정보 처분, CSV 원문 추출, Resend 요청·메일, 수동 NAVER probe는 실행하지 않는다.
-8. 같은 Worker에서 기존 고정 RSI 한 번의 6경로 결과/정확 버전/정상 종료/감사 한 행을 대조한다. finally에서 이번 세션과 이 세션에 결속된 PENDING만 정확 ID로 정리한다. 완료 영수증·기존 감사는 보존한다. 최종 원장 변화는 명시된 migration/대기전환/RSI·시험 정리만 허용하며 그 외 변동은 원인을 확인한다.
+7. 정상 설정으로 같은 main을 100% 배포한다. 기존 ADMIN 계정의 고유 임시 세션 한 개(최대30분)로 각 새 화면의 읽기, 익명 거절, no-store, 제한된 오류·미확정 미리보기·재인증 없는 확정 거절을 확인한다. 일반회원403은 이 ADMIN 세션으로 증명하지 않으며 별도 범위가 없으면 로컬 검증/라이브 NOT_RUN으로 구분한다. 실제 설정 중단, 회원/장소 변경, 사진 삭제, 개인정보 처분, CSV 원문 추출, Resend 요청·메일, 수동 NAVER probe는 실행하지 않는다.
+8. 같은 Worker에서 기존 고정 RSI 한 번의 6경로 결과/정확 버전/정상 종료를 확인한다. 이번 ADMIN·요청 시간창·trigger=admin·target=rsi-admin에 일치하는 감사 한 행을 대조하고 전체 감사 건수 증가만으로 판정하지 않는다. finally에서 이번 세션과 이 세션에 결속된 PENDING만 정확 ID로 정리한다. 완료 영수증·기존 감사는 보존한다. 최종 원장 변화는 명시된 migration/대기전환/RSI·시험 정리만 허용하며 그 외 변동은 원인을 확인한다.
 
-합동 수동 한도는 HTTP90, D1 조회·관리50명령/SQL180개, export1, 지정 migration9개, 기존 ADMIN 계정의 고유 임시 세션1개, RSI1회다. 읽기 결과가 너무 크면 범위·projection을 줄여 다시 설계하고, 무제한 재시도하거나 상한을 자동으로 올리지 않는다. 각 개별 계획의 중복 session/backup/RSI는 재사용한다.
+합동 수동 한도는 HTTP90, D1 조회·관리50명령/SQL180개, export1, 지정 migration9개, 기존 ADMIN 계정의 고유 임시 세션1개, RSI1회다. 읽기 결과가 너무 크면 범위·projection을 줄여 다시 설계하고, 무제한 재시도하거나 상한을 자동으로 올리지 않는다. 각 개별 계획의 중복 session/backup/RSI는 재사용한다. 읽기와 mutation·관리 명령을 함께 계수하고 finally 정리 몫 D1명령5/SQL12를 전체 한도 안에 예약한다.
 
 ## NAVER 사용량 전환의 별도 확인
 
@@ -32,3 +32,5 @@
 ## 완료 기록
 
 기능 PR/head, main SHA, 실제 Worker 버전, migration 해시와 적용/보존 결과, 합성 검증·운영 probe의 구분, 쿼터 전환 상태, 시험 잔존0을 SSOT/위키에 기록한다. 실제 복원·실제 메일 수신·현장 실증·정책 확정·전체 A01~34를 이 전환만으로 완료 처리하지 않는다. 문서-only 변경은 다시 배포하지 않는다.
+
+[배포 재개 준비표](2026-11-18-admin-b17-readiness.md)는 기존 B10 스크립트 재사용 제한과 현재 로컬 검증/미실행 범위를 정리한다.

@@ -2,7 +2,9 @@
 
 ## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
 
-최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 통합 head `d6916c5`의 [CI 44148152396](https://github.com/taejunyun1/Tasted_it/actions/runs/44148152396)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
+최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 직전 확인 head `484aba9`의 [CI 44148261161](https://github.com/taejunyun1/Tasted_it/actions/runs/44148261161)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
+
+사용자는 11/18 결제 복구가 당장 어렵다고 답했고, 실제 운영자·문의처·보관/삭제 기간은 **정책 확인 필요**로 유지했다. 후속 준비로 9개 migration 연속 적용과 7개 변경/11개 핵심 테이블의 합성 보존 리허설 1건, 비교 도구 단위 7건, 타입·production 의존성 감사를 통과했다. [배포 재개 준비표](../operations/2026-11-18-admin-b17-readiness.md)에 실행 도구 보완점과 남은 live 증거를 기록했다. 이 로컬 결과는 CI 또는 운영 수용을 대체하지 않는다.
 
 B10 평가 PR [#444](https://github.com/taejunyun1/Tasted_it/pull/444) `990d5d4`와 공공 수집 [#446](https://github.com/taejunyun1/Tasted_it/pull/446) `941a205`는 각각 필수 4CI와 독립 리뷰를 통과해 병합했다. 주차·EV [#448](https://github.com/taejunyun1/Tasted_it/pull/448)은 관련 로컬 검증과 독립 리뷰를 통과했으나 GitHub Actions 계정 결제/지출 한도로 runner가 시작되지 않았다. [실제 check annotation](https://github.com/taejunyun1/Tasted_it/actions/runs/44141185490)을 근거로 **CI_BLOCKED / 운영 미배포**로 남긴다. 로컬 통과를 필수 CI 또는 운영 성공으로 대체하지 않는다.
 
