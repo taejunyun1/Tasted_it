@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, like, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
@@ -23,6 +23,7 @@ import type {
 } from "./place.types";
 import { publicVenueVisibilityCondition } from "./public-venue-visibility.server";
 import { attachTempCatalog } from "../temp-catalog/temp-catalog.server";
+import { PUBLIC_PLACE_PAGE_SIZE } from "./public-place-pagination";
 
 interface UpsertPlaceInput {
   id: string;
@@ -137,9 +138,15 @@ function publicFilterConditions(filters: PlaceFilters, slug?: string) {
     conditions.push(eq(categories.slug, filters.categorySlug));
   }
   if (filters.query?.trim()) {
-    const value = `%${filters.query.trim().toLocaleLowerCase("ko-KR")}%`;
+    const value = filters.query.trim().toLocaleLowerCase("ko-KR");
+    // Search text is literal, not SQL wildcard syntax. instr also avoids D1's
+    // LIKE-pattern length limit while keeping ASCII case-insensitive matching.
     conditions.push(
-      or(like(places.searchText, value), like(places.name, value))!,
+      or(
+        sql`instr(lower(${places.searchText}), ${value}) > 0`,
+        sql`instr(lower(${places.name}), ${value}) > 0`,
+        sql`instr(lower(${places.address}), ${value}) > 0`,
+      )!,
     );
   }
   if (filters.bbox) {
@@ -180,6 +187,7 @@ async function selectPublicPlaces(
     maxLimit?: number;
     recommendationCandidates?: boolean;
     recommendationOrder?: boolean;
+    offset?: number;
   } = {},
 ): Promise<PlaceDetail[]> {
   const conditions = [publicConditions(filters, slug)];
@@ -225,7 +233,8 @@ async function selectPublicPlaces(
         ? [desc(places.lastVerifiedAt), desc(places.updatedAt), asc(places.id)]
         : [asc(places.name), asc(places.id)]),
     )
-    .limit(slug ? 1 : Math.min(filters.limit ?? 100, options.maxLimit ?? 100));
+    .limit(slug ? 1 : Math.min(filters.limit ?? 100, options.maxLimit ?? 100))
+    .offset(options.offset ?? 0);
 
   return attachTempCatalog(db, rows.map((row) => ({
     id: row.id,
@@ -262,6 +271,26 @@ export async function listPlaces(
     db,
     await selectPublicPlaces(db, filters),
   );
+}
+
+export async function getPublicPlacePage(db: AppDb, filters: Omit<PlaceFilters, "limit">, page = 1) {
+  if (!Number.isSafeInteger(page) || page < 1) throw new Error("PUBLIC_PLACE_PAGE_INVALID");
+  const [count] = await db.select({ total: sql<number>`count(distinct ${places.id})` })
+    .from(places)
+    .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
+    .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
+    .where(publicConditions(filters));
+  const total = Number(count?.total ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / PUBLIC_PLACE_PAGE_SIZE));
+  const rows = page > totalPages ? [] : await attachLatestNonStaleRatingSnapshots(
+    db,
+    await selectPublicPlaces(db, { ...filters, limit: PUBLIC_PLACE_PAGE_SIZE }, undefined, { offset: (page - 1) * PUBLIC_PLACE_PAGE_SIZE }),
+  );
+  const start = rows.length ? (page - 1) * PUBLIC_PLACE_PAGE_SIZE + 1 : 0;
+  return {
+    places: rows, total, page, pageSize: PUBLIC_PLACE_PAGE_SIZE, totalPages,
+    start, end: start ? start + rows.length - 1 : 0, outOfRange: page > 1 && !rows.length,
+  };
 }
 
 export async function listRecommendationCandidates(
