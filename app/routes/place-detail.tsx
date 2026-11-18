@@ -133,7 +133,12 @@ export async function action({ request, params }: Route.ActionArgs) {
   const now = new Date().toISOString();
   const provenance = recommendationProvenance(request);
   if (parsed.data.intent === "vote") {
-    await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now, feedback: { reason: parsed.data.reason } });
+    try {
+      await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now, feedback: { reason: parsed.data.reason } });
+    } catch (error) {
+      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, intent: "vote", requiresRefresh: true, error: "VOTE_VERSION_CONFLICT", message: "다른 요청에서 평가가 변경되었습니다. 현재 상태를 다시 확인해 주세요." }, { status: 409 });
+      throw error;
+    }
     try {
       await refreshInferredTasteSignals(db, user.id, now);
     } catch {
@@ -153,7 +158,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     try {
       await withdrawVote(db, { placeId: place.id, userId: user.id, eventId: crypto.randomUUID(), now, clearFeedback: true, expectedEventId: parsed.data.expectedEventId });
     } catch (error) {
-      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, error: "VOTE_VERSION_CONFLICT", message: "반응이 변경되었습니다. 새로고침한 뒤 다시 시도해 주세요." }, { status: 409 });
+      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, intent: "withdraw", requiresRefresh: true, error: "VOTE_VERSION_CONFLICT", message: "다른 요청에서 평가가 변경되었습니다. 현재 상태를 다시 확인해 주세요." }, { status: 409 });
       throw error;
     }
     try {
@@ -182,8 +187,14 @@ export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
   return loadPlaceDetailSafely(serverLoader);
 }
 
-export async function clientAction({ serverAction }: Route.ClientActionArgs) {
-  return mutatePlaceDetailSafely(serverAction);
+export async function clientAction({ request, serverAction }: Route.ClientActionArgs) {
+  const formData = await request.clone().formData();
+  const intent = formData.get("intent");
+  const outcome = await mutatePlaceDetailSafely(serverAction);
+  if ((intent === "vote" || intent === "withdraw") && outcome && typeof outcome === "object" && "ok" in outcome) {
+    return { ...outcome, intent, ...(intent === "vote" && outcome.ok === true ? { value: formData.get("value") === "-1" ? -1 as const : 1 as const } : {}) };
+  }
+  return outcome;
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
