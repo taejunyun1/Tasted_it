@@ -4,6 +4,8 @@
 
 ## 도구 지원 범위와 남은 중단점
 
+전체 기존 HTTP·R2 작업의 종료를 확정할 공개 API는 11/18 재확인에서도 발견하지 못했다. 별도 후보 D1·R2에 격리하는 [대체 전환 검토안](2026-11-18-admin-b17-isolated-cutover.md)을 작성했다. 원본 D1의 82표 장벽과 오류 시 전량 철회는 로컬 검증 범위다. 실제 쓰기 종료 판정과 현행 runner HOLD를 유지한다.
+
 - `b17-preservation-evidence.mjs`: 실제 0049 D1 schema에서 추출한 기존82개 테이블·853개 열과 schema object hash를 기준으로 전체 원장을 수집·비교한다. 기존 열·rowid·SQLite 자료형을 보존하며, 학생 권한/업무·원시 평가·사진 권리·설정·감사도 포함한다. 새로운9개 테이블의 존재와 schema는 전환 후 catalog로 확인하되 새 기본값·권한/trigger 검증은 기존 B17 리허설과 구분한다.
 - `b17-rollout-runner.mjs prepare`: 네트워크 없이 파일 해시·고정201 SQL·수집 비용·실행 한도를 점검한다.
 - `preflight`는 병합된 소스와 해당 PR head의 CI, 실제 현재 설정·binding·cron·pending을 읽는다. B09의 HTTP/R2 종료를 확정할 방법이 없어 `LIVE_HTTP_DRAIN_OBSERVATION_REQUIRED`로 보류한다.
