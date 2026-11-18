@@ -101,3 +101,12 @@ it("requires the current active reviewer role for every search request", async (
   expect((await searchLoader({ request: request() } as never)).init?.status).toBe(403);
   await expect(searchLoader({ request: new Request("https://retaste.test/resources/reviewer-places") } as never)).rejects.toMatchObject({ status: 302 });
 });
+
+it("targets the reviewer workspace after authentication instead of the resource URL or home", async () => {
+  let response: unknown;
+  try { await searchLoader({ request: new Request("https://retaste.test/resources/reviewer-places?q=라멘&requestKey=expired") } as never); }
+  catch (error) { response = error; }
+  expect(response).toBeInstanceOf(Response);
+  expect((response as Response).headers.get("Location")).toBe("/login?returnTo=%2Freviewer%2Fratings");
+  expect((response as Response).headers.get("Cache-Control")).toBe("private, no-store");
+});

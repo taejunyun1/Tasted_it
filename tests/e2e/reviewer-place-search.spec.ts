@@ -81,10 +81,24 @@ test("an expired reviewer session redirects to login during a place search", asy
     await page.goto("/reviewer/ratings");
     const search = page.getByPlaceholder("다녀온 장소 검색");
     await expect(search).toBeEnabled();
-    execute(`UPDATE sessions SET expires_at='2000-01-01T00:00:00Z' WHERE id='${sessionId}' AND user_id='qa-active-reviewer'`);
     await search.fill("끝까지선택검증 42");
+    await page.getByLabel("장소 검색 결과", { exact: true }).getByRole("button", { name: /끝까지선택검증 42/ }).click();
+    await page.getByRole("button", { name: "다음: 평가", exact: true }).click();
+    await page.getByRole("button", { name: "보류", exact: true }).click();
+    await page.getByRole("button", { name: "이전", exact: true }).click();
+    execute(`UPDATE sessions SET expires_at='2000-01-01T00:00:00Z' WHERE id='${sessionId}' AND user_id='qa-active-reviewer'`);
+    await search.fill("끝까지선택검증 00");
     await expect(page).toHaveURL(/\/login\?/);
+    expect(new URL(page.url()).searchParams.get("returnTo")).toBe("/reviewer/ratings");
+    await expect(page.locator('input[name="returnTo"]')).toHaveValue("/reviewer/ratings");
     await expect(page.getByLabel("이메일", { exact: true })).toBeVisible();
+    // Use the same reviewer's pre-existing valid QA session to represent renewed
+    // authentication; credential-provider behavior is tested independently.
+    await context.addCookies([{ name: "retaste_session", value: "qa-active-reviewer-session", url: String(testInfo.project.use.baseURL) }]);
+    await page.goto("/reviewer/ratings");
+    await expect(page.getByText("작성 중이던 리뷰를 이어서 열었어요.")).toBeVisible();
+    await expect(page.locator('input[name="placeId"]')).toHaveValue("qa-picker-42");
+    await expect(page.locator('input[name="evaluation"]')).toHaveValue("HOLD");
   } finally {
     execute(`DELETE FROM sessions WHERE id='${sessionId}' AND user_id='qa-active-reviewer'`);
   }

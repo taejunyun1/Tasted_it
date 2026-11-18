@@ -12,7 +12,17 @@ const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 export async function loader({ request }: Route.LoaderArgs) {
   let user;
   try { user = await requireUser(request); }
-  catch (error) { if (error instanceof Response) { for (const [key, value] of Object.entries(headers)) error.headers.set(key, value); } throw error; }
+  catch (error) {
+    if (error instanceof Response) {
+      if (error.status >= 300 && error.status < 400 && error.headers.get("Location")?.startsWith("/login?")) {
+        // A data resource is not a user destination. Return authentication to
+        // its trusted owning page, where the local review draft can resume.
+        error.headers.set("Location", "/login?returnTo=%2Freviewer%2Fratings");
+      }
+      for (const [key, value] of Object.entries(headers)) error.headers.set(key, value);
+    }
+    throw error;
+  }
   const candidateKey = new URL(request.url).searchParams.get("requestKey") ?? "";
   let requestKey = /^[A-Za-z0-9_-]{0,80}$/.test(candidateKey) ? candidateKey : "";
   try {
