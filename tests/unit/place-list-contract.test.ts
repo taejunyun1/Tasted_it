@@ -34,6 +34,7 @@ vi.mock("../../app/features/places/place-recommendation.server", () => ({
 }));
 vi.mock("../../app/features/places/place.server", () => ({
   listPlaces: vi.fn(async () => []),
+  getPublicPlacePage: vi.fn(async () => ({ places: [], total: 0, page: 1, pageSize: 100, totalPages: 1, start: 0, end: 0, outOfRange: false })),
   listPublicCategoryGroups: vi.fn(async () => []),
 }));
 

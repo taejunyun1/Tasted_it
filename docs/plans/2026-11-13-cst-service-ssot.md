@@ -1,5 +1,11 @@
 # CST 서비스 준비 실행계획 SSOT — 2026-12-10
 
+## 2026-11-18 UI/UX 기능 완성 후속
+
+[#471](https://github.com/taejunyun1/Tasted_it/issues/471)의 구현·화면·실패 복구 범위는 [기능 완료 원장](2026-11-18-cst-ui-feature-completion.md)에 전체 U/D/S 및 감사§9와 연결한다. 인증/정정·리뷰어 검색·회원 저장·상세 요청 결속·위치/지도 SDK·공개 meta/sitemap을 통합했고, `03b624c` 가독성과 `a4912db` 공개 목록 페이지 처리와 `a901b5a` 지도 실패/세션 경계·접근성·실제 메뉴 클릭 검증을 추가했다. 원장은 구현·지정 범위 로컬 검증·실제 운영 상태를 구분하며 전체 목표는 진행 중이다.
+
+`e9634b6` 평가 근거/표본수/시각·`ad15c2c` Golden Pick 최종 확인·`a5ce06a` 가독성/페이지 meta를 추가 검증했다. 다음은 ADMIN 결과/접근성 보완의 #470 합류와 남은 U/D/S 조합 검증이다. 필수 CI 결제 제한과 실제 운영자/문의처/보존 정책 미정은 유지한다. 이 UI 변경으로 새 운영 배포·원격 자료 변경은 수행하지 않았으며 #397은 HOLD다.
+
 ## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
 
 최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 직전 확인 head `484aba9`의 [CI 44148261161](https://github.com/taejunyun1/Tasted_it/actions/runs/44148261161)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.

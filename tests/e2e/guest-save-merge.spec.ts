@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { isControlledLocalBaseUrl } from "./local-test-target";
 import { execFileSync } from "node:child_process";
 
 function localD1(sql: string) {
   return execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", sql], { encoding: "utf8" });
 }
 test.beforeEach(async ({}, testInfo) => {
-  test.skip(Boolean(process.env.BASE_URL), "Local synthetic D1 only");
+  test.skip(!isControlledLocalBaseUrl(), "Local synthetic D1 only");
   const userId = `e2e-onboarding-${testInfo.project.name}`;
   localD1(`DELETE FROM saved_places WHERE user_id='${userId}'; DELETE FROM member_save_choices WHERE user_id='${userId}';`);
 });
@@ -19,7 +20,8 @@ test("guest save waits for hydration and its initial read, then recovers the cur
   const entryBarrier = new Promise<void>((resolve) => { releaseEntry = resolve; });
   const readBarrier = new Promise<void>((resolve) => { releaseRead = resolve; });
   const initialRead = new Promise<void>((resolve) => { readStarted = resolve; });
-  await page.route("**/entry.client.tsx*", async (route) => { await entryBarrier; await route.continue(); });
+  const isClientEntry = (url: string) => /\/(?:entry\.client\.tsx(?:\?|$)|assets\/entry\.client-[^/?]+\.js(?:\?|$))/.test(url);
+  await page.route(url => isClientEntry(url.href), async (route) => { await entryBarrier; await route.continue(); });
   let firstRead = true;
   await page.route("**/resources/guest-saves*", async (route) => {
     if (route.request().method() === "GET" && firstRead) {
@@ -30,7 +32,7 @@ test("guest save waits for hydration and its initial read, then recovers the cur
     }
     return route.continue();
   });
-  const entryRequested = page.waitForRequest((request) => /\/entry\.client\.tsx(?:\?|$)/.test(request.url()));
+  const entryRequested = page.waitForRequest((request) => isClientEntry(request.url()));
   try {
     await page.goto(detail, { waitUntil: "commit" });
     await entryRequested;
@@ -114,7 +116,7 @@ test("guest saves survive reload, keep their unsave intent after failure and con
   await expect(save).toBeEnabled();
   await save.click();
   await expect(unsave).toBeEnabled();
-  await page.screenshot({ path: `docs/evidence/cst-guest-save-20261113/${testInfo.project.name}-guest-saved.png`, fullPage: true });
+  await page.screenshot({ path: `docs/evidence/cst-guest-save-20261118/${testInfo.project.name}-guest-saved.png`, fullPage: true });
 
   await page.getByRole("link", { name: "로그인하고 취향 남기기" }).click();
   await expect(page).toHaveURL(/\/login\?returnTo=%2Fplaces%2Fsample-dongmyeong-ramen$/);
@@ -141,7 +143,7 @@ test("a failed login merge keeps the guest original and offers explicit retry on
     await expect(page).toHaveURL(new RegExp(`${detail}$`));
     await expect(page.getByRole("button", { name: "임시 자료 다시 연결" })).toBeVisible();
     expect((await context.cookies()).some((cookie) => cookie.name === "retaste_guest")).toBe(true);
-    await page.screenshot({ path: `docs/evidence/cst-guest-save-20261113/${testInfo.project.name}-merge-retry.png`, fullPage: true });
+    await page.screenshot({ path: `docs/evidence/cst-guest-save-20261118/${testInfo.project.name}-merge-retry.png`, fullPage: true });
   } finally { localD1(`DROP TRIGGER IF EXISTS ${trigger};`); }
   await page.getByRole("button", { name: "임시 자료 다시 연결" }).click();
   await expect(page.getByRole("button", { name: "저장됨", exact: true })).toBeVisible();
@@ -158,7 +160,7 @@ test("mobile detail sheet offers the same temporary save without leaving the lis
   await dialog.getByRole("button", { name: "임시 저장", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "임시 저장 해제", exact: true })).toBeEnabled();
   expect(new URL(page.url()).pathname).toBe("/places");
-  await page.screenshot({ path: "docs/evidence/cst-guest-save-20261113/mobile-sheet-saved.png", fullPage: true });
+  await page.screenshot({ path: "docs/evidence/cst-guest-save-20261118/mobile-sheet-saved.png", fullPage: true });
 });
 
 test("switching a saved mobile sheet to another place with a failed load does not reuse the previous save choice", async ({ page }, testInfo) => {

@@ -21,7 +21,7 @@
 .admin-members__list strong{font-size:.95rem;overflow-wrap:anywhere}
 .admin-members__list div>span{font-size:.8rem;overflow-wrap:anywhere;color:var(--color-ink-muted,#526056)}
 .admin-members__list small{font-size:.75rem;color:var(--color-ink-muted,#526056)}
-.admin-members__state{flex-shrink:0;font-size:.7rem;font-weight:700;white-space:nowrap;color:var(--color-accent);background:var(--surface-soft);padding:6px 9px;border-radius:var(--radius-pill)}
+.admin-members__state{flex-shrink:0;font-size:var(--font-size-label);font-weight:700;white-space:nowrap;color:var(--color-accent);background:var(--surface-soft);padding:6px 9px;border-radius:var(--radius-pill)}
 .admin-members__state--restricted{color:#8a2925;background:#fcebea}
 .admin-members__pagination{display:flex;justify-content:space-between;gap:var(--space-4);font-size:.8rem;margin:var(--space-4) 0}
 .admin-members__detail,.admin-members__preview{background:var(--surface-card);border:1px solid var(--color-line);padding:var(--space-6);border-radius:var(--radius-card);min-width:0}
@@ -45,4 +45,4 @@
 .admin-members__buttons{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-5);margin-top:var(--space-5)}
 .admin-members button.admin-members__danger{background:var(--color-accent);color:#fff;border-color:var(--color-accent)}
 .admin-members__empty{padding:var(--space-6);line-height:1.7}
-@media(max-width:760px){.admin-members__grid{grid-template-columns:minmax(0,1fr)}.admin-members__detail{grid-row:1;padding:var(--space-4)}.admin-members__preview{padding:var(--space-4)}.admin-members__search{gap:var(--space-2)}.admin-members__search button{padding-inline:var(--space-4)}.admin-members dl>div{grid-template-columns:80px minmax(0,1fr)}.admin-members__list-section>.admin-home__section-heading{flex-direction:row;align-items:center}.admin-members__state{font-size:.65rem}}
+@media(max-width:760px){.admin-members__grid{grid-template-columns:minmax(0,1fr)}.admin-members__detail{grid-row:1;padding:var(--space-4)}.admin-members__preview{padding:var(--space-4)}.admin-members__search{gap:var(--space-2)}.admin-members__search button{padding-inline:var(--space-4)}.admin-members dl>div{grid-template-columns:80px minmax(0,1fr)}.admin-members__list-section>.admin-home__section-heading{flex-direction:row;align-items:center}.admin-members__state{font-size:var(--font-size-label)}}

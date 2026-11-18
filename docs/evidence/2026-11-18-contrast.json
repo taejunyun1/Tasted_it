@@ -1,0 +1,192 @@
+{
+  "source": {
+    "baseSha": "e9634b6500cb9f13d38fd2a4a15d4e864a14a247",
+    "runtime": "local compiled Worker http://127.0.0.1:5190",
+    "change": "Owner-provided uncommitted CSS: --color-ink-muted:#526056; app/app.css and app/styles/design-system.css"
+  },
+  "scope": "Only prior failing pairs on places/courses/me at390/1440 plus sample detail390. Solid-background text with ancestor alpha blending; excludes gradients/images/unknown layers. Not full WCAG AA verification.",
+  "cases": 7,
+  "failedComputableText": 0,
+  "localAssetFailures": 0,
+  "pageErrors": 0,
+  "checks": [
+    {
+      "page": "/places",
+      "selector": "main.shell.discovery-page > section.discovery-recommendations > section.discovery-section > header.discovery-heading > p",
+      "text": "익숙한 취향 네 곳, 이어지는 맛 두 곳, 평소와 다른 선택 두 곳을 섞었습니다.",
+      "foreground": "#526056",
+      "background": "#f3f4ed",
+      "ratio": 5.99,
+      "required": 4.5,
+      "fontSize": 13,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/places",
+      "selector": "main.shell.discovery-page > section.discovery-recommendations > section.discovery-section > header.discovery-heading > p",
+      "text": "높은 추천률보다 충분한 평가와 회원·리뷰어의 의견 일치를 먼저 봅니다.",
+      "foreground": "#526056",
+      "background": "#edf4ed",
+      "ratio": 5.93,
+      "required": 4.5,
+      "fontSize": 13,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/places",
+      "selector": "main.shell.discovery-page > section.discovery-section.discovery-all > header.discovery-heading > p",
+      "text": "공식 출처 기반 임시 정보는 TEMP로 구분하며 현재 영업 여부는 확인 중입니다.",
+      "foreground": "#526056",
+      "background": "#f3f4ed",
+      "ratio": 5.99,
+      "required": 4.5,
+      "fontSize": 13,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/courses",
+      "selector": "main.course-page > header.course-hero > div.course-context > small",
+      "text": "AUTO CONTEXT",
+      "foreground": "#526056",
+      "background": "#e4ebe4",
+      "ratio": 5.46,
+      "required": 4.5,
+      "fontSize": 12,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/courses",
+      "selector": "aside.course-filter-sheet > form.course-filter-form > fieldset.course-filter-group.course-meal-group > legend > small",
+      "text": "최대 2개",
+      "foreground": "#526056",
+      "background": "#e5ebe3",
+      "ratio": 5.47,
+      "required": 4.5,
+      "fontSize": 12,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/courses",
+      "selector": "fieldset.course-filter-group.course-meal-group > div.course-chip-grid.course-meal-grid > label > span.course-choice-chip.course-meal-chip > small",
+      "text": "1",
+      "foreground": "#526056",
+      "background": "#ffffff",
+      "ratio": 6.63,
+      "required": 4.5,
+      "fontSize": 12,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/me",
+      "selector": "section.member-activity > div.member-activity-grid > section.member-activity-card > div.member-empty > p",
+      "text": "방문한 장소에 추천 또는 비추천을 남겨보세요.",
+      "foreground": "#526056",
+      "background": "#ffffff",
+      "ratio": 6.63,
+      "required": 4.5,
+      "fontSize": 13,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/me",
+      "selector": "main.member-hub > div.shell > aside.member-connection-badges > span",
+      "text": "N 네이버",
+      "foreground": "#526056",
+      "background": "#f5f6f3",
+      "ratio": 6.11,
+      "required": 4.5,
+      "fontSize": 12,
+      "widths": [
+        390,
+        1440
+      ],
+      "pass": true
+    },
+    {
+      "page": "/places/sample-dongmyeong-ramen",
+      "selector": "main.detail.shell > div.detail-grid > div.detail-hero > span",
+      "text": "🍜",
+      "foreground": "#526056",
+      "background": "#e8e8e3",
+      "ratio": 5.4,
+      "required": 4.5,
+      "fontSize": 16,
+      "widths": [
+        390
+      ],
+      "pass": true
+    },
+    {
+      "page": "/places/sample-dongmyeong-ramen",
+      "selector": "div.detail-grid > article.detail-copy > div.score > small.public-rating-meta > span",
+      "text": "새 평가 반영 중",
+      "foreground": "#526056",
+      "background": "#f3f4ed",
+      "ratio": 5.99,
+      "required": 4.5,
+      "fontSize": 12,
+      "widths": [
+        390
+      ],
+      "pass": true
+    },
+    {
+      "page": "/places/sample-dongmyeong-ramen",
+      "selector": "main.detail.shell > div.detail-grid > article.detail-copy > div.score > small.public-rating-meta",
+      "text": "·",
+      "foreground": "#526056",
+      "background": "#f3f4ed",
+      "ratio": 5.99,
+      "required": 4.5,
+      "fontSize": 12,
+      "widths": [
+        390
+      ],
+      "pass": true
+    },
+    {
+      "page": "/places/sample-dongmyeong-ramen",
+      "selector": "div.detail-grid > article.detail-copy > div.score > small.public-rating-meta > time",
+      "text": "미계산",
+      "foreground": "#526056",
+      "background": "#f3f4ed",
+      "ratio": 5.99,
+      "required": 4.5,
+      "fontSize": 12,
+      "widths": [
+        390
+      ],
+      "pass": true
+    }
+  ],
+  "source_sha": "a5ce06adaba197102d33f3a3ed7e6fa38396873d",
+  "scope_note": "단색 배경의 확인된 실패 쌍 및 상세 사진 없음/평가 메타만. 전체 WCAG 인증이나 모든 배경의 대비 검증이 아님."
+}

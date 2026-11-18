@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gte, ne, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import {
@@ -43,7 +43,10 @@ export async function getHiddenGemStatus(db: AppDb, input: { placeId: string; no
     .innerJoin(placeCategories, and(eq(placeCategories.placeId, places.id), eq(placeCategories.categoryId, target[0].categoryId), eq(placeCategories.isPrimary, true)))
     .where(and(eq(places.status, "PUBLISHED"), eq(places.neighborhood, target[0].neighborhood))).limit(1_000)).map((row) => row.placeId) : [];
   const metrics = peerIds.length ? await db.select().from(placeDailyMetrics)
-    .where(and(inArray(placeDailyMetrics.placeId, peerIds), gte(placeDailyMetrics.metricDate, dateOnly(cutoff.toISOString())))) : [];
+    .where(and(
+      sql`${placeDailyMetrics.placeId} in (select value from json_each(${JSON.stringify(peerIds)}))`,
+      gte(placeDailyMetrics.metricDate, dateOnly(cutoff.toISOString())),
+    )) : [];
   const viewsByPlace = new Map(peerIds.map((placeId) => [placeId, 0]));
   for (const metric of metrics) viewsByPlace.set(metric.placeId, (viewsByPlace.get(metric.placeId) ?? 0) + metric.detailViews);
   const snapshot = await getLatestRatingSnapshot(db, input.placeId);

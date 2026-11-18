@@ -11,6 +11,9 @@ import type { loader as homeRecommendationLoader } from "./home-recommendations-
 import { HomeCurationPanel } from "../components/map/HomeCurationPanel";
 import { HomeCurationSheet, type HomeSheetSnap } from "../components/map/HomeCurationSheet";
 import { MapExplorerPanel } from "../components/map/MapExplorerPanel";
+import { MapReadBoundary, MapReadError, useMapViewerKey } from "../components/map/MapReadBoundary";
+import { isMapReadFailure, keepMapShell, readMapData } from "../features/maps/map-read-recovery";
+import { mapViewerKey } from "../features/maps/map-viewer-key.server";
 import { MapPlaceDetail } from "../components/map/MapPlaceDetail";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
@@ -39,7 +42,8 @@ import {
   recordHomeRecommendation,
 } from "../features/places/home-curation-history.client";
 import { getHomeCurationPage } from "../features/places/home-curation.server";
-import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
+import { getPublicPlaceCounts, listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
+import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
 type RecommendationFetcherState = "idle" | "loading" | "submitting";
 
@@ -156,28 +160,23 @@ export function getRecordableHomeRecommendation(
   return { requestKey, page: page as HomeCurationPage };
 }
 
-export function meta() {
+export function meta({ loaderData }: Route.MetaArgs) {
   const title = "Re:Taste — 내 주변 맛 지도";
   const description = "현재 위치에서 찾는 광주·전남 맛 지도";
-  return [
-    { title },
-    { name: "description", content: description },
-    { property: "og:title", content: title },
-    { property: "og:description", content: description },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary" },
-  ];
+  return publicPageMeta({ title, description, path: "/", origin: loaderData && !isMapReadFailure(loaderData) ? loaderData.publicOrigin : null });
 }
 
-export const shouldRevalidate: ShouldRevalidateFunction = ({
-  currentUrl,
-  nextUrl,
-  defaultShouldRevalidate,
-}) => {
-  const sameHomePath = currentUrl.pathname === nextUrl.pathname;
+export async function clientLoader({ request, serverLoader }: Route.ClientLoaderArgs) {
+  return readMapData(request, serverLoader);
+}
+
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) { return <MapReadError error={error} />; }
+
+export const shouldRevalidate: ShouldRevalidateFunction = (input) => {
+  const { currentUrl, nextUrl, defaultShouldRevalidate } = input;
   const currentView = parseHomeCurationState(currentUrl.search).view;
   const nextView = parseHomeCurationState(nextUrl.search).view;
-  if (sameHomePath && currentView === "curated" && nextView === "curated") return false;
+  if (keepMapShell(input) && currentView === "curated" && nextView === "curated") return false;
   return defaultShouldRevalidate;
 };
 
@@ -188,8 +187,11 @@ export async function loader({ request }: Route.LoaderArgs) {
   const category = url.searchParams.get("category") || undefined;
   const qaMode = url.searchParams.has("qa");
   const db = createDb(env.DB);
+  const user = await getOptionalUser(request);
   const common = {
     state,
+    mapViewerKey: await mapViewerKey(request, user),
+    publicOrigin: resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL),
     category: category ?? null,
     // QA is deliberately self-contained: it must not call the external map SDK
     // just because an operator's local `.dev.vars` has a real Client ID.
@@ -198,15 +200,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 
   if (homeState.view === "browse") {
-    const [places, groups] = await Promise.all([
+    const [places, groups, placeCounts] = await Promise.all([
       listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
-      listPublicCategoryGroups(db),
+      listPublicCategoryGroups(db, { query: state.query, bbox: state.bbox }),
+      getPublicPlaceCounts(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
     ]);
-    return { ...common, view: "browse" as const, places, groups, curation: null };
+    return { ...common, view: "browse" as const, places, groups, placeCounts, curation: null };
   }
 
   const now = new Date().toISOString();
-  const user = await getOptionalUser(request);
   const guest = !user && env.ONBOARDING_ENABLED === "true"
     ? await getGuestOnboardingFromRequest(db, request, now)
     : null;
@@ -227,11 +229,22 @@ export async function loader({ request }: Route.LoaderArgs) {
     view: "curated" as const,
     places: curation.places,
     groups: [],
+    placeCounts: null,
     curation,
   };
 }
 
+type HomeData = Awaited<ReturnType<typeof loader>>;
 export default function Home({ loaderData }: Route.ComponentProps) {
+  const viewer = useMapViewerKey();
+  const [invalidViewer, setInvalidViewer] = useState<string | null>(null);
+  const allowIncoming = invalidViewer !== viewer && (isMapReadFailure(loaderData) || loaderData.mapViewerKey === viewer);
+  return <MapReadBoundary<HomeData> incoming={loaderData} scope={`home:${viewer}`} allowIncoming={allowIncoming}>
+    {(data, failed) => <HomeView key={viewer} loaderData={data} readFailed={failed} viewerKey={viewer} onViewerChange={() => setInvalidViewer(viewer)} />}
+  </MapReadBoundary>;
+}
+
+function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loaderData: HomeData; readFailed: boolean; viewerKey: string; onViewerChange: () => void }) {
   const [params, setParams] = useSearchParams();
   const recommendationFetcher = useFetcher<typeof homeRecommendationLoader>();
   const [curation, setCuration] = useState(loaderData.curation);
@@ -257,7 +270,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     bbox: liveMapState.bbox,
     locationSource: liveHomeState.locationSource,
   });
-  const isCurated = liveHomeState.view === "curated";
+  const isCurated = readFailed ? loaderData.view === "curated" : liveHomeState.view === "curated";
   const activeCuration = curation ?? loaderData.curation;
   const activePlaces = isCurated && activeCuration ? activeCuration.places : loaderData.places;
   const requestedSelectedId = params.get("selected");
@@ -283,6 +296,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     && !recommendationFetcher.data.ok
     ? recommendationFetcher.data.message
     : null;
+  const viewerChanged = recommendationResponseIsCurrent && recommendationFetcher.data?.ok === true
+    && recommendationFetcher.data.mapViewerKey !== viewerKey;
+
+  useEffect(() => {
+    if (viewerChanged) onViewerChange();
+  }, [viewerChanged, onViewerChange]);
 
   useEffect(() => {
     if (!loaderData.curation) return;
@@ -323,6 +342,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   }, [currentRecommendationRouteKey]);
 
   useEffect(() => {
+    if (viewerChanged) return;
     if (recommendationFetcher.state !== "idle") {
       startedRequestKeyRef.current = pendingRequestKeyRef.current;
       return;
@@ -348,7 +368,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       pendingRequestRouteKeyRef,
       startedRequestKeyRef,
     });
-  }, [currentRecommendationRouteKey, recommendationFetcher.data, recommendationFetcher.state]);
+  }, [currentRecommendationRouteKey, recommendationFetcher.data, recommendationFetcher.state, viewerChanged]);
 
   useEffect(() => {
     const curationMatchesUrl = !isCurated || activeCuration?.mode === liveHomeState.mode;
@@ -479,6 +499,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, liveHomeState.locationSource),
   } : null;
 
+  if (viewerChanged) return <MapReadError viewerChanged />;
+
   return <main id="main" className={`map-explorer${isCurated ? " map-explorer--curated" : ""}`}>
     {isCurated && presentationProps ? <HomeCurationPanel {...presentationProps} /> : <MapExplorerPanel
       places={activePlaces}
@@ -487,11 +509,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       clusterLevel={clusterLevel}
       query={liveMapState.query}
       category={loaderData.category}
+      counts={loaderData.placeCounts}
       hasSelectedPlace={Boolean(selectedPlace)}
       onSelect={(id) => setSearch({ selected: id })}
       onSearch={(q) => setSearch({ q, selected: null })}
       onCategory={(category) => setSearch({ category, selected: null })}
       onLocate={locate}
+      onExpandBounds={(bounds) => { setLocationBounds(bounds); setBounds(bounds); }}
       onGroupSelect={focusRegion}
     />}
     <section className="map-explorer-map" aria-label="지도 영역">

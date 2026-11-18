@@ -1,11 +1,11 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { Route } from "./+types/reviewer-ratings";
 
 import { ReviewerVisitFlow } from "../components/reviewer-visit-flow";
 import { createDb } from "../db/client.server";
-import { categories, placeCategories, places, reviewerProfiles } from "../db/schema";
+import { categories, reviewerProfiles } from "../db/schema";
 import { requireUser } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getGoldenPickQuota } from "../features/ratings/golden-pick.server";
@@ -15,8 +15,9 @@ import {
 import {
   listReviewerVisitHistory,
 } from "../features/ratings/reviewer-visit.server";
-import { reviewerSubmissionPlaceCondition } from "../features/ratings/reviewer-publication.server";
 import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit-publish.server";
+import { listReviewerPlacePage } from "../features/ratings/reviewer-place-search.server";
+import { parseReviewerPlaceSearch, ReviewerPlaceSearchInputError } from "../features/ratings/reviewer-place-search";
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
 
@@ -32,19 +33,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const now = new Date().toISOString();
   const reviewer = await db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, user.id) });
   const canSubmit = user.role === "REVIEWER" && reviewer?.status === "ACTIVE";
-  const [placeRows, categoryRows, history, goldenQuota] = await Promise.all([
-    canSubmit ? db.select({
-      placeId: places.id,
-      placeName: places.name,
-      neighborhood: places.neighborhood,
-      categoryId: categories.id,
-      categoryName: categories.name,
-      categoryEmoji: categories.emoji,
-    }).from(places)
-      .innerJoin(placeCategories, and(eq(placeCategories.placeId, places.id), eq(placeCategories.isPrimary, true)))
-      .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
-      .where(reviewerSubmissionPlaceCondition())
-      .orderBy(asc(places.name)) : [],
+  let placeInput;
+  try { placeInput = parseReviewerPlaceSearch(search); } catch (error) { if (error instanceof ReviewerPlaceSearchInputError) throw new Response("장소 검색 조건을 확인해 주세요.", { status: 400 }); throw error; }
+  const [placeResult, categoryRows, history, goldenQuota] = await Promise.all([
+    canSubmit ? listReviewerPlacePage(db, user.id, placeInput) : { page: { query: "", places: [], nextCursor: null }, selectedPlace: null },
     canSubmit ? db.select({ id: categories.id, name: categories.name, emoji: categories.emoji })
       .from(categories)
       .where(eq(categories.isActive, true))
@@ -54,8 +46,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   ]);
   const reviewableNames = new Set(Object.keys(REVIEWER_BADGE_CATALOG));
   const reviewCategories = categoryRows.filter((category) => reviewableNames.has(category.name));
-  const reviewCategoryIds = new Set(reviewCategories.map((category) => category.id));
-  const reviewPlaces = placeRows.filter((place) => reviewCategoryIds.has(place.categoryId));
   const requestedPublishedId = new URL(request.url).searchParams.get("submitted");
   const publishedReviewId = history.some((review) => review.id === requestedPublishedId) ? requestedPublishedId : null;
   const requestedNotice = new URL(request.url).searchParams.get("notice");
@@ -69,7 +59,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     canSubmit,
     historyNextHref,
     historyHasCursor: Boolean(cursor),
-    places: canSubmit ? reviewPlaces : [],
+    places: placeResult.page.places,
+    placePage: placeResult.page,
     categories: reviewCategories,
     history,
     goldenQuota,

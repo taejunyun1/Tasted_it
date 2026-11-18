@@ -458,7 +458,7 @@ export async function getLatestRatingSnapshot(db: AppDb, placeId: string, now = 
 }
 
 export async function attachLatestNonStaleRatingSnapshots<
-  T extends { id: string },
+  T extends { id: string; positive?: number; negative?: number; userPositive?: number; userNegative?: number; reviewerPositive?: number; reviewerNegative?: number },
 >(db: AppDb, places: T[], now = new Date().toISOString()) {
   if (places.length === 0) return places;
   const snapshots = await loadInD1Chunks(
@@ -481,19 +481,30 @@ export async function attachLatestNonStaleRatingSnapshots<
     if (!latestSnapshot.has(snapshot.placeId))
       latestSnapshot.set(snapshot.placeId, snapshot);
   }
+  // Historical snapshots supply only a real calculation time. Their scores and
+  // sample counts must never replace current, publication-eligible inputs.
+  const previousCalculations = await loadInD1Chunks(
+    places.filter((place) => !latestSnapshot.has(place.id)).map((place) => place.id),
+    (placeIdChunk) => db.select({
+      placeId: ratingSnapshots.placeId,
+      computedAt: sql<string | null>`max(${ratingSnapshots.computedAt})`,
+    }).from(ratingSnapshots).where(inArray(ratingSnapshots.placeId, placeIdChunk)).groupBy(ratingSnapshots.placeId),
+  );
+  const previousComputedAt = new Map(previousCalculations.map((row) => [row.placeId, row.computedAt]));
   return places.map((place) => {
     const snapshot = latestSnapshot.get(place.id);
-    if (!snapshot) return place;
     return {
       ...place,
-      ratingScore: snapshot.overallScore,
-      ratingSampleCount: snapshot.overallSampleCount,
-      userScore: snapshot.userScore,
-      reviewerScore: snapshot.reviewerScore,
-      userRatingScore: snapshot.userScore,
-      userRatingSampleCount: snapshot.userSampleCount,
-      reviewerRatingScore: snapshot.reviewerScore,
-      reviewerRatingSampleCount: snapshot.reviewerSampleCount,
+      ratingScore: snapshot?.overallScore ?? null,
+      ratingSampleCount: snapshot?.overallSampleCount ?? (place.positive ?? 0) + (place.negative ?? 0),
+      userScore: snapshot?.userScore ?? null,
+      reviewerScore: snapshot?.reviewerScore ?? null,
+      userRatingScore: snapshot?.userScore ?? null,
+      userRatingSampleCount: snapshot?.userSampleCount ?? (place.userPositive ?? 0) + (place.userNegative ?? 0),
+      reviewerRatingScore: snapshot?.reviewerScore ?? null,
+      reviewerRatingSampleCount: snapshot?.reviewerSampleCount ?? (place.reviewerPositive ?? 0) + (place.reviewerNegative ?? 0),
+      ratingIsStale: !snapshot,
+      ratingComputedAt: snapshot?.computedAt ?? previousComputedAt.get(place.id) ?? null,
     };
   });
 }

@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { formatDistance, formatPublicRatingSummary, type DiscoveryPlace } from "../../features/places/place-discovery";
 import { shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
+import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 
 export const RECOMMENDATION_SOURCE_RAILS = ["PERSONAL", "TRUSTED", "GOLDEN"] as const;
 export const RECOMMENDATION_DISCOVERY_MODES = [
@@ -134,6 +135,7 @@ export function PlaceCard({ place, selected = false, distanceMeters, goldenPickA
             {!place.recommendationReasons?.length && recommendationLabel && <small className="place-reason">{recommendationLabel}</small>}
           </div>}
           <span>{ratingSummary}</span>
+          <PublicRatingMeta place={place} />
           {distanceMeters !== undefined && <small>{formatDistance(distanceMeters)}</small>}
           {goldenPickAt && <small>Golden Pick · {new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(goldenPickAt))}</small>}
         </div>

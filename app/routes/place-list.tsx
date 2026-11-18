@@ -1,22 +1,29 @@
 import { env } from "cloudflare:workers";
-import { Form, Link, useFetcher, useSearchParams } from "react-router";
+import { Link, isRouteErrorResponse, useFetcher, useLocation, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/place-list";
 import type { loader as recommendationLoader } from "./place-recommendations-resource";
 import { PlaceCard, safePlaceDetailRequestPath } from "../components/places/PlaceCard";
 import { PlaceDiscoveryRail } from "../components/places/PlaceDiscoveryRail";
 import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
 import { PlaceRecommendationControls } from "../components/places/PlaceRecommendationControls";
+import { PlaceSearchError, PlaceSearchForm } from "../components/places/PlaceSearchError";
 import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
 import { parseMapState } from "../features/maps/map-state";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import { getPlaceRecommendationPage } from "../features/places/place-recommendation.server";
 import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
-import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
-import { useEffect, useState } from "react";
+import { getPublicPlacePage, listPublicCategoryGroups } from "../features/places/place.server";
+import { parsePublicPlacePage, publicPlacePageHref } from "../features/places/public-place-pagination";
+import { useEffect, useRef, useState } from "react";
+import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
-export function meta() {
-  return [{ title: "맛집 리스트 — Re:Taste" }];
+export function meta({ loaderData }: Route.MetaArgs) {
+  const page = loaderData?.pagination?.page ?? 1;
+  const outOfRange = Boolean(loaderData?.pagination?.outOfRange);
+  const search = new URLSearchParams(loaderData?.search ?? "");
+  const filtered = ["q", "category", "badge", "bbox", "temp"].some(key => search.getAll(key).some(Boolean));
+  return publicPageMeta({ title: `맛집 리스트${page > 1 ? ` · ${page}페이지` : ""} — Re:Taste`, description: "광주·전남의 장소를 취향과 평가 근거로 찾아보세요.", path: "/places", origin: loaderData?.publicOrigin, noindex: Boolean(loaderData?.tempOnly || filtered || outOfRange), page: outOfRange ? 1 : page });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -24,6 +31,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const state = parseMapState(url.search);
   const categorySlug = url.searchParams.get("category") || undefined;
   const tempOnly = url.searchParams.get("temp") === "1";
+  const page = parsePublicPlacePage(url.search);
+  if (page === null) throw new Response("검색 페이지 번호를 확인해 주세요.", { status: 400, statusText: "INVALID_PAGE" });
   const [west, south, east, north] = state.bbox;
   const center = { latitude: (south + north) / 2, longitude: (west + east) / 2 };
   const db = createDb(env.DB);
@@ -33,8 +42,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     ? await getGuestOnboardingFromRequest(db, request, now)
     : null;
   const selectedBadges = url.searchParams.getAll("badge");
-  const [places, groups, recommendations] = await Promise.all([
-    listPlaces(db, { categorySlug, query: state.query, bbox: tempOnly ? undefined : state.bbox, tempOnly }),
+  const [pagination, groups, recommendations] = await Promise.all([
+    getPublicPlacePage(db, { categorySlug, query: state.query, bbox: tempOnly ? undefined : state.bbox, tempOnly }, page),
     listPublicCategoryGroups(db),
     getPlaceRecommendationPage(db, {
       userId: user?.id,
@@ -47,11 +56,28 @@ export async function loader({ request }: Route.LoaderArgs) {
     }),
   ]);
   const category = groups.flatMap((group) => group.children).find((child) => child.slug === categorySlug);
-  return { places, recommendations, state, category: category ?? null, search: url.search, tempOnly };
+  return { places: pagination.places, pagination, recommendations, state, category: category ?? null, search: url.search, tempOnly, publicOrigin: resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL) };
+}
+
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const location = useLocation();
+  const status = isRouteErrorResponse(error) ? error.status : 500;
+  return <PlaceSearchError search={location.search} status={status} />;
 }
 
 export default function PlaceList({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
+  const navigation = useNavigation();
+  const searchPending = navigation.state !== "idle" && navigation.location?.pathname === "/places"
+    && (navigation.formMethod?.toLowerCase() === "get"
+      || new URLSearchParams(navigation.location.search).get("page") !== params.get("page"));
+  const previousPage = useRef(loaderData.pagination.page);
+  useEffect(() => {
+    if (previousPage.current !== loaderData.pagination.page) {
+      document.getElementById("all-places")?.focus({ preventScroll: true });
+      previousPage.current = loaderData.pagination.page;
+    }
+  }, [loaderData.pagination.page]);
   const recommendationFetcher = useFetcher<typeof recommendationLoader>();
   const [selectedBadges, setSelectedBadges] = useState(loaderData.recommendations.selectedBadges);
   const [recommendations, setRecommendations] = useState(loaderData.recommendations);
@@ -111,20 +137,20 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
 
     <section className="discovery-section discovery-all" aria-labelledby="all-places">
       <header className="discovery-heading">
-        <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places">{loaderData.tempOnly ? "TEMP 베타 전체 장소" : "전체 장소"}</h2></div>
+        <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places" tabIndex={-1}>{loaderData.tempOnly ? "TEMP 베타 전체 장소" : "전체 장소"}</h2></div>
         <p>공식 출처 기반 임시 정보는 TEMP로 구분하며 현재 영업 여부는 확인 중입니다.</p>
       </header>
-      <Form action="/places" className="discovery-search">
-        <label htmlFor="place-query">장소 검색</label>
-        <input id="place-query" name="q" defaultValue={loaderData.state.query} placeholder="장소 이름이나 주소 검색" />
-        <input type="hidden" name="category" value={loaderData.category?.slug ?? ""} />
-        <input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} />
-        {loaderData.tempOnly && <input type="hidden" name="temp" value="1" />}
-        <button>찾기</button>
-      </Form>
-      <p className="discovery-count">{loaderData.places.length} PLACES · {categoryName}</p>
-      <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
-      {!loaderData.places.length && <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>}
+      <PlaceSearchForm context={{ query: loaderData.state.query, categorySlug: loaderData.category?.slug ?? "", bbox: loaderData.state.bbox, tempOnly: loaderData.tempOnly, badges: selectedBadges }} pending={searchPending} />
+      <p id="place-search-status" className="discovery-count" role="status" aria-live="polite" aria-atomic="true">{searchPending ? "장소를 찾고 있어요. 검색이 끝날 때까지 기존 결과를 표시합니다." : `전체 ${loaderData.pagination.total}곳${loaderData.pagination.start ? ` · ${loaderData.pagination.start}–${loaderData.pagination.end}번째 표시` : ""} · ${categoryName}`}</p>
+      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
+      {!loaderData.places.length && (loaderData.pagination.outOfRange
+        ? <p className="discovery-empty">이 페이지에 표시할 장소가 없습니다. <Link className="underline!" to={`${publicPlacePageHref(loaderData.search, 1)}#all-places`}>같은 조건의 첫 페이지로 돌아가기</Link></p>
+        : <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>)}
+      {loaderData.pagination.totalPages > 1 && !loaderData.pagination.outOfRange && <nav className="flex flex-wrap items-center gap-4" aria-label="장소 목록 페이지">
+        {loaderData.pagination.page > 1 ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(loaderData.search, loaderData.pagination.page - 1)}#all-places`}>이전 페이지</Link> : <span aria-disabled="true">이전 페이지</span>}
+        <span aria-current="page">{loaderData.pagination.page} / {loaderData.pagination.totalPages} 페이지</span>
+        {loaderData.pagination.page < loaderData.pagination.totalPages ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(loaderData.search, loaderData.pagination.page + 1)}#all-places`}>다음 페이지</Link> : <span aria-disabled="true">다음 페이지</span>}
+      </nav>}
     </section>
     <PlaceDetailSheet detailPath={detailPath} onClose={closeDetail} />
   </main>;
