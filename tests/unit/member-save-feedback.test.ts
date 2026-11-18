@@ -13,6 +13,7 @@ vi.mock("react-router", async (importOriginal) => {
   return { ...actual, Form,
     Link: ({ to, children, reloadDocument: _reloadDocument, ...props }: { to: string; children: React.ReactNode; reloadDocument?: boolean }) => createElement("a", { ...props, href: to }, children),
     useFetcher: () => ({ ...state.fetcher, Form }),
+    useNavigation: () => ({ state: "idle" }),
   };
 });
 
