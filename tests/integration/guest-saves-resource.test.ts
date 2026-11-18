@@ -33,6 +33,7 @@ describe("guest save resource boundaries", () => {
     ] as const) {
       const response = await action({ request } as never);
       expect(response.status).toBe(status); privateResponse(response);
+      expect(await response.json()).toMatchObject({ ok: false, outcome: "REJECTED" });
       expect(response.headers.get("Set-Cookie")).toBeNull();
     }
   });
@@ -69,10 +70,31 @@ describe("guest save resource boundaries", () => {
 });
 
 describe("guest save transport recovery", () => {
-  it("returns retryable client results when network reads or writes fail", async () => {
+  it("keeps a post-delete session race unknown even when the response is 409", async () => {
+    const db = createDb(env.DB), now = new Date().toISOString();
+    const guestId = crypto.randomUUID(), placeId = await place();
+    await createGuestSession(db, { id: guestId, now });
+    await setGuestSavedPlace(db, { sessionId: guestId, placeId, saved: true, now });
+    const trigger = `guest_save_expire_${guestId.replaceAll("-", "")}`;
+    await env.DB.exec(`CREATE TRIGGER ${trigger} AFTER DELETE ON guest_saved_places WHEN OLD.session_id='${guestId}' BEGIN UPDATE guest_taste_sessions SET expires_at='2000-01-01T00:00:00.000Z' WHERE id=OLD.session_id; END;`);
+    try {
+      const response = await action({ request: req(`intent=save&placeId=${placeId}&saved=false`, `retaste_guest=${guestId}`) } as never);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ ok: false, outcome: "UNKNOWN" });
+      expect((await env.DB.prepare("SELECT count(*) n FROM guest_saved_places WHERE session_id=? AND place_id=?").bind(guestId, placeId).first<{n: number}>())?.n).toBe(0);
+      const current = await loader({ request: new Request(`${url}?placeId=${placeId}`, { headers: { Cookie: `retaste_guest=${guestId}` } }) } as never);
+      expect(await current.json()).toMatchObject({ ok: true, saved: false, expired: true });
+    } finally {
+      await env.DB.exec(`DROP TRIGGER IF EXISTS ${trigger}`);
+    }
+  });
+
+  it("marks lost write responses unknown without replaying the write", async () => {
     const { clientAction, clientLoader } = await import("../../app/routes/guest-saves-resource");
-    const serverAction = async () => { throw new TypeError("synthetic network failure"); };
-    expect(await clientAction({ serverAction } as never)).toMatchObject({ ok: false, message: expect.stringContaining("다시 시도") });
+    let writes = 0;
+    const serverAction = async () => { writes++; throw new TypeError("synthetic network failure"); };
+    expect(await clientAction({ serverAction } as never)).toMatchObject({ ok: false, outcome: "UNKNOWN", message: expect.stringContaining("다시 확인") });
+    expect(writes).toBe(1);
     expect(await clientLoader({ serverLoader: serverAction } as never)).toMatchObject({ ok: false });
   });
   it("reports an unknown result when a merge commits before its response is lost", async () => {
@@ -87,7 +109,7 @@ describe("guest save transport recovery", () => {
       expect((await mergeGuestTasteSessionFromRequest(db, request, userId, now)).merged).toBe(true);
       throw new TypeError("synthetic response lost after commit");
     } } as never);
-    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("현재 상태") });
+    expect(result).toMatchObject({ ok: false, outcome: "UNKNOWN", message: expect.stringContaining("다시 확인") });
     expect((await env.DB.prepare("SELECT count(*) n FROM saved_places WHERE user_id=? AND place_id=?").bind(userId, placeId).first<{n: number}>())?.n).toBe(1);
     expect((await env.DB.prepare("SELECT count(*) n FROM guest_saved_places WHERE session_id=?").bind(guestId).first<{n: number}>())?.n).toBe(0);
     expect((await env.DB.prepare("SELECT merged_user_id value FROM guest_taste_sessions WHERE id=?").bind(guestId).first<{value: string}>())?.value).toBe(userId);

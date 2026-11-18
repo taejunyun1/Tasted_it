@@ -91,6 +91,8 @@ test("guest saves survive reload, keep their unsave intent after failure and con
   });
   await unsave.click();
   await expect(page.getByRole("alert")).toContainText("다시 시도");
+  await expect(unsave).toBeDisabled();
+  await page.getByRole("button", { name: "저장 상태 다시 확인", exact: true }).click();
   await expect(unsave).toBeEnabled();
   await unsave.click();
   await expect(save).toBeEnabled();
@@ -107,16 +109,17 @@ test("guest saves survive reload, keep their unsave intent after failure and con
   });
   await unsave.click();
   await expect(page.getByRole("alert")).toContainText("결과를 확인");
-  await expect(unsave).toBeEnabled();
+  await expect(unsave).toBeDisabled();
   const serverChoice = await context.request.get("/resources/guest-saves?placeId=sample-place-1");
   expect(await serverChoice.json()).toMatchObject({ ok: true, saved: false });
-  const retryWrite = page.waitForRequest((request) => request.method() === "POST" && request.url().includes("/resources/guest-saves"));
-  await unsave.click();
-  expect(new URLSearchParams((await retryWrite).postData()!).get("saved")).toBe("false");
+  await expect(unsave).toBeDisabled();
+  await page.getByRole("button", { name: "저장 상태 다시 확인", exact: true }).click();
   await expect(save).toBeEnabled();
+  const retryWrite = page.waitForRequest((request) => request.method() === "POST" && request.url().includes("/resources/guest-saves"));
   await save.click();
+  expect(new URLSearchParams((await retryWrite).postData()!).get("saved")).toBe("true");
   await expect(unsave).toBeEnabled();
-  await page.screenshot({ path: `docs/evidence/cst-guest-save-20261118/${testInfo.project.name}-guest-saved.png`, fullPage: true });
+  await page.screenshot({ path: `docs/evidence/cst-guest-uncertain-20261118/regression/${testInfo.project.name}-guest-saved.png`, fullPage: true });
 
   await page.getByRole("link", { name: "로그인하고 취향 남기기" }).click();
   await expect(page).toHaveURL(/\/login\?returnTo=%2Fplaces%2Fsample-dongmyeong-ramen$/);
@@ -143,7 +146,7 @@ test("a failed login merge keeps the guest original and offers explicit retry on
     await expect(page).toHaveURL(new RegExp(`${detail}$`));
     await expect(page.getByRole("button", { name: "임시 자료 다시 연결" })).toBeVisible();
     expect((await context.cookies()).some((cookie) => cookie.name === "retaste_guest")).toBe(true);
-    await page.screenshot({ path: `docs/evidence/cst-guest-save-20261118/${testInfo.project.name}-merge-retry.png`, fullPage: true });
+    await page.screenshot({ path: `docs/evidence/cst-guest-uncertain-20261118/regression/${testInfo.project.name}-merge-retry.png`, fullPage: true });
   } finally { localD1(`DROP TRIGGER IF EXISTS ${trigger};`); }
   await page.getByRole("button", { name: "임시 자료 다시 연결" }).click();
   await expect(page.getByRole("button", { name: "저장됨", exact: true })).toBeVisible();
@@ -160,7 +163,7 @@ test("mobile detail sheet offers the same temporary save without leaving the lis
   await dialog.getByRole("button", { name: "임시 저장", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "임시 저장 해제", exact: true })).toBeEnabled();
   expect(new URL(page.url()).pathname).toBe("/places");
-  await page.screenshot({ path: "docs/evidence/cst-guest-save-20261118/mobile-sheet-saved.png", fullPage: true });
+  await page.screenshot({ path: "docs/evidence/cst-guest-uncertain-20261118/regression/mobile-sheet-saved.png", fullPage: true });
 });
 
 test("switching a saved mobile sheet to another place with a failed load does not reuse the previous save choice", async ({ page }, testInfo) => {

@@ -20,6 +20,9 @@ function json(value: unknown, status = 200, cookie?: string | null) {
   if (cookie) headers.append("Set-Cookie", cookie);
   return Response.json(value, { status, headers });
 }
+function rejected(message: string, status: number) {
+  return json({ ok: false, outcome: "REJECTED", message }, status);
+}
 export function headers() { return PRIVATE_HEADERS; }
 export async function readGuestSaveForm(request: Request) {
   if (!isSameOriginMutation(request)) throw new Response(null, { status: 403 });
@@ -63,30 +66,34 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 export async function action({ request }: Route.ActionArgs) {
-  if (request.method !== "POST") return json({ ok: false, message: "지원하지 않는 요청입니다." }, 405);
-  if (env.ONBOARDING_ENABLED !== "true") return json({ ok: false, message: "임시 저장을 현재 사용할 수 없습니다." }, 404);
+  if (request.method !== "POST") return rejected("지원하지 않는 요청입니다.", 405);
+  if (env.ONBOARDING_ENABLED !== "true") return rejected("임시 저장을 현재 사용할 수 없습니다.", 404);
+  let choiceWriteStarted = false;
   try {
     const form = await readGuestSaveForm(request);
     const valid = form.intent === "merge" ? mergeSchema.safeParse(form) : saveSchema.safeParse(form);
-    if (!valid.success) return json({ ok: false, message: "요청 내용을 확인해 주세요." }, 400);
+    if (!valid.success) return rejected("요청 내용을 확인해 주세요.", 400);
     const db = createDb(env.DB); const now = new Date().toISOString();
     const user = await getOptionalUser(request);
     await consumeGuestSaveWriteLimit(db, request.headers.get("CF-Connecting-IP"), now);
     if (form.intent === "merge") {
-      if (!mergeSchema.safeParse(form).success) return json({ ok: false, message: "요청 내용을 확인해 주세요." }, 400);
-      if (!user) return json({ ok: false, message: "로그인한 뒤 다시 연결해 주세요." }, 401);
+      if (!mergeSchema.safeParse(form).success) return rejected("요청 내용을 확인해 주세요.", 400);
+      if (!user) return rejected("로그인한 뒤 다시 연결해 주세요.", 401);
+      choiceWriteStarted = true;
       const result = await mergeGuestTasteSessionFromRequest(db, request, user.id, now);
       return json({ ok: true, merged: result.merged, message: result.merged ? "임시 저장과 취향을 계정에 연결했습니다." : "연결할 유효한 임시 자료가 없습니다." }, 200, result.expireCookie);
     }
     const parsed = saveSchema.safeParse(form);
-    if (!parsed.success) return json({ ok: false, message: "요청 내용을 확인해 주세요." }, 400);
+    if (!parsed.success) return rejected("요청 내용을 확인해 주세요.", 400);
     const { placeId } = parsed.data; const saved = parsed.data.saved === "true";
     await assertPublicPlace(db, placeId);
     if (user) {
+      choiceWriteStarted = true;
       await setSavedAndRefreshTaste(db, { userId: user.id, placeId, saved, now });
       return json({ ok: true, saved, signedIn: true, expired: false });
     }
     const { session, setCookie } = await getOrCreateGuestSession(db, request, now);
+    choiceWriteStarted = true;
     await setGuestSavedPlace(db, { sessionId: session.id, placeId, saved, now });
     return json({ ok: true, saved, signedIn: false, expired: false, expiresAt: session.expiresAt }, 200, setCookie);
   } catch (error) {
@@ -98,14 +105,14 @@ export async function action({ request }: Route.ActionArgs) {
       : status === 404 ? "공개된 장소를 찾을 수 없습니다."
       : status < 500 ? "요청 내용을 확인한 뒤 다시 시도해 주세요."
       : "저장·연결 결과를 확인하지 못했습니다. 새로고침해 현재 상태를 확인한 뒤 필요하면 다시 시도해 주세요.";
-    return json({ ok: false, message }, status);
+    return json({ ok: false, outcome: !choiceWriteStarted && status < 500 ? "REJECTED" : "UNKNOWN", message }, status);
   }
 }
 
 // A response can be lost after a committed write; keep retry UI without claiming rollback.
 export async function clientAction({ serverAction }: Route.ClientActionArgs) {
   try { return await serverAction(); }
-  catch { return { ok: false, message: "저장·연결 결과를 확인하지 못했습니다. 새로고침해 현재 상태를 확인한 뒤 필요하면 다시 시도해 주세요." }; }
+  catch { return { ok: false, outcome: "UNKNOWN", message: "저장·연결 결과를 확인하지 못했습니다. 저장 상태를 다시 확인한 뒤 필요하면 다시 시도해 주세요." }; }
 }
 export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
   try { return await serverLoader(); }

@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { isControlledLocalBaseUrl } from "./local-test-target";
 
 function localD1(sql: string) {
   return execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", sql], { encoding: "utf8" });
 }
 const detail = "/places/sample-dongmyeong-ramen";
 test.beforeEach(async ({}, testInfo) => {
-  test.skip(Boolean(process.env.BASE_URL), "Local synthetic D1 only");
+  test.skip(!isControlledLocalBaseUrl(), "Local synthetic D1 only");
   const userId = `e2e-onboarding-${testInfo.project.name}`;
   localD1(`DELETE FROM saved_places WHERE user_id='${userId}'; DELETE FROM member_save_choices WHERE user_id='${userId}';`);
 });
@@ -28,9 +29,10 @@ test("a committed save with a lost response asks to check the current state", as
     return route.continue();
   });
   await unsave.click();
-  await expect(page.getByRole("alert")).toContainText("새로고침해 현재 상태를 확인");
+  await expect(page.getByRole("alert")).toContainText("저장 상태를 다시 확인");
+  await expect(unsave).toBeDisabled();
   expect(committed).toBe(true);
-  await page.screenshot({ path: `docs/evidence/guest-response-copy-20261113/${testInfo.project.name}-response-lost.png`, fullPage: true });
+  await page.screenshot({ path: `docs/evidence/guest-response-copy-20261118/${testInfo.project.name}-response-lost.png`, fullPage: true });
   await page.reload();
   await expect(page.getByRole("button", { name: "임시 저장", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "임시 저장 해제", exact: true })).toHaveCount(0);
@@ -52,7 +54,7 @@ test("the merge banner offers an explicit retry after checking the current state
     const banner = page.getByRole("complementary", { name: "임시 자료 계정 연결" });
     await expect(banner).toContainText("계정 연결 상태를 확인");
     await expect(banner.getByRole("button", { name: "임시 자료 다시 연결" })).toBeEnabled();
-    await page.screenshot({ path: `docs/evidence/guest-response-copy-20261113/${testInfo.project.name}-merge-retry.png`, fullPage: true });
+    await page.screenshot({ path: `docs/evidence/guest-response-copy-20261118/${testInfo.project.name}-merge-retry.png`, fullPage: true });
   } finally { localD1(`DROP TRIGGER IF EXISTS ${trigger};`); }
   await page.reload();
   await page.getByRole("button", { name: "임시 자료 다시 연결" }).click();

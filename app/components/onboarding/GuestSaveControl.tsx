@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import { safeReturnTo } from "../../features/auth/login";
 
-type GuestSaveResult = { ok: boolean; saved?: boolean; signedIn?: boolean; expired?: boolean; message?: string };
+type GuestSaveResult = { ok: boolean; saved?: boolean; signedIn?: boolean; expired?: boolean; message?: string; outcome?: "REJECTED" | "UNKNOWN" };
+type ConfirmedChoice = { saved: boolean; signedIn: boolean };
 type GuestSaveControlProps = { placeId: string; returnTo: string; showLogin?: boolean };
 export function GuestSaveControl(props: GuestSaveControlProps) {
   // A sheet can change its place without unmounting. Scope all hook/fetcher state
@@ -13,28 +14,30 @@ export function GuestSaveControl(props: GuestSaveControlProps) {
 function GuestSaveControlForPlace({ placeId, returnTo, showLogin = true }: GuestSaveControlProps) {
   const fetcher = useFetcher<GuestSaveResult>();
   useEffect(() => { void fetcher.load(`/resources/guest-saves?placeId=${encodeURIComponent(placeId)}`); }, [placeId]);
-  const [saved, setSaved] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [confirmedChoice, setConfirmedChoice] = useState<ConfirmedChoice | null>(null);
+  const responseChoice = fetcher.data?.ok && typeof fetcher.data.saved === "boolean" && typeof fetcher.data.signedIn === "boolean"
+    ? { saved: fetcher.data.saved, signedIn: fetcher.data.signedIn }
+    : null;
   useEffect(() => {
-    if (fetcher.data?.ok) {
-      setSaved(Boolean(fetcher.data.saved));
-      setSignedIn(Boolean(fetcher.data.signedIn));
-      setReady(true);
-    }
+    if (responseChoice) setConfirmedChoice(responseChoice);
   }, [fetcher.data]);
+  const choice = responseChoice ?? confirmedChoice;
+  const needsRead = !choice || (!responseChoice && fetcher.data?.outcome !== "REJECTED");
+  const ready = !needsRead && fetcher.state === "idle";
+  const saved = choice?.saved ?? false;
+  const signedIn = choice?.signedIn;
   return <div className="guest-save-control">
-    {!ready && fetcher.data?.ok !== false && <p role="status">저장 상태를 확인하고 있어요.</p>}
-    <fetcher.Form method="post" action="/resources/guest-saves">
+    {needsRead && fetcher.data?.ok !== false && <p role="status">저장 상태를 확인하고 있어요.</p>}
+    <fetcher.Form method="post" action="/resources/guest-saves" onSubmit={event => { if (!ready) event.preventDefault(); }}>
       <input type="hidden" name="intent" value="save" />
       <input type="hidden" name="placeId" value={placeId} />
       <input type="hidden" name="saved" value={String(!saved)} />
-      <button type="submit" aria-pressed={saved} disabled={!ready || fetcher.state !== "idle"}>{signedIn ? (saved ? "저장 해제" : "저장") : (saved ? "임시 저장 해제" : "임시 저장")}</button>
+      <button type="submit" aria-pressed={needsRead ? undefined : saved} disabled={!ready}>{signedIn ? (saved ? "저장 해제" : "저장") : (saved ? "임시 저장 해제" : "임시 저장")}</button>
     </fetcher.Form>
-    {!signedIn && <p>임시 저장은 최대 50곳이며 비회원 취향과 함께 최대 30일 동안 보관합니다.</p>}
+    {signedIn === false && <p>임시 저장은 최대 50곳이며 비회원 취향과 함께 최대 30일 동안 보관합니다.</p>}
     {fetcher.data?.expired && <p role="status">이전 임시 자료가 만료되었습니다. 새로 저장할 수 있어요.</p>}
     {fetcher.data?.ok === false && <p role="alert">{fetcher.data.message}</p>}
-    {!ready && fetcher.data?.ok === false && <button type="button" disabled={fetcher.state !== "idle"} onClick={() => { void fetcher.load(`/resources/guest-saves?placeId=${encodeURIComponent(placeId)}`); }}>저장 상태 다시 확인</button>}
-    {showLogin && !signedIn && <a href={`/login?returnTo=${encodeURIComponent(safeReturnTo(returnTo))}`}>로그인하고 임시 자료 연결</a>}
+    {needsRead && fetcher.data?.ok === false && <button type="button" disabled={fetcher.state !== "idle"} onClick={() => { void fetcher.load(`/resources/guest-saves?placeId=${encodeURIComponent(placeId)}`); }}>저장 상태 다시 확인</button>}
+    {showLogin && signedIn === false && <a href={`/login?returnTo=${encodeURIComponent(safeReturnTo(returnTo))}`}>로그인하고 임시 자료 연결</a>}
   </div>;
 }
