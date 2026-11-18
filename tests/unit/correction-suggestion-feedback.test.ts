@@ -1,7 +1,7 @@
 import { createElement, forwardRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import PlaceCorrection from "../../app/routes/place-correction";
+import PlaceCorrection, { shouldRevalidate } from "../../app/routes/place-correction";
 import MySuggestions from "../../app/routes/my-suggestions";
 import { retainedCorrectionValues } from "../../app/features/places/submission-feedback";
 
@@ -11,14 +11,22 @@ vi.mock("react-router", async (importOriginal) => ({ ...await importOriginal<typ
   Form: forwardRef<HTMLFormElement, Record<string, unknown>>((props, ref) => createElement("form", { ...props, ref })),
   Link: ({ to, children, ...props }: { to: string; children: React.ReactNode }) => createElement("a", { ...props, href: to }, children),
   useNavigation: () => state.navigation,
+  useFetcher: () => ({ state: "idle", data: undefined, load: () => {} }),
   useFormAction: () => "/corrections/new",
   useRouteLoaderData: () => ({ user: state.email ? { email: state.email } : null }),
 }));
 
 beforeEach(() => { state.navigation = { state: "idle", formMethod: undefined, formAction: undefined }; state.email = ""; });
-const loader = { places: [{ id: "place-1", name: "합성 장소", address: "합성 주소" }], selectedPlaceId: "place-1" };
+const selectedPlace = { id: "place-1", name: "합성 장소", address: "합성 주소" };
+const loader = { places: [selectedPlace], selectedPlace, selectedPlaceId: "place-1", query: "", nextCursor: null, returnTo: "/places/place-1" };
 
 describe("correction feedback and suggestion progress", () => {
+  it("preserves a stale POST draft without suppressing later target navigation", () => {
+    const args = { actionResult: { code: "CORRECTION_TARGET_UNAVAILABLE" }, formMethod: "POST", defaultShouldRevalidate: true };
+    expect(shouldRevalidate(args as never)).toBe(false);
+    expect(shouldRevalidate({ ...args, formMethod: "GET" } as never)).toBe(true);
+    expect(shouldRevalidate({ ...args, actionResult: { ok: false } } as never)).toBe(true);
+  });
   it("retains only bounded known fields rather than uploaded files or unrelated private values", () => {
     const form = new FormData(); form.set("email", "x".repeat(500)); form.set("evidenceNote", "y".repeat(5000));
     form.set("token", "unrelated-token"); form.set("password", "unrelated-password"); form.set("name", new File(["photo"], "private-name.jpg"));

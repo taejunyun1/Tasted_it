@@ -33,6 +33,7 @@ export default [
   route("suggestions/new", "routes/place-suggest.tsx"),
   route("me/suggestions", "routes/my-suggestions.tsx"),
   route("corrections/new", "routes/place-correction.tsx"),
+  route("resources/correction-places", "routes/correction-places-resource.ts"),
   route("corrections/verify", "routes/verify-correction.tsx"),
   route("reviewer/apply", "routes/reviewer-apply.tsx"),
   route("reviewer/ratings", "routes/reviewer-ratings.tsx"),
