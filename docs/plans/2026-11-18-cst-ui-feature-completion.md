@@ -3,7 +3,7 @@
 사용자 목표 **“UI/UX 개선안을 적용한 기능구현 100% 달성”**을 요구사항별 코드·화면·검증 증거로 추적한다. 이 원장은 목표를 첫 수정 묶음으로 줄이지 않으며, 코드 존재·부분 테스트·배포 준비를 전체 완료로 세지 않는다.
 
 - 추적: [#471](https://github.com/taejunyun1/Tasted_it/issues/471). 통합·완료 판단 담당은 Codex root다.
-- 작성 기준: 2026-11-18, `origin/main@941a205`, UI 코드 `a5ce06a`([PR #472](https://github.com/taejunyun1/Tasted_it/pull/472), 가독성 `03b624c`·목록 `a4912db`·지도 `6afcdc3` 포함). ADMIN 통합은 `8248172`(기존 `4267bce`에 목록·그룹 의미와 제어 크기 보완) / [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)이다.
+- 작성 기준: 2026-11-18, `origin/main@941a205`, UI 코드 `a5ce06a`([PR #472](https://github.com/taejunyun1/Tasted_it/pull/472), 가독성 `03b624c`·목록 `a4912db`·지도 `6afcdc3` 포함). ADMIN 통합은 `d4b7b17`(기존 `8248172`에 정정 대상 검색/초안 복구 합류) / [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)이다.
 - 요구 원본: [CST 서비스 SSOT](2026-11-13-cst-service-ssot.md), [전체 감사 §9](../audits/2026-08-07-full-product-design-technical-audit.md), [기술 검수 T01~T08](../operations/cst-acceptance.md).
 - 시각 기준: [현행 디자인 가이드](../design-system/retaste-design-guide.md)와 `app/styles/design-system.css`. 구 감사의 결함·상태 요구는 대조하되 과거 흑백·폰트·모서리 수치를 최신 크림·녹색·라임/역할별 토큰 위에 되돌리지 않는다.
 - 외부 조건: #397은 HOLD. 운영자 명칭·문의처·보관/삭제 기간은 사용자 답변대로 **정책 확인 필요**다. 필수 CI는 결제 제한으로 막혀 있으며 우회하지 않는다.
@@ -45,7 +45,7 @@
 | UX-9.4d | 모바일 보조 링크와 버튼의 44px·오류 후 키보드 이동. | `VERIFIED_LOCAL_SCOPED` | 기존 인증 오류/초점 회귀와 compiled 읽기 점검을 연결한다. 390px 로그인 주요 버튼49.59px·OAuth48px·입력51.59px, 보조 링크44px이며 느린 제출/429 폼 유지·재제출은9.4c 범위다. |
 | UX-9.5a | 정정 메일 설정 사전 검사·메일 rate limit·안전한 오류. | `VERIFIED_LOCAL_SCOPED` | 메일 미설정/제한 시 새 정정 요청0, 제한된 재입력 필드와 private/no-store를 로컬D1로 확인했다. 실제 메일 전달은 별도다. |
 | UX-9.5b | 로그인 사용자의 확인 이메일 처리, 제출 pending·성공/실패 안내·입력 보존. | `VERIFIED_LOCAL_SCOPED` | 기존 확인 이메일 절차를 유지해 기본 계정 이메일을 수정 가능하게 표시하고,429 실패 후 입력/선택·재시도 폼을 desktop/mobile로 확인했다. |
-| UX-9.5c | 상세→정정 대상 고정, 큰 목록 대신 찾을 수 있는 대상 선택. | `GAP` / `IN_PROGRESS` | 현재 최대1,000개 native select에 검색/페이지가 없어 그 이후 대상에 접근할 수 없다. #471 별도 correction-search 단위로 검색/페이지·초안 보존을 구현한다. 기존 상세 지정 대상과 서버 검증은 유지하며 S07 연속 검증은 아직 남는다. |
+| UX-9.5c | 상세→정정 대상 고정, 큰 목록 대신 찾을 수 있는 대상 선택. | `VERIFIED_LOCAL_SCOPED` | `d4b7b17`:20개 키셋 검색/페이지와1,005번째 직접 대상, 전송 지연/실패 중 선택·초안·복귀 링크 보존, 같은 경로 대상 이동, 합성 IME 이벤트, 회수 후 서버 거절/명시적 재선택을 compiled desktop/mobile6건·D1 14건으로 확인했다. [정정 검색 증거](../evidence/correction-search-20261118/summary.json). 실제 메일→관리자 S07 전체는 별도다. |
 | UX-9.6a | 후보 ID 직접 처리·실제 전체 집계·표시 상한. | `VERIFIED_LOCAL_SCOPED` | 활성 검수는 선택 ID 직접 조회와 SQL count를 사용한다. `4267bce`의 회원 제안도25개/정확한 총계로201번째 항목까지 접근 가능하며 양방향 페이지를 보존했다. |
 | UX-9.6b | 항목별 실패 이유·진행 상태·빈 결과·키보드 페이지. | `VERIFIED_LOCAL_SCOPED` | `4267bce`: 완전/일부 건너뜀·NAVER 순차 확인 결과의 ID/한국어 이유, 비활성 페이지의 Tab/Enter 제외, 두 큐의 독립 페이지 보존을 합동 브라우저/D1에서 확인했다. |
 | UX-9.7a | 홈/목록/카테고리/상세의 고유 제목·설명·canonical. | `VERIFIED_LOCAL_SCOPED` | `b2d4dfe`: 설정된 origin 또는 허용된 요청 host만 사용, query 없는 canonical. 잘못된 host로 공개 URL을 만들지 않으며 상세 실패는 안전한 기본 meta다. |
@@ -117,7 +117,7 @@
 | 3 | 공통 가독성·44px·실패 지도 레이아웃 | `03b624c`, 한정 로컬 검증 완료 |
 | 3 | 공개 목록100건 초과 접근 | `a4912db`/`4267bce`, 실제 총계·100/25 페이지·복귀·literal 검색의 통합 범위 검증 완료 |
 | 3 | 지도 데이터 실패의 마지막 성공 보존 | `6afcdc3`/`a901b5a`/`4267bce`, 세션/역할 변경·응답 경합·실제 메뉴 클릭의 통합 범위 검증 완료 |
-| 3 | 정정 대상 검색·대량 목록 | 별도 correction-search 단위 구현 중, #471 소유권 기록 |
+| 3 | 정정 대상 검색·대량 목록 | `24ef03e`→`d4b7b17`, 통합 compiled6건과 집중 검증 완료 |
 | 4 | U/D/S와 T01~T08 조합 검증·독립 리뷰·정확한 통합 CI | 전체 증거 충족 전 목표 active. CI/운영/실제 정책은 외부 gate |
 
 각 코드 작업은 전용 branch/worktree와 소유 파일을 #471에 남긴다. 현재 병렬 수정은 문서가 아니라 최종 통합 코드에서 다시 확인한다. 코드 수정이 없는 항목은 필요한 기존 회귀를 선택해 검증하며, 광범위한 동일 시험 반복으로 진행률을 부풀리지 않는다.
@@ -162,3 +162,9 @@ UI PR #472의 `711eabc`와 기존 B17을 `1a8c250`으로 합치고 ADMIN UX `064
 `8248172`에서 목록 이름/listitem, 카테고리 그룹·선택/열림 상태를 연결하고768px 헤더/지도 제어의44px을 보완했다. article에 허용되지 않는 listitem 역할은 div 분기로 바꾸고 전역 버튼 규칙은 범위를 좁혀 기존 코스 버튼의50/54px을 보존했다. compiled 브라우저 최초11 PASS/1 FAIL은1440px 코스의 기존50px에 잘못54px을 기대한 시험 오류였다. 기존 CSS에 맞춰 기대값만 고치고 해당1건을 재실행해 PASS했다. 타입·build·production audit와 독립 코드 리뷰를 확인했다.
 
 남은 구현은 정정 대상의1,000건 제한이며 별도 담당이 검색/페이지를 보완한다. 그 다음은 U08 제공/미제공·시간/거리 조합과 실제 LEARNING 화면의 필수 증거다. 현재 항상LEARNING을 반환하는 Flavor 경로에 가짜VISIBLE 값을 넣어 완료로 세지 않는다. 필수 CI·병합·운영·실제 정책은 별도 미완료다.
+
+## 10. 정정 대상 검색 통합 — 2026-11-18
+
+`24ef03e`를 `d4b7b17`로 합류하고 타입·production build·집중 단위18건/D1 14건·compiled desktop/mobile6건을 통과했다. 최종 독립 리뷰에서 새 차단 문제는 없었다. 검색 조건과 커서는 서버에서 검증하고, 선택된 대상은 현재 페이지와 독립적으로 공개 적격성을 재확인한다. 검색·실패 복구는 초안을 보존하고 회수된 대상은 메일/제한 횟수 처리 전에 거절한다. 직접 GET404와 작성 후 POST404의 복구를 구분한다.
+
+이전 cold Vite 실패, 선택 동기화·합성 IME·stale POST의 원래 실패와 시험 선택자 교정은 [증거](../evidence/correction-search-20261118/summary.json)에 남겼다. OS IME 실측이나 메일 확인→관리자 처리 전체를 이6건으로 주장하지 않는다. 학습 화면3폭과 U08 통합8/단위7/추가13건도 각각 지정 범위 증거이며, 남은 U/D/S 조합·CI·운영·실제 정책은 그대로 유지한다.

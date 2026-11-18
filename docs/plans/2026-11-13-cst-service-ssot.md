@@ -1,5 +1,9 @@
 # CST 서비스 준비 실행계획 SSOT — 2026-12-10
 
+## 2026-11-18 정정 대상 검색 통합
+
+`d4b7b17`에서 정정 대상1,000건 제한을20개 검색/페이지로 보완했다. 1,005번째 대상·초안/복귀 보존·같은 경로 대상 이동·합성 IME·회수 후 재선택을 compiled6건과 단위18/D1 14건으로 확인했다. [증거](../evidence/correction-search-20261118/summary.json)를 따른다. 실제 학습 화면3폭과 U08 통합8/단위7/추가13건은 [완료 원장](2026-11-18-cst-ui-feature-completion.md)에 연결했다. 전체 S07·U/D/S/T 수용, 필수 CI·병합·운영·실제 정책은 미완료다.
+
 ## 2026-11-18 UI 접근성 마무리와 정정 검색 후속
 
 직전 확인 head `25155ad`의 [CI44220942904](https://github.com/taejunyun1/Tasted_it/actions/runs/44220942904)는 필수4개 job 모두 계정 결제/지출 한도로 실행 전에 중단됐다. 각 annotation을 확인했으며 [CI 증거](../evidence/2026-11-18-ui-admin-ci-blocked.json)에 기록한다. 새 head의 검사 결과로 재사용하지 않는다.
