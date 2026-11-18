@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb } from "../../app/db/client.server";
-import { publicDataSyncRuns } from "../../app/db/schema";
+import { businessLicenses, placeReviewWorkItems, places, publicDataSyncRuns } from "../../app/db/schema";
 import { listExcludedCandidates, listPendingCandidates } from "../../app/features/candidates/candidate.server";
 import { syncPublicDataBatch } from "../../app/features/candidates/sync.server";
 
@@ -88,6 +88,35 @@ function license(no: string, name = "동기화 확인 식당") {
 }
 
 describe("public sync fenced pages", () => {
+  it("updates the same source in a distinct completed run without duplicating its review or place", async () => {
+    const db = createDb(env.DB), no = `repeat-source-${crypto.randomUUID()}`;
+    const firstAt = "2026-11-17T01:00:00.000Z", secondAt = "2026-11-18T01:00:00.000Z";
+    const placeCount = (await db.select().from(places)).length;
+    const first = await syncPublicDataBatch(db, {
+      serviceKey: "test", sourceType: "GENERAL_RESTAURANT", addressField: "ROAD_NM_ADDR", now: firstAt,
+      fetcher: async () => publicPage([{ ...license(no), LAST_MDFCN_PNT: "2026-11-16" }]),
+    });
+    const source = await db.query.businessLicenses.findFirst({ where: eq(businessLicenses.sourceManagementNo, no) });
+    expect(source).toMatchObject({ sourceType: "GENERAL_RESTAURANT", firstSeenAt: firstAt, lastSeenAt: firstAt, sourceUpdatedAt: "2026-11-16" });
+    const originalReview = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.businessLicenseId, source!.id) });
+    expect(originalReview).toMatchObject({ status: "ACTIVE", stage: "SOURCE_REVIEW", stageVersion: 0 });
+    expect(first.run).toMatchObject({ status: "COMPLETED", fetchedCount: 1, insertedCount: 1, updatedCount: 0 });
+
+    const second = await syncPublicDataBatch(db, {
+      serviceKey: "test", sourceType: "GENERAL_RESTAURANT", addressField: "ROAD_NM_ADDR", now: secondAt,
+      fetcher: async () => publicPage([{ ...license(no, "재확인한 동기화 식당"), LAST_MDFCN_PNT: "2026-11-17" }]),
+    });
+
+    expect(second.runId).not.toBe(first.runId);
+    expect(second.run).toMatchObject({ status: "COMPLETED", fetchedCount: 1, insertedCount: 0, updatedCount: 1 });
+    expect(await db.query.publicDataSyncRuns.findFirst({ where: eq(publicDataSyncRuns.id, first.runId) })).toMatchObject({ status: "COMPLETED", fetchedCount: 1, insertedCount: 1, updatedCount: 0, finishedAt: firstAt });
+    expect(await db.select().from(businessLicenses).where(eq(businessLicenses.sourceManagementNo, no))).toEqual([
+      expect.objectContaining({ id: source!.id, businessName: "재확인한 동기화 식당", firstSeenAt: firstAt, createdAt: firstAt, lastSeenAt: secondAt, sourceUpdatedAt: "2026-11-17", updatedAt: secondAt }),
+    ]);
+    expect(await db.select().from(placeReviewWorkItems).where(eq(placeReviewWorkItems.businessLicenseId, source!.id))).toEqual([originalReview]);
+    expect((await db.select().from(places)).length).toBe(placeCount);
+  });
+
   it("rejects unsupported scope before creating a run or calling a provider", async () => {
     const fetcher = vi.fn();
     await expect(syncPublicDataBatch(createDb(env.DB), { serviceKey: "test", sourceType: "forged" as never, addressField: "ROAD_NM_ADDR", fetcher })).rejects.toThrow();
