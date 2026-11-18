@@ -91,6 +91,7 @@ export function readHomeRecommendationHistory(storage: Storage): HomeRecommendat
 }
 
 export function recordHomeRecommendation(storage: Storage, page: HomeCurationPage) {
+  if (page.status === "UNAVAILABLE") return;
   const stored = readStoredSession(storage);
   const current = stored.history;
   const ids = page.places.slice(0, 5).map((place) => place.id);

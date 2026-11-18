@@ -43,6 +43,12 @@ export async function loader({ request }: Route.LoaderArgs) {
       locationSource: state.locationSource,
     });
 
+    if (recommendations.status === "UNAVAILABLE") return data({
+      ok: false as const,
+      requestToken: state.requestToken,
+      message: recommendations.notice,
+    }, { status: 503 });
+
     return data({
       ok: true as const,
       requestToken: state.requestToken,

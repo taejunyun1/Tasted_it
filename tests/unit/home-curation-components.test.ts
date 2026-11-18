@@ -72,6 +72,21 @@ const sheetProps = {
 const GOLDEN_FALLBACK_NOTICE = "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.";
 
 describe("home curation presentation", () => {
+  it("조회 실패는 패널과 시트에서 빈 결과 대신 오류와 재시도를 표시한다", () => {
+    const failed = { ...props, page: { ...page, status: "UNAVAILABLE" as const, places: [], goldenFallback: false,
+      notice: "Golden Pick 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." } };
+    for (const html of [
+      renderToStaticMarkup(createElement(HomeCurationPanel, failed)),
+      renderToStaticMarkup(createElement(HomeCurationSheet, { ...failed, snap: "half", onSnapChange: vi.fn() })),
+    ]) {
+      expect(html).toContain('class="home-curation-error"');
+      expect(html).toContain("다시 시도</button>");
+      expect(html).not.toContain("추천할 장소를 찾지 못했어요");
+      expect(html).not.toContain("과거 선정 이력과 평가 기록");
+      expect(html).not.toContain("km 안에서 추천");
+    }
+  });
+
   it("번호·거리·평가·실제 근거 두 개와 Golden Pick만 표시한다", () => {
     const html = renderToStaticMarkup(createElement(HomeCurationCards, props));
 

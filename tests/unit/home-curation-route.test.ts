@@ -62,6 +62,20 @@ afterEach(() => {
 });
 
 describe("home curated route", () => {
+  it("Golden 조회 불가는 재추천 성공으로 반환하지 않고 요청 키를 보존한다", async () => {
+    mocks.getHomeCurationPage.mockResolvedValueOnce({
+      status: "UNAVAILABLE", places: [], mode: "golden", timeSlot: "lunch", radiusMeters: 3_000,
+      notice: "Golden Pick 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+    } as never);
+    const { loader } = await import("../../app/routes/home-recommendations-resource");
+    const response = await loader({ request: new Request("https://retaste.example/resources/home-recommendations?mode=golden&requestToken=retry-golden") } as never);
+    expect(response.init?.status).toBe(503);
+    expect(response.data).toEqual({
+      ok: false, requestToken: "retry-golden",
+      message: "Golden Pick 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+    });
+  });
+
   it("기본 진입은 전체 장소 대신 게스트 취향을 적용한 큐레이션을 불러온다", async () => {
     mocks.getGuestOnboardingFromRequest.mockResolvedValue({
       foodBadgeIds: ["food-gukbap"],

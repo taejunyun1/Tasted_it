@@ -79,14 +79,14 @@ export async function getHomeCurationPage(
   if (input.mode === "golden" && context.goldenContextStatus === "UNAVAILABLE") {
     return {
       algorithmVersion: "home-curation-v2",
-      status: "EMPTY",
+      status: "UNAVAILABLE",
       places: [],
       mode: input.mode,
       timeSlot,
       radiusMeters,
       candidateCount: candidates.length,
-      goldenFallback: true,
-      notice: GOLDEN_FALLBACK_NOTICE,
+      goldenFallback: false,
+      notice: "Golden Pick 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
     };
   }
   const curatedPlaces = rankHomeCuration({

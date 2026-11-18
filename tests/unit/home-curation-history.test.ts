@@ -9,6 +9,18 @@ import {
 import type { HomeCurationPage } from "../../app/features/places/home-curation";
 
 describe("home recommendation history", () => {
+  it("조회 실패는 성공한 추천 이력을 덮거나 새 노출로 기록하지 않는다", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    } as Storage;
+    recordHomeRecommendation(storage, { mode: "now", places: [{ id: "p1" }] } as HomeCurationPage);
+    const before = [...values];
+    recordHomeRecommendation(storage, { mode: "golden", status: "UNAVAILABLE", places: [] } as HomeCurationPage);
+    expect([...values]).toEqual(before);
+  });
+
   it("세션 이력을 정해진 최대 크기로 잘라 base64url로 왕복한다", () => {
     const history = decodeHomeRecommendationHistory(encodeHomeRecommendationHistory({
       sessionSeed: "seed-1",

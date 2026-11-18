@@ -405,12 +405,14 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     });
   };
   const setMode = (mode: HomeCurationMode) => {
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      next.set("mode", mode);
-      next.delete("selected");
-      return next;
-    }, { replace: true });
+    if (mode !== liveHomeState.mode) {
+      setParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set("mode", mode);
+        next.delete("selected");
+        return next;
+      }, { replace: true });
+    }
     loadRecommendations(mode, liveMapState.bbox, liveHomeState.locationSource);
   };
   const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
