@@ -61,8 +61,14 @@ export async function submitPlaceSuggestion(db: AppDb, input: SuggestionInput) {
   return { id: input.id, duplicates };
 }
 
-export async function listReviewablePlaceSuggestions(db: AppDb) {
-  return db.select({
+export async function listReviewablePlaceSuggestions(db: AppDb, requestedPage = 1) {
+  const pageSize = 25;
+  const where = inArray(placeSuggestions.status, [...reviewableSuggestionStatuses]);
+  const [count] = await db.select({ total: sql<number>`count(*)` }).from(placeSuggestions).where(where);
+  const total = Number(count?.total ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(totalPages, Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1);
+  const rows = await db.select({
     id: placeSuggestions.id,
     status: placeSuggestions.status,
     name: placeSuggestions.name,
@@ -72,9 +78,10 @@ export async function listReviewablePlaceSuggestions(db: AppDb) {
     longitude: placeSuggestions.longitude,
     description: placeSuggestions.description,
   }).from(placeSuggestions)
-    .where(inArray(placeSuggestions.status, [...reviewableSuggestionStatuses]))
-    .orderBy(asc(placeSuggestions.createdAt))
-    .limit(200);
+    .where(where)
+    .orderBy(asc(placeSuggestions.createdAt), asc(placeSuggestions.id))
+    .limit(pageSize).offset((page - 1) * pageSize);
+  return { rows, pagination: { page, pageSize, total, totalPages } };
 }
 
 async function uniqueSlug(db: AppDb, name: string, address: string) {

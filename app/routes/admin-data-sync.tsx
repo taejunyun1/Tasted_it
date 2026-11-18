@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { Form, Link, data, redirect, useNavigation } from "react-router";
+import { Form, Link, data, isRouteErrorResponse, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/admin-data-sync";
 import { createDb } from "../db/client.server";
 import { listPublicSyncStates } from "../features/candidates/sync.server";
@@ -115,4 +115,7 @@ export default function AdminDataSync({ loaderData, actionData }: Route.Componen
     </section>
   </main>;
 }
-export function ErrorBoundary() { return <main id="main" className="admin-rating-shell"><h1>동기화 작업을 읽을 수 없습니다.</h1><p>현재 권한과 연결 상태를 확인한 뒤 다시 시도해 주세요.</p><Link to="/admin">관리자 홈</Link></main>; }
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const forbidden = isRouteErrorResponse(error) && error.status === 403;
+  return <main id="main" className="admin-rating-shell"><h1>{forbidden ? "관리자만 조회할 수 있습니다." : "동기화 작업을 읽을 수 없습니다."}</h1><p>{forbidden ? "관리자 계정으로 로그인했는지 확인해 주세요." : "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p><Link to="/admin">관리자 홈</Link></main>;
+}
