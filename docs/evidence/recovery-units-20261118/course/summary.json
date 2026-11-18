@@ -1,0 +1,87 @@
+{
+  "source_sha": "4acb1ac9890de72670247a9564ac2bad4d5720c6",
+  "branch": "codex/jay_cst_course_flow_20261118",
+  "parent_sha": "288b92b5192c100f25ee7b3b3437798c698649bd",
+  "scope": "U08 DB-to-browser course/parking and recoverable course read error; local synthetic only",
+  "runtime": {
+    "url": "http://127.0.0.1:5207",
+    "compiled": true,
+    "config": "wrangler.e2e.jsonc -> build/server/wrangler.json",
+    "persist_to": ".wrangler/u08-course-flow-state",
+    "runtime_only_vars": {
+      "COURSE_CONTEXT_V2_ENABLED": "true"
+    },
+    "production_config_changed": false
+  },
+  "browser_command": "CST_COURSE_FLOW_DB_PATH=.wrangler/u08-course-flow-state BASE_URL=http://127.0.0.1:5207 PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/cst-course-flow-final3.json pnpm exec playwright test tests/e2e/course-flow.spec.ts --workers=1 --output=/tmp/cst-course-flow-final3 --reporter=line,json",
+  "browser_stats": {
+    "startTime": "2026-11-18T02:23:35.837Z",
+    "duration": 21184.357,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "verified_scenarios": [
+    "Published synthetic meal+cafe read from D1 and rendered with PARKING_DATA_UNAVAILABLE",
+    "ACTIVE synthetic parking selects near lot over far free/public lot; 120m, approx KRW3000, reference date rendered",
+    "EV required rejects RETIRED charger evidence without removing food course; ACTIVE charger evidence restores eligible parking",
+    "Intercepted HTTP503 courses.data renders alert+explicit GET retry; time/category/second/radius/parking/EV/weather/child/valid coordinates preserved",
+    "Intercepted first-visit HTTP503 retries unselected setup; no default conditions auto-applied"
+  ],
+  "viewport_projects": [
+    "chromium (1280x720)",
+    "mobile-chromium (Pixel 7 393x727)"
+  ],
+  "unit": {
+    "passed": 3,
+    "log": "/tmp/cst-course-recovery-unit-final-20261118.log"
+  },
+  "typecheck": {
+    "exit_code": 0,
+    "log": "/tmp/cst-course-typecheck-final2-20261118.log"
+  },
+  "build": {
+    "exit_code": 0,
+    "log": "/tmp/cst-course-final-build-20261118.log"
+  },
+  "audit": {
+    "exit_code": 0,
+    "log": "/tmp/cst-course-audit-20261118.log",
+    "result": "No known vulnerabilities found"
+  },
+  "independent_review": "course_boundary_review: no blocking/P1/P2 findings after unselected retry fix and taxonomy fixture removal; read-only review, not independent test execution",
+  "cleanup_counts": {
+    "own_places": 0,
+    "own_parking_ev_snapshots": 0,
+    "own_added_taxonomy": 0
+  },
+  "screenshots": [
+    "01-course-parking-unavailable.png",
+    "02-course-read-error.png",
+    "03-course-initial-retry.png",
+    "04-course-parking-ready.png",
+    "05-course-initial-retry.png",
+    "06-course-required-ev-unavailable.png",
+    "07-course-required-ev-unavailable.png",
+    "08-course-parking-unavailable.png",
+    "09-course-read-error.png",
+    "10-course-parking-ready.png"
+  ],
+  "limits": [
+    "503 is mocked HTTP transport failure, not an actual D1 outage",
+    "Fresh isolated local DB has no unrelated ACTIVE parking snapshot; suite does not delete other fixtures",
+    "Only lunch/3km/browser combinations here; earlier existing unit/integration evidence covers other combinations separately",
+    "No real provider/production/remote/CI/deploy or full WCAG claim",
+    "External browser requests aborted for deterministic local checks"
+  ],
+  "historical_evidence": {
+    "initial_red": "/tmp/cst-course-flow-red.log",
+    "review_unselected_red": "/tmp/cst-course-unselected-red-20261118.log",
+    "test_harness_errors": [
+      "/tmp/cst-course-flow-final.log: desktop hidden menu selector",
+      "/tmp/cst-course-flow-final2.log: pnpm warning prefix before JSON"
+    ]
+  },
+  "provenance_note": "Original unit evidence; the integrated version is verified and recorded separately."
+}

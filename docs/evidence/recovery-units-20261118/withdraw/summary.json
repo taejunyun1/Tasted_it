@@ -1,0 +1,81 @@
+{
+  "base_sha": "288b92b5192c100f25ee7b3b3437798c698649bd",
+  "branch": "codex/jay_cst_withdraw_recovery_20261118",
+  "source_sha256": "b6cbace20f4a4e9fa1fd4beec51750fa08845d1935b96acf25ef9ea7a6acc115",
+  "environment": "LOCAL_COMPILED_WORKER_SYNTHETIC_D1",
+  "origin": "http://127.0.0.1:5214",
+  "changes": [
+    "탈퇴 제출 중 잠금과 동기 중복 제출 차단",
+    "서버 실패와 응답 유실을 UNKNOWN으로 표시, 실제 권한 거절/redirect 보존",
+    "UNKNOWN 후 명시적인 문서 GET으로 현재 인증 상태 확인"
+  ],
+  "checks": [
+    {
+      "command": "pnpm exec vitest run tests/unit/withdraw-recovery.test.ts (before implementation)",
+      "result": "EXPECTED_FAIL",
+      "failed": 2,
+      "passed": 2
+    },
+    {
+      "command": "pnpm exec vitest run tests/unit/withdraw-recovery.test.ts tests/unit/member-save-feedback.test.ts",
+      "result": "PASS",
+      "passed": 10,
+      "new": 5
+    },
+    {
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/withdraw-recovery.test.ts tests/integration/member-save-feedback.test.ts",
+      "result": "PASS",
+      "passed": 6,
+      "new": 2
+    },
+    {
+      "command": "pnpm run typecheck",
+      "result": "PASS"
+    },
+    {
+      "command": "RETASTE_E2E=true CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH=wrangler.e2e.jsonc pnpm run build",
+      "result": "PASS"
+    },
+    {
+      "command": "BASE_URL=http://127.0.0.1:5214 pnpm exec playwright test tests/e2e/withdraw-recovery.spec.ts --project=chromium --project=mobile-chromium --output=/tmp/cst-withdraw-recovery-browser",
+      "result": "PASS",
+      "passed": 4,
+      "duration_seconds": 12.3
+    },
+    {
+      "command": "pnpm audit --prod --audit-level high",
+      "result": "PASS",
+      "vulnerabilities": 0
+    }
+  ],
+  "browser_scenarios": [
+    "desktop/mobile: 전송 전 abort, pending과 requestSubmit 중복 차단, UNKNOWN 초점 및 잠금, 명시 GET으로 계정 유지 확인, 정상 탈퇴 후 세션 쿠키 제거 및 /me 접근 차단",
+    "desktop/mobile: 실제 POST를 서버에 반영한 뒤 응답만 abort, 자동 재제출 없음, 명시 GET 후 로그인으로 이동"
+  ],
+  "screenshots": [
+    "01-withdraw-uncommitted-checked.png",
+    "02-withdraw-uncommitted-unknown.png",
+    "03-withdraw-uncommitted-checked.png",
+    "04-withdraw-uncommitted-unknown.png",
+    "05-withdraw-committed-unknown.png",
+    "06-withdraw-committed-checked.png",
+    "07-withdraw-committed-unknown.png",
+    "08-withdraw-committed-checked.png"
+  ],
+  "limitations": [
+    "새 운영 배포/원격DB/실제 사용자/메일 호출 없음",
+    "계정 삭제·보존·권한 백엔드 정책 변경 없음",
+    "실제 세션의 폐기는 합성 USER 계정만 확인"
+  ],
+  "code_sha": "4056459bff82f81665ad6ccf58d4942d2ab6b7b5",
+  "review": {
+    "reviewer": "root",
+    "result": "PASS"
+  },
+  "cleanup": {
+    "remaining_users": 0,
+    "remaining_sessions": 0,
+    "server_5214_stopped": true
+  },
+  "provenance_note": "Original unit evidence; the integrated version is verified and recorded separately."
+}

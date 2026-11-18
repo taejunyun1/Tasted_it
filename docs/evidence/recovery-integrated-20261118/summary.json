@@ -1,0 +1,111 @@
+{
+  "code_source_sha": "df80fed8b39cd0eaf29c51586a5454e76b70773e",
+  "executed_at_kst": "2026-11-18T11:26:33.137506+09:00",
+  "environment": "LOCAL_COMPILED_WORKER_SYNTHETIC_D1_AND_EXISTING_FAKE_EMAIL_ENTRY",
+  "source_commits": {
+    "withdraw": "b2228c1",
+    "guest": "4ef8192",
+    "correction_flow": "3fc705a",
+    "golden": "5f76ee8",
+    "event_fixture": "9782138",
+    "course": "df80fed"
+  },
+  "checks": [
+    {
+      "name": "typecheck / production build / deploy dry-run / production audit",
+      "source_sha": "df80fed8b39cd0eaf29c51586a5454e76b70773e",
+      "result": "PASS",
+      "audit_vulnerabilities": 0,
+      "production_build": {
+        "kind": "production build",
+        "server_entry_sha256": "aea8a4ba9010acc706b3aef5d7012ced100ad605a71c54e0b57f44408f4d6ebf",
+        "bytes": 110973
+      }
+    },
+    {
+      "name": "targeted combined unit before course-only addition",
+      "source_sha": "9782138",
+      "files": 8,
+      "passed": 50,
+      "result": "PASS"
+    },
+    {
+      "name": "targeted combined D1 before course-only addition",
+      "source_sha": "9782138",
+      "files": 6,
+      "passed": 36,
+      "result": "PASS"
+    },
+    {
+      "name": "event failure and publication preservation boundaries",
+      "passed": 2,
+      "deselected": 66,
+      "result": "PASS"
+    },
+    {
+      "name": "course recovery unit",
+      "source_sha": "df80fed8b39cd0eaf29c51586a5454e76b70773e",
+      "passed": 3,
+      "result": "PASS"
+    },
+    {
+      "name": "adjacent member/h1 contracts",
+      "source_sha": "df80fed8b39cd0eaf29c51586a5454e76b70773e",
+      "files": 3,
+      "passed": 16,
+      "result": "PASS"
+    },
+    {
+      "name": "adjacent B09 HTTP boundaries",
+      "source_sha": "df80fed8b39cd0eaf29c51586a5454e76b70773e",
+      "passed": 7,
+      "result": "PASS"
+    },
+    {
+      "name": "compiled desktop/mobile integration",
+      "source_sha": "df80fed8b39cd0eaf29c51586a5454e76b70773e",
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "result": "PASS",
+      "cases": {
+        "S07_actual_mock_mail": 2,
+        "U08_DB_and_read_recovery": 10,
+        "Golden_query_recovery": 2,
+        "guest_unknown_write_recovery": 6,
+        "withdraw_unknown_write_recovery": 4
+      },
+      "command": "BASE_URL=http://127.0.0.1:5199 CST_GOLDEN_FAULT_INJECTION=1 pnpm exec playwright test tests/e2e/correction-full-flow.spec.ts tests/e2e/course-flow.spec.ts tests/e2e/golden-query-recovery.spec.ts tests/e2e/guest-save-uncertain.spec.ts tests/e2e/withdraw-recovery.spec.ts",
+      "test_build_entry_sha256": "e11915ecf4058d3b5a963f97959082b445a88e7538ef5c44512d7f1856ea8649"
+    }
+  ],
+  "runtime_only_configuration": {
+    "COURSE_CONTEXT_V2_ENABLED": "true",
+    "email": "existing local-email-worker captures only synthetic example.test recipients; no production changes"
+  },
+  "screenshots": [
+    "desktop-course-read-error.png",
+    "desktop-golden-previous-results.png",
+    "desktop-s07-public-applied.png",
+    "desktop-withdraw-committed-unknown.png",
+    "mobile-course-read-error.png",
+    "mobile-golden-previous-results.png",
+    "mobile-s07-public-applied.png",
+    "mobile-withdraw-committed-unknown.png"
+  ],
+  "original_unit_evidence": "../recovery-units-20261118/",
+  "limitations": [
+    "Not production deployment, remote D1 migration, actual mail delivery or field demonstration.",
+    "No required CI bypass; policy facts and #397 HOLD unchanged.",
+    "Golden fault injection is opt-in and only renames/restores a table in isolated local D1.",
+    "Local guest-session fixtures may remain by test design; cleanup assertions only cover scoped place/account fixtures."
+  ],
+  "local_cleanup": {
+    "s07_places": 0,
+    "course_places": 0,
+    "golden_places": 0,
+    "withdrawal_users": 0,
+    "golden_pick_events_rows": 1,
+    "note": "Scoped temporary place/account fixtures were removed; original Golden table restored. Guest fixtures are outside this zero-count claim."
+  }
+}

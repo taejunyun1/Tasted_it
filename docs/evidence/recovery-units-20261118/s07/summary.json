@@ -1,0 +1,62 @@
+{
+  "commit": "f6dd4fadacbf356386c73a8478e1e44a13abb851",
+  "branch": "codex/jay_cst_correction_flow_20261118",
+  "base": "288b92b5192c100f25ee7b3b3437798c698649bd",
+  "worktree": "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit",
+  "files": [
+    "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit/app/components/admin/PlaceCorrectionPanel.tsx",
+    "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit/app/features/places/place-correction.server.ts",
+    "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit/app/features/places/place-operations-admin.server.ts",
+    "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit/tests/e2e/correction-flow-fixture.ts",
+    "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit/tests/e2e/correction-full-flow.spec.ts",
+    "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit/tests/integration/correction-flow.server.test.ts",
+    "/Users/jaysong/.codex/worktrees/jay-cst-correction-flow-20261118/tastedit/tests/unit/correction-panel.test.ts"
+  ],
+  "checks": {
+    "compiled_browser": "2 passed desktop/mobile (26.1s), build/server/wrangler.json on local5285",
+    "D1": "9 new correction-flow +2 existing correction tests passed; 1 existing B09 publication-preservation regression passed",
+    "unit": "3 panel +2 existing tabs tests passed",
+    "build": "PASS using existing wrangler.e2e.jsonc",
+    "typecheck": "PASS",
+    "audit_prod": "No known vulnerabilities found",
+    "independent_review": "PASS after own-property label guards"
+  },
+  "commands": [
+    "CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH=wrangler.e2e.jsonc pnpm run build",
+    "pnpm exec wrangler dev --config build/server/wrangler.json --local --ip 127.0.0.1 --port 5285 --persist-to .wrangler/e2e-state",
+    "BASE_URL=http://127.0.0.1:5285 pnpm exec playwright test tests/e2e/correction-full-flow.spec.ts",
+    "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/correction-flow.server.test.ts tests/integration/place-correction.server.test.ts",
+    "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/place-admin-command.test.ts -t 'keeps correction and liveness'",
+    "pnpm exec vitest run tests/unit/correction-panel.test.ts tests/unit/admin-place-operations-tabs.test.ts",
+    "pnpm run typecheck",
+    "pnpm audit --prod"
+  ],
+  "flow": [
+    "Public detail real link selects target",
+    "Guest submits real correction form to local fake mail transport",
+    "PENDING_VERIFICATION is not listed; direct admin transition receives400; public name unchanged",
+    "Read local mock email link and execute actual fragment-token verification route",
+    "SUBMITTED appears in admin queue; public name still unchanged",
+    "Admin REVIEWING with internal memo is recorded/audited; public name remains unchanged",
+    "Admin apply creates one revision/audit and updated name becomes visible on public detail; publication state preserved"
+  ],
+  "safety": [
+    "No production route, flag, schema, dependency, provider or remote mutation added",
+    "Existing test-only local-email-worker used unchanged; no real email delivery",
+    "All synthetic fixture places and requests removed after test; local5285server stopped",
+    "Internal review memo is not described as a requester email or new NEEDS_INFO workflow"
+  ],
+  "atomic_batch_reference": "https://developers.cloudflare.com/d1/worker-api/d1-database/#batch",
+  "screenshots": [
+    "01-chromium-s07-admin-review.png",
+    "02-chromium-s07-public-applied.png",
+    "03-mobile-chromium-s07-admin-review.png",
+    "04-mobile-chromium-s07-public-applied.png"
+  ],
+  "original_findings": "/tmp/cst-s07-correction-flow-evidence-20261118/original-findings.md",
+  "limitations": [
+    "Local compiled Worker verification only; no deployment/live validation or push",
+    "No new requester resubmission or automatic response email workflow was introduced"
+  ],
+  "provenance_note": "Original unit evidence; the integrated version is verified and recorded separately."
+}

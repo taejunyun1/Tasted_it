@@ -1,0 +1,23 @@
+{
+  "source_commit": "efd89d28779e4cc09ddfbe3680ae6a8398f9f627",
+  "environment": "OWN_LOCAL_COMPILED_WORKER_SYNTHETIC_D1",
+  "unit_passed": 35,
+  "D1_selected_passed": 4,
+  "D1_deselected": 9,
+  "browser_passed": 2,
+  "typecheck": "PASS",
+  "production_build": "PASS",
+  "audit_vulnerabilities": 0,
+  "review": "PASS",
+  "previous_failures": [
+    "Original Golden failure was misclassified as empty/fallback; server and render tests RED then GREEN.",
+    "Unavailable read previously changed recommendation history; RED then GREEN.",
+    "First browser attempt lacked an eligible fixture; corrected with20eligible votes and a current synthetic snapshot.",
+    "Same-mode navigation reloaded UNAVAILABLE over successful results; skip unchanged URL navigation while preserving resource retry."
+  ],
+  "cleanup": "Own copied D1 Golden table restored; read via Wrangler on a scratch copy confirmed original1 Golden row and0 temporary places.",
+  "limitations": [
+    "No live DB, provider or deployment changes.",
+    "E2E query failure uses a reversible table rename only in an explicitly opted-in disposable local D1 copy."
+  ]
+}
