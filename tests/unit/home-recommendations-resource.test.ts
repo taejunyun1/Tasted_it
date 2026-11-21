@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   env: { DB: {}, ONBOARDING_ENABLED: "true" as string | undefined },
-  getOptionalUser: vi.fn(async (): Promise<{ id: string } | null> => null),
+  getOptionalUser: vi.fn(async (): Promise<{ id: string; role: string } | null> => null),
   getGuestOnboardingFromRequest: vi.fn(async (): Promise<{
     foodBadgeIds: string[];
     styleBadgeIds: string[];
@@ -18,9 +18,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("cloudflare:workers", () => ({ env: mocks.env }));
 vi.mock("../../app/db/client.server", () => ({ createDb: () => ({}) }));
-vi.mock("../../app/features/auth/session.server", () => ({ getOptionalUser: mocks.getOptionalUser }));
+vi.mock("../../app/features/auth/session.server", () => ({
+  getOptionalUser: mocks.getOptionalUser,
+  readSessionId: () => null,
+}));
 vi.mock("../../app/features/onboarding/guest-session.server", () => ({
   getGuestOnboardingFromRequest: mocks.getGuestOnboardingFromRequest,
+  readGuestSessionId: () => null,
 }));
 vi.mock("../../app/features/places/home-curation.server", () => ({
   getHomeCurationPage: mocks.getHomeCurationPage,
@@ -44,13 +48,13 @@ afterEach(() => {
 
 describe("home recommendations resource", () => {
   it("로그인 회원의 큐레이션 요청을 엄격한 bbox 중심으로 전달한다", async () => {
-    mocks.getOptionalUser.mockResolvedValue({ id: "member-1" });
+    mocks.getOptionalUser.mockResolvedValue({ id: "member-1", role: "MEMBER" });
     const { loader } = await import("../../app/routes/home-recommendations-resource");
     const result = await loader({
       request: new Request("https://retaste.example/resources/home-recommendations?mode=golden&bbox=126.8,35,127,35.3&requestToken=request-token-01"),
     } as never);
 
-    expect(result).toMatchObject({ data: { ok: true, requestToken: "request-token-01" } });
+    expect(result).toMatchObject({ data: { ok: true, requestToken: "request-token-01", mapViewerKey: expect.stringMatching(/^[a-f0-9]{64}$/) } });
     expect(mocks.getHomeCurationPage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       userId: "member-1",
       tasteBadgeIds: [],
@@ -82,7 +86,7 @@ describe("home recommendations resource", () => {
       request: new Request("https://retaste.example/resources/home-recommendations.data?mode=now&bbox=126.8,35,127,35.3&requestToken=request-token-03&_routes=routes%2Fhome-recommendations-resource"),
     } as never);
 
-    expect(result).toMatchObject({ data: { ok: true } });
+    expect(result).toMatchObject({ data: { ok: true, mapViewerKey: expect.stringMatching(/^[a-f0-9]{64}$/) } });
     expect(mocks.getHomeCurationPage).toHaveBeenCalledOnce();
   });
 

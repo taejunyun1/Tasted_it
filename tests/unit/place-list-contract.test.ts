@@ -69,6 +69,19 @@ describe("place recommendation interaction contract", () => {
   });
 });
 
+describe("public place list metadata", () => {
+  it.each([
+    [1, "맛집 리스트 — Re:Taste", "/places"],
+    [2, "맛집 리스트 · 2페이지 — Re:Taste", "/places?page=2"],
+  ])("uses the title and canonical URL for page %i", async (page, title, path) => {
+    const { meta } = await import("../../app/routes/place-list");
+    const publicOrigin = "https://retaste.example";
+    const result = meta({ loaderData: { pagination: { page }, publicOrigin } } as never);
+    expect(result).toContainEqual({ title });
+    expect(result).toContainEqual({ tagName: "link", rel: "canonical", href: publicOrigin + path });
+  });
+});
+
 describe("places onboarding entry contract", () => {
   it("lets an unfinished guest browse places when onboarding is enabled", async () => {
     mocks.getGuestOnboardingFromRequest.mockResolvedValue({
