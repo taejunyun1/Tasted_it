@@ -45,7 +45,7 @@ export const ADMIN_CONTROL_REGISTRY: readonly AdminControlEntry[] = [
   control("A23", "공공데이터", "operations", "수집·진행·실패·재개", "PARTIAL", "/admin/data-sync", "인허가 수집 미리보기·재인증·페이지 원자 처리·중단 및 제한 재개", "외부 호출의 실측과 별도 검증 작업의 사용량 연결"),
   control("A24", "NAVER·지도", "operations", "사용량·검증·좌표 확인", "PARTIAL", "/admin/place-operations", "지역별 예산·사용량과 장소 검증", "실측·추정 구분과 동시 호출 한도 보완"),
   control("A25", "AI·부가 공급자", "operations", "호출·비용·실패 관측", "NOT_IMPLEMENTED", null, "통합 공급자 비용 관리 화면 없음", "비밀값 없이 규칙·건수·추정·실측 조회"),
-  control("A26", "주차·EV·코스", "operations", "신선도·동기화 확인", "NOT_IMPLEMENTED", null, "기존 데이터 경로 외 전용 관리 화면 없음", "소스별 성공·실패·부분 자료 확인"),
+  control("A26", "주차·EV·코스", "operations", "신선도·동기화 확인", "PARTIAL", "/admin/jobs/parking", "주차·EV 작업 상태·현재 사용 자료·취소·제한 재시도 조회", "실제 수집 결과 검증과 코스 운영 연결"),
   control("A27", "기능·긴급 중단", "operations", "설정 조회·중단·재활성화", "NOT_IMPLEMENTED", null, "환경 설정은 지정 운영 절차로 관리", "허용된 설정의 기대값·실효값·복구 기록 조회"),
   control("A28", "정기·수동 작업", "operations", "진행·취소·회복", "PARTIAL", "/admin/operations", "일부 실행 처리량·실패 집계", "개별 작업 상태와 실행·취소 결과 연결"),
   control("A29", "RSI 점검", "operations", "고정 공개 경로 점검", "PARTIAL", null, "보호된 점검 경로는 있으나 전용 결과 화면 없음", "최근 성공·실패와 감사 기록 연결"),

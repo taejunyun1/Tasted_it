@@ -5,6 +5,7 @@ export const ACTIVITY_KINDS = {
   VOTE_INVALIDATE: "투표 무효화", ADMIN_ROLE_CHANGE: "관리자 권한 변경", ADMIN_SESSIONS_REVOKE: "세션 회수",
   TEMP_PUBLISH: "TEMP 공개", TEMP_UNPUBLISH: "TEMP 공개 회수",
   MEMBER_ACCESS_CHANGE: "회원 접근·세션 관리",
+  PARKING_SYNC_CONTROL: "주차·EV 작업 제어",
   REVIEWER_ADMIN_CHANGE: "리뷰어 관리", STUDENT_ADMIN_CHANGE: "학생 관리", PLACE_ADMIN_CHANGE: "장소 공개·병합·회수",
   PUBLIC_SYNC_CONTROL: "공공 인허가 동기화",
 } as const;
