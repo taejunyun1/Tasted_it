@@ -8,6 +8,7 @@ const sourceLabels: Record<PlaceReviewQueueRow["sourceKind"], string> = {
   CATEGORY_RECALL: "카테고리 회수",
   LIVENESS_RECHECK: "영업 재검증",
 };
+const regionLabels = { GWANGJU: "광주", JEONNAM: "전남", JEONBUK: "전북" };
 
 function naverStatusLabel(status: string | null) {
   if (!status) return "미확인";
@@ -41,8 +42,9 @@ export function PlaceReviewCard({ row, checked, onToggle, addressEditable = fals
     </label>
     <div className="place-review-card-main">
       <p className="place-review-card-meta">
-        <span>{sourceLabels[row.sourceKind]}</span>
-        {row.region && <span>{row.region === "GWANGJU" ? "광주" : "전남"}</span>}
+        <span>{row.intakeMode === "CREATE" ? "사용자 제공 목록" : sourceLabels[row.sourceKind]}</span>
+        {row.intakeMode === "LINK" && <span>반입 목록 연결</span>}
+        {row.region && <span>{regionLabels[row.region]}</span>}
         {row.placeStatus && <span>{row.placeStatus}</span>}
         {naverNeedsConfirmation(row.naverStatus) && <span className="place-review-badge">확인필요</span>}
       </p>

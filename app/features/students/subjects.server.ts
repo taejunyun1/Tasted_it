@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
-import { businessLicenses, categories, placeReviewWorkItems, places, placeSourceLinks, reviewerVisitPhotos, reviewerVisitReviews } from "../../db/schema";
+import { businessLicenses, categories, placeIntakeReviewLinks, placeReviewWorkItems, places, placeSourceLinks, reviewerVisitPhotos, reviewerVisitReviews } from "../../db/schema";
 import { getTerminalCategoryIds } from "../candidates/category-selection";
 import { getReviewDiningContext } from "../places/local-dining-review.server";
 import { listReviewDuplicateCandidates } from "../places/place-review-duplicates.server";
@@ -34,7 +34,10 @@ export async function getStudentSubject(db: AppDb, kind: TaskKind, targetId: str
     const evaluation = { RECOMMEND: "추천", HOLD: "판단보류", NOT_RECOMMEND: "비추천" }[review.evaluation];
     return { kind, title: place.name, address: place.address, details: [`작성자 평가 ${evaluation}`, `음식 종류 ${category?.name ?? "미확인"}`, `사진 ${review.photoCount}장`], photos: photos.sort((a, b) => a.position - b.position).map((p) => p.id), categoryId: review.categoryId, registrationReady: false, fingerprint: await subjectFingerprint([review.id, review.version, review.categoryId, review.evaluation, review.badgesJson, review.updatedAt, place.updatedAt, photos]) };
   }
-  const item = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.id, targetId) });
+  const [row] = await db.select({ item: placeReviewWorkItems }).from(placeReviewWorkItems)
+    .leftJoin(placeIntakeReviewLinks, eq(placeIntakeReviewLinks.workItemId, placeReviewWorkItems.id))
+    .where(and(eq(placeReviewWorkItems.id, targetId), or(isNull(placeIntakeReviewLinks.mode), eq(placeIntakeReviewLinks.mode, "LINK")))).limit(1);
+  const item = row?.item;
   if (!item) throw new Error("STUDENT_TARGET_UNAVAILABLE");
   const [context, categoryChoices, duplicates, place, license, link] = await Promise.all([
     getReviewDiningContext(db, item, now), studentCategoryChoices(db), listReviewDuplicateCandidates(db, [item.id]),

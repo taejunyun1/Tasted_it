@@ -8,8 +8,14 @@ import { prepareAdminOperation } from "../../app/features/operations/admin-opera
 import { confirmLocalDiningReview } from "../../app/features/places/local-dining-review.server";
 import { commitPlaceAdminOperation, getPlaceAdminOperation, preparePlaceAdminOperation } from "../../app/features/places/place-admin.server";
 import { applyPlaceCorrection } from "../../app/features/places/place-correction.server";
-import { newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
+import { runAutoReviewPipeline } from "../../app/features/places/place-review-auto-pipeline.server";
+import { confirmReviewItemCategories } from "../../app/features/places/place-review-category.server";
+import { publishReviewedPlaces } from "../../app/features/places/place-review-publication.server";
+import { listPlaceReviewWorkItems } from "../../app/features/places/place-review-query.server";
+import { advancePlaceReviewWorkItems, newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
 import { resolvePlaceLivenessCase } from "../../app/features/places/place-revalidation.server";
+import { getPlaceBySlug, listPlaces } from "../../app/features/places/place.server";
+import { getStudentSubject } from "../../app/features/students/subjects.server";
 
 const now = "2026-11-14T09:00:00.000Z";
 const reason = "합성 관리 변경 사유";
@@ -56,6 +62,52 @@ async function publication(actorUserId: string, kind: "PLACE" | "LICENSE" = "PLA
   return { id, workItemId: item.id, categoryId };
 }
 
+async function enrollIntake(actorUserId: string, workItemId: string, mode: "CREATE" | "LINK",
+  subject: { name: string; address: string; latitude: number; longitude: number }, region: "GWANGJU" | "JEONBUK") {
+  const batchId = (crypto.randomUUID() + crypto.randomUUID()).replaceAll("-", "");
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO place_intake_batches VALUES(?,'합성 장소 반입',1,'STAGING',?)").bind(batchId, now),
+    env.DB.prepare(`INSERT INTO place_intake_entries
+      (batch_id,position,name,address,neighborhood,latitude,longitude,category_slug,kind,source,region_code,selection,photo)
+      VALUES(?,1,?,?,'합성동',?,?,'cafe','CAFE','USER_SUPPLIED',?,'CANDIDATE','NOT_SUPPLIED')`)
+      .bind(batchId, subject.name, subject.address, subject.latitude, subject.longitude, region),
+    env.DB.prepare("UPDATE place_intake_batches SET state='READY' WHERE id=?").bind(batchId),
+    env.DB.prepare("INSERT INTO place_intake_review_links VALUES(?,1,?,?,?,?,?,?,?,?)")
+      .bind(batchId, workItemId, mode, actorUserId, now, subject.name, subject.address, subject.latitude, subject.longitude),
+  ]);
+}
+
+async function intakeDraft(actorUserId: string, region: "GWANGJU" | "JEONBUK" = "JEONBUK") {
+  const id = crypto.randomUUID(), categoryId = crypto.randomUUID();
+  const subject = { name: `합성 카페 ${id}`, ...(region === "JEONBUK"
+    ? { address: "전북특별자치도 전주시 완산구 합성로 10", latitude: 35.81, longitude: 127.14 }
+    : { address: "광주광역시 동구 합성로 10", latitude: 35.15, longitude: 126.92 }) };
+  const item = newReviewWorkItemValues({ placeId: id, sourceKind: "PLACE_SUGGESTION", now });
+  await db.insert(categories).values({ id: categoryId, slug: categoryId, name: "카페", emoji: "☕", sortOrder: 0, createdAt: now, updatedAt: now });
+  await db.insert(places).values({ id, slug: id, ...subject, status: "DRAFT", neighborhood: "합성동",
+    searchText: subject.name, createdAt: now, updatedAt: now });
+  await db.insert(placeReviewWorkItems).values(item);
+  await enrollIntake(actorUserId, item.id, "CREATE", subject, region);
+  return { id, workItemId: item.id, categoryId, subject };
+}
+
+async function advanceIntakeDraft(actorUserId: string, target: Awaited<ReturnType<typeof intakeDraft>>) {
+  const { workItemId, categoryId } = target;
+  const input = { workItemIds: [workItemId], actorUserId, now };
+  const versions = async () => ({ [workItemId]: Number((await workItemRow(workItemId))?.stage_version) });
+  const advance = async (expectedStage: Parameters<typeof advancePlaceReviewWorkItems>[1]["expectedStage"], manualEvidenceReason?: string) => {
+    const result = await advancePlaceReviewWorkItems(db, { ...input, expectedStage, expectedVersions: await versions(), manualEvidenceReason });
+    expect(result).toEqual({ advanced: [workItemId], skipped: [] });
+  };
+  await advance("SOURCE_REVIEW");
+  await advance("NAVER_VERIFICATION", diningReason);
+  await confirmLocalDiningReview(db, { ...input, expectedVersions: await versions(), reason: diningReason, confirmed: true });
+  expect(await confirmReviewItemCategories(db, { actorUserId, now, selections: [{ workItemId, categoryId, reason: "" }] }))
+    .toMatchObject({ confirmed: [workItemId], skipped: [] });
+  await advance("DUPLICATE_REVIEW");
+  return (await versions())[workItemId]!;
+}
+
 async function mergeFixture() {
   const sourcePlaceId = await place(), targetPlaceId = await place(), userId = await user(), eventId = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO vote_events(id,place_id,user_id,value,event_type,source,created_at) VALUES(?,?,?,1,'CREATE','GENERAL',?)")
@@ -90,6 +142,70 @@ async function expectPending(operationId: string) {
 }
 
 describe("single-place administrative operations", () => {
+  it("keeps an enrolled Jeonbuk draft private through all review stages until a confirmed B09 publication", async () => {
+    const actor = await admin(), target = await intakeDraft(actor.actorUserId);
+    const queue = { step: 1, page: 1, pageSize: 25, status: "pending", region: null } as const;
+    const pending = await listPlaceReviewWorkItems(db, { ...queue, query: target.subject.name.toUpperCase() });
+    expect(pending.rows).toMatchObject([{ workItemId: target.workItemId, intakeMode: "CREATE", region: "JEONBUK", placeStatus: "DRAFT" }]);
+    const byId = await listPlaceReviewWorkItems(db, { ...queue, query: target.workItemId });
+    expect(byId.rows).toMatchObject([{ workItemId: target.workItemId }]);
+    expect((await listPlaceReviewWorkItems(db, { ...queue, query: "합성%카페" })).rows).toEqual([]);
+    await expect(getStudentSubject(db, "PLACE", target.workItemId, now)).rejects.toThrow("STUDENT_TARGET_UNAVAILABLE");
+    const expectedVersion = await advanceIntakeDraft(actor.actorUserId, target);
+    const legacy = await publishReviewedPlaces(db, { ...actor, workItemIds: [target.workItemId], expectedVersions: { [target.workItemId]: expectedVersion } });
+    expect(legacy).toEqual({ published: [], skipped: [{ workItemId: target.workItemId, code: "PUBLISH_CONFIRM_REQUIRED" }] });
+    const prepared = await preparePlaceAdminOperation(env.DB, { ...actor, command: { change: "PUBLISH", workItemId: target.workItemId, expectedVersion, reason: "" } });
+    await expect(getPlaceBySlug(db, target.id)).rejects.toMatchObject({ status: 404 });
+    expect(await listPlaces(db, { query: target.id.slice(-12) })).toEqual([]);
+    const committed = await commitPlaceAdminOperation(env.DB, { ...actor, operationId: prepared.operationId });
+    expect(committed.result).toMatchObject({ appliedCount: 1, targetId: target.id });
+    expect(await getPlaceBySlug(db, target.id)).toMatchObject({ id: target.id, address: target.subject.address });
+    expect(await listPlaces(db, { query: target.id.slice(-12) })).toMatchObject([{ id: target.id }]);
+  });
+
+  it("blocks an enrolled draft if new dining evidence confirms a different address", async () => {
+    const actor = await admin(), target = await intakeDraft(actor.actorUserId);
+    const expectedVersion = await advanceIntakeDraft(actor.actorUserId, target);
+    const command = { change: "PUBLISH" as const, workItemId: target.workItemId, expectedVersion, reason: "" };
+    const prepared = await preparePlaceAdminOperation(env.DB, { ...actor, command });
+    await db.update(places).set({ address: target.subject.address.replace("10", "12") }).where(eq(places.id, target.id));
+    await confirmLocalDiningReview(db, { ...actor, workItemIds: [target.workItemId], expectedVersions: { [target.workItemId]: expectedVersion }, reason: diningReason, confirmed: true });
+    await expect(commitPlaceAdminOperation(env.DB, { ...actor, operationId: prepared.operationId })).rejects.toThrow("ADMIN_OPERATION_CONFLICT");
+    await expect(preparePlaceAdminOperation(env.DB, { ...actor, command: { ...command, expectedVersion: expectedVersion + 1 } }))
+      .rejects.toThrow("PLACE_ADMIN_NOT_ELIGIBLE");
+    await expectPending(prepared.operationId);
+    await expect(getPlaceBySlug(db, target.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("routes an enrolled public-license item through B09 and retains its original public-data source", async () => {
+    const actor = await admin(), target = await publication(actor.actorUserId, "LICENSE");
+    const subject = { name: `지역식당 ${target.id}`, address: "광주광역시 동구 동명로 10 (동명동)", latitude: 35.15, longitude: 126.92 };
+    await enrollIntake(actor.actorUserId, target.workItemId, "LINK", subject, "GWANGJU");
+    expect(await getStudentSubject(db, "PLACE", target.workItemId, now)).toMatchObject({ registrationReady: true });
+    expect(await publishReviewedPlaces(db, { ...actor, workItemIds: [target.workItemId], expectedVersions: { [target.workItemId]: 1 } }))
+      .toEqual({ published: [], skipped: [{ workItemId: target.workItemId, code: "PUBLISH_CONFIRM_REQUIRED" }] });
+    const command = { change: "PUBLISH" as const, workItemId: target.workItemId, expectedVersion: 1, reason: "" };
+    const prepared = await preparePlaceAdminOperation(env.DB, { ...actor, command });
+    expect(await listPlaces(db, { query: target.id.slice(-12) })).toEqual([]);
+    const committed = await commitPlaceAdminOperation(env.DB, { ...actor, operationId: prepared.operationId });
+    expect(await listPlaces(db, { query: target.id.slice(-12) })).toMatchObject([{ id: committed.result.targetId }]);
+    expect(await workItemRow(target.workItemId)).toMatchObject({ source_kind: "PUBLIC_DATA", business_license_id: target.id, status: "COMPLETED" });
+  });
+
+  it("keeps newly enrolled drafts out of scheduled NAVER lookups while continuing public-license verification", async () => {
+    const actor = await admin(), created = await intakeDraft(actor.actorUserId, "GWANGJU"), linked = await publication(actor.actorUserId, "LICENSE");
+    const subject = { name: `지역식당 ${linked.id}`, address: "광주광역시 동구 동명로 10 (동명동)", latitude: 35.15, longitude: 126.92 };
+    await enrollIntake(actor.actorUserId, linked.workItemId, "LINK", subject, "GWANGJU");
+    await db.update(placeReviewWorkItems).set({ stage: "NAVER_VERIFICATION" }).where(eq(placeReviewWorkItems.id, linked.workItemId));
+    const queries: string[] = [];
+    await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: true, naverAdapter: {
+      async search(request) { queries.push(request.businessName); return []; },
+    } });
+    expect(queries).toEqual([subject.name]);
+    expect(await workItemRow(created.workItemId)).toMatchObject({ stage: "NAVER_VERIFICATION", manual_evidence_reason: null });
+    expect(await placeRow(created.id)).toMatchObject({ status: "DRAFT" });
+  });
+
   it("previews without publication and commits one durable result that replays", async () => {
     const actor = await admin(), target = await publication(actor.actorUserId);
     const beforePlace = await placeRow(target.id), beforeWorkItem = await workItemRow(target.workItemId);

@@ -1,6 +1,6 @@
 # 제공받은 장소 목록 보관과 전라도 공개 범위
 
-2026-11-21 · [#474](https://github.com/taejunyun1/Tasted_it/issues/474) · Jay/Codex · **격리 로컬 검증 완료 / 운영 반입과 공개 대기**.
+2026-11-21 · [#474](https://github.com/taejunyun1/Tasted_it/issues/474) · [#475](https://github.com/taejunyun1/Tasted_it/pull/475) · Jay/Codex · **85건 관리자 검수 연결 로컬 검증 / 운영 반입과 공개 대기**.
 
 사용자가 제공한 공유 목록 855곳과 별도 제보 1곳을 모두 보관한다. 이 목록에서 공개 검수를 받을 수 있는 범위는 광주·전남·전북의 식당과 카페다. 타지역 440곳이나 비식음료·근거가 부족한 장소는 공개 목록에서 제외한다. 주점 17곳은 식사 장소인지 확인이 필요하다. 기존 광주·전남 공공데이터·NAVER·EV의 지역 연결 설정은 독립적으로 유지한다.
 
@@ -35,6 +35,51 @@
 
 자료 검수 통과는 85곳(광주 37, 전남 26, 전북 22), 보류는 204곳, 기존 장소 중복은 3곳, 공개 제외는 1곳이다. 85곳은 자료 검수 결과이며 B09의 최종 공개 승인 기록은 별도로 필요하다. 전체 856건의 최신 반입본은 후보 85, 추가 확인 204, 비노출 567이다. 타지역 440건은 모두 비노출이다. 원본과 각 판단의 출처를 비공개로 보존했다.
 
-동일 운영 인허가를 통해 기존 활성 검수 항목에 연결할 여지가 있는 곳은 통과 85곳 중 15곳이며, 현재 FINAL_APPROVAL 항목이 있는 곳은 1곳이다. 현재 CSV는 나머지 장소의 검수 항목을 만들 수 없어서, 신규 초안의 출처·검수 연결 및 전북 수동 증빙 경로를 운영 승인 범위에 명시한다. 격리된 로컬 D1에서 검수 반영본 856건의 원자 저장·재반입, 후보 85건의 지역·B09 주소 조건·CSV 파싱, 타지역 440건 비노출, 공개 장소 생성 0을 확인했다.
+## 통과 85곳의 관리자 검수 연결
 
-운영 반입 직전 조회에서 최고 적용 migration은 0049였다. 필수 CI 통과 후 승인된 대상·작업 한도·실행 수단을 PR에 고정하고, B17 및 0050·0051 등 별도 대상 migration을 함께 적용하지 않는다. 배치 검증 뒤 운영에서는 정확한 장소별 검수 증거로만 공개한다. 이후 승인한 신규 장소 ID 집합과 실제 공개 집합을 비교하고, 비로그인 상태의 광주·전남·전북 목록·지도·상세에서 승인 장소 노출과 보류·타지역·비식음료의 미노출을 확인한다. 전북 지역의 목록·지도 접근과 해당 Worker의 RSI 결과를 별도로 기록한다. 이 검수에서 운영 쓰기, 병합과 공개 반영은 대기다.
+- 기존 인허가 검수 15곳은 정확한 검수 항목 ID와 인허가 ID, 단계 버전, 상호·주소·좌표를 대조해 연결한다. 기존 단계와 버전은 그대로 유지한다. 12곳은 출처 검수, 2곳은 NAVER 확인, 1곳은 최종 승인 대기 단계에서 이어간다.
+- 70곳은 `DRAFT` 장소와 `SOURCE_REVIEW` 검수 항목으로 생성한다. 관리자 검수에는 **사용자 제공 목록**으로 표시한다. 상호 또는 정확한 검수 항목 ID로 찾을 수 있다. 신규 ID는 `intake:<batchId>:<position>`이고 기존 ID는 비공개 연결 계획에 있다. 신규 항목은 학생 검수와 예약 NAVER 자동 조회에서 제외한다.
+- 공개는 관리자 장소 운영의 B09 미리보기·커밋을 거친다. 단계별 근거, 영업·식사 여부, 최종 분류, 중복 판정과 승인 기록이 필요하다. 전북 등 자동 확인이 없는 항목은 확인 가능한 수동 근거를 남긴다. 최초 연결 이후 상호·주소·좌표가 달라지거나 현재 지역과 원장 지역이 불일치하면 해당 항목의 공개를 막고 재검수한다.
+- 실제 비공개 자료와 기존 검수 상태를 재현한 격리 로컬 D1에서 856곳 보관, 15곳 연결, 70곳 신규 초안, 타지역 440곳 비노출, 재실행 중복 0, 신규 공개 0을 확인했다. 실제 운영 연결 직전에는 해당 검수 항목의 최신 상태와 중복을 다시 조회한다.
+
+## CI 복구 후 실행
+
+1. 필수 CI 네 항목이 최종 PR 커밋에서 통과하면 PR을 병합한다. 배포 담당자는 병합된 `main`에서 대상 Worker·D1 계정/ID, Time Travel 복구 지점, 현재 버전, 장소 기준 집계와 적용 migration 목록을 확인한다. 이전 운영 조회의 마지막 migration은 `0049`였다. `0050`·`0051`이 대기 중이면 해당 변경의 운영 절차와 적용 결과를 먼저 확인한다. 전체 대기 migration을 일괄 적용하거나 B17 후보 DB를 사용하지 않는다.
+2. 정확히 `0061_private_place_intake.sql`과 `0062_place_intake_review_links.sql`만 대기함을 확인한 뒤 표준 D1 migration을 적용한다. 새 테이블·가드와 외래키 검사를 확인하고, 병합된 Worker를 배포한 뒤 관리자 검수와 공개 목록의 사전 스모크를 확인한다. 이 시점에는 목록 입력이 없다.
+3. 배포 담당자는 비공개 856건 입력과 85건 연결 계획의 SHA-256을 확인한다. 이번 연결 계획은 `c7130bc0f62ea92c8e8f9d54543a546ec36d426484b8581b57aa2d3547685e6d`이다. 대상 D1의 기존 검수 15건과 신규 70건의 canonical 중복을 읽기 전용으로 다시 대조한다. 근거, 상태 또는 대상이 바뀌면 해당 계획을 사용하지 않고 재검수한다.
+4. 배포 담당자는 검증된 관리자 ID, 비공개 두 파일, 그리고 확인한 운영 D1 하나만 `binding: "DB"`, `remote: true`로 설정한 별도 Wrangler JSON을 로컬 환경 변수로 제공한다. 설정의 계정과 DB ID를 독립적으로 대조한 뒤 병합된 저장소 루트에서 아래 명령을 실행한다. [Wrangler D1 바인딩 실행 API](https://developers.cloudflare.com/workers/wrangler/api/#getplatformproxy)
+
+   ```sh
+   node --input-type=module <<'NODE'
+   import { readFileSync } from "node:fs";
+   import { getPlatformProxy } from "wrangler";
+   import { enrollPrivatePlaceIntake } from "./scripts/place-intake-enrollment.mjs";
+
+   const { RETASTE_INTAKE_CONFIG, RETASTE_ACCOUNT_ID, RETASTE_D1_ID, RETASTE_ADMIN_ID,
+     RETASTE_INTAKE_FILE, RETASTE_INTAKE_PLAN } = process.env;
+   const config = JSON.parse(readFileSync(RETASTE_INTAKE_CONFIG, "utf8"));
+   const [db] = config.d1_databases ?? [];
+   if (!RETASTE_ACCOUNT_ID || !RETASTE_D1_ID || config.account_id !== RETASTE_ACCOUNT_ID
+     || config.d1_databases?.length !== 1 || db?.binding !== "DB"
+     || db.database_id !== RETASTE_D1_ID || db.remote !== true) {
+     throw Error("PLACE_INTAKE_TARGET_MISMATCH");
+   }
+   const input = readFileSync(RETASTE_INTAKE_FILE, "utf8");
+   const plan = readFileSync(RETASTE_INTAKE_PLAN, "utf8");
+   const proxy = await getPlatformProxy({ configPath: RETASTE_INTAKE_CONFIG, remoteBindings: true, envFiles: [], persist: false });
+   try {
+     const { batchId, total, linked, created, state } = await enrollPrivatePlaceIntake(proxy.env.DB, input, plan, {
+       actorUserId: RETASTE_ADMIN_ID,
+       approvedPlanSha256: "c7130bc0f62ea92c8e8f9d54543a546ec36d426484b8581b57aa2d3547685e6d",
+     });
+     if (total !== 856 || linked !== 15 || created !== 70) throw Error("PLACE_INTAKE_COUNT_MISMATCH");
+     console.log({ batchId, total, linked, created, state });
+   } finally {
+     await proxy.dispose();
+   }
+   NODE
+   ```
+
+5. 비공개 보관과 검수 등록은 각각 원자적으로 저장한다. 검수 등록이 거절되면 생성·연결 85건은 모두 되돌아가고, 이미 성공한 `READY` 보관본은 남는다. 재시도 전 보관·검수·감사 상태를 읽고 입력과 계획을 대조한다. 정상 재실행은 동일 결과의 `EXISTING`을 반환한다. 856건 보관, LINK 15, CREATE 70, 타지역 440건 검수 연결 0, 신규 `PUBLISHED` 0, 등록 감사 1건을 확인한다.
+6. 승인 기록과 커밋 증빙이 있는 항목의 장소 ID를 모은다. 신규 초안은 검수 항목의 `place_id`, 기존 인허가는 `place_source_links`로 확인한다. 이 ID 집합과 해당 배치에서 실제 `PUBLISHED`인 집합을 비교하고 모든 행의 지역과 식당·카페 분류를 다시 확인한다. 비로그인 목록·지도·상세에서 승인 장소를 확인하고 보류·타지역·비식음료 미노출을 확인한다. 전북 지도는 해당 주소 방향으로 이동해 확인하고, 비공개 초안 상세 URL은 404인지 확인한다. Worker RSI 결과도 기록한다.
+7. 공개 집합 불일치 시 추가 공개를 중단한다. 잘못 노출된 정확한 장소 ID만 B09 회수로 처리하고 목록·지도·상세를 재확인한다. 비공개 원본과 연결·감사 이력을 보존한다. 해당 범위의 결과를 SSOT와 위키에 남긴다.
