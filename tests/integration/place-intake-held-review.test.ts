@@ -1,0 +1,109 @@
+import { createHash } from "node:crypto";
+import { env } from "cloudflare:workers";
+import { expect, it } from "vitest";
+import { enrollPrivatePlaceIntake } from "../../scripts/place-intake-enrollment.mjs";
+import { reopenHeldPlaceIntakeReview } from "../../scripts/place-intake-held-review.mjs";
+
+const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+
+it("reopens only the approved held license with recent password assurance and one atomic audit", async () => {
+  const db = env.DB;
+  const now = new Date().toISOString();
+  const earlier = new Date(Date.now() - 60_000).toISOString();
+  const expires = new Date(Date.now() + 60_000).toISOString();
+  const operator = "held-reopen-admin";
+  const workItemId = "held-reopen-work";
+  const licenseId = "held-reopen-license";
+  const auditId = "held-reopen-audit";
+  const selectedCategoryId = await db.prepare("SELECT id FROM categories WHERE slug='other'").first<string>("id");
+  expect(selectedCategoryId).toBeTruthy();
+  const subject = { name: "합성 보류 식당", address: "광주광역시 동구 합성로 1 (동명동)", latitude: 35.15, longitude: 126.91 };
+  const input = JSON.stringify({ format: "retaste-place-intake-v1", label: "합성 보류 재검수", rows: [{
+    ...subject, position: 1, neighborhood: "동명동", categoryLabel: "양식", categorySlug: "western-general", kind: "DINING",
+    source: "SHARED_MAP", selection: "CANDIDATE", reason: null, note: null, photo: "NOT_SUPPLIED",
+  }] });
+  const enrollment = JSON.stringify({ format: "retaste-intake-enrollment-v1", intakeSha256: hash(input), entries: [
+    { mode: "LINK", position: 1, workItemId, licenseId, stageVersion: 5, subject },
+  ] });
+
+  await db.batch([
+    db.prepare(`INSERT INTO users(id,email,display_name,role,email_verified_at,created_at,updated_at)
+      VALUES(?,'held-reopen@example.test','관리자','ADMIN',?,?,?)`).bind(operator, earlier, earlier, earlier),
+    db.prepare(`INSERT INTO admin_audit_logs(id,actor_user_id,action,target_type,target_id,created_at)
+      VALUES('held-reopen-designation',?,'OPERATOR_ADMIN_PROVISIONED','USER',?,?)`).bind(operator, operator, earlier),
+    db.prepare(`INSERT INTO sessions(id,user_id,created_at,expires_at)
+      VALUES('held-reopen-session',?,?,?)`).bind(operator, earlier, expires),
+    db.prepare(`INSERT INTO business_licenses(id,source_type,source_management_no,business_name,normalized_status,
+      road_address,latitude,longitude,region_code,raw_payload,first_seen_at,last_seen_at,created_at,updated_at)
+      VALUES(?,'GENERAL_RESTAURANT','held-reopen-permit',?,'OPEN',?,?,?,'GWANGJU','{}',?,?,?,?)`)
+      .bind(licenseId, subject.name, subject.address, subject.latitude, subject.longitude, earlier, earlier, earlier, earlier),
+    db.prepare(`INSERT INTO place_review_work_items(id,business_license_id,source_kind,stage,status,stage_version,
+      selected_category_id,category_override_reason,manual_evidence_reason,local_dining_evidence_json,created_at,updated_at)
+      VALUES(?,?,'PUBLIC_DATA','FINAL_APPROVAL','ACTIVE',5,?,'former category','manual evidence','{}',?,?)`)
+      .bind(workItemId, licenseId, selectedCategoryId, earlier, earlier),
+  ]);
+  const { batchId } = await enrollPrivatePlaceIntake(db, input, enrollment, { actorUserId: operator, approvedPlanSha256: hash(enrollment) });
+  await db.prepare(`UPDATE place_review_work_items SET status='ON_HOLD',hold_code='ADMIN_REVIEW_HOLD',hold_note='original hold'
+    WHERE id=?`).bind(workItemId).run();
+  const plan = { batchId, position: 1, workItemId, licenseId, stageVersion: 5, stage: "FINAL_APPROVAL",
+    categoryId: selectedCategoryId, targetCategorySlug: "western-general", actorUserId: operator, auditId,
+    reason: "Matched permit and in-person dining source evidence." };
+  const planText = JSON.stringify(plan);
+  const reopen = (text = planText, approval = hash(text)) =>
+    reopenHeldPlaceIntakeReview(db, text, { approvedPlanSha256: approval, now });
+  const readWork = () => db.prepare("SELECT * FROM place_review_work_items WHERE id=?").bind(workItemId).first();
+  const readAudit = () => db.prepare("SELECT * FROM admin_audit_logs WHERE id=?").bind(auditId).first();
+
+  await expect(reopen()).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+  await db.prepare(`INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at)
+    VALUES('held-reopen-session',?,'PASSWORD',?,?)`).bind(operator, earlier, expires).run();
+  await expect(reopen(`${planText} `, hash(planText))).rejects.toThrow("PLACE_INTAKE_REOPEN_PLAN_NOT_APPROVED");
+  await expect(reopen(JSON.stringify({ ...plan, stageVersion: 4 }))).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+  await db.prepare("UPDATE business_licenses SET latitude=35.16 WHERE id=?").bind(licenseId).run();
+  await expect(reopen()).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+  await db.prepare("UPDATE business_licenses SET latitude=? WHERE id=?").bind(subject.latitude, licenseId).run();
+
+  const orphanId = "held-reopen-orphan-audit";
+  const orphanPlan = JSON.stringify({ ...plan, auditId: orphanId });
+  const orphanAfter = JSON.stringify({ status: "ACTIVE", stage: "CATEGORY_CONFIRMATION", stageVersion: 6,
+    categoryId: null, targetCategorySlug: plan.targetCategorySlug, reason: plan.reason, approvedPlanSha256: hash(orphanPlan) });
+  await db.batch([
+    db.prepare(`INSERT INTO admin_audit_logs(id,actor_user_id,action,target_type,target_id,after_state,created_at)
+      VALUES(?,?,'PLACE_INTAKE_REVIEW_REOPEN','PLACE_REVIEW_WORK_ITEM',?,?,?)`).bind(orphanId, operator, workItemId, orphanAfter, now),
+    db.prepare("UPDATE admin_session_assurances SET expires_at=? WHERE session_id='held-reopen-session'").bind(earlier),
+  ]);
+  await expect(reopen(orphanPlan)).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+  expect(await readWork()).toMatchObject({ status: "ON_HOLD", stage_version: 5 });
+  await db.prepare("UPDATE admin_session_assurances SET expires_at=? WHERE session_id='held-reopen-session'").bind(expires).run();
+  await expect(reopen(orphanPlan)).rejects.toThrow("UNIQUE constraint failed");
+  expect(await readWork()).toMatchObject({ status: "ON_HOLD", stage_version: 5 });
+
+  await db.prepare(`CREATE TRIGGER test_held_reopen_guard BEFORE UPDATE OF status ON place_review_work_items
+    WHEN OLD.status='ON_HOLD' AND NEW.status='ACTIVE' BEGIN SELECT RAISE(IGNORE); END`).run();
+  await expect(reopen()).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+  expect(await readAudit()).toBeNull();
+  expect(await readWork()).toMatchObject({ status: "ON_HOLD", stage_version: 5 });
+  await db.prepare("DROP TRIGGER test_held_reopen_guard").run();
+
+  await expect(reopen()).resolves.toEqual({ applied: 1, state: "REOPENED" });
+  await expect(reopen()).resolves.toEqual({ applied: 0, state: "EXISTING" });
+  expect(await readWork()).toMatchObject({ status: "ACTIVE", stage: "CATEGORY_CONFIRMATION", stage_version: 6,
+    selected_category_id: null, category_override_reason: null, manual_evidence_reason: "manual evidence",
+    local_dining_evidence_json: "{}", hold_code: null, hold_note: null, last_transition_by: operator });
+  const audit = await readAudit();
+  expect(audit).toMatchObject({ action: "PLACE_INTAKE_REVIEW_REOPEN", target_id: workItemId, actor_user_id: operator });
+  expect(JSON.parse(audit!.before_state as string)).toMatchObject({ status: "ON_HOLD", stage: "FINAL_APPROVAL",
+    stageVersion: 5, categoryId: selectedCategoryId, categoryReason: "former category", holdNote: "original hold" });
+  expect(await db.prepare("SELECT subject_address FROM place_intake_review_links WHERE work_item_id=?").bind(workItemId)
+    .first("subject_address")).toBe(subject.address);
+  expect(await db.prepare("SELECT count(*) AS n FROM place_source_links WHERE business_license_id=?").bind(licenseId)
+    .first("n")).toBe(0);
+
+  await db.prepare("UPDATE place_review_work_items SET status='ON_HOLD',hold_code='ADMIN_REVIEW_HOLD' WHERE id=?")
+    .bind(workItemId).run();
+  const categoryPlan = JSON.stringify({ ...plan, stage: "CATEGORY_CONFIRMATION", stageVersion: 6, categoryId: null,
+    auditId: "held-reopen-category-audit" });
+  await expect(reopen(categoryPlan)).resolves.toEqual({ applied: 1, state: "REOPENED" });
+  expect(await readWork()).toMatchObject({ status: "ACTIVE", stage: "CATEGORY_CONFIRMATION", stage_version: 7,
+    selected_category_id: null });
+});
