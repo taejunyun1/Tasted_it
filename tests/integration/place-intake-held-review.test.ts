@@ -107,3 +107,62 @@ it("reopens only the approved held license with recent password assurance and on
   expect(await readWork()).toMatchObject({ status: "ACTIVE", stage: "CATEGORY_CONFIRMATION", stage_version: 7,
     selected_category_id: null });
 });
+
+it("reopens a matching held draft at NAVER verification and recognizes its exact receipt", async () => {
+  const db = env.DB;
+  const now = new Date().toISOString();
+  const earlier = new Date(Date.now() - 60_000).toISOString();
+  const expires = new Date(Date.now() + 60_000).toISOString();
+  const operator = "held-create-admin";
+  const session = "held-create-session";
+  const auditId = "held-create-reopen-audit";
+  const selectedCategoryId = await db.prepare("SELECT id FROM categories WHERE slug='other'").first<string>("id");
+  expect(selectedCategoryId).toBeTruthy();
+  const subject = { name: "합성 보류 카페", address: "전북특별자치도 전주시 합성로 1 (효자동)", latitude: 35.81, longitude: 127.11 };
+  const input = JSON.stringify({ format: "retaste-place-intake-v1", label: "합성 초안 재검수", rows: [{
+    ...subject, position: 1, neighborhood: "효자동", categoryLabel: "카페", categorySlug: "cafe", kind: "CAFE",
+    source: "SHARED_MAP", selection: "CANDIDATE", reason: null, note: null, photo: "NOT_SUPPLIED",
+  }] });
+  const enrollment = JSON.stringify({ format: "retaste-intake-enrollment-v1", intakeSha256: hash(input), entries: [{ mode: "CREATE", position: 1 }] });
+  await db.batch([
+    db.prepare(`INSERT INTO users(id,email,display_name,role,email_verified_at,created_at,updated_at)
+      VALUES(?,'held-create@example.test','관리자','ADMIN',?,?,?)`).bind(operator, earlier, earlier, earlier),
+    db.prepare(`INSERT INTO admin_audit_logs(id,actor_user_id,action,target_type,target_id,created_at)
+      VALUES('held-create-designation',?,'OPERATOR_ADMIN_PROVISIONED','USER',?,?)`).bind(operator, operator, earlier),
+    db.prepare("INSERT INTO sessions(id,user_id,created_at,expires_at) VALUES(?,?,?,?)").bind(session, operator, earlier, expires),
+    db.prepare("INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at) VALUES(?,?,'PASSWORD',?,?)")
+      .bind(session, operator, earlier, expires),
+  ]);
+  const { batchId } = await enrollPrivatePlaceIntake(db, input, enrollment,
+    { actorUserId: operator, approvedPlanSha256: hash(enrollment) });
+  const draft = await db.prepare(`SELECT w.id,w.place_id FROM place_intake_review_links l
+    JOIN place_review_work_items w ON w.id=l.work_item_id WHERE l.batch_id=? AND l.position=1`).bind(batchId)
+    .first<{ id: string; place_id: string }>();
+  expect(draft).toBeTruthy();
+  const { id: workItemId, place_id: placeId } = draft!;
+  await db.prepare(`UPDATE place_review_work_items SET stage='NAVER_VERIFICATION',status='ON_HOLD',stage_version=2,
+    hold_code='ADMIN_REVIEW_HOLD',selected_category_id=?,category_override_reason='category evidence',
+    manual_evidence_reason='manual evidence',local_dining_evidence_json='{}' WHERE id=?`).bind(selectedCategoryId, workItemId).run();
+
+  const plan = JSON.stringify({ mode: "CREATE", batchId, position: 1, workItemId, placeId, stageVersion: 2,
+    stage: "NAVER_VERIFICATION", categoryId: selectedCategoryId, targetCategorySlug: "cafe", actorUserId: operator,
+    auditId, reason: "Matched the archived draft and current in-person service evidence." });
+  const reopen = () => reopenHeldPlaceIntakeReview(db, plan, { approvedPlanSha256: hash(plan), now });
+  await db.prepare("UPDATE places SET address='changed source' WHERE id=?").bind(placeId).run();
+  await expect(reopen()).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+  expect(await db.prepare("SELECT id FROM admin_audit_logs WHERE id=?").bind(auditId).first()).toBeNull();
+  await db.prepare("UPDATE places SET address=? WHERE id=?").bind(subject.address, placeId).run();
+
+  await expect(reopen()).resolves.toEqual({ applied: 1, state: "REOPENED" });
+  await expect(reopen()).resolves.toEqual({ applied: 0, state: "EXISTING" });
+  expect(await db.prepare("SELECT * FROM place_review_work_items WHERE id=?").bind(workItemId).first()).toMatchObject({
+    place_id: placeId, business_license_id: null, status: "ACTIVE", stage: "NAVER_VERIFICATION", stage_version: 3,
+    selected_category_id: selectedCategoryId, category_override_reason: "category evidence",
+    manual_evidence_reason: "manual evidence", local_dining_evidence_json: "{}", hold_code: null,
+  });
+  expect(await db.prepare("SELECT status,address FROM places WHERE id=?").bind(placeId).first()).toEqual({ status: "DRAFT", address: subject.address });
+  expect(await db.prepare("SELECT subject_address FROM place_intake_review_links WHERE work_item_id=?").bind(workItemId)
+    .first("subject_address")).toBe(subject.address);
+  expect(await db.prepare("SELECT COUNT(*) AS n FROM admin_audit_logs WHERE action='PLACE_INTAKE_REVIEW_REOPEN' AND target_id=?")
+    .bind(workItemId).first("n")).toBe(1);
+});
