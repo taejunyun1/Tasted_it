@@ -2,7 +2,7 @@ import { getTableColumns, getTableName, type Table } from "drizzle-orm";
 import * as schema from "../../db/schema";
 
 export type PlaceSnapshot = Record<string, Array<Record<string, unknown>>>;
-export type PlaceSnapshotScope = { workItemId?: string; sourcePlaceId?: string; targetPlaceId?: string };
+export type PlaceSnapshotScope = { workItemId?: string; sourcePlaceId?: string; targetPlaceId?: string; intakeUnitRevisionId?: string };
 const MAX_ROWS = 1000;
 const MAX_BYTES = 768 * 1024;
 const ident = (value: string) => `"${value.replaceAll('"', '""')}"`;
@@ -51,8 +51,12 @@ export function placeSnapshotStatement(database: D1Database, input: PlaceSnapsho
       { key: "intakeEntries", table: "place_intake_entries",
         where: `(batch_id,position) IN (SELECT l.batch_id,l.position FROM place_intake_review_links l
           JOIN place_intake_batches b ON b.id=l.batch_id WHERE l.work_item_id=(SELECT work_id FROM ctx) AND b.state='READY')`,
-        raw: { selection: "selection", kind: "kind", region: "region_code", neighborhood: "neighborhood" } },
+        raw: { selection: "selection", kind: "kind", region: "region_code", neighborhood: "neighborhood",
+          ...(input.intakeUnitRevisionId ? { name: "name", address: "address", latitude: "latitude", longitude: "longitude" } : {}),
+        } },
     );
+    if (input.intakeUnitRevisionId) specs.push({ key: "intakeUnitRevisions", table: schema.placeRevisions,
+      where: `id=(SELECT unit_revision_id FROM ctx) AND place_id ${selected}` });
   }
   const fragments = specs.map((spec) => {
     const columns = typeof spec.table === "string" ? Object.fromEntries(Object.entries(spec.raw!).map(([key, name]) => [key, { name }])) : getTableColumns(spec.table);
@@ -62,7 +66,7 @@ export function placeSnapshotStatement(database: D1Database, input: PlaceSnapsho
     return `'${spec.key}',json((SELECT coalesce(json_group_array(json(row_json)),'[]') FROM
       (SELECT json_object(${pairs.join(",")}) AS row_json FROM ${ident(typeof spec.table === "string" ? spec.table : getTableName(spec.table))} WHERE ${spec.where} ORDER BY ${ordering} LIMIT ${(spec.cap ?? MAX_ROWS) + 1})))`;
   });
-  const sql = `WITH ctx(work_id,source_id,target_id) AS (VALUES(?,?,?)), scope(id) AS MATERIALIZED
+  const sql = `WITH ctx(work_id,source_id,target_id,unit_revision_id) AS (VALUES(?,?,?,?)), scope(id) AS MATERIALIZED
     (SELECT source_id FROM ctx WHERE source_id IS NOT NULL UNION SELECT target_id FROM ctx WHERE target_id IS NOT NULL
      UNION SELECT place_id FROM place_review_work_items WHERE id=(SELECT work_id FROM ctx) AND place_id IS NOT NULL),
     license_scope(id) AS MATERIALIZED (SELECT business_license_id FROM place_review_work_items WHERE id=(SELECT work_id FROM ctx)
@@ -75,7 +79,7 @@ export function placeSnapshotStatement(database: D1Database, input: PlaceSnapsho
       OR id IN(SELECT reviewer_user_id FROM golden_pick_events WHERE place_id IN(SELECT id FROM scope))
       OR id IN(SELECT reviewer_user_id FROM flavor_ratings WHERE place_id IN(SELECT id FROM scope)))
     SELECT json_object(${fragments.join(",")}) AS snapshot`;
-  const values = [input.workItemId ?? null, input.sourcePlaceId ?? null, input.targetPlaceId ?? null];
+  const values = [input.workItemId ?? null, input.sourcePlaceId ?? null, input.targetPlaceId ?? null, input.intakeUnitRevisionId ?? null];
   return {
     async read() {
       const raw = await database.prepare(sql).bind(...values).first<string>("snapshot");

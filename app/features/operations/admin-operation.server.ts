@@ -82,7 +82,7 @@ function policy(kind: AdminOperationKind) {
   return ADMIN_OPERATION_POLICY[kind];
 }
 export async function prepareAdminOperation(database: D1Database, input: Caller & {
-  kind: AdminOperationKind; payload: unknown; summary: AdminOperationSummary;
+  kind: AdminOperationKind; payload: unknown; summary: AdminOperationSummary; pruneExpired?: boolean;
 }) {
   await assertCaller(database, input);
   const rule = policy(input.kind);
@@ -91,7 +91,9 @@ export async function prepareAdminOperation(database: D1Database, input: Caller 
   const payload = canonical(input.payload, 2 * 1024 * 1024), summary = canonical(input.summary, 8192);
   const operationId = crypto.randomUUID(), expiresAt = new Date(Date.parse(input.now) + TTL_MS).toISOString();
   // Only expired, never-committed previews are discarded; receipts and audit stay.
-  await database.prepare("DELETE FROM admin_operations WHERE id IN (SELECT id FROM admin_operations WHERE status='PENDING' AND expires_at<=? LIMIT 50)").bind(input.now).run();
+  if (input.pruneExpired !== false) {
+    await database.prepare("DELETE FROM admin_operations WHERE id IN (SELECT id FROM admin_operations WHERE status='PENDING' AND expires_at<=? LIMIT 50)").bind(input.now).run();
+  }
   try {
     await database.prepare("INSERT INTO admin_operations(id,kind,actor_user_id,session_id,payload_json,payload_hash,summary_json,requires_recent_auth,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
       .bind(operationId, input.kind, input.actorUserId, input.sessionId, payload, await digest(payload), summary, rule.recentAuth ? 1 : 0, input.now, expiresAt).run();
