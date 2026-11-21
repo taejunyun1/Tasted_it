@@ -3,12 +3,14 @@ import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { expect } from "vitest";
 import { continuationManifestHash, b17ReviewedSnapshotHash } from "../../scripts/b17-rollout-continuation.mjs";
+import { B17_MIGRATIONS } from "../../scripts/b17-rollout-evidence.mjs";
 import { B17_TARGET, RolloutBudget } from "../../scripts/b17-rollout-runner.mjs";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 export async function fixture(failure?: "partial-migration" | "session-response-lost" | "rsi-log") {
   const db = (env as unknown as { MIGRATION_DB: D1Database }).MIGRATION_DB;
-  const baseline = env.TEST_MIGRATIONS.filter(row => row.name < "0050"), upgrades = env.TEST_MIGRATIONS.filter(row => row.name >= "0050");
+  const baseline = env.TEST_MIGRATIONS.filter(row => row.name < "0050");
+  const upgrades = env.TEST_MIGRATIONS.filter(row => B17_MIGRATIONS.includes(row.name));
   await applyD1Migrations(db, baseline);
   const now = new Date().toISOString(), old = new Date(Date.now() - 20 * 60_000).toISOString(), later = new Date(Date.now() + 3_600_000).toISOString();
   await db.prepare("INSERT INTO users(id,email,display_name,role,email_verified_at,created_at,updated_at) VALUES('continuation-admin','synthetic@example.test','Synthetic','ADMIN',?,?,?)").bind(old,old,old).run();

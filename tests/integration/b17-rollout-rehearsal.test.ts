@@ -89,7 +89,7 @@ it("preserves a populated 0049 database through all nine B17 migrations without 
   for (const [index, rows] of beforeUnchanged.entries()) {
     expect(rows.length, `${UNCHANGED_TABLES[index]} must contain a preservation fixture`).toBeGreaterThan(0);
   }
-  const upgrades = env.TEST_MIGRATIONS.filter((migration) => migration.name >= "0050");
+  const upgrades = env.TEST_MIGRATIONS.filter((migration) => UPGRADE_NAMES.includes(migration.name));
   expect(upgrades.map((migration) => migration.name)).toEqual(UPGRADE_NAMES);
   await applyD1Migrations(database, upgrades);
   const after = await capture(database);

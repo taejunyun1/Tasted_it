@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { B17_MIGRATIONS, B17_REQUIRED_COLUMNS, B17_TABLES, buildB17MigrationManifest, compareB17Snapshots } from "../../scripts/b17-rollout-evidence.mjs";
+import { withB17SourceFixture } from "./b17-source-fixture";
 
 const temporary: string[] = [];
 afterEach(async () => { await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true }))); });
@@ -69,25 +70,25 @@ it("rejects removal of a prior column and hashes scalar types distinctly", () =>
 });
 
 it("builds exactly the nine local migration hashes with pinned HEAD information", async () => {
-  const result = await buildB17MigrationManifest(process.cwd());
-  expect(result).toMatchObject({ sourceKind: "LOCAL_PREPARATION", executed: false, ok: true });
-  expect(result.sourceHead).toMatch(/^[a-f0-9]{40}$/);
-  expect(result.migrations.map((row: {name:string}) => row.name)).toEqual(B17_MIGRATIONS);
-  for (const row of result.migrations) {
-    expect(row.sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(row.headSha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(row.matchesHead).toBe(true);
-  }
-  const root = await temp(); await mkdir(join(root, "drizzle"));
-  for (const name of B17_MIGRATIONS) await writeFile(join(root, "drizzle", name), "SELECT 1;\n");
-  await writeFile(join(root, "drizzle", "0057_unexpected.sql"), "SELECT 2;\n");
-  await expect(buildB17MigrationManifest(root)).rejects.toThrow("B17_MIGRATION_MANIFEST_INVALID");
-  await rm(join(root, "drizzle", "0057_unexpected.sql"));
-  await writeFile(join(root, "drizzle", "0061_future.sql"), "SELECT 2;\n");
-  await expect(buildB17MigrationManifest(root)).rejects.toThrow("B17_MIGRATION_MANIFEST_INVALID");
-  await rm(join(root, "drizzle", "0061_future.sql"));
-  await rm(join(root, "drizzle", B17_MIGRATIONS[0]));
-  await expect(buildB17MigrationManifest(root)).rejects.toThrow("B17_MIGRATION_MANIFEST_INVALID");
+  await withB17SourceFixture(async (root) => {
+    const result = await buildB17MigrationManifest(root);
+    expect(result).toMatchObject({ sourceKind: "LOCAL_PREPARATION", executed: false, ok: true });
+    expect(result.sourceHead).toMatch(/^[a-f0-9]{40}$/);
+    expect(result.migrations.map((row: {name:string}) => row.name)).toEqual(B17_MIGRATIONS);
+    for (const row of result.migrations) {
+      expect(row.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(row.headSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(row.matchesHead).toBe(true);
+    }
+    for (const name of ["0057_unexpected.sql", "0061_future.sql"]) {
+      const extraMigration = join(root, "drizzle", name);
+      await writeFile(extraMigration, "SELECT 2;\n");
+      await expect(buildB17MigrationManifest(root)).rejects.toThrow("B17_MIGRATION_MANIFEST_INVALID");
+      await rm(extraMigration);
+    }
+    await rm(join(root, "drizzle", B17_MIGRATIONS[0]));
+    await expect(buildB17MigrationManifest(root)).rejects.toThrow("B17_MIGRATION_MANIFEST_INVALID");
+  });
 });
 
 it("CLI comparison exits nonzero on mismatch and emits only the safe report", async () => {

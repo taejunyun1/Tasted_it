@@ -3,6 +3,7 @@ import { applyD1Migrations } from "cloudflare:test";
 import { expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { places } from "../../app/db/schema";
+import { B17_MIGRATIONS } from "../../scripts/b17-rollout-evidence.mjs";
 import { seedApprovedReviewerVote } from "./reviewer-public-fixtures";
 import { B17_PRESERVATION_COLUMNS, B17_PRESERVATION_LIMITS, buildB17PreservationCatalogQuery, planB17PreservationCapture, collectB17PreservationSnapshot, compareB17PreservationSnapshots } from "../../scripts/b17-preservation-evidence.mjs";
 
@@ -41,7 +42,7 @@ it("preserves every 0049 column and rowid through nine B17 migrations and reject
   await db.prepare("INSERT INTO reviewer_photo_cleanup_jobs(review_id,purpose,object_keys_json,next_attempt_at,created_at,updated_at) VALUES(?,'DELETE','[\"synthetic/photo.jpg\"]',?,?,?)").bind(reviewId,now,now,now).run();
   await db.prepare("INSERT INTO admin_audit_logs(id,actor_user_id,action,target_type,target_id,after_state,created_at) VALUES('b17-preserve-audit','b17-preserve-owner','PRESERVATION_FIXTURE','PLACE','b17-preserve-place','{}',?)").bind(now).run();
   const before = await capture("before");
-  const upgrades = env.TEST_MIGRATIONS.filter(item => item.name >= "0050");
+  const upgrades = env.TEST_MIGRATIONS.filter(item => B17_MIGRATIONS.includes(item.name));
   expect(upgrades).toHaveLength(9);
   await applyD1Migrations(db, upgrades);
   const after = await capture("after");

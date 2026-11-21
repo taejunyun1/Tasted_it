@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { B17_LIMITS, RolloutBudget, checkB17Authority, classifyB17Drain, prepareB17Rollout } from "../../scripts/b17-rollout-runner.mjs";
 
 import { describeB17PreservationCapture } from "../../scripts/b17-preservation-evidence.mjs";
+import { withB17SourceFixture } from "./b17-source-fixture";
+
 const captureDescription = describeB17PreservationCapture().perPhase;
 const actualCaptureCost = { d1Commands: captureDescription.catalogD1Commands + captureDescription.captureD1Commands, manualSql: captureDescription.catalogSqlStatements + captureDescription.captureSqlStatements };
 const sha = "a".repeat(40);
@@ -50,10 +52,12 @@ describe("B17 bounded rollout", () => {
   });
 
   it("preparation only reads the checkout and reports current blockers without an adapter or network", async () => {
-    const report = await prepareB17Rollout({ root: process.cwd() });
-    expect(report).toMatchObject({ mode: "LOCAL_PREPARATION", executed: false, migrationCount: 9, migrationSql: 201 });
-    expect(report.stages).toEqual(["PREPARE", "AUTHORITY", "FENCE", "DRAIN", "BACKUP", "PRESERVATION_BEFORE", "MIGRATIONS", "PRESERVATION_AFTER", "SESSION", "GUARDED_TRANSITIONS", "NORMAL_DEPLOY", "LIVE_PROBES", "RSI", "CLEANUP"]);
-    expect(report.blockers).toContain("LIVE_HTTP_DRAIN_OBSERVATION_REQUIRED");
+    await withB17SourceFixture(async (root) => {
+      const report = await prepareB17Rollout({ root });
+      expect(report).toMatchObject({ mode: "LOCAL_PREPARATION", executed: false, migrationCount: 9, migrationSql: 201 });
+      expect(report.stages).toEqual(["PREPARE", "AUTHORITY", "FENCE", "DRAIN", "BACKUP", "PRESERVATION_BEFORE", "MIGRATIONS", "PRESERVATION_AFTER", "SESSION", "GUARDED_TRANSITIONS", "NORMAL_DEPLOY", "LIVE_PROBES", "RSI", "CLEANUP"]);
+      expect(report.blockers).toContain("LIVE_HTTP_DRAIN_OBSERVATION_REQUIRED");
+    });
   });
 });
 

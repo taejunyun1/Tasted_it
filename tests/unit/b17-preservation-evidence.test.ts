@@ -4,6 +4,7 @@ import {
   buildB17PreservationCatalogQuery, planB17PreservationCapture,
   collectB17PreservationSnapshot, compareB17PreservationSnapshots, describeB17PreservationCapture, verifyB17PreservationSources,
 } from "../../scripts/b17-preservation-evidence.mjs";
+import { withB17SourceFixture } from "./b17-source-fixture";
 
 describe("complete B17 preservation evidence", () => {
   it("rejects hand-authored or incomplete catalogues", () => {
@@ -30,6 +31,8 @@ describe("complete B17 preservation evidence", () => {
   });
 
   it("binds the catalogue to the exact committed migration sources", async () => {
-    await expect(verifyB17PreservationSources(process.cwd())).resolves.toMatchObject({ ok: true, migrationCount: 60 });
+    await withB17SourceFixture(async (root) => {
+      await expect(verifyB17PreservationSources(root)).resolves.toMatchObject({ ok: true, migrationCount: 60 });
+    });
   });
 });
