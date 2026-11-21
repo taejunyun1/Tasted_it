@@ -1,15 +1,44 @@
-import { and, desc, eq, getTableColumns, getTableName, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, getTableName, sql } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { AppDb } from "../../db/client.server";
 import { parkingDataSnapshots, parkingSyncRuns } from "../../db/schema";
 
 export const PARKING_JOB_MAX_ATTEMPTS = 3;
 export const PARKING_JOB_LEASE_MS = 10 * 60 * 1000;
+const PARKING_SYNC_INTERVAL_MS = 90 * 86_400_000;
 export type ParkingJobSource = "PARKING" | "EV";
 export type ParkingJob = typeof parkingSyncRuns.$inferSelect;
 export type ParkingLease = { runId: string; snapshotId: string; source: ParkingJobSource; version: number };
 export const parkingOwnership = "EXISTS(SELECT 1 FROM parking_sync_runs WHERE id=? AND status='RUNNING' AND lease_version=? AND lease_expires_at IS NOT NULL)";
 export const leaseValues = (lease: ParkingLease) => [lease.runId, lease.version];
+
+export function isParkingSyncDue(lastFinishedAt: string | null, now = new Date()) {
+  if (!lastFinishedAt) return true;
+  const finished = Date.parse(lastFinishedAt);
+  return Number.isNaN(finished) || now.getTime() - finished >= PARKING_SYNC_INTERVAL_MS;
+}
+
+function isActiveParkingJob(job: ParkingJob | undefined) {
+  return job?.status === "PENDING" || job?.status === "RUNNING";
+}
+
+function isParkingCycleDue(job: ParkingJob | undefined, now: Date) {
+  return isParkingSyncDue(job?.finishedAt ?? job?.updatedAt ?? null, now);
+}
+
+export function isParkingSourceDue(job: ParkingJob | undefined, now: Date) {
+  return isActiveParkingJob(job) || isParkingCycleDue(job, now);
+}
+
+export function findParkingSourceJob(db: AppDb, source: ParkingJobSource) {
+  const active = sql`${parkingSyncRuns.status} in ('PENDING','RUNNING')`;
+  const cycleAt = sql`case when ${active} then ${parkingSyncRuns.createdAt}
+    else coalesce(${parkingSyncRuns.finishedAt}, ${parkingSyncRuns.updatedAt}) end`;
+  return db.query.parkingSyncRuns.findFirst({
+    where: eq(parkingSyncRuns.source, source),
+    orderBy: [desc(active), desc(sql`julianday(${cycleAt})`), desc(sql`rowid`)],
+  });
+}
 
 export function inspectParkingJob(job: ParkingJob, now: string) {
   const legacy = job.status === "RUNNING" && !job.leaseExpiresAt;
@@ -35,23 +64,23 @@ export async function parkingJobResult(db: AppDb, runId: string, claimed = false
 export async function claimParkingJob(db: AppDb, source: ParkingJobSource, now: string, exactRunId?: string) {
   let job = exactRunId
     ? await db.query.parkingSyncRuns.findFirst({ where: eq(parkingSyncRuns.id, exactRunId) })
-    : await db.query.parkingSyncRuns.findFirst({ where: eq(parkingSyncRuns.source, source), orderBy: [desc(parkingSyncRuns.createdAt), desc(sql`rowid`)] });
+    : await findParkingSourceJob(db, source);
   if (job && job.source !== source) throw new Error("PARKING_JOB_SCOPE_MISMATCH");
-  if (!exactRunId) {
-    const active = await db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, source), inArray(parkingSyncRuns.status, ["PENDING", "RUNNING"])), orderBy: [desc(parkingSyncRuns.createdAt), desc(sql`rowid`)] });
-    if (active) job = active;
-    if (!job || job.status === "COMPLETED") {
-      const id = crypto.randomUUID(), snapshotId = crypto.randomUUID();
-      await db.$client.batch([
-        db.$client.prepare(`INSERT INTO parking_data_snapshots(id,source,status,row_count,created_at,updated_at)
-          SELECT ?,?,'STAGING',0,?,? WHERE NOT EXISTS(SELECT 1 FROM parking_sync_runs WHERE source=? AND status IN ('PENDING','RUNNING'))`)
-          .bind(snapshotId, source, now, now, source),
-        db.$client.prepare(`INSERT INTO parking_sync_runs(id,source,status,snapshot_id,started_at,created_at,updated_at,attempts,lease_version)
-          SELECT ?,?,'PENDING',?,?,?, ?,1,0 WHERE EXISTS(SELECT 1 FROM parking_data_snapshots WHERE id=?)`)
-          .bind(id, source, snapshotId, now, now, now, snapshotId),
-      ]);
-      job = await db.query.parkingSyncRuns.findFirst({ where: and(eq(parkingSyncRuns.source, source), inArray(parkingSyncRuns.status, ["PENDING", "RUNNING"])), orderBy: [desc(parkingSyncRuns.createdAt), desc(sql`rowid`)] });
-    }
+  if (!exactRunId && !isActiveParkingJob(job) && isParkingCycleDue(job, new Date(now))) {
+    const id = crypto.randomUUID(), snapshotId = crypto.randomUUID();
+    const cutoff = new Date(Date.parse(now) - PARKING_SYNC_INTERVAL_MS).toISOString();
+    // A concurrent caller can finish before this batch runs. Its terminal row still blocks a second cycle.
+    await db.$client.batch([
+      db.$client.prepare(`INSERT INTO parking_data_snapshots(id,source,status,row_count,created_at,updated_at)
+        SELECT ?,?,'STAGING',0,?,? WHERE NOT EXISTS(
+          SELECT 1 FROM parking_sync_runs WHERE source=?
+            AND (status IN ('PENDING','RUNNING') OR julianday(coalesce(finished_at,updated_at))>julianday(?))
+        )`).bind(snapshotId, source, now, now, source, cutoff),
+      db.$client.prepare(`INSERT INTO parking_sync_runs(id,source,status,snapshot_id,started_at,created_at,updated_at,attempts,lease_version)
+        SELECT ?,?,'PENDING',?,?,?,?,1,0 WHERE EXISTS(SELECT 1 FROM parking_data_snapshots WHERE id=?)`)
+        .bind(id, source, snapshotId, now, now, now, snapshotId),
+    ]);
+    job = await findParkingSourceJob(db, source);
   }
   if (!job?.snapshotId) throw new Error("PARKING_JOB_NOT_FOUND");
   if (job.status !== "PENDING") return { job, lease: null };
