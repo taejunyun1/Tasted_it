@@ -155,6 +155,43 @@ describe("B10 parking/EV source-owned jobs", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { source: "PARKING", terminal: "FAILED", other: "EV" },
+    { source: "EV", terminal: "CANCELLED", other: "PARKING" },
+  ] as const)("starts a fresh $source cycle 90 days after a $terminal run", async ({ source, terminal, other }) => {
+    await fixture();
+    const completed = "2026-08-01T01:00:00.000Z";
+    const due = "2027-02-16T01:00:00.000Z";
+    await env.DB.prepare("INSERT INTO parking_data_snapshots(id,source,status,row_count,created_at,updated_at) VALUES ('prior-snapshot',?,'FAILED',0,?,?)")
+      .bind(source, completed, now).run();
+    await env.DB.prepare(`INSERT INTO parking_sync_runs(id,source,status,started_at,finished_at,created_at,updated_at,attempts,snapshot_id)
+      VALUES ('prior-success',?,'COMPLETED',?,?,?,?,1,NULL), ('prior-terminal',?,?,?,?,?,?,3,'prior-snapshot'),
+        ('other-source',?,'COMPLETED',?,?,?,?,1,NULL)`)
+      .bind(source, completed, completed, completed, completed, source, terminal, completed, now, completed, now,
+        other, due, due, due, due).run();
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if (source === "PARKING") return response("next-cycle");
+      const region = new URL(String(input)).searchParams.get("zcode");
+      const items = region === "29" ? [{
+        statId: "next-cycle", statNm: "합성 충전소", addr: "광주광역시 동구 동명로 12",
+        lat: "35.15", lng: "126.85", chgerType: "04", delYn: "N", statUpdDt: "20261118",
+      }] : [];
+      return new Response(JSON.stringify({ totalCount: items.length, items: { item: items } }));
+    });
+    const binding = { ...env, DATA_GO_KR_SERVICE_KEY: "synthetic" };
+    expect(await runScheduledParkingSync(binding, { now: new Date(Date.parse(due) - 1), fetcher })).toEqual({ status: "SKIPPED_NOT_DUE" });
+    expect(fetcher).not.toHaveBeenCalled();
+
+    const next = await runScheduledParkingSync(binding, { now: new Date(due), fetcher });
+    const job = source === "PARKING" ? next.result?.parking : next.result?.ev;
+    expect(job).toMatchObject({ status: "COMPLETED", claimed: true, job: { attempts: 1 } });
+    expect(job?.runId).not.toBe("prior-terminal");
+    expect(await env.DB.prepare("SELECT status,attempts FROM parking_sync_runs WHERE id='prior-terminal'").first())
+      .toEqual({ status: terminal, attempts: 3 });
+    expect(await runScheduledParkingSync(binding, { now: new Date(due), fetcher })).toEqual({ status: "SKIPPED_NOT_DUE" });
+    expect(fetcher).toHaveBeenCalledTimes(source === "PARKING" ? 1 : 2);
+  });
+
   it("writes a large EV fixture in bounded batches instead of per-row subrequests", async () => {
     const f = await fixture();
     const claim = await claimParkingJob(f.db, "EV", now);

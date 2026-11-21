@@ -5,6 +5,7 @@ import * as schema from "../../db/schema";
 import { extractNeighborhood } from "../candidates/category-suggestion";
 import { classifyChainStore } from "../candidates/chain-store-policy";
 import { commitAdminOperation, getVerifiedAdminOperation, prepareAdminOperation } from "../operations/admin-operation.server";
+import { regionFromAddress } from "../regions/region-pack";
 import { reviewDiningContextFromRows } from "./local-dining-review.server";
 import { buildPlaceMergeStatements, type PlaceMergeSnapshot } from "./place-merge.server";
 import { normalizePlaceName } from "./place-name-groups";
@@ -66,9 +67,21 @@ async function publication(rows: PlaceSnapshot, command: Extract<PlaceAdminComma
   if (context.decision.decision !== "ELIGIBLE") fail();
   const subject = license ? { name: String(license.businessName), address: String(license.roadAddress ?? license.lotAddress ?? ""), latitude: Number(license.latitude), longitude: Number(license.longitude) }
     : { name: String(place!.name), address: String(place!.address), latitude: Number(place!.latitude), longitude: Number(place!.longitude) };
-  if (duplicateOpen(rows, item, subject) || !extractNeighborhood(subject.address) || !Number.isFinite(subject.latitude) || subject.latitude < 33 || subject.latitude > 39 || !Number.isFinite(subject.longitude) || subject.longitude < 124 || subject.longitude > 132) fail();
+  const intakeLink = first(rows, "intakeLinks");
+  const intake = first(rows, "intakeEntries");
+  if (intakeLink) {
+    const region = /^(?:전북특별자치도|전라북도|전북)(?:\s|$)/u.test(subject.address.trim()) ? "JEONBUK" : regionFromAddress(subject.address);
+    if (!intake || !region || intake.region !== region || intake.selection !== "CANDIDATE"
+      || (intake.kind !== "DINING" && intake.kind !== "CAFE")
+      || !(intakeLink.mode === "LINK" && item.sourceKind === "PUBLIC_DATA" && license
+        || intakeLink.mode === "CREATE" && item.sourceKind === "PLACE_SUGGESTION" && place?.status === "DRAFT" && place.closedAt === null)
+      || intakeLink.subjectName !== subject.name || intakeLink.subjectAddress !== subject.address
+      || intakeLink.subjectLatitude !== subject.latitude || intakeLink.subjectLongitude !== subject.longitude) fail();
+  }
+  const neighborhood = extractNeighborhood(subject.address) ?? (typeof intake?.neighborhood === "string" ? intake.neighborhood : null);
+  if (duplicateOpen(rows, item, subject) || !neighborhood || !Number.isFinite(subject.latitude) || subject.latitude < 33 || subject.latitude > 39 || !Number.isFinite(subject.longitude) || subject.longitude < 124 || subject.longitude > 132) fail();
   if (rows.tempEntries.some((entry) => entry.ownsPlace && rows.tempBatches.some((batch) => batch.id === entry.batchId && batch.status !== "PUBLISHED"))) fail();
-  return { item, category, license, place, subject };
+  return { item, category, license, place, subject, neighborhood };
 }
 const recallProofFrom = `FROM admin_operations o JOIN admin_operation_commits c
   ON c.operation_id=o.id AND c.actor_user_id=o.actor_user_id AND c.kind=o.kind AND c.committed_at=o.committed_at
@@ -182,7 +195,7 @@ export async function commitPlaceAdminOperation(db: D1Database, input: Caller & 
       const current = await publication(rows, command, input.now);
       if (current.license) {
         if (!payload.slug || rows.catalog.some((row) => row.slug === payload.slug)) fail("ADMIN_OPERATION_CONFLICT");
-        const neighborhood = extractNeighborhood(current.subject.address)!;
+        const neighborhood = current.neighborhood;
         statements.push(insert(db, schema.places, { id: payload.targetId, slug: payload.slug, name: current.subject.name, status: "PUBLISHED", address: current.subject.address,
           neighborhood, latitude: current.subject.latitude, longitude: current.subject.longitude, phone: current.license.phone ?? null,
           searchText: `${current.subject.name} ${current.subject.address} ${neighborhood} ${String(current.category.name)}`.toLocaleLowerCase("ko-KR"), createdAt: input.now, updatedAt: input.now }),

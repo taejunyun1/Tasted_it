@@ -1,7 +1,7 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, notExists } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { placeReviewWorkItems, users } from "../../db/schema";
+import { placeIntakeReviewLinks, placeReviewWorkItems, users } from "../../db/schema";
 import type { NaverLocalSearchAdapter } from "../candidates/naver-local-search.server";
 import { verifyReviewItemsWithNaver } from "./place-review-naver.server";
 import { sweepConfidentReviewStage } from "./place-review-work-items.server";
@@ -28,7 +28,7 @@ async function ensureAutoPipelineActor(db: AppDb, now: string) {
 /** Runs the same gates a human operator stamps, in bounded slices, no publish.
  * Stage order matches the manual queue; each stage is capped so a sync tick
  * never turns into an unbounded scan. NAVER calls use the caller's adapter and
- * existing regional budgets; FINAL_APPROVAL is never entered automatically. */
+ * existing regional budgets. The final publication decision is always manual. */
 export async function runAutoReviewPipeline(db: AppDb, input: {
   now: string;
   sweepLimit?: number;
@@ -47,7 +47,11 @@ export async function runAutoReviewPipeline(db: AppDb, input: {
     if (stage === "CATEGORY_CONFIRMATION" && input.naverAdapter) {
       const naverItems = await db.select({ id: placeReviewWorkItems.id })
         .from(placeReviewWorkItems)
-        .where(and(eq(placeReviewWorkItems.stage, "NAVER_VERIFICATION"), eq(placeReviewWorkItems.status, "ACTIVE")))
+        .where(and(eq(placeReviewWorkItems.stage, "NAVER_VERIFICATION"), eq(placeReviewWorkItems.status, "ACTIVE"),
+          // Only explicitly initiated verification can send a new intake subject to NAVER.
+          notExists(db.select({ id: placeIntakeReviewLinks.workItemId }).from(placeIntakeReviewLinks)
+            .where(and(eq(placeIntakeReviewLinks.workItemId, placeReviewWorkItems.id), eq(placeIntakeReviewLinks.mode, "CREATE")))),
+        ))
         .orderBy(asc(placeReviewWorkItems.updatedAt))
         .limit(naverLimit);
       if (naverItems.length) {

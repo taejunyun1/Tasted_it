@@ -43,7 +43,17 @@ export function placeSnapshotStatement(database: D1Database, input: PlaceSnapsho
     { key: "tempEntries", table: schema.tempCatalogEntries, where: `place_id ${selected}`, fields: ["id", "batchId", "placeId", "ownsPlace", "updatedAt"] },
     { key: "tempBatches", table: schema.tempCatalogBatches, where: "id IN(SELECT batch_id FROM temp_catalog_entries WHERE place_id IN(SELECT id FROM scope))" },
   ];
-  if (publishing) specs.push({ key: "catalog", table: schema.places, where: "1", fields: ["id", "name", "address", "latitude", "longitude", "slug"], cap: 2000 });
+  if (publishing) {
+    specs.push(
+      { key: "catalog", table: schema.places, where: "1", fields: ["id", "name", "address", "latitude", "longitude", "slug"], cap: 2000 },
+      { key: "intakeLinks", table: schema.placeIntakeReviewLinks, where: "work_item_id=(SELECT work_id FROM ctx)",
+        fields: ["batchId", "position", "mode", "subjectName", "subjectAddress", "subjectLatitude", "subjectLongitude"] },
+      { key: "intakeEntries", table: "place_intake_entries",
+        where: `(batch_id,position) IN (SELECT l.batch_id,l.position FROM place_intake_review_links l
+          JOIN place_intake_batches b ON b.id=l.batch_id WHERE l.work_item_id=(SELECT work_id FROM ctx) AND b.state='READY')`,
+        raw: { selection: "selection", kind: "kind", region: "region_code", neighborhood: "neighborhood" } },
+    );
+  }
   const fragments = specs.map((spec) => {
     const columns = typeof spec.table === "string" ? Object.fromEntries(Object.entries(spec.raw!).map(([key, name]) => [key, { name }])) : getTableColumns(spec.table);
     const fields = spec.fields ?? Object.keys(columns);
@@ -82,5 +92,8 @@ export function placeSnapshotStatement(database: D1Database, input: PlaceSnapsho
 }
 
 export async function placeSnapshotDigest(raw: string) {
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(JSON.parse(raw))))), (b) => b.toString(16).padStart(2, "0")).join("");
+  const rows = JSON.parse(raw) as PlaceSnapshot;
+  if (!rows.intakeLinks?.length) delete rows.intakeLinks;
+  if (!rows.intakeEntries?.length) delete rows.intakeEntries;
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(rows)))), (b) => b.toString(16).padStart(2, "0")).join("");
 }
