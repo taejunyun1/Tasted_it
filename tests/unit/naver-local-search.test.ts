@@ -3,10 +3,19 @@ import { describe, expect, it, vi } from "vitest";
 import {
   NaverLocalSearchError,
   assertNaverLocalSearchEnabled,
-  createNaverLocalSearchAdapter,
+  createNaverLocalSearchAdapter as createAccountedAdapter,
 } from "../../app/features/candidates/naver-local-search.server";
 
+// Unit transport tests inject a D1-shaped successful accounting fake;
+// concurrent accounting behavior is exercised against Workers D1 separately.
+function createNaverLocalSearchAdapter(env: Parameters<typeof createAccountedAdapter>[0], fetchImpl: typeof fetch) {
+  const database = { batch: async () => [{}, {}, { meta: { changes: 1 } }], prepare: () => ({ bind: () => ({ run: async () => ({ meta: { changes: 1 } }) }) }) } as unknown as D1Database;
+  const adapter = createAccountedAdapter({ ...env, NAVER_LOCAL_SEARCH_DAILY_LIMIT: "20000" }, { database, fetchImpl });
+  return { search: (input: Parameters<typeof adapter.search>[0]) => adapter.search(input, { source: "CATEGORY_V2" }) };
+}
+
 const enabledEnv = {
+  NAVER_LOCAL_SEARCH_DAILY_LIMIT: "20000",
   NAVER_LOCAL_SEARCH_ENABLED: "true",
   NAVER_API_HUB_KEY_ID: "test-api-key-id",
   NAVER_API_HUB_KEY: "test-api-key",

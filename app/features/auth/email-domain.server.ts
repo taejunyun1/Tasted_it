@@ -13,7 +13,7 @@ type Input = { apiKey: string; targetDomain: string; fetcher?: typeof fetch };
 
 async function call(input: Input, path: string, method = "GET", body?: unknown) {
   const response = await (input.fetcher ?? fetch)(`https://api.resend.com${path}`, {
-    method, headers: { Authorization: `Bearer ${input.apiKey}`, "Content-Type": "application/json" },
+    method, redirect: "error", headers: { Authorization: `Bearer ${input.apiKey}`, "Content-Type": "application/json" },
     ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) throw new Error(await resendFailureCode(response, { apiKey: input.apiKey }));
@@ -35,7 +35,7 @@ export async function inspectEmailDomain(input: Input) {
     return { domain: null };
   }
   const result = details.parse(await call(input, `/domains/${match.id}`));
-  if (result.name !== target) throw new Error("EMAIL_DOMAIN_MISMATCH");
+  if (result.name !== target || result.id !== match.id) throw new Error("EMAIL_DOMAIN_MISMATCH");
   return { domain: result };
 }
 
@@ -48,7 +48,7 @@ export async function repairEmailDomain(input: Input & { intent: "create" | "ver
   }
   const id = z.uuid().parse(input.domainId);
   const current = domain.parse(await call(input, `/domains/${id}`));
-  if (current.name !== target) throw new Error("EMAIL_DOMAIN_MISMATCH");
+  if (current.name !== target || current.id !== id) throw new Error("EMAIL_DOMAIN_MISMATCH");
   await call(input, `/domains/${id}/verify`, "POST");
   return { verificationRequested: true };
 }

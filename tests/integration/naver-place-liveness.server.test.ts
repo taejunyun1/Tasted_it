@@ -17,7 +17,7 @@ describe("NAVER place liveness", () => {
 
     const result = await verifyPlacesLivenessWithNaver(db, { placeIds: [id], now: NOW, dailyLimit: 200, adapter });
     expect(result).toMatchObject({ scanned: 1, matched: 1, apiCalls: 1 });
-    expect(adapter.search).toHaveBeenCalledWith({ businessName: "파리바게뜨 동명점", address: "광주광역시 동구 동명로 1", regionCode: "GWANGJU" });
+    expect(adapter.search).toHaveBeenCalledWith({ businessName: "파리바게뜨 동명점", address: "광주광역시 동구 동명로 1", regionCode: "GWANGJU" }, { source: "PLACE_LIVENESS", runId: result.runId });
     expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, id) }))
       .toMatchObject({ naverStatus: "MATCHED", naverMatchScore: 60, naverEvidenceCodesJson: expect.stringContaining("NAVER_EXACT_NAME") });
     expect(await db.query.naverLocalCategoryRuns.findFirst({ where: eq(naverLocalCategoryRuns.id, result.runId) }))
@@ -38,6 +38,7 @@ describe("NAVER place liveness", () => {
       startedAt: "2026-08-17T01:00:00.000Z",
       finishedAt: "2026-08-17T01:01:00.000Z",
     });
+    await env.DB.prepare("INSERT INTO provider_daily_quotas(provider,utc_day,legacy_total,legacy_gwangju,baseline_at,baseline_source,cutover_state,created_at,updated_at) VALUES ('NAVER_LOCAL_SEARCH','2026-08-17',200,200,?,'LEGACY_RUN_ESTIMATE','CLOSED_LEGACY_UNCERTAIN',?,?)").bind(now, now, now).run();
     const jeonnamId = `naver-liveness-jeonnam-${crypto.randomUUID()}`;
     const gwangjuId = `naver-liveness-gwangju-full-${crypto.randomUUID()}`;
     await db.insert(places).values([

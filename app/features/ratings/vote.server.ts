@@ -10,10 +10,11 @@ import {
 } from "../../db/schema";
 import { eligibleVoteCondition } from "./reviewer-publication.server";
 import { enqueueRatingRecompute, markRatingStale } from "./recompute.server";
+import { recordOperationalAlert } from "../operations/alerts.server";
 
 function invalidateVoteTaste(
   db: AppDb,
-  input: { userId: string; eventId: string; now: string },
+  input: { userId: string; eventId: string; now: string; currentEventId?: string },
 ) {
   const versionToken = crypto.randomUUID();
   return db
@@ -27,7 +28,10 @@ function invalidateVoteTaste(
           updatedAt: sql<string>`${input.now}`.as("updated_at"),
         })
         .from(voteEvents)
-        .where(eq(voteEvents.id, input.eventId)),
+        .where(and(
+          eq(voteEvents.id, input.eventId),
+          input.currentEventId ? sql`exists(select 1 from current_votes where event_id=${input.currentEventId} and user_id=${input.userId}) and not exists(select 1 from invalidated_vote_events where vote_event_id=${input.currentEventId})` : undefined,
+        )),
     )
     .onConflictDoUpdate({
       target: tasteLearningStates.userId,
@@ -95,8 +99,40 @@ export async function castVote(db: AppDb, input: CastVoteInput): Promise<void> {
   if (
     previous?.value === input.value &&
     previousEvent?.source === "GENERAL" &&
-    !input.feedback
+    (await getCurrentVoteState(db, input))?.eventId === previous.eventId
   ) {
+    if (!input.feedback) return;
+    const previousFeedback = await db.query.recommendationFeedback.findFirst({
+      where: and(
+        eq(recommendationFeedback.userId, input.userId),
+        eq(recommendationFeedback.placeId, input.placeId),
+      ),
+    });
+    if (previousFeedback?.value === input.value && previousFeedback.reason === input.feedback.reason) return;
+    // A reason edit changes preference feedback, not the vote or its integrity history.
+    // Guard the current pointer again inside the transaction so a concurrent vote wins.
+    const [changed] = await db.batch([
+      db.insert(recommendationFeedback).select(
+        db.select({
+          userId: sql<string>`${input.userId}`.as("user_id"),
+          placeId: sql<string>`${input.placeId}`.as("place_id"),
+          value: sql<number>`${input.value}`.as("value"),
+          reason: sql<FeedbackReason | null>`${input.feedback.reason}`.as("reason"),
+          createdAt: sql<string>`${input.now}`.as("created_at"),
+          updatedAt: sql<string>`${input.now}`.as("updated_at"),
+        }).from(currentVotes).where(and(
+          eq(currentVotes.placeId, input.placeId),
+          eq(currentVotes.userId, input.userId),
+          eq(currentVotes.eventId, previous.eventId),
+          eligibleVoteCondition(),
+        )),
+      ).onConflictDoUpdate({
+        target: [recommendationFeedback.userId, recommendationFeedback.placeId],
+        set: { value: input.value, reason: input.feedback.reason, updatedAt: input.now },
+      }).returning({ userId: recommendationFeedback.userId }),
+      invalidateVoteTaste(db, { ...input, eventId: previous.eventId, currentEventId: previous.eventId }),
+    ]);
+    if (changed.length !== 1) throw new Error("VOTE_VERSION_CONFLICT");
     return;
   }
 
@@ -239,10 +275,21 @@ export async function withdrawVote(
   )
     throw new Error("VOTE_VERSION_CONFLICT");
   await markRatingStale(db, input.placeId, input.now);
-  await enqueueRatingRecompute(db, {
-    placeId: input.placeId,
-    reason: "VOTE_WITHDRAWN",
-    now: input.now,
-  });
+  try {
+    await enqueueRatingRecompute(db, {
+      placeId: input.placeId,
+      reason: "VOTE_WITHDRAWN",
+      now: input.now,
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || (error.message !== "ACTIVE_RATING_CONFIG_NOT_FOUND" && error.message !== "RATING_CONFIG_CHANGED")) throw error;
+    await recordOperationalAlert(db, {
+      alertType: "RATING_RECOMPUTE",
+      sourceId: "ACTIVE_RATING_CONFIG_NOT_FOUND",
+      message: "반응 철회는 저장했지만 활성 평가 설정을 확인할 수 없어 재계산을 접수하지 못했습니다.",
+      details: { code: error.message },
+      now: input.now,
+    });
+  }
   return true;
 }

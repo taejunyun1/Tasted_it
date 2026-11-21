@@ -29,8 +29,9 @@ export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
         </nav>
       </div>
 
-      <div className="mt-8 overflow-x-auto">
-        <table className="w-full border-collapse text-left">
+      <div className="mt-8 overflow-x-auto" role="region" aria-label="장소 목록 가로 스크롤" tabIndex={0}>
+        <table className="w-full min-w-[640px] border-collapse text-left">
+          <caption className="mb-3 text-left">등록된 장소 목록 · 총 {loaderData.places.length}곳</caption>
           <thead>
             <tr className="border-b border-neutral-950 text-sm">
               <th className="px-2 py-3">상태</th>
@@ -40,6 +41,7 @@ export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
             </tr>
           </thead>
           <tbody>
+            {!loaderData.places.length && <tr><td className="px-2 py-4" colSpan={4}>등록된 장소가 없습니다. 장소 검수 또는 CSV 가져오기에서 추가해 주세요.</td></tr>}
             {loaderData.places.map((place) => (
               <tr className="border-b border-neutral-200" key={place.id}>
                 <td className="px-2 py-4 text-sm">{place.status}</td>

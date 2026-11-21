@@ -70,7 +70,6 @@ describe("auth entry href and field retention", () => {
     const login = readFileSync("app/routes/login.tsx", "utf8");
     const signup = readFileSync("app/routes/signup.tsx", "utf8");
     const root = readFileSync("app/root.tsx", "utf8");
-    const places = readFileSync("app/routes/place-list.tsx", "utf8");
     const maps = readFileSync("app/routes/map-category.tsx", "utf8");
     expect(root).toContain('authEntryHref("/login"');
     expect(root).toContain('authEntryHref("/signup"');
@@ -78,7 +77,6 @@ describe("auth entry href and field retention", () => {
     expect(signup).toContain("defaultValue={actionData?.email}");
     expect(signup).toContain("GoogleAuthButton returnTo={loaderData.returnTo}");
     expect(signup).toContain("회원가입 — Re:Taste");
-    expect(places).toContain("맛집 리스트 — Re:Taste");
     expect(maps).toContain("지도 — Re:Taste");
     expect(login).toContain("publicLoginError");
     expect(login).not.toContain("이메일 인증을 먼저 완료해 주세요");

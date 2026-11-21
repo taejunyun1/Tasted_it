@@ -23,7 +23,7 @@ describe("applySecurityHeaders", () => {
     expect(csp).toMatch(/connect-src[^;]*https:\/\/\*\.pstatic\.net/);
     expect(csp).not.toContain("nelo.navercorp.com");
     expect(headers.get("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
-    expect(headers.get("Permissions-Policy")).toContain("geolocation=()");
+    expect(headers.get("Permissions-Policy")).toBe("camera=(), microphone=(), payment=(), geolocation=(self)");
   });
 
   it("prevents shared caching of every admin HTML, data, redirect and error response", () => {

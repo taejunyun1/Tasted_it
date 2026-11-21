@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { data, Form } from "react-router";
+import { data } from "react-router";
 import type { Route } from "./+types/forgot-password";
 import { createDb } from "../db/client.server";
 import { requestPasswordReset } from "../features/auth/account.server";
@@ -7,6 +7,7 @@ import { sendAccountEmail } from "../features/auth/email.server";
 import { accountActionUrl } from "../features/auth/token-link";
 import { consumeMailRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 import { AuthInput, AuthPage } from "./login";
+import { AuthForm } from "../features/auth/auth-form";
 export async function action({ request }: Route.ActionArgs) {
   const email = String((await request.formData()).get("email") ?? "").trim().toLowerCase();
   const db = createDb(env.DB);
@@ -17,7 +18,7 @@ export async function action({ request }: Route.ActionArgs) {
     now: new Date(),
   });
   if (!limited.ok) {
-    return data({ ok: false, message: MAIL_RATE_LIMIT_MESSAGE }, {
+    return data({ ok: false, message: MAIL_RATE_LIMIT_MESSAGE, email: email.slice(0, 320) }, {
       status: 429,
       headers: { "Retry-After": String(limited.retryAfterSeconds) },
     });
@@ -29,4 +30,13 @@ export async function action({ request }: Route.ActionArgs) {
   }
   return { message: "가입된 이메일이라면 비밀번호 재설정 안내를 전송했습니다." };
 }
-export default function Forgot({ actionData }: Route.ComponentProps) { return <AuthPage eyebrow="PASSWORD RESET" title="비밀번호를 새로 설정하세요." description="가입 이메일로 30분 유효한 재설정 링크를 보냅니다.">{actionData?.message ? <p className={`mt-8 border px-4 py-3 text-sm ${"ok" in actionData && actionData.ok === false ? "border-red-500 bg-red-50" : "border-emerald-600 bg-emerald-50"}`}>{actionData.message}</p> : <Form method="post" className="mt-10 grid gap-5"><AuthInput label="이메일" name="email" type="email" autoComplete="email" /><button className="bg-neutral-950 px-5 py-3 font-semibold text-white">재설정 메일 보내기</button></Form>}</AuthPage>; }
+export default function Forgot({ actionData }: Route.ComponentProps) {
+  const failed = actionData && "ok" in actionData && actionData.ok === false;
+  const sent = Boolean(actionData?.message) && !failed;
+  return <AuthPage eyebrow="PASSWORD RESET" title="비밀번호를 새로 설정하세요." description="가입 이메일로 30분 유효한 재설정 링크를 보냅니다.">
+    {sent ? <p className="mt-8 border border-emerald-600 bg-emerald-50 px-4 py-3 text-sm" role="status">{actionData?.message}</p>
+      : <AuthForm id="forgot-password" className="mt-10 grid gap-5" error={failed ? actionData.message : undefined} submitLabel="재설정 메일 보내기" pendingLabel="재설정 안내 요청 중…">
+        <AuthInput label="이메일" name="email" type="email" autoComplete="email" defaultValue={actionData && "email" in actionData ? actionData.email : undefined} />
+      </AuthForm>}
+  </AuthPage>;
+}

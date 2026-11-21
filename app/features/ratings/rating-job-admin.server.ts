@@ -4,6 +4,7 @@ import { createDb } from "../../db/client.server";
 import { places, ratingRecomputeJobs } from "../../db/schema";
 import { commitAdminOperation, getVerifiedAdminOperation, prepareAdminOperation } from "../operations/admin-operation.server";
 import { getActiveRatingConfig } from "./rating-config.server";
+import { CURRENT_RATING_CONFIG_ID_SQL } from "./rating-config-eligibility";
 import { getRatingJobResult, processRatingJob, RATING_JOB_MAX_ATTEMPTS, type RatingRecomputeJob } from "./recompute.server";
 
 type Operator = { actorUserId: string; sessionId: string; now: string };
@@ -66,10 +67,10 @@ export async function commitRatingJobAction(database: D1Database, input: Operato
       .bind(operation.id, s.jobId, s.placeId, s.configId, s.previousStatus, s.attempts, s.updatedAt, s.leaseExpiresAt)];
     if (s.action !== "CANCEL") checks.push(database.prepare(`INSERT INTO admin_operation_checks(operation_id,check_name,passed)
       SELECT ?, 'rating_job_retry', CASE WHEN ?<?
-        AND (SELECT id FROM rating_configs WHERE active_until IS NULL ORDER BY active_from DESC LIMIT 1)=?
+        AND ${CURRENT_RATING_CONFIG_ID_SQL}=?
         AND NOT EXISTS(SELECT 1 FROM rating_recompute_jobs WHERE place_id=? AND config_id=? AND id<>? AND status IN ('PENDING','RUNNING'))
         AND (?='RETRY' AND ?='FAILED' OR ?='RECOVER' AND ?='RUNNING' AND ? IS NOT NULL AND ?<=?) THEN 1 ELSE 0 END`)
-      .bind(operation.id, s.attempts, RATING_JOB_MAX_ATTEMPTS, s.configId, s.placeId, s.configId, s.jobId,
+      .bind(operation.id, s.attempts, RATING_JOB_MAX_ATTEMPTS, input.now, s.configId, s.placeId, s.configId, s.jobId,
         s.action, s.previousStatus, s.action, s.previousStatus, s.leaseExpiresAt, s.leaseExpiresAt, input.now));
     else checks.push(database.prepare("INSERT INTO admin_operation_checks(operation_id,check_name,passed) VALUES(?, 'rating_job_pending', ?='PENDING')")
       .bind(operation.id, s.previousStatus));

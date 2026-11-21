@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { placeCorrectionRequests, placeLivenessStates, placeRevalidationCases, placeRevisions, places } from "../../db/schema";
@@ -121,11 +121,12 @@ export async function listCorrectionOperations(db: AppDb) {
     requesterRelation: placeCorrectionRequests.requesterRelation,
     requestedChangesJson: placeCorrectionRequests.requestedChangesJson,
     evidenceNote: placeCorrectionRequests.evidenceNote,
+    adminResponse: placeCorrectionRequests.adminResponse,
     placeName: places.name,
   }).from(placeCorrectionRequests)
     .leftJoin(places, eq(places.id, placeCorrectionRequests.placeId))
-    .where(inArray(placeCorrectionRequests.status, ["SUBMITTED", "REVIEWING"]))
-    .orderBy(asc(placeCorrectionRequests.createdAt))
+    .where(and(inArray(placeCorrectionRequests.status, ["SUBMITTED", "REVIEWING"]), isNotNull(placeCorrectionRequests.verifiedAt)))
+    .orderBy(sql`case when ${placeCorrectionRequests.requestType} in ('CLOSED','RIGHTS') then 0 else 1 end`, asc(placeCorrectionRequests.createdAt), asc(placeCorrectionRequests.id))
     .limit(200);
   return rows.map((item) => ({
     id: item.id,
@@ -136,5 +137,6 @@ export async function listCorrectionOperations(db: AppDb) {
     requesterRelation: item.requesterRelation,
     changes: parseCorrectionChanges(item.requestedChangesJson),
     evidenceNote: item.evidenceNote,
+    adminResponse: item.adminResponse,
   }));
 }

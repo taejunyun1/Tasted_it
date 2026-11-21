@@ -1,0 +1,45 @@
+{
+  "production_source_sha": "c3147a95c107b33e31df13deffaf06c1915c70d3",
+  "production_changes": false,
+  "tested_test_file": "tests/integration/guest-merge-completion.test.ts",
+  "test_sha256": "770d1a8e87bb48eefceda5274bce5a40412e2c73bc8bc43a82f3324d69a382e2",
+  "executed_at_kst": "2026-11-18T11:31:06.399272+09:00",
+  "environment": "ISOLATED_LOCAL_VITEST_D1",
+  "checks": [
+    {
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/guest-merge-completion.test.ts tests/integration/guest-merge.server.test.ts tests/integration/guest-saves.server.test.ts",
+      "existing_passed": 29,
+      "new_passed": 5,
+      "new_failed": 1,
+      "failure": "toBe was used with an asymmetric string matcher in the new expiry test; this was a test assertion error, not a product failure."
+    },
+    {
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/guest-merge-completion.test.ts",
+      "new_passed": 6,
+      "new_failed": 0,
+      "correction": "Use toEqual for the matcher and fix Date to the scenario time."
+    },
+    {
+      "command": "pnpm audit --prod --audit-level high",
+      "result": "PASS",
+      "vulnerabilities": 0
+    },
+    {
+      "name": "independent code and coverage review",
+      "result": "PASS"
+    }
+  ],
+  "coverage": [
+    "Combined badge/save payload remains unchanged and uncopied at or after expiry; both copy just before expiry.",
+    "Four D1 service invocations across two distinct members give one winner all badges/saves and one conversion event; loser and repeated attempts receive no copies.",
+    "A trigger after both copy statements but before the merge claim causes atomic rollback; explicit retry copies the entire source and clears it once.",
+    "The route action rejects a body userId and obtains the destination only from the authenticated session.",
+    "Existing tests cover50-place cap, explicit member unsave, existing USER/source scores, same-user duplicate/race, saved-place source visibility and local auth-call integration."
+  ],
+  "limits": [
+    "Concurrent service calls against local D1 are not simultaneous browser HTTP requests.",
+    "Route action is called directly; this is not external OAuth, mail delivery or browser execution.",
+    "No new product behavior, providers, schema, flags, TTL or caps.",
+    "No production operation, push, merge or deployment; existing mock-email return-flow evidence was not rerun."
+  ]
+}

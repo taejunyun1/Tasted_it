@@ -1,16 +1,31 @@
 import { env } from "cloudflare:workers";
-import { Form, Link } from "react-router";
+import { data, Link } from "react-router";
 import type { Route } from "./+types/admin-operations";
 import { createDb } from "../db/client.server";
 import { requireAdmin } from "../features/auth/session.server";
-import { resolveOperationalAlert } from "../features/operations/alerts.server";
-import { isSameOriginMutation } from "../features/http/same-origin";
 import { getOperationalDashboard } from "../features/operations/dashboard.server";
 
-export async function loader({ request }: Route.LoaderArgs) { await requireAdmin(request); return getOperationalDashboard(createDb(env.DB), { now: new Date().toISOString() }); }
-export async function action({ request }: Route.ActionArgs) { if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" }); const admin = await requireAdmin(request); const form = await request.formData(); await resolveOperationalAlert(createDb(env.DB), { alertId: String(form.get("alertId")), actorUserId: admin.id, note: String(form.get("note") ?? ""), now: new Date().toISOString() }); return { message: "알림을 해결 처리했습니다." }; }
+const PRIVATE = { "Cache-Control": "private, no-store", Vary: "Cookie", "X-Robots-Tag": "noindex, nofollow" };
+export const headers = () => PRIVATE;
+async function authorize(request: Request) {
+  try { return await requireAdmin(request); }
+  catch (error) {
+    const headers = new Headers(error instanceof Response ? error.headers : undefined);
+    for (const [key, value] of Object.entries(PRIVATE)) headers.set(key, value);
+    throw new Response(null, { status: error instanceof Response ? error.status : 503, headers });
+  }
+}
+export async function loader({ request }: Route.LoaderArgs) {
+  await authorize(request);
+  const dashboard = await getOperationalDashboard(createDb(env.DB), { now: new Date().toISOString() });
+  return data({ ...dashboard, alerts: dashboard.alerts.map(({ id, severity, alertType, occurrenceCount, lastOccurredAt }) => ({ id, severity, alertType, occurrenceCount, lastOccurredAt })) }, { headers: PRIVATE });
+}
+export async function action({ request }: Route.ActionArgs) {
+  await authorize(request);
+  return new Response(null, { status: 405, headers: { ...PRIVATE, Allow: "GET, HEAD" } });
+}
 export function meta() { return [{ title: "운영 현황 — Re:Taste Admin" }]; }
-export default function AdminOperations({ loaderData, actionData }: Route.ComponentProps) {
+export default function AdminOperations({ loaderData }: Route.ComponentProps) {
   const week = loaderData.windows.find((item) => item.label === "7일");
   const queue = loaderData.reviewQueue;
   return (
@@ -21,7 +36,6 @@ export default function AdminOperations({ loaderData, actionData }: Route.Compon
         <p>실제 D1 실행 이력으로 수집·검수·NAVER 검증·실패 상태를 확인합니다. 외부 이메일 알림은 운영 문의 주소 확정 후 연결합니다.</p>
         <Link to="/admin/place-operations?step=1">장소 검수로 이동</Link>
       </header>
-      {actionData?.message && <p className="admin-notice">{actionData.message}</p>}
       <section className="admin-rating-section" aria-labelledby="review-throughput">
         <h2 id="review-throughput">검수 처리량</h2>
         <p>최근 7일 공개 {week?.reviewPublished ?? 0}곳 · 하루 {loaderData.publishedPerDay7d.toFixed(2)}곳. ACTIVE 큐 {queue.activeTotal}곳. 보류 {queue.onHoldTotal}곳.</p>
@@ -43,7 +57,7 @@ export default function AdminOperations({ loaderData, actionData }: Route.Compon
       </section>
       <section className="ops-dashboard-grid">{loaderData.windows.map((item) => <article key={item.label}><h2>{item.label}</h2><dl><div><dt>신규 후보</dt><dd>{item.candidates}</dd></div><div><dt>검수 공개 / 보류 / 제외</dt><dd>{item.reviewPublished} / {item.reviewHeld} / {item.reviewExcluded}</dd></div><div><dt>레거시 승인 / 반려</dt><dd>{item.approvals} / {item.rejections}</dd></div><div><dt>NAVER 검증 / 실패</dt><dd>{item.naverVerified} / {item.naverFailed}</dd></div><div><dt>동기화 / 재계산 실패</dt><dd>{item.syncFailed} / {item.recomputeFailed}</dd></div></dl></article>)}</section>
       <section className="admin-rating-section"><h2>누락</h2><p>좌표 없는 영업 후보 <strong>{loaderData.missingCoordinates}</strong>곳</p></section>
-      <section className="admin-rating-section"><h2>열린 운영 알림</h2>{loaderData.alerts.length ? loaderData.alerts.map((alert) => <article className="integrity-case" key={alert.id}><div><strong>{alert.severity} · {alert.alertType}</strong><p>{alert.message}</p><small>{alert.occurrenceCount}회 · {alert.lastOccurredAt}</small><code>{alert.detailsJson}</code></div><Form method="post"><input type="hidden" name="alertId" value={alert.id}/><input name="note" placeholder="해결 근거" required/><button>해결 처리</button></Form></article>) : <p>열린 알림이 없습니다.</p>}</section>
+      <section className="admin-rating-section"><h2>열린 운영 알림</h2><p>{loaderData.alerts.length}건 표시 · <Link to="/admin/reliability">안전한 경보 검토와 점검 기록 확인</Link></p></section>
     </main>
   );
 }

@@ -46,6 +46,12 @@ export interface PlaceSummary {
   reviewerNegative?: number;
   ratingScore?: number | null;
   ratingSampleCount?: number;
+  userRatingScore?: number | null;
+  userRatingSampleCount?: number;
+  reviewerRatingScore?: number | null;
+  reviewerRatingSampleCount?: number;
+  ratingIsStale?: boolean;
+  ratingComputedAt?: string | null;
   tempCatalog?: import("../temp-catalog/temp-catalog").TempPublicInfo;
 }
 
@@ -53,6 +59,8 @@ export interface PlaceDetail extends PlaceSummary {
   phone: string | null;
   parkingSummary: string | null;
   kakaoPlaceId: string | null;
+  informationVerifiedOn?: string | null;
+  operatingHours?: import("./public-information").PublicOperatingDay[];
 }
 
 export interface PlaceFilters {
@@ -61,6 +69,12 @@ export interface PlaceFilters {
   query?: string;
   bbox?: [west: number, south: number, east: number, north: number];
   limit?: number;
+}
+
+export interface PublicPlaceCounts {
+  count: number;
+  overallCount: number;
+  overallBounds: [number, number, number, number] | null;
 }
 
 export interface AdminPlaceSummary {

@@ -1,3 +1,4 @@
+import { countNaverDispatches } from "../operations/provider-usage.server";
 import { and, asc, eq, gt } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
@@ -222,7 +223,7 @@ async function upsertVerification(db: AppDb, input: {
   });
 }
 
-async function prepare(db: AppDb, input: Input) {
+async function prepare(db: AppDb, input: Input, runId: string) {
   const limit = validLimit(input.limit);
   const { rows, hasNext, categoryRows } = await listWork(db, { afterPlaceId: input.afterPlaceId, limit });
   const categoryBySlug = new Map(categoryRows.map((category) => [category.slug, category]));
@@ -244,12 +245,12 @@ async function prepare(db: AppDb, input: Input) {
     } else if (!isNaverRegionSearchEnabled(row.regionCode)) {
       prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: null, toCategoryId: null, decision: "SKIPPED", reason: "이 지역 NAVER 확인이 꺼져 있습니다", confidenceScore: 0, evidenceCodes: [] });
       continue;
-    } else if (usedByRegion[row.regionCode] + extraCalls[row.regionCode] >= naverRegionBudget(row.regionCode, input.dailyLimit)) {
+    } else if (!input.adapter.accounted && usedByRegion[row.regionCode] + extraCalls[row.regionCode] >= naverRegionBudget(row.regionCode, input.dailyLimit)) {
       prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: null, toCategoryId: null, decision: "SKIPPED", reason: "이 지역 NAVER 일일 확인 한도에 도달", confidenceScore: 0, evidenceCodes: [] });
       continue;
     } else {
       try {
-        const results = await input.adapter.search({ businessName: row.businessName, address: row.address, regionCode: row.regionCode });
+        const results = await input.adapter.search({ businessName: row.businessName, address: row.address, regionCode: row.regionCode }, { source: "CATEGORY_REVERIFICATION", runId });
         apiCalls += 1;
         extraCalls[row.regionCode] += 1;
         match = matchNaverLocalCategory({
@@ -265,7 +266,11 @@ async function prepare(db: AppDb, input: Input) {
         code = failureCode(error);
         // A disabled feature is an operation-level state, not a failed result for
         // every individual place. Let the route surface the safe-stop notice.
-        if (code === "NAVER_LOCAL_SEARCH_DISABLED") throw error;
+        if (code === "NAVER_LOCAL_SEARCH_DISABLED" || code === "NAVER_ACCOUNTING_UNAVAILABLE") throw error;
+        if (code === "NAVER_LOCAL_SEARCH_QUOTA") {
+          prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: null, toCategoryId: null, decision: "SKIPPED", reason: "NAVER 일일 확인 한도에 도달", confidenceScore: 0, evidenceCodes: [] });
+          continue;
+        }
         apiCalls += 1;
         extraCalls[row.regionCode] += 1;
         match = { status: "FAILED", mappedCategorySlug: null, matchScore: 0, specificityScore: 0, confidenceScore: 0, evidenceCodes: [] };
@@ -296,6 +301,7 @@ async function prepare(db: AppDb, input: Input) {
       prepared.push({ placeId: row.placeId, businessLicenseId: row.businessLicenseId, fromCategoryId: row.fromCategoryId, fromSlug: row.fromSlug, toSlug: decision.categorySlug, toCategoryId: mappedCategory.id, decision: "CHANGE", reason: "NAVER 상호·위치 및 원천 업태가 일치", confidenceScore: decision.confidenceScore, evidenceCodes: decision.naver?.evidenceCodes ?? [] });
     }
   }
+  if (input.adapter.accounted) apiCalls = await countNaverDispatches(db.$client, runId);
   return { prepared, hasNext, apiCalls, regionCode: uniqueRunRegion(rows.map((row) => row.regionCode)) };
 }
 
@@ -312,7 +318,7 @@ async function run(db: AppDb, input: Input | ApplyInput, mode: "PREVIEW" | "APPL
     createdBy: "actorUserId" in input ? input.actorUserId : null,
   });
   try {
-    const { prepared, hasNext, apiCalls, regionCode } = await prepare(db, input);
+    const { prepared, hasNext, apiCalls, regionCode } = await prepare(db, input, runId);
     if (mode === "APPLY") {
       for (const item of prepared) {
         if (item.decision !== "CHANGE" || !item.toCategoryId || !("actorUserId" in input)) continue;
@@ -337,7 +343,7 @@ async function run(db: AppDb, input: Input | ApplyInput, mode: "PREVIEW" | "APPL
     return page;
   } catch (error) {
     const code = failureCode(error);
-    await db.update(naverLocalCategoryRuns).set({ status: "FAILED", finishedAt: input.now, errorCode: code }).where(eq(naverLocalCategoryRuns.id, runId));
+    await db.update(naverLocalCategoryRuns).set({ status: "FAILED", ...(input.adapter.accounted ? { apiCallCount: await countNaverDispatches(db.$client, runId) } : {}), finishedAt: input.now, errorCode: code }).where(eq(naverLocalCategoryRuns.id, runId));
     throw error;
   }
 }

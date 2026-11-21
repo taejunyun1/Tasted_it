@@ -16,6 +16,8 @@ const AUDIT_NAMES: Record<string, string> = {
   APPROVE_CANDIDATE: "후보 승인", REJECT_CANDIDATE: "후보 반려", PLACE_REVIEW_PUBLISH: "장소 공개",
   PLACE_REVIEW_HOLD: "장소 검수 보류", PLACE_REVIEW_EXCLUDE: "장소 제외", RSI_SELF_CHECK: "서비스 경로 점검",
   EMAIL_DOMAIN_REPAIR: "발신 도메인 작업", RESOLVE_OPERATIONAL_ALERT: "운영 경보 처리",
+  ADMIN_AUDIT_EXPORT: "감사 목록 CSV 생성",
+  EMAIL_DOMAIN_OBSERVED: "메일 도메인 상태 관측", EMAIL_DOMAIN_REQUEST_RESULT: "메일 도메인 요청 결과",
 };
 async function reference(value: string | null | undefined) {
   if (!value) return "없음";
@@ -85,7 +87,26 @@ async function readDetail(database: D1Database, operationId: string, now: string
     addCount("appliedCount", "반영 건수");
     addCount("skippedCount", "미리보기 제외 건수");
   }
+  if (kind === "PHOTO_CLEANUP_RETRY") {
+    await addRef("reviewId", "삭제 계획 참조");
+    addCount("count", "계획 대상 수");
+    addCount("revision", "검토 계획 버전");
+    fields.push({ label: "처리 범위", value: "기존 본인 삭제 계획의 재시도 접수 · 삭제 완료 아님" });
+  }
+  if (kind === "PRIVACY_REQUEST_UPDATE") {
+    await addRef("requestId", "요청 참조");
+    const decisions = { REVIEW_STARTED: "검토 시작", POLICY_UNRESOLVED: "정책 확인 대기", SELF_SERVICE_GUIDANCE: "기존 경로 안내 기록" };
+    if (typeof result?.decision === "string" && Object.hasOwn(decisions, result.decision)) fields.push({ label: "기록한 처리", value: decisions[result.decision as keyof typeof decisions] });
+    fields.push({ label: "처리 범위", value: "요청 처리 기록만 변경 · 개인정보 열람/정정/삭제 완료 아님" });
+  }
   let job: { reference: string; status: string; checkedAt: string; finishedAt: string | null } | null = null;
+  if (kind === "EMAIL_DOMAIN_CONTROL" && linked && typeof result?.targetDomain === "string" && ["create", "verify"].includes(String(result.intent))) {
+    const action = await database.prepare("SELECT state FROM email_domain_actions WHERE operation_id=? AND target_domain=? AND intent=?")
+      .bind(row.id, result.targetDomain, String(result.intent)).first<{ state: string }>();
+    const labels: Record<string, string> = { CREATED: "생성 응답 확인 · 존재 조회 대기", ACCEPTED: "검증 요청 접수 · 완료 미확인", OBSERVED_PRESENT: "현재 존재 확인 · 요청 기여 불명", OBSERVED_VERIFIED: "현재 검증 상태 확인", OBSERVED_FAILED: "현재 검증 실패 확인" };
+    fields.push({ label: "요청 종류", value: result.intent === "create" ? "생성" : "검증 요청" });
+    fields.push({ label: "요청 결과", value: action && labels[action.state] ? labels[action.state] : "결과 불명 · 조회 필요" });
+  }
   if ((kind === "RATING_RECOMPUTE" || kind === "RATING_JOB_CONTROL") && row.status === "COMMITTED") {
     const jobId = identifier(result?.jobId), placeId = identifier(result?.placeId), configId = identifier(result?.configId);
     const current = linked && jobId && placeId && configId ? await database.prepare(`SELECT status,lease_expires_at,finished_at FROM rating_recompute_jobs
@@ -124,12 +145,18 @@ async function readDetail(database: D1Database, operationId: string, now: string
   };
 }
 
-export async function readAdminActivity(database: D1Database, query: Query, now: string) {
+export async function readAdminActivity(database: D1Database, query: Query, now: string,
+  bounds?: { from: string; to: string; pageSize: number }) {
+  const pageSize = bounds?.pageSize ?? ACTIVITY_PAGE_SIZE;
+  if (bounds && (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200
+    || !Number.isFinite(Date.parse(bounds.from)) || !Number.isFinite(Date.parse(bounds.to))
+    || bounds.from >= bounds.to || Date.parse(bounds.to) - Date.parse(bounds.from) > 31 * 86_400_000)) throw new Error("ACTIVITY_BOUNDS_INVALID");
   const alias = query.view === "audit" ? "a" : "o", table = query.view === "audit" ? "admin_audit_logs" : "admin_operations";
   const highWater = query.cursor?.highWater ?? Number(await database.prepare(`SELECT coalesce(max(rowid),0) AS value FROM ${table}`).first("value"));
   const cutoff = query.cursor?.cutoff ?? now;
   const conditions = [`${alias}.rowid<=?`, `julianday(${alias}.created_at)<=julianday(?)`];
   const bindings: (string | number)[] = [highWater, cutoff];
+  if (bounds) { conditions.push(`julianday(${alias}.created_at)>=julianday(?) AND julianday(${alias}.created_at)<julianday(?)`); bindings.push(bounds.from, bounds.to); }
   if (query.cursor) { conditions.push(`(julianday(${alias}.created_at),${alias}.id)<(?,?)`); bindings.push(query.cursor.afterKey, query.cursor.afterId); }
   if (query.kind !== "all") { conditions.push("o.kind=?"); bindings.push(query.kind); }
   const sql = query.view === "audit"
@@ -139,8 +166,8 @@ export async function readAdminActivity(database: D1Database, query: Query, now:
         AND a.target_type='ADMIN_OPERATION' AND a.target_id=o.id AND a.actor_user_id=o.actor_user_id ${RECEIPT_JOIN}`
     : `SELECT o.id,o.id AS operation_id,o.kind,o.actor_user_id,o.status,o.created_at,o.expires_at,julianday(o.created_at) AS order_key,
         c.operation_id AS receipt_id,${AUDIT_COUNT} AS audit_count FROM admin_operations o ${RECEIPT_JOIN}`;
-  const raw = (await database.prepare(`${sql} WHERE ${conditions.join(" AND ")} ORDER BY julianday(${alias}.created_at) DESC,${alias}.id DESC LIMIT ${ACTIVITY_PAGE_SIZE + 1}`).bind(...bindings).all<ListRow>()).results;
-  const page = raw.slice(0, ACTIVITY_PAGE_SIZE);
+  const raw = (await database.prepare(`${sql} WHERE ${conditions.join(" AND ")} ORDER BY julianday(${alias}.created_at) DESC,${alias}.id DESC LIMIT ${pageSize + 1}`).bind(...bindings).all<ListRow>()).results;
+  const page = raw.slice(0, pageSize);
   const rows = await Promise.all(page.map(async (row) => {
     const kind = activityKind(row.kind);
     return { key: await reference(`${query.view}:${row.id}`), createdAt: timestamp(row.created_at), actor: await reference(row.actor_user_id),
@@ -149,8 +176,8 @@ export async function readAdminActivity(database: D1Database, query: Query, now:
       operationId: row.operation_id, state: row.operation_id ? status(row, now) : "RECORDED" as ActivityStatus };
   }));
   const last = page.at(-1);
-  const nextCursor = raw.length > ACTIVITY_PAGE_SIZE && last ? encodeActivityCursor({ version: 1, view: query.view, kind: query.kind,
+  const nextCursor = raw.length > pageSize && last ? encodeActivityCursor({ version: 1, view: query.view, kind: query.kind,
     cutoff, highWater, afterKey: last.order_key, afterId: last.id }) : null;
   const detail = query.operationId ? await readDetail(database, query.operationId, now) : null;
-  return { rows, nextCursor, cutoff, queriedAt: now, detail, detailMissing: Boolean(query.operationId && !detail), pageSize: ACTIVITY_PAGE_SIZE };
+  return { rows, nextCursor, cutoff, queriedAt: now, detail, detailMissing: Boolean(query.operationId && !detail), pageSize };
 }

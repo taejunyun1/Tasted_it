@@ -1,0 +1,75 @@
+{
+  "source_parent_sha": "288b92b5192c100f25ee7b3b3437798c698649bd",
+  "source_note": "This evidence was recorded from the uncommitted change; file SHA256 values identify the tested source preserved by the containing commit.",
+  "executed_at_kst": "2026-11-18T11:21:38.484048+09:00",
+  "environment": "OWN_LOCAL_COMPILED_WORKER_SYNTHETIC_D1",
+  "file_sha256": {
+    "app/components/onboarding/GuestSaveControl.tsx": "b8b4aa7e251b3856decb330f64af7037a0045b0aa80132f98f03b6c6ee9b3e1e",
+    "app/routes/guest-saves-resource.ts": "ea913f583ee247dabdf72b50e87963fa6d5097b799e0655e54cb0b64d10ed17b",
+    "tests/integration/guest-saves-resource.test.ts": "f64c046e48712e74735a1dca19f5559bc69fcb18b0632cabfb2eb14c55bf80e7",
+    "tests/e2e/guest-save-uncertain.spec.ts": "6f691a111f1b767b934380d8e93c810361c28678b7085b5b3eaa90ccaa585f31",
+    "tests/e2e/guest-save-merge.spec.ts": "bc9f513da9ffced043ae8e1077226b4ce00ec0f22e93d52632850a2b571e2590",
+    "tests/e2e/guest-response-copy.spec.ts": "7d75762bf6ad88f5883829ff90bdf0b997329c31af7a5a275513ca2169b0cf54"
+  },
+  "checks": [
+    {
+      "name": "original response-loss regression",
+      "result": "RED",
+      "detail": "Actual POST committed, its browser response aborted, and the original control remained enabled instead of disabled."
+    },
+    {
+      "name": "post-delete session race regression",
+      "result": "RED_THEN_GREEN",
+      "detail": "AFTER DELETE trigger expires session after actual removal; 409 must remain UNKNOWN rather than a confirmed rejection."
+    },
+    {
+      "name": "focused D1",
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/guest-saves-resource.test.ts tests/integration/guest-saves.server.test.ts",
+      "passed": 19,
+      "failed": 0
+    },
+    {
+      "name": "compiled browser regression",
+      "command": "BASE_URL=http://127.0.0.1:5296 pnpm exec playwright test tests/e2e/guest-save-uncertain.spec.ts tests/e2e/guest-save-merge.spec.ts tests/e2e/guest-response-copy.spec.ts",
+      "passed": 16,
+      "skipped": 2,
+      "failed": 0,
+      "scope": "Before/after-commit response loss, repeated read failure, initial/hydration read lock, local synthetic login handoff, reload, and mobile place-key isolation. The two skipped cases are mobile-only checks in the desktop project."
+    },
+    {
+      "name": "confirmed rejection browser check",
+      "command": "BASE_URL=http://127.0.0.1:5296 pnpm exec playwright test tests/e2e/guest-save-uncertain.spec.ts --grep 'pre-write rejection'",
+      "passed": 2,
+      "failed": 0,
+      "scope": "This check was added after the preceding browser batch and run for both projects."
+    },
+    {
+      "name": "typecheck",
+      "result": "PASS"
+    },
+    {
+      "name": "production build",
+      "result": "PASS"
+    },
+    {
+      "name": "production dependency audit",
+      "vulnerabilities": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "independent code review",
+      "result": "PASS_AFTER_FIX",
+      "detail": "Review found post-write409 misclassification; choiceWriteStarted now makes all post-start errors UNKNOWN."
+    }
+  ],
+  "unscoped_attempt": {
+    "command": "pnpm run test:integration -- tests/integration/guest-saves-resource.test.ts tests/integration/guest-saves.server.test.ts",
+    "result": "TERMINATED",
+    "detail": "The extra separator caused an unfiltered run; only this owned process was stopped. An unrelated onboarding-events test named does not record detail-opened when the detail loader fails failed before termination. This is not claimed as a complete suite result. Focused command above subsequently passed."
+  },
+  "limits": [
+    "No remote DB, schema, dependency, provider or production changes.",
+    "No production login or external mail; login checks used only local synthetic accounts.",
+    "Exact required CI, main merge and production verification are parent integration responsibilities."
+  ]
+}

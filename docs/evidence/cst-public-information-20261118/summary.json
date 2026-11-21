@@ -1,0 +1,48 @@
+{
+  "source_commit": "7a60b9e47f0009feae6ada3516602af669105074",
+  "integrated_commit": "91a87a1",
+  "base_commit": "c3147a95c107b33e31df13deffaf06c1915c70d3",
+  "scope": "U04: recorded information date and operating hours, explicit unknown fields, same public detail and mobile sheet; late previous-response isolation",
+  "product_checks": {
+    "initial_red": "2 D1 assertions failed because verification date and hours were absent",
+    "unit": 4,
+    "d1_with_adjacent_place_service": 9,
+    "privacy_d1_after_non_null_verifier_fixture": 2,
+    "typecheck": "PASS",
+    "production_build": "PASS",
+    "production_audit_vulnerabilities": 0,
+    "compiled_browser": {
+      "passed": 6,
+      "description": "recorded/unknown information on desktop/mobile; each context additionally holds response A until B is selected and verifies B remains"
+    },
+    "viewport_capture_followup": {
+      "passed": 4,
+      "description": "viewport capture was corrected separately; final integrated screenshots will replace preliminary artifacts"
+    }
+  },
+  "initial_harness_failures": [
+    "Production-build local DB binding did not match the copied E2E database; rebuilt with existing wrangler.e2e.jsonc. No remote database touched.",
+    "Fixture initially assumed category id cafe; changed to look up existing slug cafe.",
+    "Broad card selector also matched recommendation rail; scoped to normal list.",
+    "Broad time selector matched rating computation time; scoped to public information."
+  ],
+  "limits": [
+    "Recorded information and hours do not prove a business is open now.",
+    "TEMP web-source dates are not repurposed as business verification.",
+    "Only existing admin-confirmed hours table is used; no provider, schema, production flag or remote change."
+  ],
+  "cleanup": [
+    {
+      "results": [
+        {
+          "fixtures": 0
+        }
+      ],
+      "success": true,
+      "meta": {
+        "duration": 0
+      }
+    }
+  ],
+  "independent_review": "PASS: public DTO projection/visibility/date semantics; final A/B reverse response test and representative mobile screenshot reviewed; no blockers."
+}

@@ -22,10 +22,11 @@ export function PlaceDiscoveryRail({
       </div>
       <p>{description}</p>
     </header>
-    {places.length ? <div className="discovery-rail">
+    {places.length ? <div className="discovery-rail" role="list" aria-labelledby={`discovery-${kind}`}>
       {places.map((place, index) => <PlaceCard
         key={place.id}
         place={place}
+        listItem
         variant={kind === "personal" && index === 0 ? "featured" : kind}
         relayIndex={kind === "golden" ? index + 1 : undefined}
         distanceMeters={kind === "personal" ? place.distanceMeters : undefined}

@@ -34,6 +34,7 @@ vi.mock("../../app/features/places/place-recommendation.server", () => ({
 }));
 vi.mock("../../app/features/places/place.server", () => ({
   listPlaces: vi.fn(async () => []),
+  getPublicPlacePage: vi.fn(async () => ({ places: [], total: 0, page: 1, pageSize: 100, totalPages: 1, start: 0, end: 0, outOfRange: false })),
   listPublicCategoryGroups: vi.fn(async () => []),
 }));
 
@@ -65,6 +66,19 @@ describe("place recommendation interaction contract", () => {
     expect(controls).toContain('aria-pressed={selected.includes(chip.id)}');
     expect(controls).toContain('aria-live="polite"');
     expect(controls).toContain("최대 2개까지 선택할 수 있어요");
+  });
+});
+
+describe("public place list metadata", () => {
+  it.each([
+    [1, "맛집 리스트 — Re:Taste", "/places"],
+    [2, "맛집 리스트 · 2페이지 — Re:Taste", "/places?page=2"],
+  ])("uses the title and canonical URL for page %i", async (page, title, path) => {
+    const { meta } = await import("../../app/routes/place-list");
+    const publicOrigin = "https://retaste.example";
+    const result = meta({ loaderData: { pagination: { page }, publicOrigin } } as never);
+    expect(result).toContainEqual({ title });
+    expect(result).toContainEqual({ tagName: "link", rel: "canonical", href: publicOrigin + path });
   });
 });
 

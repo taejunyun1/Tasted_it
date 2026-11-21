@@ -1,0 +1,102 @@
+{
+  "branch": "codex/jay_admin_b17_integration_20261118",
+  "head": "e02543e47e8d2ae4fe9d34af63fdc0d52577b740",
+  "base": "941a205c3bd1fcf2eed634318b5578c07c38e88f",
+  "heads": {
+    "448": "158bcc57bc713ad7405e79da2e5c99b910788947",
+    "455": "4bab89783588d3e66e3a3a33158a382c78cb7148",
+    "458": "171430ecbd423f853681785807f0efe9c1d0b92d",
+    "456": "98b216fb447d45efa9d6f180a709b117bdb53c9e",
+    "457": "3d17a88b7ab8bd529a25b362a871e7373b36b5b5",
+    "459": "5ccef098d302a07934067700ecdff4f9b4386a2b",
+    "461": "ca6557860da9e512c1eb885e9823870667de5e6c",
+    "464": "391ad3f37905dbbc6117840a83085d1daa822d9e",
+    "466": "ad15a2f03edbe2128ef86fb0e4ed7497878c46bf",
+    "468": "5246c9b0142169709ac06f5409b3fd136282998a",
+    "463": "5091441ed350e13b750958d6e1322a7344df9588"
+  },
+  "validation": {
+    "typecheck": "PASS",
+    "scoped_integration_files": 12,
+    "scoped_integration_tests": 61,
+    "scoped_integration_seconds": 4.91,
+    "post_b13_typecheck": "PASS",
+    "post_b13_integration": {
+      "files": 6,
+      "tests": 25,
+      "seconds": 3.73,
+      "status": "PASS"
+    },
+    "post_lifecycle_typecheck": "PASS",
+    "final_eligibility_integration": {
+      "files": 9,
+      "passed": 63,
+      "failed": 1,
+      "seconds": 3.85,
+      "failure": {
+        "file": "tests/integration/admin-rating-config.test.ts",
+        "test": "separates fixed score defaults from DB consensus usage and flags future selection",
+        "expected": "future unsupported config selected",
+        "observed": "eligible current config selected",
+        "classification": "stale B15 test expectation conflicts with intended 0060 eligibility",
+        "fix": "retain current DB/runtime comparison and assert future unselected",
+        "runtime_logic_changed": false
+      }
+    },
+    "corrected_rating_config_test": {
+      "files": 1,
+      "passed": 4,
+      "failed": 0,
+      "seconds": 1.62
+    },
+    "final_typecheck": "PASS"
+  },
+  "pending": [],
+  "remote_actions": [],
+  "ancestors": {
+    "448": true,
+    "455": true,
+    "458": true,
+    "456": true,
+    "457": true,
+    "459": true,
+    "461": true,
+    "464": true,
+    "466": true,
+    "468": true,
+    "463": true
+  },
+  "conflict_resolution_files": [
+    "app/features/operations/admin-control-registry.ts",
+    "app/features/operations/admin-operation.server.ts",
+    "app/features/operations/admin-activity.ts",
+    "app/features/operations/admin-activity.server.ts",
+    "app/routes.ts"
+  ],
+  "integration_only_edits": [
+    {
+      "file": "app/routes/admin-rating-config.tsx",
+      "change": "replace resolved eligibility warning with activation approval requirement",
+      "commit": "f395634"
+    },
+    {
+      "file": "tests/integration/admin-rating-config.test.ts",
+      "change": "update stale future-selection fixture for 0060 eligibility while preserving metadata comparison",
+      "commit": "e02543e"
+    }
+  ],
+  "status": "VERIFIED_LOCAL_SCOPED",
+  "ci": "BLOCKED_BEFORE_RUNNER_START_BILLING",
+  "productionDeployed": false,
+  "runtimeBaselineReadOnly": {
+    "observedAt": "2026-11-17T18:20:14.124Z",
+    "created_on": "2026-11-14T08:52:09.456585Z",
+    "versions": [
+      {
+        "version_id": "d285759b-d529-4ea0-a7e9-9cf88b3e7cf1",
+        "percentage": 100
+      }
+    ],
+    "readOnly": true
+  }
+}

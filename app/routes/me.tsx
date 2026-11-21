@@ -1,11 +1,14 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { Form, Link, redirect } from "react-router";
+import { data, Form, isRouteErrorResponse, Link, redirect, useNavigation, type ShouldRevalidateFunction } from "react-router";
+import { useEffect, useRef } from "react";
+import { z } from "zod";
 
 import type { Route } from "./+types/me";
 import { AccountConnections } from "../components/me/AccountConnections";
 import { ActivityCollection } from "../components/me/ActivityCollection";
 import { TasteSignals } from "../components/me/TasteSignals";
+import { MemberSavedPlaces } from "../components/me/MemberSavedPlaces";
 import { createDb } from "../db/client.server";
 import { authIdentities, users } from "../db/schema";
 import { withdrawAccount } from "../features/auth/account.server";
@@ -17,6 +20,24 @@ import { listMemberTaste } from "../features/members/member.server";
 import { getMemberTasteProfile } from "../features/members/profile-taste.server";
 import { getMemberTasteGraph } from "../features/ratings/flavor-print.server";
 import { setSavedAndRefreshTaste } from "../features/saves/save.server";
+import { unknownMemberSave, type MemberSaveResult } from "../features/saves/member-save-feedback";
+
+const unsaveSchema = z.object({ intent: z.literal("unsave"), placeId: z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value)) });
+const privateHeaders = { "Cache-Control": "private, no-store", Vary: "Cookie" };
+function unknownWithdrawal() {
+  return { kind: "member-withdraw", outcome: "UNKNOWN", withdrawError: "탈퇴 처리 결과를 확인하지 못했습니다. 다시 제출하지 말고 현재 로그인 상태를 확인해 주세요." } as const;
+}
+export const shouldRevalidate: ShouldRevalidateFunction = ({ actionResult, formMethod, defaultShouldRevalidate }) => {
+  if (formMethod?.toLowerCase() === "post" && actionResult && typeof actionResult === "object"
+    && "kind" in actionResult && actionResult.kind === "member-withdraw"
+    && "outcome" in actionResult && actionResult.outcome === "UNKNOWN") return false;
+  return defaultShouldRevalidate;
+};
+export const headers: Route.HeadersFunction = ({ actionHeaders }) => {
+  const result = new Headers(actionHeaders);
+  for (const [name, value] of Object.entries(privateHeaders)) result.set(name, value);
+  return result;
+};
 
 export function meta() {
   return [{ title: "나의 취향 — Re:Taste" }, { name: "description", content: "저장과 평가를 바탕으로 쌓이는 나의 맛 취향 기록" }];
@@ -73,20 +94,55 @@ export async function action({ request }: Route.ActionArgs) {
       if (error instanceof Error && error.message === "WITHDRAW_ADMIN_FORBIDDEN") {
         return { withdrawError: "관리자 계정은 이 화면에서 탈퇴할 수 없습니다." };
       }
-      throw error;
+      console.error("MEMBER_WITHDRAW_RESULT_UNKNOWN");
+      return data(unknownWithdrawal(), { status: 503, headers: privateHeaders });
     }
     throw redirect("/", { headers: { "Set-Cookie": await destroyUserSession(request) } });
   }
-  await setSavedAndRefreshTaste(createDb(env.DB), {
-    userId: user.id,
-    placeId: String(form.get("placeId") ?? ""),
-    saved: false,
-    now: new Date().toISOString(),
-  });
-  return redirect("/me");
+  const parsed = unsaveSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return data({ kind: "member-save", ok: false, outcome: "REJECTED", placeId: "", message: "저장 해제할 장소를 확인한 뒤 다시 시도해 주세요." } satisfies MemberSaveResult, { status: 400, headers: privateHeaders });
+  try {
+    await setSavedAndRefreshTaste(createDb(env.DB), {
+      userId: user.id,
+      placeId: parsed.data.placeId,
+      saved: false,
+      now: new Date().toISOString(),
+    });
+    return data({ kind: "member-save", ok: true, outcome: "REMOVED", placeId: parsed.data.placeId, message: "저장을 해제했습니다." } satisfies MemberSaveResult, { headers: privateHeaders });
+  } catch {
+    console.error("MEMBER_UNSAVE_FAILED");
+    return data(unknownMemberSave(parsed.data.placeId), { status: 503, headers: privateHeaders });
+  }
+}
+
+export async function clientAction({ request, serverAction }: Route.ClientActionArgs) {
+  const form = await request.clone().formData();
+  if (form.get("intent") === "withdraw") {
+    try {
+      return await serverAction();
+    } catch (error) {
+      if ((error instanceof Response || isRouteErrorResponse(error)) && error.status < 500) throw error;
+      return unknownWithdrawal();
+    }
+  }
+  if (form.get("intent") !== "unsave") return serverAction();
+  try {
+    return await serverAction();
+  } catch (error) {
+    if (error instanceof Response || isRouteErrorResponse(error)) throw error;
+    return unknownMemberSave(String(form.get("placeId") ?? "").slice(0, 128));
+  }
 }
 
 export default function Me({ loaderData, actionData }: Route.ComponentProps) {
+  const navigation = useNavigation();
+  const withdrawError = actionData && "withdrawError" in actionData ? actionData.withdrawError : undefined;
+  const withdrawUnknown = Boolean(actionData && "kind" in actionData && actionData.kind === "member-withdraw"
+    && "outcome" in actionData && actionData.outcome === "UNKNOWN");
+  const withdrawPending = navigation.state !== "idle" && navigation.formData?.get("intent") === "withdraw";
+  const withdrawSubmitting = useRef(false), withdrawMessage = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (!withdrawPending) withdrawSubmitting.current = false; }, [withdrawPending, actionData]);
+  useEffect(() => { if (!withdrawPending && withdrawError) withdrawMessage.current?.focus(); }, [withdrawPending, withdrawError]);
   return <main id="main" className="member-hub">
     <div className="shell">
       <header className="member-profile">
@@ -124,24 +180,7 @@ export default function Me({ loaderData, actionData }: Route.ComponentProps) {
           <h2 id="member-activity-title">내가 남긴 맛의 기록</h2>
         </div>
         <div className="member-activity-grid">
-          <ActivityCollection
-            title="저장한 장소"
-            count={loaderData.saved.length}
-            emptyText="지도에서 다시 보고 싶은 장소를 저장해 보세요."
-            emptyHref="/places"
-          >
-            {loaderData.saved.map((place) => <article className="member-place-row" key={place.id}>
-              <div>
-                <p>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</p>
-                <h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3>
-              </div>
-              <Form method="post">
-                <input type="hidden" name="intent" value="unsave" />
-                <input type="hidden" name="placeId" value={place.id} />
-                <button>저장 해제</button>
-              </Form>
-            </article>)}
-          </ActivityCollection>
+          <MemberSavedPlaces places={loaderData.saved} />
 
           <ActivityCollection
             title="내가 평가한 장소"
@@ -167,14 +206,22 @@ export default function Me({ loaderData, actionData }: Route.ComponentProps) {
           <summary>회원 탈퇴</summary>
           <h2 id="member-withdraw-title">회원 탈퇴</h2>
           <p>탈퇴하면 로그인, 소셜 연동, 저장한 장소는 삭제되고 복구할 수 없습니다. 이미 반영된 추천·비추천은 점수 유지를 위해 익명으로 남습니다.</p>
-          {actionData?.withdrawError && <p role="alert" className="member-notice member-notice--error">{actionData.withdrawError}</p>}
-          <Form method="post">
+          {withdrawError && <p ref={withdrawMessage} tabIndex={-1} role="alert" className="member-notice member-notice--error">{withdrawError}</p>}
+          {withdrawUnknown && <button type="button" onClick={() => window.location.reload()}>현재 로그인 상태 확인</button>}
+          <Form method="post" aria-busy={withdrawPending} onSubmit={event => {
+            if (withdrawSubmitting.current || withdrawPending || withdrawUnknown) { event.preventDefault(); return; }
+            withdrawSubmitting.current = true;
+          }}>
             <input type="hidden" name="intent" value="withdraw" />
-            <label>
-              확인을 위해 {WITHDRAW_CONFIRM_PHRASE}를 입력하세요
-              <input name="confirm" type="text" autoComplete="off" placeholder={WITHDRAW_CONFIRM_PHRASE} />
-            </label>
-            <button type="submit">탈퇴하기</button>
+            <fieldset className="contents" disabled={withdrawPending || withdrawUnknown}>
+              <legend className="sr-only">회원 탈퇴 확인</legend>
+              <label>
+                확인을 위해 {WITHDRAW_CONFIRM_PHRASE}를 입력하세요
+                <input name="confirm" type="text" autoComplete="off" placeholder={WITHDRAW_CONFIRM_PHRASE} />
+              </label>
+              <button type="submit" disabled={withdrawPending || withdrawUnknown}>{withdrawPending ? "탈퇴 처리 중…" : "탈퇴하기"}</button>
+            </fieldset>
+            <p role="status" className="sr-only">{withdrawPending ? "탈퇴 요청을 처리하고 있습니다." : ""}</p>
           </Form>
         </details>
       </section>

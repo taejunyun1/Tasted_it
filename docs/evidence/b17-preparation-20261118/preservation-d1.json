@@ -1,0 +1,20 @@
+{
+  "id": "preservation-d1",
+  "sourceHead": "b0beebbd1a52534f71f845cf797644994b31ef9e",
+  "environment": "LOCAL_VITEST_WORKERS_D1",
+  "passed": 2,
+  "failed": 0,
+  "skipped": 0,
+  "cases": [
+    {
+      "file": "tests/integration/b17-preservation-evidence.test.ts",
+      "name": "preserves every 0049 column and rowid through nine B17 migrations and rejects incomplete evidence",
+      "status": "passed"
+    },
+    {
+      "file": "tests/integration/b17-rollout-rehearsal.test.ts",
+      "name": "preserves a populated 0049 database through all nine B17 migrations without invoking providers",
+      "status": "passed"
+    }
+  ]
+}

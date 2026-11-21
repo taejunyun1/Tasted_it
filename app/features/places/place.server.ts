@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchItem } from "drizzle-orm/batch";
 
@@ -9,6 +9,7 @@ import {
   voteEvents,
   placeCategories,
   placeLivenessStates,
+  placeOperatingHours,
   placeSlugRedirects,
   places,
 } from "../../db/schema";
@@ -23,6 +24,8 @@ import type {
 } from "./place.types";
 import { publicVenueVisibilityCondition } from "./public-venue-visibility.server";
 import { attachTempCatalog } from "../temp-catalog/temp-catalog.server";
+import { PUBLIC_PLACE_PAGE_SIZE } from "./public-place-pagination";
+import { informationDate, publicOperatingDays } from "./public-information";
 
 interface UpsertPlaceInput {
   id: string;
@@ -128,12 +131,8 @@ export async function importPlaceRows(
   if (first) await db.batch([first, ...rest]);
 }
 
-function publicConditions(filters: PlaceFilters, slug?: string) {
-  const conditions = [
-    eq(places.status, "PUBLISHED"),
-    eq(placeCategories.isPrimary, true),
-    publicVenueVisibilityCondition(),
-  ];
+function publicFilterConditions(filters: PlaceFilters, slug?: string) {
+  const conditions: SQL[] = [];
   if (filters.tempOnly) conditions.push(sql`exists (select 1 from temp_catalog_entries t join temp_catalog_batches b on b.id=t.batch_id where t.place_id=${places.id} and b.status='PUBLISHED')`);
 
   if (slug) conditions.push(eq(places.slug, slug));
@@ -141,9 +140,15 @@ function publicConditions(filters: PlaceFilters, slug?: string) {
     conditions.push(eq(categories.slug, filters.categorySlug));
   }
   if (filters.query?.trim()) {
-    const value = `%${filters.query.trim().toLocaleLowerCase("ko-KR")}%`;
+    const value = filters.query.trim().toLocaleLowerCase("ko-KR");
+    // Search text is literal, not SQL wildcard syntax. instr also avoids D1's
+    // LIKE-pattern length limit while keeping ASCII case-insensitive matching.
     conditions.push(
-      or(like(places.searchText, value), like(places.name, value))!,
+      or(
+        sql`instr(lower(${places.searchText}), ${value}) > 0`,
+        sql`instr(lower(${places.name}), ${value}) > 0`,
+        sql`instr(lower(${places.address}), ${value}) > 0`,
+      )!,
     );
   }
   if (filters.bbox) {
@@ -157,6 +162,15 @@ function publicConditions(filters: PlaceFilters, slug?: string) {
   }
 
   return and(...conditions);
+}
+
+export function publicConditions(filters: PlaceFilters, slug?: string) {
+  return and(
+    eq(places.status, "PUBLISHED"),
+    eq(placeCategories.isPrimary, true),
+    publicVenueVisibilityCondition(),
+    publicFilterConditions(filters, slug),
+  );
 }
 
 function recommendationLivenessCondition() {
@@ -175,6 +189,7 @@ async function selectPublicPlaces(
     maxLimit?: number;
     recommendationCandidates?: boolean;
     recommendationOrder?: boolean;
+    offset?: number;
   } = {},
 ): Promise<PlaceDetail[]> {
   const conditions = [publicConditions(filters, slug)];
@@ -195,6 +210,7 @@ async function selectPublicPlaces(
       heroImageUrl: places.heroImageUrl,
       searchText: places.searchText,
       kakaoPlaceId: places.kakaoPlaceId,
+      lastVerifiedAt: places.lastVerifiedAt,
       categorySlug: categories.slug,
       categoryName: categories.name,
       categoryEmoji: categories.emoji,
@@ -220,7 +236,8 @@ async function selectPublicPlaces(
         ? [desc(places.lastVerifiedAt), desc(places.updatedAt), asc(places.id)]
         : [asc(places.name), asc(places.id)]),
     )
-    .limit(slug ? 1 : Math.min(filters.limit ?? 100, options.maxLimit ?? 100));
+    .limit(slug ? 1 : Math.min(filters.limit ?? 100, options.maxLimit ?? 100))
+    .offset(options.offset ?? 0);
 
   return attachTempCatalog(db, rows.map((row) => ({
     id: row.id,
@@ -235,6 +252,7 @@ async function selectPublicPlaces(
     heroImageUrl: row.heroImageUrl,
     searchText: row.searchText,
     kakaoPlaceId: row.kakaoPlaceId,
+    informationVerifiedOn: informationDate(row.lastVerifiedAt),
     primaryCategory: {
       slug: row.categorySlug,
       name: row.categoryName,
@@ -259,6 +277,26 @@ export async function listPlaces(
   );
 }
 
+export async function getPublicPlacePage(db: AppDb, filters: Omit<PlaceFilters, "limit">, page = 1) {
+  if (!Number.isSafeInteger(page) || page < 1) throw new Error("PUBLIC_PLACE_PAGE_INVALID");
+  const [count] = await db.select({ total: sql<number>`count(distinct ${places.id})` })
+    .from(places)
+    .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
+    .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
+    .where(publicConditions(filters));
+  const total = Number(count?.total ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / PUBLIC_PLACE_PAGE_SIZE));
+  const rows = page > totalPages ? [] : await attachLatestNonStaleRatingSnapshots(
+    db,
+    await selectPublicPlaces(db, { ...filters, limit: PUBLIC_PLACE_PAGE_SIZE }, undefined, { offset: (page - 1) * PUBLIC_PLACE_PAGE_SIZE }),
+  );
+  const start = rows.length ? (page - 1) * PUBLIC_PLACE_PAGE_SIZE + 1 : 0;
+  return {
+    places: rows, total, page, pageSize: PUBLIC_PLACE_PAGE_SIZE, totalPages,
+    start, end: start ? start + rows.length - 1 : 0, outOfRange: page > 1 && !rows.length,
+  };
+}
+
 export async function listRecommendationCandidates(
   db: AppDb,
   filters: PlaceFilters = {},
@@ -278,7 +316,28 @@ export async function listRecommendationCandidates(
   );
 }
 
-export async function listPublicCategoryGroups(db: AppDb) {
+export async function getPublicPlaceCounts(db: AppDb, filters: PlaceFilters = {}) {
+  const [row] = await db.select({
+    count: sql<number>`count(distinct case when ${publicFilterConditions({ bbox: filters.bbox }) ?? sql`1`} then ${places.id} end)`,
+    overallCount: sql<number>`count(distinct ${places.id})`,
+    west: sql<number | null>`min(${places.longitude})`,
+    south: sql<number | null>`min(${places.latitude})`,
+    east: sql<number | null>`max(${places.longitude})`,
+    north: sql<number | null>`max(${places.latitude})`,
+  }).from(places)
+    .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
+    .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
+    .where(publicConditions({ ...filters, bbox: undefined }));
+  const count = Number(row?.count ?? 0), overallCount = Number(row?.overallCount ?? 0);
+  let overallBounds: [number, number, number, number] | null = null;
+  if (overallCount > 0 && row && [row.west, row.south, row.east, row.north].every((value) => typeof value === "number" && Number.isFinite(value))
+    && row.west! >= 124 && row.east! <= 132 && row.south! >= 33 && row.north! <= 39) {
+    overallBounds = [Math.max(124, row.west! - 0.001), Math.max(33, row.south! - 0.001), Math.min(132, row.east! + 0.001), Math.min(39, row.north! + 0.001)];
+  }
+  return { count, overallCount, overallBounds };
+}
+
+export async function listPublicCategoryGroups(db: AppDb, filters: Omit<PlaceFilters, "categorySlug" | "limit"> = {}) {
   const parents = alias(categories, "category_parents");
   const rows = await db
     .select({
@@ -292,7 +351,8 @@ export async function listPublicCategoryGroups(db: AppDb) {
       name: categories.name,
       emoji: categories.emoji,
       sortOrder: categories.sortOrder,
-      count: sql<number>`count(distinct ${places.id})`,
+      count: sql<number>`count(distinct case when ${publicFilterConditions(filters) ?? sql`1`} then ${places.id} end)`,
+      overallCount: sql<number>`count(distinct case when ${publicFilterConditions({ ...filters, bbox: undefined }) ?? sql`1`} then ${places.id} end)`,
     })
     .from(categories)
     .innerJoin(parents, eq(parents.id, categories.parentId))
@@ -314,7 +374,7 @@ export async function listPublicCategoryGroups(db: AppDb) {
       and(
         eq(categories.isActive, true),
         eq(parents.isActive, true),
-        publicVenueVisibilityCondition(),
+        publicConditions({}),
       ),
     )
     .groupBy(categories.id, parents.id)
@@ -332,6 +392,7 @@ export async function listPublicCategoryGroups(db: AppDb) {
         name: string;
         emoji: string;
         count: number;
+        overallCount: number;
       }>;
     }
   >();
@@ -352,6 +413,7 @@ export async function listPublicCategoryGroups(db: AppDb) {
         name: row.name,
         emoji: row.emoji,
         count: Number(row.count),
+        overallCount: Number(row.overallCount),
       });
   }
   return [...groups.values()];
@@ -376,7 +438,12 @@ export async function getPlaceBySlug(
       statusText: "PLACE_NOT_FOUND",
     });
   }
-  return place;
+  const [[withRating], hours] = await Promise.all([
+    attachLatestNonStaleRatingSnapshots(db, [place]),
+    db.select({ weekday: placeOperatingHours.weekday, opensAt: placeOperatingHours.opensAt, closesAt: placeOperatingHours.closesAt, isClosed: placeOperatingHours.isClosed, lastVerifiedAt: placeOperatingHours.lastVerifiedAt })
+      .from(placeOperatingHours).where(eq(placeOperatingHours.placeId, place.id)),
+  ]);
+  return { ...withRating, operatingHours: publicOperatingDays(hours) };
 }
 
 export async function resolvePlaceSlugRedirect(

@@ -1,0 +1,23 @@
+{
+  "mode": "LOCAL_SYNTHETIC",
+  "actualRecovery": false,
+  "actualExternalProbeCalls": 0,
+  "productionMutations": 0,
+  "checks": {
+    "integrationAndExistingDashboard": "7 PASS",
+    "migrationPreservation": "1 PASS",
+    "evidenceFileDigests": "1 PASS",
+    "desktopMobileBrowser": "4 PASS",
+    "typecheck": "PASS",
+    "productionDependencyAudit": "No known vulnerabilities"
+  },
+  "initialFailures": [
+    "cross-origin test read DataWithResponseInit.status instead of init.status; assertion corrected",
+    "legacy route still referenced removed actionData; corrected",
+    "temporary browser config started webserver from config directory; cwd corrected"
+  ],
+  "screenshots": {
+    "desktop.png": "3d771e43d5b06dd690f4de1ad737e6527bb284c88c499e389974024b09046177",
+    "mobile.png": "ee8856cb3e5f297c670068e9d7467baabef6af69a5cfebd502f90b6683e5dbd9"
+  }
+}

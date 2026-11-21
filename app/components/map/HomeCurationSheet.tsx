@@ -2,6 +2,7 @@ import { useRef } from "react";
 
 import {
   HomeCurationCards,
+  HomeCurationError,
   HomeCurationModeControls,
   type HomeCurationPresentationProps,
 } from "./HomeCurationCards";
@@ -80,13 +81,13 @@ export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCuration
       </>}
     </div>
     <div className="home-curation-sheet__body">
-      {props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
+      {props.page.status !== "UNAVAILABLE" && props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
       <HomeCurationModeControls {...props} />
-      {props.error && <p className="home-curation-error" role="status">{props.error} <button type="button" onClick={props.onRetry}>다시 시도</button></p>}
+      <HomeCurationError {...props} />
       <HomeCurationCards {...props} onSelect={handlePlaceSelect} />
-      <footer className="home-curation-footer">
+      {props.page.status !== "UNAVAILABLE" && <footer className="home-curation-footer">
         <span>{props.page.radiusMeters / 1_000}km 안에서 추천</span>
-      </footer>
+      </footer>}
     </div>
   </aside>;
 }

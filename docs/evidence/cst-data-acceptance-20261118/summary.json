@@ -1,0 +1,62 @@
+{
+  "base_sha": "c3147a9",
+  "branch": "codex/jay_cst_data_acceptance_20261118",
+  "environment": "ISOLATED_LOCAL_VITEST_WORKERS_D1",
+  "executed_at_kst": "2026-11-18T11:32:22.176203+09:00",
+  "source_files_sha256": {
+    "tests/integration/candidate-sync.test.ts": "c87676ea1887b037e8dc4e308aecdc8c15dcb0b5de25d67978343db5b4962e8e",
+    "tests/integration/place-review-duplicates.server.test.ts": "abf5944864614b471091e17304a2752e16e4577dc4bb16dfb786767386bbff78",
+    "tests/integration/place-revalidation.server.test.ts": "a8fb27c35a727a32a9f3ce969d2578113d38e4d64b9a606a89a8cc185b4d9cc8"
+  },
+  "changes": "기존 동작에 수용 assertion 6건 추가. 제품 코드 변경 없음.",
+  "checks": [
+    {
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/candidate-sync.test.ts tests/integration/place-review-duplicates.server.test.ts --maxWorkers=2",
+      "result": "PASS",
+      "files": 2,
+      "passed": 16,
+      "skipped": 0,
+      "new_cases": 5,
+      "log": "/tmp/cst-data-acceptance-first-20261118.log"
+    },
+    {
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/place-revalidation.server.test.ts -t 'hides a moved place'",
+      "result": "PASS",
+      "files": 1,
+      "passed": 1,
+      "filtered": 9,
+      "new_cases": 1,
+      "log": "/tmp/cst-moved-acceptance-20261118.log"
+    },
+    {
+      "command": "pnpm run typecheck",
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "pnpm audit --prod --audit-level high",
+      "exit_code": 0,
+      "vulnerabilities": 0,
+      "result": "PASS"
+    }
+  ],
+  "first_run": "모든 새 수용 사례가 첫 실행에서 통과했다. 기존 동작의 검증 보완이며 결함 재현 또는 RED→GREEN이라고 표현하지 않는다.",
+  "scope": [
+    "서로 다른 완료 수집 run에서 같은 원천 ID·firstSeen·createdAt과 검수 작업을 보존한다. lastSeen·원천 수정일과 실행별 inserted/updated 수가 갱신되고 공개 장소는 추가되지 않는다.",
+    "DISTINCT/LINK_EXISTING/MERGE 판정은 사유·관리자·시각·감사 1행을 기록하며 미판정 후보 수는 0이다. 이 단계는 실제 병합·공개를 수행하지 않는다.",
+    "더 이상 동일 상호가 아닌 stale 후보는 판정·감사·장소 변화 0이다.",
+    "MOVED 판정 후 공개 상세 404·목록/추천 제외, 기존 주소/좌표/확인일 보존, 사건 RESOLVED·revision/감사 1행을 확인한다."
+  ],
+  "limits": [
+    "새 기능/정책/산식/schema/provider/flag 없음.",
+    "실제 외부 요청·운영 D1·브라우저·배포·메일은 실행하지 않았다.",
+    "전체 T05/T08 수용 또는 필수 CI 성공으로 확대하지 않는다.",
+    "기존 tests/integration 설정과 격리 D1을 사용한다.",
+    "stale 판정은 요청 전에 변경된 후보를 거절한 범위다. 진행 중 원자 경합을 입증하지 않는다."
+  ],
+  "independent_review": {
+    "reviewer": "Codex root",
+    "result": "PASS",
+    "scope": "세 시험 파일과 실제 서비스 경로를 대조. 새 차단 문제 없음."
+  }
+}

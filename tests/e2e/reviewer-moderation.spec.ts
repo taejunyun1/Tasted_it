@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page, type Response, type TestInfo } from "@playwright/test";
+import { isControlledLocalBaseUrl } from "./local-test-target";
 
-test.skip(Boolean(process.env.BASE_URL), "방문 검수 시험은 격리한 로컬 합성 자료에서만 실행합니다.");
+test.skip(!isControlledLocalBaseUrl() || Boolean(process.env.BASE_URL) && process.env.CST_REVIEWER_LOCAL_FIXTURE !== "1", "방문 검수 시험은 격리한 로컬 합성 자료에서만 실행합니다.");
 const pendingCleanup = new WeakMap<BrowserContext, string>();
 
 test.beforeEach(async ({ page }) => {
@@ -191,6 +192,10 @@ test("reviewer submits photo and rights through the wizard while pending materia
     expect((await actors.anon.request.get(publicUrl)).status()).toBe(404);
     expect((await actors.anon.request.head(publicUrl)).status()).toBe(404);
     expect((await actors.anon.request.get(previewUrl)).status()).toBe(404);
+    expect((await actors.anon.request.get("/me", { maxRedirects: 0, headers: { Cookie: "retaste_session=qa-reviewer-member-session" } })).status()).toBe(200);
+    for (const request of [actors.anon.request.get(previewUrl, { headers: { Cookie: "retaste_session=qa-reviewer-member-session" } }), actors.anon.request.head(previewUrl, { headers: { Cookie: "retaste_session=qa-reviewer-member-session" } })]) expect((await request).status()).toBe(404);
+    expect((await context.request.get(previewUrl)).status()).toBe(200);
+    expect((await actors.admin.request.get(previewUrl)).status()).toBe(200);
     await actors.publicPage.goto("/reviewers/qa-gukmul-reviewer");
     await expect(actors.publicPage.getByText("공개 승인된 방문 자료가 아직 없어요.")).toBeVisible();
     const denied = await context.request.post("/admin/reviewer-visits", { form: { reviewId, expectedVersion: "1", status: "APPROVED", reason: "권한 없는 요청" }, headers: { Origin: new URL(page.url()).origin } });
@@ -241,7 +246,38 @@ test("administrator requests corrections and approves resubmitted private materi
     await expect(publicVisit.getByRole("img", { name: "승인 흐름 검증용 합성 사진" })).toBeVisible();
     await actors.publicPage.screenshot({ path: testInfo.outputPath("approved-profile.png"), fullPage: true });
     await actors.adminPage.locator(`#moderation-${reviewId}`).screenshot({ path: testInfo.outputPath("admin-approved.png") });
+    await publicVisit.getByRole("link", { name: "Re:Taste 샘플 라멘 동명" }).click();
+    await expect(actors.publicPage.locator(`.review-photo-gallery img[src="${publicUrl}"]`)).toBeVisible();
     mark("approved-captures:complete");
+  } finally { await actors.close(); }
+});
+
+test("administrator rejection preserves the owner preview while public profile and detail exclude the photo", async ({ browser, page, context }, testInfo) => {
+  await signIn(context, "qa-active-reviewer-session");
+  const reviewId = await preparePhotoVisit(page, context, String(testInfo.project.use.baseURL));
+  await page.goto("/reviewer/ratings");
+  const { ownRow, previewUrl, publicUrl } = await photoReferences(page, reviewId);
+  const actors = await createActors(browser, page, testInfo);
+  try {
+    await actors.adminPage.goto("/admin/reviewer-visits?status=ALL");
+    const card = actors.adminPage.locator(`#moderation-${reviewId}`);
+    await card.getByLabel("검수 사유").fill("합성 시험: 방문 근거 부족으로 반려합니다.");
+    await card.getByRole("button", { name: "반려", exact: true }).click();
+    await expect(card.locator(".reviewer-moderation-status")).toHaveText("반려");
+    for (const response of [await actors.anon.request.get(publicUrl), await actors.anon.request.head(publicUrl)]) {
+      expect(response.status()).toBe(404);
+      expect(response.headers()["cache-control"]).toContain("no-store");
+    }
+    expect((await context.request.get(previewUrl)).status()).toBe(200);
+    await actors.publicPage.goto("/reviewers/qa-gukmul-reviewer");
+    await expect(actors.publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
+    await actors.publicPage.goto("/places/sample-dongmyeong-ramen");
+    await expect(actors.publicPage.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명", exact: true })).toBeVisible();
+    await expect(actors.publicPage.locator(`img[src="${publicUrl}"]`)).toHaveCount(0);
+    await page.reload();
+    await expect(ownRow).toContainText("반려");
+    await ownRow.screenshot({ path: testInfo.outputPath("rejected-owner-preview.png") });
+    await actors.publicPage.screenshot({ path: testInfo.outputPath("rejected-public-detail.png"), fullPage: true });
   } finally { await actors.close(); }
 });
 

@@ -1,5 +1,72 @@
 # CST 서비스 준비 실행계획 SSOT — 2026-12-10
 
+## 2026-11-18 B17 이전 요청 재확인과 격리 전환안
+
+Cloudflare 공식 계약은 100% 배포 이후에도 구버전 HTTP 실행과 이미 발행된 외부 작업의 완료를 보장하지 않는다. 전체 종료를 확정할 공개 API를 확인하지 못해 현행 전환은 HOLD다. 대체안은 원본 R2 보호와 원본 D1 쓰기 차단, 별도 후보 D1·R2 복사·검증, 공개 읽기와 내부 쓰기의 순차 개방이다. 외부 호출·권리·보존 처리는 개별 조건을 확인한다. [격리 전환 검토안](../operations/2026-11-18-admin-b17-isolated-cutover.md)
+
+대체안은 PROPOSED다. 로컬 D1 1건에서 82개 테이블 보호, 246개 장벽의 원자 설치와 실패 시 전량 철회, 늦은 원본 쓰기 거절 및 별도 후보 쓰기를 확인했다. 장벽 설치만 246개 SQL로 기존 관리 한도 180을 넘고 별도 자원·보존 범위가 필요하다. CI 복구 전 운영 변경은 없다. #397 HOLD를 유지한다.
+
+## 2026-11-18 B17 운영 전환 후속 준비
+
+B17 실행 도구에 점검 버전 확인 → 비공개 백업 → 기존 82표 수집 → 고정 9개 migration → 장부·보존·기본값 검증 → 정상 배포 확인·RSI → 임시 세션과 미확정 작업 정리를 연결했다. 공공 대기 작업은 검토된 스냅샷과 현행 DB 값이 일치할 때만 처리한다. 0053에서 생성되는 실제 NAVER anchor는 별도 검토가 필요하므로 합동 전환의 quota는 HOLD다. [운영 순서](../operations/2026-11-18-admin-b17-rollout.md#후속-실행-경로와-기존-요청-종료-확인)
+
+이전 버전으로 범위를 고정한 Observability 조회는 관측한 종료 결과만 남긴다. 오래 연결된 요청과 이미 발행된 R2 작업까지 포함하는 전체 종료 근거는 현재 확보할 수 없어 `UNKNOWN`으로 차단한다. 실제 종료 근거를 확보하지 않은 상태에서 서비스 점검 진입을 보류한다. CI 결제 차단과 운영 검증 미완료, #397 HOLD는 계속 적용한다. [검증 증거](../evidence/b17-continuation-20261118/summary.json)
+
+## 2026-11-18 B17 전체 원장 보존·사전 점검 보완
+
+기존7개 재구성 표 비교와 별도로, 0049의 기존82개 테이블·853개 열·rowid·자료형을 모두 비교하는 보존 도구를 추가했다. 학생 권한/업무·원시 평가·사진 권리·설정·감사를 포함한 합성 자료에서9개 migration 전후 차이0을 확인했다. 누락·잘림·중복·크기 초과는 실패하며 원문 값을 보고서에 내보내지 않는다. [준비 증거](../evidence/b17-preparation-20261118/summary.json)와 [재개 준비표](../operations/2026-11-18-admin-b17-readiness.md)를 따른다.
+
+SQL180이라는 종전 초안은 지정9개 migration 본문201문장을 포함할 수 없던 계수 오류였다. 작업 자체는 추가하지 않고, 고정 본문201+관리180(장부11·정리12 포함), 총381로 구분했다. D1 전체50회와 정리5회 예약은 유지하며 자동 증액하지 않는다. 소스·한도 확인은 로컬 `prepare`, 향후 원격 읽기는 `preflight`까지 지원한다. 실제 후속 경로와 HTTP/R2 종료 증거가 없어 서비스 중단·배포·migration을 시작하지 않는다. 합성 단계/예산 검증을 실제 운영 전환 완료로 세지 않는다.
+
+필수 CI 결제 차단·main 병합·운영 배포·실제 복구/정책/실증의 미완료 상태는 유지한다. #397은 HOLD이며 이번 원격 D1·배포·메일/유료 제공자 호출은0이다.
+
+## 2026-11-18 기능 누락 보완·수용 경계 통합
+
+`f7d2732`(제품 코드 `3d31a98`)에 일반 장소의 확인일·영업시간·미확인 표시와 반복 평가/결과 불명 복구를 반영했다. 저장 승계·공개 권한·원천 재반입/중복/이전·홈 분류의 부족했던 수용 사례도 추가했다. 필요한 단위 14건·D1 67건, compiled 브라우저 18건과 홈 2건, 타입·production build·배포 dry-run·의존성 감사가 통과했다. [통합 증거](../evidence/cst-acceptance-integrated-20261118/summary.json)와 [기능 원장](2026-11-18-cst-ui-feature-completion.md)의 현재 표를 따른다.
+
+이 결과는 로컬 합성 자료의 기술 검증이다. 실제 운영자·문의처·보관/삭제 기간은 정책 확인 필요이며, 전체 T01~T08 운영 수용·실제 외부 인증/메일·운영 복구·실증은 미완료다. 새 main 병합·운영 배포는 0이고 필수 CI 통과 전에는 수행하지 않는다. #397 HOLD 유지.
+
+## 2026-11-18 S07·코스·실패 복구 통합
+
+`df80fed`에 정정 확인·동시 처리 보호·우선순위 큐, 코스 조건 복구, Golden 오류·이력 보존, 비회원 저장·탈퇴의 결과 불명 잠금을 합류했다. 컴파일된 로컬 Worker에서 정정 모의 메일 2건·코스 10건·Golden 2건·비회원 저장 6건·탈퇴 4건, 총 24건의 브라우저 검증을 통과했다. 필요한 단위·D1 검증과 production build·typecheck·배포 dry-run도 통과했고 의존성 감사 취약점은 0건이다. [통합 증거](../evidence/recovery-integrated-20261118/summary.json)와 [기능 원장](2026-11-18-cst-ui-feature-completion.md)을 따른다. 테스트용 메일·로컬 flag와 실제 제공자·운영은 구분한다. 필수 CI·병합·배포와 실제 정책은 미완료이며 #397은 HOLD다.
+
+## 2026-11-18 정정 대상 검색 통합
+
+`d4b7b17`에서 정정 대상1,000건 제한을20개 검색/페이지로 보완했다. 1,005번째 대상·초안/복귀 보존·같은 경로 대상 이동·합성 IME·회수 후 재선택을 compiled6건과 단위18/D1 14건으로 확인했다. [증거](../evidence/correction-search-20261118/summary.json)를 따른다. 실제 학습 화면3폭과 U08 통합8/단위7/추가13건은 [완료 원장](2026-11-18-cst-ui-feature-completion.md)에 연결했다. 전체 S07·U/D/S/T 수용, 필수 CI·병합·운영·실제 정책은 미완료다.
+
+## 2026-11-18 UI 접근성 마무리와 정정 검색 후속
+
+직전 확인 head `25155ad`의 [CI44220942904](https://github.com/taejunyun1/Tasted_it/actions/runs/44220942904)는 필수4개 job 모두 계정 결제/지출 한도로 실행 전에 중단됐다. 각 annotation을 확인했으며 [CI 증거](../evidence/2026-11-18-ui-admin-ci-blocked.json)에 기록한다. 새 head의 검사 결과로 재사용하지 않는다.
+
+`8248172`에서 목록/listitem·카테고리 그룹/선택 의미와768px 제어44px을 보완했다. `4267bce` 통합 검증에 더해 compiled 브라우저11건과 시험 기대값 교정 후1건이 통과했다. [접근성 증거](../evidence/2026-11-18-explorer-accessibility.json)와 [완료 원장](2026-11-18-cst-ui-feature-completion.md)을 따른다. 정정 대상1,000건 제한은 실제 누락으로 확인해 별도 구현을 진행한다. 전체 T01~T08·main 병합·운영 배포는 완료로 올리지 않는다.
+
+## 2026-11-18 UI·ADMIN 합동 검증
+
+PR #472의 UI를 기존 PR #470에 합류하고 ADMIN 항목별 결과/제안 페이지/표·403 보완을 적용했다. 코드 `4267bce`는 타입·production build·집중 단위24/D1 19·병합 D1 19·compiled desktop/mobile28건과 범위 밖 metadata2건을 통과했다. 정확한 범위는 [통합 증거](../evidence/cst-ui-admin-integrated-20261118.json), 남은 요구는 [기능 완료 원장](2026-11-18-cst-ui-feature-completion.md)을 따른다. 아래 이전 단계의 통합 head/CI 기록은 역사이며 새 head의 CI를 대신하지 않는다.
+
+신규 main 병합·운영 배포는0이다. 필수 CI 결제 제한, 실제 정책·복구·실증 사실 미확정, #397 HOLD는 유지한다.
+
+## 2026-11-18 UI/UX 기능 완성 후속
+
+[#471](https://github.com/taejunyun1/Tasted_it/issues/471)의 구현·화면·실패 복구 범위는 [기능 완료 원장](2026-11-18-cst-ui-feature-completion.md)에 전체 U/D/S 및 감사§9와 연결한다. 인증/정정·리뷰어 검색·회원 저장·상세 요청 결속·위치/지도 SDK·공개 meta/sitemap을 통합했고, `03b624c` 가독성과 `a4912db` 공개 목록 페이지 처리와 `a901b5a` 지도 실패/세션 경계·접근성·실제 메뉴 클릭 검증을 추가했다. 원장은 구현·지정 범위 로컬 검증·실제 운영 상태를 구분하며 전체 목표는 진행 중이다.
+
+`e9634b6` 평가 근거/표본수/시각·`ad15c2c` Golden Pick 최종 확인·`a5ce06a` 가독성/페이지 meta를 추가 검증했다. 다음은 ADMIN 결과/접근성 보완의 #470 합류와 남은 U/D/S 조합 검증이다. 필수 CI 결제 제한과 실제 운영자/문의처/보존 정책 미정은 유지한다. 이 UI 변경으로 새 운영 배포·원격 자료 변경은 수행하지 않았으며 #397은 HOLD다.
+
+## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
+
+최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 직전 확인 head `484aba9`의 [CI 44148261161](https://github.com/taejunyun1/Tasted_it/actions/runs/44148261161)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
+
+사용자는 11/18 결제 복구가 당장 어렵다고 답했고, 실제 운영자·문의처·보관/삭제 기간은 **정책 확인 필요**로 유지했다. 후속 준비로 9개 migration 연속 적용과 7개 변경/11개 핵심 테이블의 합성 보존 리허설 1건, 비교 도구 단위 7건, 타입·production 의존성 감사를 통과했다. [배포 재개 준비표](../operations/2026-11-18-admin-b17-readiness.md)에 실행 도구 보완점과 남은 live 증거를 기록했다. 이 로컬 결과는 CI 또는 운영 수용을 대체하지 않는다.
+
+B10 평가 PR [#444](https://github.com/taejunyun1/Tasted_it/pull/444) `990d5d4`와 공공 수집 [#446](https://github.com/taejunyun1/Tasted_it/pull/446) `941a205`는 각각 필수 4CI와 독립 리뷰를 통과해 병합했다. 주차·EV [#448](https://github.com/taejunyun1/Tasted_it/pull/448)은 관련 로컬 검증과 독립 리뷰를 통과했으나 GitHub Actions 계정 결제/지출 한도로 runner가 시작되지 않았다. [실제 check annotation](https://github.com/taejunyun1/Tasted_it/actions/runs/44141185490)을 근거로 **CI_BLOCKED / 운영 미배포**로 남긴다. 로컬 통과를 필수 CI 또는 운영 성공으로 대체하지 않는다.
+
+후속 B11 사용량 [#455](https://github.com/taejunyun1/Tasted_it/pull/455), B12 설정·자동검수 중단 [#458](https://github.com/taejunyun1/Tasted_it/pull/458), B14 RSI·경보 [#456](https://github.com/taejunyun1/Tasted_it/pull/456), B16 감사 CSV [#457](https://github.com/taejunyun1/Tasted_it/pull/457), B11 메일 도메인 [#459](https://github.com/taejunyun1/Tasted_it/pull/459)은 로컬 검증·독립 리뷰 후 PR로 준비했다. B15 평가 기준 [#461](https://github.com/taejunyun1/Tasted_it/pull/461)와 B13 개인정보·삭제대기 [#464](https://github.com/taejunyun1/Tasted_it/pull/464)도 로컬 검증·독립 리뷰를 마쳤다. 보존 계측 [#466](https://github.com/taejunyun1/Tasted_it/pull/466), 사용량 전환 도구 [#468](https://github.com/taejunyun1/Tasted_it/pull/468), 평가 설정 날짜 일관성 [#469](https://github.com/taejunyun1/Tasted_it/pull/469)도 같은 로컬 검증·리뷰를 완료했다. 각 단위와 통합본의 결과는 [ADMIN 진행표](../evidence/admin-followup-20261118.md)에 기록한다.
+
+신규 0050 이후 migration, 새 Worker 배포, 실제 운영 대상 변경은 이 차단 이후 실행하지 않았다. 운영 기준선은 기존 B09 소스 `e96360c` / Worker `d285759b-d529-4ea0-a7e9-9cf88b3e7cf1`이며, 이번 읽기 사전조회와 로컬 검증을 새 배포로 표현하지 않는다. B10의 대기 1건 전환도 아직 미실행이다. 복구 뒤에는 최신 main 재통합·필수 CI·단계별 migration 보존·라이브 RSI·시험 세션 정리를 수행해야 한다.
+
+#397은 HOLD를 유지한다. #360의 실제 운영주체/문의처/추가 보존기간·국외이전·비용/복구 정책은 미확정이며, 읽기 화면·기술 구현이 이 사실을 확정하지 않는다. 11개 코드 head의 로컬 통합 검증은 완료했으나 B17 전체 운영 리허설·실제 인계·운영 수용은 아직 완료가 아니다. 12월 10일 내부 검수·실증 준비와 12월 18일 납품 기준은 유지한다.
+
+
 - 상태: **ACCEPTED — 사용자 2026-11-13 요청에 따른 일정·요구사항 추적 SSOT**. 저장소 반영은 이 문서를 포함한 병합 PR로 확정한다.
 - 실행 담당: **Jay/Codex — 계획·구현·통합·기술검증·인계 준비**. 서비스 정책·내부 수용 결정은 사용자(CST). PDF의 대외 책임 구분은 원문대로 보존하되, 이 개발 일정은 외부 인력 투입을 전제하지 않는다.
 - 추적: [#354](https://github.com/taejunyun1/Tasted_it/issues/354). 최초 조사 기준 `origin/main@471a3eba61a47bc40574c478be23116335798c0e`.
@@ -53,6 +120,12 @@ RSI6/6·감사1행·새Worker로그 outcome ok, 검증세션최종잔존0을 확
 [#448](https://github.com/taejunyun1/Tasted_it/pull/448) `65485b7`을 필수 CI 4개와 독립 리뷰 뒤 병합했다. 0050–0052 적용 전후 관련 19개 테이블의 기존 값·행 식별자와 권한·감사 이력을 대조했고 외래키 위반은 0건이다. Time Travel 복구 지점과 비공개 export를 확보했다. 61초 drain에서 이전 Worker의 관측 요청 종료와 두 cron의 실행 경계를 확인했다. 승인된 공공 수집 대기 1건만 실행 대기로 돌렸으며 기존 체크포인트를 보존했다. 감사 1건을 남겼고 임시 트리거는 0개다.
 
 정상 설정 Worker `dd76c4c2-f51c-4748-b38a-28a78c4a729f` 100%에서 ADMIN 세 화면의 조회·익명 차단과 공공 작업 미리보기·재인증 없는 확정 거절, 공개 상세·사진을 확인했다. 같은 Worker의 RSI 6/6·감사 1건, 임시 세션과 미리보기 잔존 0을 확인했다. 운영 검증은 수동 HTTP 31회, D1 명령 39회와 SQL 조회 65개, export 1개였다. 평가·주차 양성 미리보기, 실제 작업 실행, 실제 복원은 미실행이다. [B10 운영 절차](../operations/2026-11-18-admin-b10-jobs-rollout.md)를 따른다.
+
+### 2026-11-22 PR 통합과 반입 근거
+
+B17 격리 전환 도구 [#473](https://github.com/taejunyun1/Tasted_it/pull/473)를 `2732a4c`에 병합했다. ADMIN 후속과 UI는 [#470](https://github.com/taejunyun1/Tasted_it/pull/470)을 통해 통합하며 구성 PR의 반영과 병합 SHA는 해당 PR에 기록한다. B17의 실제 전환과 #397은 HOLD다. 0053·0054·0055·0056·0059·0060의 실제 적용에는 새 운영 기준선, 기존 HTTP·R2 작업 종료 또는 원본 격리 증거와 별도 운영 계획이 필요하다.
+
+장소 반입의 원장 856건, 기존 검수 22곳, 신규 초안 61곳, 타지역 440곳 비노출과 새 공개 수의 실운영 확인은 [#475의 운영 결과](https://github.com/taejunyun1/Tasted_it/pull/475)와 연결한다. 이 배치의 공개는 광주·전남·전북 식당과 카페의 B09 최종 승인·커밋 기록으로 판정한다.
 
 ## 1. 권위와 원문
 

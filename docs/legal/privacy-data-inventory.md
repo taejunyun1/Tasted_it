@@ -57,3 +57,11 @@
 - `app/features/ratings/reviewer-publication.server.ts`, `reviewer-photo-access.server.ts`, `app/routes/reviewer-photo.ts`: 현재 승인·작성자/장소·사진 결속과 인증된 preview/public no-store 경계.
 - `app/features/ratings/reviewer-photo-deletion.server.ts`, `app/features/auth/account.server.ts`: 계정 표시정보 대체·공개 회수와 정확-key 삭제 계획을 같이 기록하고, 저장소 실패는 재시도한다. review/transition 자유 문안과 관계키를 일괄 지우는 경로는 없음.
 - `app/features/ratings/vote.server.ts`, `recompute.server.ts`, `reviewer-trust.server.ts`, `app/features/members/taste-publication.server.ts`: source 원본과 현재 공개/파생 결과를 구분하고 epoch/revision/version token으로 오래된 사용을 차단한다.
+
+## B13 최소 요청·사진 정리 운영 추가 범위
+
+- `privacy_requests`: 로그인한 인증 계정의 관계키·요청 유형·상태·revision·결정 코드/담당자·접수/갱신 시각. 신분증·사진·추가 연락처·자유 문안을 받지 않는다. 실제 열람·정정·삭제 완료와 내부 처리 기록을 구분한다. 보유기간·추가 삭제 절차는 #360 미확정이며 새 자동 TTL을 정하지 않는다.
+- 사진 정리 계획의 revision·실행 소유권/기한·상태·제한된 오류 코드: 기존 정확-key 계획의 중복 실행과 늦은 완료를 막는다. 결과불명은 자동 완료/재실행하지 않는다. 성공한 계획은 기존처럼 정리하고, 완료 감사는 사진/키 목록 없이 목적·작업 참조·시도·건수만 남는다.
+- `reviewer_photo_cleanup_guards`: 업로드 확정·정리 완료 batch 안에서만 생성/삭제되는 transaction guard. 성공 후 남는 행이 없으며 개인정보 보존 저장소로 사용하지 않는다.
+
+구현과 로컬 합성 검증은 실제 운영 삭제나 정책 확정을 의미하지 않는다. 상세 범위는 [B13 구현 기록](../plans/2026-11-18-admin-b13-privacy.md)을 따른다.

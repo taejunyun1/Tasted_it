@@ -1,0 +1,317 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-18",
+  "status": "VERIFIED_LOCAL_SCOPED",
+  "sourceHead": "559d054a9b3a406b97162d48a9ac4db02ac280ed",
+  "appTree": "a87403c2923bae39d43f92778955ded8d3459331",
+  "appChanged": false,
+  "scripts": {
+    "scripts/b17-rollout-runner.mjs": "2c81369e123f7ccc9926af21ffa8f9c7ca54aabca74fdf2275873000a4ff9550",
+    "scripts/b17-rollout-continuation.mjs": "748242987aecac0606c335b19b930fccb895b3d11b3ef4fe37700a98b71dfab0",
+    "scripts/b17-drain-evidence.mjs": "c0c856640fa2bdf2172324d13e1441ec67cdc1a531c13d76e72696cd34585012"
+  },
+  "verification": {
+    "unit": {
+      "passed": 44,
+      "suites": [
+        {
+          "file": "unit/b17-drain-evidence.test.ts",
+          "cases": [
+            {
+              "name": "B17 legacy drain evidence does not promote operator_assertion to exhaustive HTTP/R2 drain proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence does not promote elapsed_window to exhaustive HTTP/R2 drain proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence does not promote wrangler_tail to exhaustive HTTP/R2 drain proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence does not promote workers_observability to exhaustive HTTP/R2 drain proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence does not promote deployment to exhaustive HTTP/R2 drain proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence does not promote platform_attestation to exhaustive HTTP/R2 drain proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence rejects a different version, fence time and stale or future observation",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence returns typed UNKNOWN for absent, malformed or oversized input without exposing payload",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence binds the evidence hash to version and fence context and never treats a cron window as HTTP proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence rejects coerced identifiers, accessors and sparse arrays at the evidence boundary",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence plans bounded version-scoped observation requests without remote execution or persisted query",
+              "status": "passed"
+            },
+            {
+              "name": "B17 legacy drain evidence redacts authenticated-transport event shapes and keeps sampled, partial or empty observations non-authoritative",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "unit/b17-rollout-continuation.test.ts",
+          "cases": [
+            {
+              "name": "stops before backup or D1 when authentic exhaustive drain proof is unavailable",
+              "status": "passed"
+            },
+            {
+              "name": "accepts equivalent UTC deployment precision 2026-11-18T01:40:00Z without promoting drain evidence",
+              "status": "passed"
+            },
+            {
+              "name": "accepts equivalent UTC deployment precision 2026-11-18T01:40:00.000000Z without promoting drain evidence",
+              "status": "passed"
+            },
+            {
+              "name": "rejects invalid or noncontract UTC checkpoint 2026-02-30T01:40:00Z before side effects",
+              "status": "passed"
+            },
+            {
+              "name": "rejects invalid or noncontract UTC checkpoint 2026-11-18T01:40:00.0000000Z before side effects",
+              "status": "passed"
+            },
+            {
+              "name": "rejects invalid or noncontract UTC checkpoint 2026-11-18T01:40:00+00:00 before side effects",
+              "status": "passed"
+            },
+            {
+              "name": "does not elevate a canMigrate boolean or an unrelated fence into proof",
+              "status": "passed"
+            },
+            {
+              "name": "preserves redacted observation counts on HOLD without unlocking writes",
+              "status": "passed"
+            },
+            {
+              "name": "rejects a changed artifact before database work",
+              "status": "passed"
+            },
+            {
+              "name": "keeps quota cutover in its separate reviewed post-migration path without any side effect",
+              "status": "passed"
+            },
+            {
+              "name": "rejects an insufficient remaining budget before export or data capture",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "unit/b17-rollout-runner.test.ts",
+          "cases": [
+            {
+              "name": "B17 bounded rollout keeps cleanup reservations inside fixed limits and separately accounts fixed migration SQL",
+              "status": "passed"
+            },
+            {
+              "name": "B17 bounded rollout rejects stale heads, unmerged PRs, missing or duplicate checks before any live action",
+              "status": "passed"
+            },
+            {
+              "name": "B17 bounded rollout accepts required checks on the exact PR head only when its tree matches the squash merge",
+              "status": "passed"
+            },
+            {
+              "name": "B17 bounded rollout never promotes elapsed cron time, an operator boolean or completion-only tail to HTTP drain proof",
+              "status": "passed"
+            },
+            {
+              "name": "B17 bounded rollout preparation only reads the checkout and reports current blockers without an adapter or network",
+              "status": "passed"
+            },
+            {
+              "name": "the full fixed lifecycle fits real migration/capture costs including cleanup",
+              "status": "passed"
+            },
+            {
+              "name": "keeps the fence and cleans exact synthetic state after SESSION fails",
+              "status": "passed"
+            },
+            {
+              "name": "keeps the fence and cleans exact synthetic state after LEGACY_TRANSITION fails",
+              "status": "passed"
+            },
+            {
+              "name": "keeps the fence and cleans exact synthetic state after QUOTA_TRANSITION fails",
+              "status": "passed"
+            },
+            {
+              "name": "keeps the fence and cleans exact synthetic state after NORMAL_DEPLOY fails",
+              "status": "passed"
+            },
+            {
+              "name": "keeps the fence and cleans exact synthetic state after LIVE_PROBES fails",
+              "status": "passed"
+            },
+            {
+              "name": "keeps the fence and cleans exact synthetic state after RSI fails",
+              "status": "passed"
+            },
+            {
+              "name": "refuses a preservation plan that consumes the reserved cleanup allocation",
+              "status": "passed"
+            },
+            {
+              "name": "does not accept an arbitrary adapter or boolean as a live continuation proof",
+              "status": "passed"
+            },
+            {
+              "name": "requires exact current binding, plain vars, crons and 100-percent version",
+              "status": "passed"
+            },
+            {
+              "name": "validates preflight but cannot deploy a fence even if an adapter claims drain is safe",
+              "status": "passed"
+            },
+            {
+              "name": "a deadline after session creation still preserves cleanup and the fence",
+              "status": "passed"
+            },
+            {
+              "name": "reads actual CLI response shapes through bounded argv and keeps the bearer out of arguments",
+              "status": "passed"
+            },
+            {
+              "name": "rejects a private-directory parent symlink that resolves inside the repository",
+              "status": "passed"
+            },
+            {
+              "name": "downloads a single backup privately and never puts the signed URL in argv",
+              "status": "passed"
+            },
+            {
+              "name": "rejects command/SQL injection fields and malformed runtime identities at the CLI boundary",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "localD1": {
+      "passed": 5,
+      "suites": [
+        {
+          "file": "integration/b17-continuation-partial-migration.test.ts",
+          "cases": [
+            {
+              "name": "does not retry a partially applied migration or create a session",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "integration/b17-continuation-rsi-ambiguity.test.ts",
+          "cases": [
+            {
+              "name": "restores maintenance when RSI cannot be correlated with the actual deployment",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "integration/b17-continuation-session-ambiguity.test.ts",
+          "cases": [
+            {
+              "name": "cleans an exact session even when its committed response was lost",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "integration/b17-continuation-snapshot-drift.test.ts",
+          "cases": [
+            {
+              "name": "rejects a changed reviewed legacy snapshot before installing transition triggers",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "integration/b17-rollout-continuation.test.ts",
+          "cases": [
+            {
+              "name": "executes fixed post-fence operations on synthetic D1 and preserves unrelated state",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "productionBuild": "PASS",
+    "parseAndDiff": "PASS",
+    "productionDependencyVulnerabilities": 0,
+    "independentReview": "PASS"
+  },
+  "successfulLocalPath": {
+    "httpAllocationIncludingPriorFence": 39,
+    "d1Accounted": 46,
+    "adminSql": 59,
+    "migrationSql": 201,
+    "aggregateSql": 260,
+    "export": 1,
+    "session": 1,
+    "rsi": 1,
+    "appliedLocalMigrations": 9,
+    "cleanupVerified": true,
+    "transport": "LOCAL_D1_WITH_REPLACED_CLOUDFLARE_AND_HTTP_RESPONSES"
+  },
+  "observations": {
+    "actualLegacyProof": "UNKNOWN",
+    "source": "Cloudflare Workers Observability diagnostic only",
+    "windowMinutes": 30,
+    "maxRequests": 2,
+    "maxRows": 100,
+    "maxResponseBytes": 1048576,
+    "timeoutPerRequestMs": 10000,
+    "cronLimitMinutes": 15,
+    "originalWorkerHttpWallTimeLimit": "NONE_WHILE_CONNECTED",
+    "nativeLegacyDrainCanMigrate": false
+  },
+  "failureHistory": [
+    "Initial compound D1 work was already resolved in baseline 7a705bd.",
+    "Fixed initial full path request count by using bounded export polling and batching the exact B10 guarded transition.",
+    "Fixed normal deployment UTC microseconds and selected a public detail from a public-list link after reproducing the hidden-item false alarm.",
+    "After durable legacy trigger receipt was added, the existing 3-artifact expectation failed; the corrected test verifies exact filenames and the two trigger namespaces. The other 4 scenarios had already passed."
+  ],
+  "planDecisions": {
+    "quota": "HOLD_PENDING_REAL_POST_0053_ANCHOR_REVIEW",
+    "legacy": "OPTIONAL_EXACT_REVIEWED_SNAPSHOT_DIGEST",
+    "next": "Require merged source, passing required Actions checks, and authenticated exhaustive old-version in-flight/side-effect evidence before fencing."
+  },
+  "remote": {
+    "cloudflareRequests": 0,
+    "productionFence": 0,
+    "d1Changes": 0,
+    "workerDeployments": 0
+  },
+  "limitations": [
+    "No public authenticated exhaustive HTTP/R2 evidence source was identified for the uninstrumented legacy Worker.",
+    "Native transport shapes are offline tested; production export host, persisted Observability permission and RSI correlation remain to be confirmed during authorized live work."
+  ],
+  "sources": [
+    "https://developers.cloudflare.com/workers/platform/limits/#duration",
+    "https://developers.cloudflare.com/workers/observability/logs/real-time-logs/#limits",
+    "https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry/methods/query/",
+    "https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/export/"
+  ]
+}

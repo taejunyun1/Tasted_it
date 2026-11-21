@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { createDb } from "../../app/db/client.server";
-import { adminAuditLogs, placeLivenessStates, placeRevalidationCases, placeRevisions, places, users } from "../../app/db/schema";
+import { adminAuditLogs, categories, placeCategories, placeLivenessStates, placeRevalidationCases, placeRevisions, places, users } from "../../app/db/schema";
 import { clearRecommendationExclusions, enqueueStalePlaceRevalidations, resolvePlaceLivenessCase, resolvePlaceRevalidation } from "../../app/features/places/place-revalidation.server";
+import { getPlaceBySlug, listPlaces, listRecommendationCandidates } from "../../app/features/places/place.server";
 
 describe("place revalidation", () => {
   it("queues places not verified for 90 days and restores only by admin resolution", async () => {
@@ -77,6 +78,45 @@ describe("place revalidation", () => {
     expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) })).toMatchObject({ status: "HIDDEN", recommendationExcluded: true, protectedUntil: null });
     expect(await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId))).toContainEqual(expect.objectContaining({ reason: "폐업 현장 확인" }));
     expect(await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.targetId, placeId))).toContainEqual(expect.objectContaining({ action: "RESOLVE_PLACE_LIVENESS_CASE" }));
+  });
+
+  it("hides a moved place without inventing relocation data and records the decision", async () => {
+    const db = createDb(env.DB);
+    const prefix = `liveness-moved-${crypto.randomUUID()}`;
+    const now = "2026-11-18T03:00:00.000Z";
+    const { adminId, caseId, placeId } = await seedLivenessCase(db, prefix, now);
+    const categoryId = `${prefix}-category`;
+    await db.insert(categories).values({ id: categoryId, slug: categoryId, name: "이전 확인 분류", emoji: "🍚", createdAt: now, updatedAt: now });
+    await db.insert(placeCategories).values({ placeId, categoryId, isPrimary: true });
+    const before = await db.query.places.findFirst({ where: eq(places.id, placeId) });
+    expect(await getPlaceBySlug(db, `${prefix}-place`)).toMatchObject({ id: placeId });
+    expect((await listPlaces(db, { categorySlug: categoryId })).map((place) => place.id)).toEqual([placeId]);
+    const reason = "기존 주소에서 이전했으며 새 주소와 좌표는 확인되지 않았습니다.";
+
+    await resolvePlaceLivenessCase(db, { caseId, actorUserId: adminId, resolution: "MOVED", reason, now });
+
+    expect(await db.query.places.findFirst({ where: eq(places.id, placeId) })).toMatchObject({
+      status: "HIDDEN", closedAt: now, address: before!.address,
+      latitude: before!.latitude, longitude: before!.longitude, lastVerifiedAt: before!.lastVerifiedAt,
+    });
+    await expect(getPlaceBySlug(db, `${prefix}-place`)).rejects.toMatchObject({ status: 404 });
+    expect(await listPlaces(db, { categorySlug: categoryId })).toEqual([]);
+    expect(await listRecommendationCandidates(db, { categorySlug: categoryId })).toEqual([]);
+    expect(await db.query.placeLivenessStates.findFirst({ where: eq(placeLivenessStates.placeId, placeId) })).toMatchObject({
+      status: "HIDDEN", recommendationExcluded: true, protectedUntil: null,
+    });
+    expect(await db.query.placeRevalidationCases.findFirst({ where: eq(placeRevalidationCases.id, caseId) })).toMatchObject({
+      status: "RESOLVED", resolution: "MOVED", reviewedBy: adminId, reviewedAt: now,
+    });
+    const revisions = await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, placeId));
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]).toMatchObject({ actorUserId: adminId, action: "STATUS_CHANGE", reason, sourceType: "PLACE_LIVENESS_MANUAL", sourceId: caseId });
+    expect(JSON.parse(revisions[0]!.beforeJson)).toMatchObject({ place: { status: "PUBLISHED" } });
+    expect(JSON.parse(revisions[0]!.afterJson)).toMatchObject({ place: { status: "HIDDEN" }, liveness: { recommendationExcluded: true } });
+    const audits = await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.targetId, placeId));
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ actorUserId: adminId, action: "RESOLVE_PLACE_LIVENESS_CASE", createdAt: now });
+    expect(JSON.parse(audits[0]!.afterState!)).toMatchObject({ resolution: "MOVED", reason, place: { status: "HIDDEN" } });
   });
 
   it("clears only derived recommendation exclusions without deleting place data", async () => {

@@ -44,7 +44,7 @@ export function HomeCurationModeControls({
   pending,
   onModeChange,
 }: Pick<HomeCurationPresentationProps, "mode" | "pending" | "onModeChange">) {
-  return <div className="home-curation-modes" aria-label="지도 추천 방식">
+  return <div className="home-curation-modes" role="group" aria-label="지도 추천 방식">
     {HOME_CURATION_MODE_OPTIONS.map((option) => <button
       type="button"
       key={option.id}
@@ -53,6 +53,12 @@ export function HomeCurationModeControls({
       onClick={() => onModeChange(option.id)}
     >{option.label}</button>)}
   </div>;
+}
+
+export function HomeCurationError({ page, error, pending, onRetry }: HomeCurationPresentationProps) {
+  const message = error ?? (page.status === "UNAVAILABLE" ? page.notice : null);
+  if (!message) return null;
+  return <p className="home-curation-error" role="status">{message} <button type="button" disabled={pending} onClick={onRetry}>다시 시도</button></p>;
 }
 
 function ratingSummary(place: HomeCuratedPlace) {
@@ -65,6 +71,7 @@ export function HomeCurationCards({
   pending,
   onSelect,
 }: HomeCurationPresentationProps) {
+  if (page.status === "UNAVAILABLE") return null;
   if (page.status === "EMPTY") {
     return <p className="home-curation-empty">이 지도 범위에서는 추천할 장소를 찾지 못했어요.</p>;
   }

@@ -35,6 +35,11 @@ describe("place correction entry", () => {
     expect(await load({ request: request() })).toMatchObject({ selectedPlaceId: "" });
   });
 
+  it("keeps a safe return destination independently of the target and rejects external destinations", async () => {
+    expect(await load({ request: request(`?placeId=${target}&returnTo=%2Fplaces%2Fdetail%3Ffrom%3Dmap`) })).toMatchObject({ selectedPlaceId: target, returnTo: "/places/detail?from=map" });
+    expect(await load({ request: request("?returnTo=https%3A%2F%2Fexternal.example") })).toMatchObject({ returnTo: "/" });
+  });
+
   it.each(["?placeId=", "?placeId=a&placeId=b", `?placeId=${"a".repeat(129)}`])("rejects ambiguous or invalid target %s", async query => {
     await expect(load({ request: request(query) })).rejects.toMatchObject({ status: 400 });
   });
@@ -53,18 +58,17 @@ describe("place correction entry", () => {
       .bind(prefix, prefix, now, now).run();
     await env.DB.prepare("INSERT INTO place_categories(place_id,category_id,is_primary) SELECT id,?,1 FROM places WHERE substr(id,1,?)=?")
       .bind(`${target}-category`, prefix.length, prefix).run();
-    const result = await load({ request: request(`?placeId=${target}`) }) as { selectedPlaceId: string; places: Array<{ id: string }> };
+    const result = await load({ request: request(`?placeId=${target}`) }) as { selectedPlaceId: string; selectedPlace: { id: string }; places: Array<{ id: string }> };
     expect(result.selectedPlaceId).toBe(target);
-    expect(result.places[0]?.id).toBe(target);
-    expect(result.places.filter(place => place.id === target)).toHaveLength(1);
-    expect(result.places).toHaveLength(1001);
+    expect(result.places.length).toBeLessThanOrEqual(20);
+    expect(result.selectedPlace?.id).toBe(target);
   });
 
   it("checks a posted hidden target before any mail request or public change", async () => {
     await expect(action({ request: new Request("https://retaste.test/corrections/new", {
       method: "POST", headers: { Origin: "https://retaste.test", "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ placeId: hidden, email: "synthetic@example.test", relation: "방문자", evidenceNote: "합성 정정 근거", requestType: "INFORMATION" }),
-    }) } as never)).rejects.toMatchObject({ status: 404 });
+    }) } as never)).resolves.toMatchObject({ init: { status: 404 }, data: { ok: false, code: "CORRECTION_TARGET_UNAVAILABLE", values: { placeId: hidden, evidenceNote: "합성 정정 근거" } } });
     expect(await env.DB.prepare("SELECT COUNT(*) as n FROM place_correction_requests WHERE place_id=?").bind(hidden).first()).toEqual({ n: 0 });
   });
 });

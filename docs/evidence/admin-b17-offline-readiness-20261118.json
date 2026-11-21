@@ -1,0 +1,161 @@
+{
+  "observedAt": "2026-11-18T01:16:29Z",
+  "sourceKind": "LOCAL_PREPARATION",
+  "sourceBeforePreparationCommit": "484aba95e5dc42795be23c2ac5d1d1e0cd65fd14",
+  "issue": 460,
+  "pullRequest": 470,
+  "userDecisions": {
+    "operatingPolicy": "CONFIRMATION_REQUIRED",
+    "billingRecovery": "UNAVAILABLE_NOW_CONTINUE_PREPARATION"
+  },
+  "checks": [
+    {
+      "command": "pnpm test:integration tests/integration/b17-rollout-rehearsal.test.ts",
+      "result": "PASS",
+      "tests": 1,
+      "database": "SYNTHETIC_LOCAL_D1"
+    },
+    {
+      "command": "pnpm test tests/unit/b17-rollout-evidence.test.ts",
+      "result": "PASS",
+      "tests": 7
+    },
+    {
+      "command": "pnpm run typecheck",
+      "result": "PASS"
+    },
+    {
+      "command": "pnpm audit --prod --audit-level high",
+      "result": "PASS",
+      "knownVulnerabilities": 0
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "preservationScope": {
+    "migratedTables": 7,
+    "additionalNonemptyTables": 11,
+    "migrationCount": 9,
+    "allPriorColumnsAndRowids": true,
+    "wholeProductionRestore": false
+  },
+  "manifest": {
+    "sourceKind": "LOCAL_PREPARATION",
+    "executed": false,
+    "ok": true,
+    "sourceHead": "484aba95e5dc42795be23c2ac5d1d1e0cd65fd14",
+    "migrations": [
+      {
+        "name": "0050_admin_rating_job_control.sql",
+        "path": "drizzle/0050_admin_rating_job_control.sql",
+        "sizeBytes": 8151,
+        "sha256": "1040b11608b58469cb15ec962fc121dfbb9ff20b5874ff1f0771d4cd1af620b0",
+        "headBlob": "c617fad274f8dbbdcfc89ae643ff653991f78e0c",
+        "headSha256": "1040b11608b58469cb15ec962fc121dfbb9ff20b5874ff1f0771d4cd1af620b0",
+        "matchesHead": true
+      },
+      {
+        "name": "0051_admin_public_sync.sql",
+        "path": "drizzle/0051_admin_public_sync.sql",
+        "sizeBytes": 7961,
+        "sha256": "d38c755489c5596650ef02b99db81b190f60190a90b0166afdcae72695210524",
+        "headBlob": "3e9b81b413a87efa7bfc6dd53a296a7e27458b1c",
+        "headSha256": "d38c755489c5596650ef02b99db81b190f60190a90b0166afdcae72695210524",
+        "matchesHead": true
+      },
+      {
+        "name": "0052_admin_parking_job_control.sql",
+        "path": "drizzle/0052_admin_parking_job_control.sql",
+        "sizeBytes": 7643,
+        "sha256": "e4c44dec46df44255c54fb3fec62e30749a4828fe8a3ad2a84dffaf40c290c7a",
+        "headBlob": "3f90d7ad833a138f145250ada433a939e361d49b",
+        "headSha256": "e4c44dec46df44255c54fb3fec62e30749a4828fe8a3ad2a84dffaf40c290c7a",
+        "matchesHead": true
+      },
+      {
+        "name": "0053_provider_usage.sql",
+        "path": "drizzle/0053_provider_usage.sql",
+        "sizeBytes": 4397,
+        "sha256": "e42daaf0482e9d8bffbe8598630122e35d7944a810182765d6147247070bec28",
+        "headBlob": "6e9df9e4d9100b5a0756e567aa3df3d7615c5bb2",
+        "headSha256": "e42daaf0482e9d8bffbe8598630122e35d7944a810182765d6147247070bec28",
+        "matchesHead": true
+      },
+      {
+        "name": "0054_admin_feature_stop.sql",
+        "path": "drizzle/0054_admin_feature_stop.sql",
+        "sizeBytes": 6601,
+        "sha256": "5e34fb63940ea081f399f679e4fafc331906df0203b9e2e5f72d3d846826cfa8",
+        "headBlob": "40cbd219b44f6c9e19d2623f0140e6d9cfa16d37",
+        "headSha256": "5e34fb63940ea081f399f679e4fafc331906df0203b9e2e5f72d3d846826cfa8",
+        "matchesHead": true
+      },
+      {
+        "name": "0055_admin_privacy_operations.sql",
+        "path": "drizzle/0055_admin_privacy_operations.sql",
+        "sizeBytes": 7839,
+        "sha256": "d34c91135a5e778c0e5ea1d8c462615edb75420d6c40720e8abc512b8e67ace1",
+        "headBlob": "716eb3e8df5e08fb0d665d7bbd3614deec45481a",
+        "headSha256": "d34c91135a5e778c0e5ea1d8c462615edb75420d6c40720e8abc512b8e67ace1",
+        "matchesHead": true
+      },
+      {
+        "name": "0056_admin_reliability.sql",
+        "path": "drizzle/0056_admin_reliability.sql",
+        "sizeBytes": 6290,
+        "sha256": "238a828cfab3ab85a414ab66d00343758ae7ab5b2c1c32f0219c15dbf19f4638",
+        "headBlob": "3c97e363971ce59a7d6571afade299ed8e1100f1",
+        "headSha256": "238a828cfab3ab85a414ab66d00343758ae7ab5b2c1c32f0219c15dbf19f4638",
+        "matchesHead": true
+      },
+      {
+        "name": "0059_email_domain_control.sql",
+        "path": "drizzle/0059_email_domain_control.sql",
+        "sizeBytes": 7413,
+        "sha256": "89bf9926bd02a77814a0735af59e07df6df1161ef4e44c759d7cc8dd58e679dd",
+        "headBlob": "f646eaf042f7940f27f0931ae2a1ce3cb91a28b3",
+        "headSha256": "89bf9926bd02a77814a0735af59e07df6df1161ef4e44c759d7cc8dd58e679dd",
+        "matchesHead": true
+      },
+      {
+        "name": "0060_rating_config_eligibility.sql",
+        "path": "drizzle/0060_rating_config_eligibility.sql",
+        "sizeBytes": 2626,
+        "sha256": "fd1a4035c86a9f5ac58396246e274b737c11986b7c27abf3d7f1b508f209309a",
+        "headBlob": "b3f82d264cb266fa94b879ba457ee77e7bc2104f",
+        "headSha256": "fd1a4035c86a9f5ac58396246e274b737c11986b7c27abf3d7f1b508f209309a",
+        "matchesHead": true
+      }
+    ]
+  },
+  "independentReview": {
+    "result": "PASS",
+    "blockingFindings": 0,
+    "scope": "preparation script, targeted tests and operator documentation"
+  },
+  "requiredCI": {
+    "status": "NOT_PASSED_BILLING_BLOCK",
+    "lastObservedHead": "484aba95e5dc42795be23c2ac5d1d1e0cd65fd14",
+    "lastObservedRun": 44148261161,
+    "manualRerun": false
+  },
+  "productionActions": {
+    "remoteRead": false,
+    "migration": false,
+    "deploy": false,
+    "providerCutover": false,
+    "dataMutation": false,
+    "rsi": false
+  },
+  "remaining": [
+    "exact final head required CI",
+    "merge",
+    "update old execution helpers to B17 plan before use",
+    "current production preflight and private backup",
+    "approved rollout and required live evidence",
+    "operating policy confirmation"
+  ],
+  "issue397": "HOLD"
+}

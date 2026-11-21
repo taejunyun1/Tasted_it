@@ -54,7 +54,7 @@ describe("getHomeCurationPage Golden 조회 실패", () => {
     }));
   });
 
-  it("Golden 이력 조회가 실패하면 일반 평가 후보로 대체하지 않고 EMPTY를 반환한다", async () => {
+  it("Golden 이력 조회 실패를 빈 결과나 정상 fallback으로 표시하지 않는다", async () => {
     mocks.loadRecommendationCandidateContext.mockResolvedValue({
       candidates: [place],
       dislikedPlaceIds: [],
@@ -70,10 +70,23 @@ describe("getHomeCurationPage Golden 조회 실패", () => {
       goldenContext: "empty-on-error",
     }));
     expect(page).toEqual(expect.objectContaining({
-      status: "EMPTY",
+      status: "UNAVAILABLE",
       places: [],
-      goldenFallback: true,
-      notice: "현재 주변 Golden Pick이 없어 과거 선정 이력과 평가 기록을 바탕으로 추천합니다.",
+      goldenFallback: false,
+      notice: "Golden Pick 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
     }));
+  });
+
+  it("정상 조회에 현재 Golden Pick만 없으면 기존 평가 fallback을 유지한다", async () => {
+    mocks.loadRecommendationCandidateContext.mockResolvedValue({
+      candidates: [place], dislikedPlaceIds: [], goldenPicks: [],
+      goldenSummaries: [], tasteSignals: [], goldenContextStatus: "AVAILABLE",
+    });
+    const { getHomeCurationPage } = await import("../../app/features/places/home-curation.server");
+    const page = await getHomeCurationPage({} as never, { ...request, mode: "golden" });
+    expect(page.status).toBe("READY");
+    expect(page.places.map(item => item.id)).toEqual([place.id]);
+    expect(page.goldenFallback).toBe(true);
+    expect(page.notice).toContain("과거 선정 이력과 평가 기록");
   });
 });

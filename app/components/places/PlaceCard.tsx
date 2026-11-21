@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { formatDistance, formatPublicRatingSummary, type DiscoveryPlace } from "../../features/places/place-discovery";
 import { shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
+import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 
 export const RECOMMENDATION_SOURCE_RAILS = ["PERSONAL", "TRUSTED", "GOLDEN"] as const;
 export const RECOMMENDATION_DISCOVERY_MODES = [
@@ -99,15 +100,16 @@ export function recommendationRequestPath(path: string, requestId: string) {
   return requestPath;
 }
 
-export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: (detailPath: string) => void }) {
+export function PlaceCard({ place, selected = false, listItem = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; listItem?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: (detailPath: string) => void }) {
   const ratingSummary = formatPublicRatingSummary(place);
   const detailPath = recommendationPlacePath(place.slug, {
     variant,
     discoveryMode: recommendationDiscoveryMode ?? place.discoveryMode,
   });
   const isRecommendation = detailPath.includes("sourceRail=");
+  const CardRoot = listItem ? "div" : "article";
   return (
-    <article className="place-card" data-selected={selected || undefined} data-variant={variant} id={`place-${place.id}`}>
+    <CardRoot className="place-card" role={listItem ? "listitem" : undefined} data-selected={selected || undefined} data-variant={variant} id={`place-${place.id}`}>
       <Link to={detailPath} reloadDocument={isRecommendation} aria-label={`${place.name} 상세 보기`} onClick={(event) => {
         let requestPath = detailPath;
         if (isRecommendation) {
@@ -134,10 +136,11 @@ export function PlaceCard({ place, selected = false, distanceMeters, goldenPickA
             {!place.recommendationReasons?.length && recommendationLabel && <small className="place-reason">{recommendationLabel}</small>}
           </div>}
           <span>{ratingSummary}</span>
+          <PublicRatingMeta place={place} />
           {distanceMeters !== undefined && <small>{formatDistance(distanceMeters)}</small>}
           {goldenPickAt && <small>Golden Pick · {new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(goldenPickAt))}</small>}
         </div>
       </Link>
-    </article>
+    </CardRoot>
   );
 }

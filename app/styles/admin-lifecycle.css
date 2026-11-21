@@ -1,0 +1,9 @@
+.admin-lifecycle__section{padding:var(--space-8) 0;border-bottom:1px solid var(--color-line);line-height:1.7}
+.admin-lifecycle__samples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}
+.admin-lifecycle__samples article{min-width:0;padding:var(--space-5);border:1px solid var(--color-line);border-radius:var(--radius-card)}
+.admin-lifecycle h3{font-size:1.05rem;margin:0 0 var(--space-3)}
+.admin-lifecycle dl div{display:flex;justify-content:space-between;gap:var(--space-4);padding:var(--space-2) 0;border-bottom:1px solid var(--color-line)}
+.admin-lifecycle dd{margin:0;text-align:right;font-weight:700;overflow-wrap:anywhere}
+.admin-lifecycle__telemetry{max-width:44rem}
+@media(max-width:850px){.admin-lifecycle__samples{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.admin-lifecycle__samples{grid-template-columns:1fr}.admin-lifecycle h1{overflow-wrap:anywhere}.admin-lifecycle dl div{flex-wrap:wrap}}

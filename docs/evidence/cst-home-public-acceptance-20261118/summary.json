@@ -1,0 +1,40 @@
+{
+  "production_source_sha": "c3147a95c107b33e31df13deffaf06c1915c70d3",
+  "production_changes": false,
+  "test_source": "tests/e2e/home-public-acceptance.spec.ts",
+  "test_sha256": "5c639fbd0c7011dbf606d1238937d45eaa5a0be0bb2229ab4b17bcc27223f4dc",
+  "executed_at_kst": "2026-11-18T11:38:02.466204+09:00",
+  "environment": "OWN_LOCAL_COMPILED_WORKER_AND_D1",
+  "command": "BASE_URL=http://127.0.0.1:5297 pnpm exec playwright test tests/e2e/home-public-acceptance.spec.ts",
+  "result": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "checks": [
+    "Actual recommendation API and rendered home both contain exactly the two eligible fixture places.",
+    "Hidden and recalled-as-HIDDEN fixtures and the explicit PC-bang venue rule are excluded.",
+    "The user clicks All map, then real soup/noodle categories; each yields exactly its eligible place.",
+    "The category whose only public place is outside the viewport shows0 with an explicit expand action; the viewport does not change automatically.",
+    "A separate URL viewport with no candidates shows normal home EMPTY rather than an error.",
+    "Expand action is scrolled into the viewport before the mobile empty screenshot."
+  ],
+  "initial_failures": [
+    "Initial cleanup attempted to delete the parent category before child references; child-first cleanup fixed this fixture error.",
+    "The initial gas-station name was not in the existing explicit venue-name policy; changed to PC bang instead of expanding production policy. Leftover own-prefix rows from the cleanup failure were removed."
+  ],
+  "cleanup": {
+    "place_count": 0,
+    "category_count": 0,
+    "relation_count": 0
+  },
+  "review": "Independent read-only review PASS after both fixture corrections.",
+  "production_build": "PASS",
+  "production_dependency_audit": "0 vulnerabilities",
+  "limitations": [
+    "Food-category control belongs to the browse view reached through All map; curated view itself has no food selector.",
+    "Recalled means stored HIDDEN fixture state; this test does not execute an admin recall.",
+    "Region is selected by URL bbox, not a regional-control UI.",
+    "External assets are blocked; no provider, new flag, schema, source behavior, or production change."
+  ]
+}

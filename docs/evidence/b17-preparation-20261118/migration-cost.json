@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T02:46:59.826Z",
+  "kind": "LOCAL_SOURCE_INSPECTION",
+  "remoteExecuted": false,
+  "sourceHead": "7a6a6021e83c0b0db7035ba80013c0b36a6e7b91",
+  "manifestOk": true,
+  "migrations": [
+    {
+      "name": "0050_admin_rating_job_control.sql",
+      "statements": 29,
+      "sha256": "1040b11608b58469cb15ec962fc121dfbb9ff20b5874ff1f0771d4cd1af620b0"
+    },
+    {
+      "name": "0051_admin_public_sync.sql",
+      "statements": 28,
+      "sha256": "d38c755489c5596650ef02b99db81b190f60190a90b0166afdcae72695210524"
+    },
+    {
+      "name": "0052_admin_parking_job_control.sql",
+      "statements": 27,
+      "sha256": "e4c44dec46df44255c54fb3fec62e30749a4828fe8a3ad2a84dffaf40c290c7a"
+    },
+    {
+      "name": "0053_provider_usage.sql",
+      "statements": 11,
+      "sha256": "e42daaf0482e9d8bffbe8598630122e35d7944a810182765d6147247070bec28"
+    },
+    {
+      "name": "0054_admin_feature_stop.sql",
+      "statements": 24,
+      "sha256": "5e34fb63940ea081f399f679e4fafc331906df0203b9e2e5f72d3d846826cfa8"
+    },
+    {
+      "name": "0055_admin_privacy_operations.sql",
+      "statements": 32,
+      "sha256": "d34c91135a5e778c0e5ea1d8c462615edb75420d6c40720e8abc512b8e67ace1"
+    },
+    {
+      "name": "0056_admin_reliability.sql",
+      "statements": 22,
+      "sha256": "238a828cfab3ab85a414ab66d00343758ae7ab5b2c1c32f0219c15dbf19f4638"
+    },
+    {
+      "name": "0059_email_domain_control.sql",
+      "statements": 26,
+      "sha256": "89bf9926bd02a77814a0735af59e07df6df1161ef4e44c759d7cc8dd58e679dd"
+    },
+    {
+      "name": "0060_rating_config_eligibility.sql",
+      "statements": 2,
+      "sha256": "fd1a4035c86a9f5ac58396246e274b737c11986b7c27abf3d7f1b508f209309a"
+    }
+  ],
+  "migrationBodySql": 201,
+  "wrangler": {
+    "version": "4.118.0",
+    "cliSha256": "a1a7a98e0b073d39dc3229b1b89f66accb51ae557fb34552250f914f12a81efd",
+    "bookkeepingSql": {
+      "createLedger": 1,
+      "readLedger": 1,
+      "appendLedger": 9,
+      "total": 11
+    },
+    "remoteQueryRequestsForSingleApply": 11,
+    "basis": [
+      "getCreateMigrationsTableQuery",
+      "getListAppliedMigrationsQuery",
+      "buildMigrationQuery",
+      "migrationsApplyCommand sequential executeSql with command"
+    ]
+  },
+  "limits": {
+    "applicationHttp": 90,
+    "d1RequestsIncludingApply": 50,
+    "administrativeSqlIncludingBookkeeping": 180,
+    "migrationBodySql": 201,
+    "totalSql": 381,
+    "cleanupReservedD1Requests": 5,
+    "cleanupReservedAdministrativeSql": 12
+  },
+  "notes": [
+    "These are source-derived counts, not a remote migration result.",
+    "All 11 bookkeeping statements are included in the administrative ceiling of 180.",
+    "Exit code alone is not migration acceptance; reread ledger and full preservation evidence."
+  ]
+}

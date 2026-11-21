@@ -1,0 +1,28 @@
+{
+  "source_sha": "25155ad91b76e70bdfdf2a485feea8882899d06b",
+  "run_id": 44220942904,
+  "run_url": "https://github.com/taejunyun1/Tasted_it/actions/runs/44220942904",
+  "observed_at": "2026-11-18T02:09:51.055208+00:00",
+  "result": "CI_BLOCKED_BEFORE_JOB_EXECUTION",
+  "reason": "GitHub account payment failure or spending limit; all required jobs were not started.",
+  "jobs": [
+    {
+      "id": 134522315438,
+      "name": "playwright smoke"
+    },
+    {
+      "id": 134522315554,
+      "name": "build"
+    },
+    {
+      "id": 134522315703,
+      "name": "typecheck and unit"
+    },
+    {
+      "id": 134522315983,
+      "name": "integration"
+    }
+  ],
+  "validation": "Workflow/check-run metadata plus each job annotation retrieved with gh api. No workflow rerun or bypass performed.",
+  "consequence": "No merge or production deployment."
+}

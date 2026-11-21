@@ -4,7 +4,11 @@ import { z } from "zod";
 import type { Route } from "./+types/place-detail";
 import { createDb } from "../db/client.server";
 import { getPlaceBySlug, resolvePlaceSlugRedirect } from "../features/places/place.server";
-import { getLatestRatingSnapshot } from "../features/ratings/recompute.server";
+import { publicRatingFromPlace, formatRatingGroup, reviewerWeightExplanation } from "../features/ratings/public-rating";
+import { formatPublicRatingSummary } from "../features/places/place-discovery";
+import { PublicRatingMeta } from "../components/ratings/PublicRatingMeta";
+import { FlavorMeter } from "../components/ratings/FlavorMeter";
+import { PlaceInformation } from "../components/places/PlaceInformation";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
@@ -23,6 +27,8 @@ import {
 import { VoteControl } from "../components/ratings/VoteControl";
 import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
 import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
+import { loadPlaceDetailSafely, mutatePlaceDetailSafely } from "../features/places/place-detail-client";
+import { placePageMeta, publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
 const actionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -88,32 +94,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
-    getLatestRatingSnapshot(db, place.id),
+  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
     listPublishedPlaceReviewPhotos(db, place.id, 12),
   ]);
-  const rating = snapshot ? {
-    overallScore: snapshot.overallScore,
-    userScore: snapshot.userScore,
-    reviewerScore: snapshot.reviewerScore,
-    overallSampleCount: snapshot.overallSampleCount,
-    userSampleCount: snapshot.userSampleCount,
-    reviewerSampleCount: snapshot.reviewerSampleCount,
-    isStale: snapshot.isStale,
-    algorithmVersion: "rating-v2.0",
-  } : {
-    overallScore: null,
-    userScore: null,
-    reviewerScore: null,
-    overallSampleCount: place.positive + place.negative,
-    userSampleCount: (place.userPositive ?? 0) + (place.userNegative ?? 0),
-    reviewerSampleCount: (place.reviewerPositive ?? 0) + (place.reviewerNegative ?? 0),
-    isStale: true,
-    algorithmVersion: "rating-recomputing",
-  };
+  const rating = publicRatingFromPlace(place);
   if (provenance) {
     await recordPlaceProductEvent(db, {
       eventName: "RECOMMENDATION_DETAIL_OPENED",
@@ -130,7 +117,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const returnTo = provenance
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
-  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+  const publicOrigin = resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL);
+  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -145,7 +133,12 @@ export async function action({ request, params }: Route.ActionArgs) {
   const now = new Date().toISOString();
   const provenance = recommendationProvenance(request);
   if (parsed.data.intent === "vote") {
-    await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now, feedback: { reason: parsed.data.reason } });
+    try {
+      await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now, feedback: { reason: parsed.data.reason } });
+    } catch (error) {
+      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, intent: "vote", requiresRefresh: true, error: "VOTE_VERSION_CONFLICT", message: "다른 요청에서 평가가 변경되었습니다. 현재 상태를 다시 확인해 주세요." }, { status: 409 });
+      throw error;
+    }
     try {
       await refreshInferredTasteSignals(db, user.id, now);
     } catch {
@@ -165,7 +158,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     try {
       await withdrawVote(db, { placeId: place.id, userId: user.id, eventId: crypto.randomUUID(), now, clearFeedback: true, expectedEventId: parsed.data.expectedEventId });
     } catch (error) {
-      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, error: "VOTE_VERSION_CONFLICT", message: "반응이 변경되었습니다. 새로고침한 뒤 다시 시도해 주세요." }, { status: 409 });
+      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, intent: "withdraw", requiresRefresh: true, error: "VOTE_VERSION_CONFLICT", message: "다른 요청에서 평가가 변경되었습니다. 현재 상태를 다시 확인해 주세요." }, { status: 409 });
       throw error;
     }
     try {
@@ -190,36 +183,57 @@ export async function action({ request, params }: Route.ActionArgs) {
   return { ok: true };
 }
 
-export function meta({ params, loaderData }: Route.MetaArgs) {
-  const name = params.placeSlug ?? "장소 상세";
-  return [
-    { title: `${name} — Re:Taste` },
-    { name: "description", content: "광주·전남 맛 지도" },
-    { property: "og:title", content: `${name} — Re:Taste` },
-    { property: "og:description", content: "광주·전남 맛 지도" },
-    { property: "og:type", content: "article" },
-    ...(loaderData?.place.tempCatalog ? [{ name: "robots", content: "noindex,follow" }] : []),
-  ];
+export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
+  return loadPlaceDetailSafely(serverLoader);
 }
 
-export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
+export async function clientAction({ request, serverAction }: Route.ClientActionArgs) {
+  const formData = await request.clone().formData();
+  const intent = formData.get("intent");
+  const outcome = await mutatePlaceDetailSafely(serverAction);
+  if ((intent === "vote" || intent === "withdraw") && outcome && typeof outcome === "object" && "ok" in outcome) {
+    return { ...outcome, intent, ...(intent === "vote" && outcome.ok === true ? { value: formData.get("value") === "-1" ? -1 as const : 1 as const } : {}) };
+  }
+  return outcome;
+}
+
+export function meta({ loaderData }: Route.MetaArgs) {
+  return loaderData && !("detailError" in loaderData) && loaderData.place
+    ? placePageMeta(loaderData.place, loaderData.publicOrigin)
+    : publicPageMeta({ title: "장소 상세 — Re:Taste", description: "광주·전남 맛 지도", path: "/places", noindex: true });
+}
+
+export default function PlaceDetail({ loaderData, actionData }: Route.ComponentProps) {
+  if ("detailError" in loaderData) {
+    const unavailable = loaderData.status === 404 || loaderData.status === 403;
+    return <main id="main" className="error-page">
+      <p className="eyebrow">{unavailable ? `${loaderData.status} / UNAVAILABLE` : "CONNECTION / RETRY"}</p>
+      <h1>{loaderData.status === 404 ? "이 장소를 찾을 수 없어요." : loaderData.status === 403 ? "이 장소를 볼 수 없어요." : "장소 정보를 불러오지 못했어요."}</h1>
+      <p role="status">{unavailable ? "공개된 다른 장소를 찾아보세요." : "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p>
+      {!unavailable && <button type="button" onClick={() => window.location.reload()}>다시 불러오기</button>}
+      <Link to="/places">맛집 리스트로</Link>
+    </main>;
+  }
   const { place, rating, flavorPrint, reviewPhotos } = loaderData;
+  const mutationFailed = actionData && typeof actionData === "object" && "ok" in actionData && actionData.ok === false;
+  const mutationUnknown = Boolean(mutationFailed && "resultUnknown" in actionData && actionData.resultUnknown);
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
       <Link className="back-link" to={`/?category=${encodeURIComponent(place.primaryCategory.slug)}`}>← {place.primaryCategory.name} 지도로</Link>
       <div className="detail-grid">
-        <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>
+        <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>
         <article className="detail-copy">
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
           {place.tempCatalog && <TempCatalogNotice info={place.tempCatalog} />}
           {loaderData.hasGoldenPick && <span className="rating-badge">GOLDEN PICK · 90일</span>}
           {loaderData.hiddenGem.eligible && <span className="rating-badge rating-badge-hidden">HIDDEN GEM · 노출 대비 높은 평가</span>}
-          <div className="score"><strong>{rating.overallScore === null ? `표본 수집 중 · ${rating.overallSampleCount}/8` : `${rating.overallScore}%`}</strong><span>{rating.isStale ? "새 평가 반영 중" : "검증된 최신 결과"}</span></div>
-          <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
-          {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
-          <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
-          <VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
+          <div className="score"><div><strong>{rating.overallScore !== null ? `${rating.overallScore}%` : rating.overallSampleCount < 8 ? `${rating.overallSampleCount}/8` : `${rating.overallSampleCount}명`}</strong><p className="public-rating-summary">{formatPublicRatingSummary(place)}</p></div><PublicRatingMeta place={place} /></div>
+          <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{formatRatingGroup(rating.userScore, rating.userSampleCount)}</strong></div><div><span>리뷰어</span><strong>{formatRatingGroup(rating.reviewerScore, rating.reviewerSampleCount)}</strong></div><small>{reviewerWeightExplanation(rating.userSampleCount)}</small></section>
+          {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
+          <PlaceInformation place={place} />
+          {mutationFailed && <div role="alert"><p>{mutationUnknown ? "처리 결과를 확인하지 못했어요. 다시 반응하기 전에 현재 상태를 확인해 주세요." : "요청을 처리하지 못했어요. 현재 상태를 확인한 뒤 다시 시도해 주세요."}</p><button type="button" onClick={() => window.location.reload()}>현재 상태 다시 확인</button></div>}
+          <fieldset disabled={mutationUnknown} className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>
           <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
           {reviewPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="review-photo-gallery-title">

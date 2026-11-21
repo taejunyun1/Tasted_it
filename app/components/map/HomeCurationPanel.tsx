@@ -1,5 +1,6 @@
 import {
   HomeCurationCards,
+  HomeCurationError,
   HomeCurationModeControls,
   type HomeCurationPresentationProps,
 } from "./HomeCurationCards";
@@ -13,13 +14,13 @@ export function HomeCurationPanel(props: HomeCurationPresentationProps) {
       </div>
       <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
     </header>
-    {props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
+    {props.page.status !== "UNAVAILABLE" && props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
     <p className="home-curation-intro">모든 장소 대신, 거리·취향·시간대·평가를 함께 본 다섯 곳만 보여드려요.</p>
     <HomeCurationModeControls {...props} />
-    {props.error && <p className="home-curation-error" role="status">{props.error} <button type="button" onClick={props.onRetry}>다시 시도</button></p>}
+    <HomeCurationError {...props} />
     <HomeCurationCards {...props} />
-    <footer className="home-curation-footer">
+    {props.page.status !== "UNAVAILABLE" && <footer className="home-curation-footer">
       <span>{props.page.radiusMeters / 1_000}km 안에서 추천</span>
-    </footer>
+    </footer>}
   </aside>;
 }

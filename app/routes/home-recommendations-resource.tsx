@@ -7,6 +7,12 @@ import { getOptionalUser } from "../features/auth/session.server";
 import { parseHomeRecommendationRequest } from "../features/maps/home-curation-options";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import { getHomeCurationPage } from "../features/places/home-curation.server";
+import { readMapResource } from "../features/maps/map-read-recovery";
+import { mapViewerKey } from "../features/maps/map-viewer-key.server";
+
+export async function clientLoader({ request, serverLoader }: Route.ClientLoaderArgs) {
+  return readMapResource(request, serverLoader);
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   let state: ReturnType<typeof parseHomeRecommendationRequest>;
@@ -37,9 +43,16 @@ export async function loader({ request }: Route.LoaderArgs) {
       locationSource: state.locationSource,
     });
 
+    if (recommendations.status === "UNAVAILABLE") return data({
+      ok: false as const,
+      requestToken: state.requestToken,
+      message: recommendations.notice,
+    }, { status: 503 });
+
     return data({
       ok: true as const,
       requestToken: state.requestToken,
+      mapViewerKey: await mapViewerKey(request, user),
       recommendations,
     });
   } catch (error) {

@@ -10,6 +10,8 @@ import { PlaceOperationPreview } from "../components/admin/PlaceOperationPreview
 import { PlaceMergePanel } from "../components/admin/PlaceMergePanel";
 import { PlaceReviewPipeline } from "../components/admin/PlaceReviewPipeline";
 import { PlaceSuggestionReviewCard } from "../components/admin/PlaceSuggestionReviewCard";
+import { PlaceSuggestionPagination } from "../components/admin/PlaceSuggestionPagination";
+import type { ReviewSkippedItem } from "../components/admin/PlaceReviewSkippedResults";
 import { createDb } from "../db/client.server";
 import { categories } from "../db/schema";
 import { requireAdminSession } from "../features/auth/session.server";
@@ -74,7 +76,7 @@ function placeOperationFailure(error:unknown) {
 }
 function operationPath(operationId:string) {return `/admin/place-operations?operation=${encodeURIComponent(operationId)}`;}
 
-function reviewActionError(code: string, extra?: { batchId?: string }) {
+function reviewActionError(code: string, extra?: { batchId?: string; skipped?: ReviewSkippedItem[] }) {
   const mapped = reviewErrorMessage(code);
   return data({ ok: false, error: mapped.message, code: mapped.code, ...extra }, { status: 400 });
 }
@@ -135,7 +137,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     getPlaceReviewStageCounts(db),
     listNaverRegionDailyUsage(db, now),
     db.select({ id: categories.id, name: categories.name, parentId: categories.parentId }).from(categories).where(eq(categories.isActive, true)),
-    listReviewablePlaceSuggestions(db),
+    query.step === 1 ? listReviewablePlaceSuggestions(db, Number(url.searchParams.get("suggestionPage")))
+      : Promise.resolve({ rows: [], pagination: { page: 1, pageSize: 25, total: 0, totalPages: 1 } }),
   ]);
   const terminalCategoryIds = getTerminalCategoryIds(categoryRows);
   const duplicateCandidates = query.step === 4
@@ -324,7 +327,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "verify-review-items-with-naver") {
     try {
       assertNaverLocalSearchEnabled(env);
-      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env), confidentAdvanceEnabled });
+      const result = await verifyReviewItemsWithNaver(db, { workItemIds, actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env, { database: env.DB }), confidentAdvanceEnabled });
       const deferred = result.deferred ? ` · 다음 실행 ${result.deferred}곳` : "";
       return { ok: true, message: `선택 ${workItemIds.length}곳 중 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}${deferred}`, skipped: result.skipped, processedWorkItemIds: result.processedWorkItemIds, nextStep: 3 as const };
     } catch (error) {
@@ -338,13 +341,13 @@ export async function action({ request }: Route.ActionArgs) {
         const advanced = await advancePlaceReviewWorkItems(db, {
           workItemIds: [workItemId], expectedStage: "SOURCE_REVIEW", expectedVersions: versions, actorUserId: admin.id, now, confidentAdvanceEnabled,
         });
-        if (!advanced.advanced.length) return reviewActionError(advanced.skipped[0]?.code ?? "UNKNOWN", { batchId });
+        if (!advanced.advanced.length) return reviewActionError(advanced.skipped[0]?.code ?? "UNKNOWN", { batchId, skipped: advanced.skipped });
       }
       assertNaverLocalSearchEnabled(env);
       const result = await verifyReviewItemsWithNaver(db, {
-        workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env), confidentAdvanceEnabled,
+        workItemIds: [workItemId], actorUserId: admin.id, now, adapter: createNaverLocalSearchAdapter(env, { database: env.DB }), confidentAdvanceEnabled,
       });
-      return { ok: true, batchId, processedWorkItemIds: result.processedWorkItemIds, passed: result.passed, attention: result.attention, failed: result.failed, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
+      return { ok: true, batchId, skipped: result.skipped, processedWorkItemIds: result.processedWorkItemIds, passed: result.passed, attention: result.attention, failed: result.failed, message: `NAVER 확인 ${result.scanned} · 통과 ${result.passed} · 확인 필요 ${result.attention} · 실패 ${result.failed}` };
     } catch (error) {
       return reviewCaughtError(error, { batchId });
     }
@@ -402,19 +405,19 @@ export async function action({ request }: Route.ActionArgs) {
     }
     if (intent === "advance-review-items") {
       const result = await advancePlaceReviewWorkItems(db, { workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, confidentAdvanceEnabled });
-      if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
+      if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN", { skipped: result.skipped });
       return { ok: true, message: `다음 단계 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "approve-manual-review-evidence") {
       const result = await advancePlaceReviewWorkItems(db, {
         workItemIds, expectedStage: checked.expectedStage, expectedVersions: versions, actorUserId: admin.id, now, manualEvidenceReason: reason, confidentAdvanceEnabled,
       });
-      if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
+      if (!result.advanced.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN", { skipped: result.skipped });
       return { ok: true, message: `수동 근거로 이동 ${result.advanced.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "update-review-item-addresses") {
       const result = await updateReviewItemAddresses(db, { workItemIds, addressByWorkItem, actorUserId: admin.id, now });
-      if (!result.changed.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN");
+      if (!result.changed.length) return reviewActionError(result.skipped[0]?.code ?? "UNKNOWN", { skipped: result.skipped });
       return { ok: true, message: `주소 저장 ${result.changed.length}곳 · 건너뜀 ${result.skipped.length}곳`, skipped: result.skipped };
     }
     if (intent === "geocode-missing-coords") {
@@ -451,6 +454,7 @@ const operationTabs: Array<{ id: PlaceOperationsTab; label: string }> = [
 export default function AdminPlaceOperations({ loaderData, actionData }: Route.ComponentProps) {
   const message = actionData && "message" in actionData ? actionData.message : undefined;
   const error = actionData && "error" in actionData ? actionData.error : undefined;
+  const skipped = actionData && "skipped" in actionData ? actionData.skipped : [];
   const nextStep = actionData && "nextStep" in actionData && actionData.nextStep === 3 ? 3 : undefined;
   const processedWorkItemIds = actionData && "processedWorkItemIds" in actionData && Array.isArray(actionData.processedWorkItemIds)
     ? actionData.processedWorkItemIds
@@ -479,8 +483,9 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
       {loaderData.tab === "review" && <>
         {loaderData.query.step === 1 && <section className="place-ops-section" aria-labelledby="suggestion-review-heading">
           <h2 id="suggestion-review-heading">회원 장소 제안</h2>
-          <p>SUBMITTED 제안을 지도에서 확인한 뒤 초안으로 승인하면 아래 1단계 검수 큐에 들어갑니다.</p>
-          {loaderData.suggestions.map((item) => (
+          <p>제출·보완 요청·검토 중인 제안을 지도에서 확인한 뒤 초안으로 승인하면 아래 1단계 검수 큐에 들어갑니다.</p>
+          <PlaceSuggestionPagination query={loaderData.query} pagination={loaderData.suggestions.pagination} />
+          {loaderData.suggestions.rows.map((item) => (
             <PlaceSuggestionReviewCard
               key={item.id}
               item={item}
@@ -488,9 +493,9 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
               geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)}
             />
           ))}
-          {!loaderData.suggestions.length && <p>검토할 제안이 없습니다.</p>}
+          {!loaderData.suggestions.rows.length && <p>검토할 제안이 없습니다.</p>}
         </section>}
-        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverRegionUsage={loaderData.naverRegionUsage} message={message} error={error} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} confidentAdvanceEnabled={loaderData.confidentAdvanceEnabled} />
+        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverRegionUsage={loaderData.naverRegionUsage} message={message} error={error} skipped={skipped} suggestionPage={loaderData.suggestions.pagination.page} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} confidentAdvanceEnabled={loaderData.confidentAdvanceEnabled} />
       </>}
       {loaderData.tab === "liveness" && <PlaceLivenessPanel livenessFilter={loaderData.livenessFilter} livenessRows={loaderData.livenessRows} />}
       {loaderData.tab === "corrections" && <PlaceCorrectionPanel corrections={loaderData.corrections} />}

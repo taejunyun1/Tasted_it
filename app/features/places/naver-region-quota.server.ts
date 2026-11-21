@@ -1,7 +1,4 @@
-import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
-
 import type { AppDb } from "../../db/client.server";
-import { naverLocalCategoryRuns } from "../../db/schema";
 import { NaverLocalSearchError } from "../candidates/naver-local-search.server";
 import { ACTIVE_REGION_CODES, getRegionPack, type RegionCode } from "../regions/region-pack";
 
@@ -13,13 +10,8 @@ export type NaverRegionDailyUsage = {
   enabled: boolean;
 };
 
-function utcDayStart(value: string) {
-  const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())).toISOString();
-}
-
 export function naverRegionBudget(regionCode: RegionCode, override?: number) {
-  return override ?? getRegionPack(regionCode).naverDailyBudget;
+  return Math.min(override ?? getRegionPack(regionCode).naverDailyBudget, getRegionPack(regionCode).naverDailyBudget);
 }
 
 export function isNaverRegionSearchEnabled(regionCode: RegionCode) {
@@ -27,13 +19,10 @@ export function isNaverRegionSearchEnabled(regionCode: RegionCode) {
 }
 
 export async function getNaverLocalSearchApiCallsToday(db: AppDb, now: string, regionCode?: RegionCode) {
-  const window = and(gte(naverLocalCategoryRuns.startedAt, utcDayStart(now)), lt(naverLocalCategoryRuns.startedAt, now));
-  const [result] = await db.select({ total: sql<number>`coalesce(sum(${naverLocalCategoryRuns.apiCallCount}), 0)` })
-    .from(naverLocalCategoryRuns)
-    .where(regionCode
-      ? and(window, or(eq(naverLocalCategoryRuns.regionCode, regionCode), isNull(naverLocalCategoryRuns.regionCode)))
-      : window);
-  return Number(result?.total ?? 0);
+  const field = regionCode === "GWANGJU" ? "gwangju" : regionCode === "JEONNAM" ? "jeonnam" : "total";
+  const row = await db.$client.prepare(`SELECT legacy_${field}+reserved_${field} AS total FROM provider_daily_quotas WHERE provider='NAVER_LOCAL_SEARCH' AND utc_day=?`)
+    .bind(now.slice(0, 10)).first<{ total: number }>();
+  return row?.total ?? 0;
 }
 
 export async function listNaverRegionDailyUsage(db: AppDb, now: string): Promise<NaverRegionDailyUsage[]> {

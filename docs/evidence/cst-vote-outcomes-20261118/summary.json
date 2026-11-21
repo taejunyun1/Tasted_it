@@ -1,0 +1,122 @@
+{
+  "branch": "codex/jay_cst_vote_outcomes_20261118",
+  "base": "c3147a95c107b33e31df13deffaf06c1915c70d3",
+  "scope": [
+    "app/components/ratings/VoteControl.tsx",
+    "app/features/ratings/vote.server.ts",
+    "app/routes/place-detail.tsx",
+    "tests/e2e/vote-outcomes-fixture.ts",
+    "tests/e2e/vote-outcomes.spec.ts",
+    "tests/integration/vote-outcomes.test.ts"
+  ],
+  "original_reproduction": {
+    "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/vote-outcomes.test.ts",
+    "expected": [
+      {
+        "event_type": "CREATE",
+        "value": 1
+      }
+    ],
+    "actual": [
+      {
+        "event_type": "CREATE",
+        "value": 1
+      },
+      {
+        "event_type": "CHANGE",
+        "value": 1
+      }
+    ],
+    "result": "RED: identical public vote + feedback appended CHANGE"
+  },
+  "validation": {
+    "D1": {
+      "passed": 16,
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/vote-outcomes.test.ts tests/integration/place-vote-route.test.ts tests/integration/vote.server.test.ts"
+    },
+    "compiled_browser": {
+      "passed": 8,
+      "seconds": 49.4,
+      "command": "BASE_URL=http://127.0.0.1:5285 pnpm exec playwright test tests/e2e/vote-outcomes.spec.ts tests/e2e/vote-withdraw.spec.ts",
+      "cases": [
+        "synchronous duplicate submission is one request",
+        "add / change / reason-only change / cancel",
+        "vote and withdrawal loss before delivery / after commit",
+        "explicit fresh GET unlock with zero mutation replay",
+        "stale cancellation returns 409 and blocks reaction/save until fresh GET",
+        "existing saved-place and withdrawal behavior"
+      ]
+    },
+    "typecheck": "PASS pnpm run typecheck",
+    "build": "PASS CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH=wrangler.e2e.jsonc pnpm run build",
+    "audit": "PASS pnpm audit --prod: no known vulnerabilities",
+    "independent_review": "/root/compiled_ui_audit/course_boundary_review: final source review no remaining P1/P2/blocker"
+  },
+  "cleanup": [
+    {
+      "results": [],
+      "success": true,
+      "meta": {
+        "duration": 0
+      }
+    },
+    {
+      "results": [
+        {
+          "fixture_places": 0,
+          "fixture_users": 0,
+          "qa_current_votes": 0,
+          "qa_saved": 0
+        }
+      ],
+      "success": true,
+      "meta": {
+        "duration": 0
+      }
+    }
+  ],
+  "local_worker": "5285 stopped; no remote/provider operations",
+  "screenshots": [
+    {
+      "project": "chromium",
+      "width": 1280,
+      "height": 1529,
+      "full_page": true,
+      "file": "chromium-u05-vote-unknown.png",
+      "sha256": "cd928a0986d754338f3b2c25e62607e4bd0d964be0498627bd09825e6cf2c641"
+    },
+    {
+      "project": "mobile-chromium",
+      "width": 1082,
+      "height": 4237,
+      "full_page": true,
+      "file": "mobile-chromium-u05-vote-success.png",
+      "sha256": "ca340741be161f5bd92ed87b76841fbab004df71117d09001c7c2f05da00597b"
+    },
+    {
+      "project": "mobile-chromium",
+      "width": 1082,
+      "height": 4486,
+      "full_page": true,
+      "file": "mobile-chromium-u05-vote-unknown.png",
+      "sha256": "0ccddaad82c4cfcd8bf8d88deddd0c9729e0cedd4a8664fc441b474a4ba4f30c"
+    },
+    {
+      "project": "chromium",
+      "width": 1280,
+      "height": 1452,
+      "full_page": true,
+      "file": "chromium-u05-vote-success.png",
+      "sha256": "7244cfccd4f590a3b701219008707de3b0486bd7f2a431b50b3ad9ca735212fd"
+    }
+  ],
+  "limits": [
+    "Compiled local Worker and synthetic local D1 only; not a deployment or CI result.",
+    "Full-page captures document UI content, not viewport-only geometry.",
+    "Hydration-before-click fixture issue preserved in intermediate logs; readiness waits only retry read-only UI toggles, never the vote/withdraw request. Cold hydration was not changed.",
+    "Existing seeded QA vote-event history remains local; current vote and saved-place state restored to empty."
+  ],
+  "commit": "582be6f2f56e93dabbec1ceff0a8a6974a47c539",
+  "working_tree": "clean",
+  "integrated_commit": "3d31a98"
+}

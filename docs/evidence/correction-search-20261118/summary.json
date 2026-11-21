@@ -1,0 +1,53 @@
+{
+  "code_source_sha": "d4b7b1777a70eeb155b249d40a30abf85305f836",
+  "original_commit": "24ef03e32a27c082a7791bd715cc86e54a6d6721",
+  "environment": "LOCAL_COMPILED_WORKER_SYNTHETIC_D1",
+  "executed_at_kst": "2026-11-18T11:15:08.422537+09:00",
+  "build_server_sha256": "e62dce7e5eacfd45c1bdfb594f927928a675bc9bd40bd1a3173ea662b30acb57",
+  "checks": {
+    "typecheck": "PASS",
+    "production_build": "PASS",
+    "focused_unit": 18,
+    "focused_D1": 14,
+    "compiled_browser": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "independent_code_review": "PASS",
+    "synthetic_places_remaining": 0,
+    "production_audit": "0 vulnerabilities",
+    "wrangler_dry_run": "PASS (no deployment)"
+  },
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm run build",
+    "pnpm exec vitest run tests/unit/correction-place-search.test.ts tests/unit/correction-suggestion-feedback.test.ts",
+    "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/correction-place-search.test.ts tests/integration/place-correction-entry.test.ts",
+    "BASE_URL=http://127.0.0.1:5199 pnpm exec playwright test tests/e2e/correction-place-search.spec.ts tests/e2e/place-correction-entry.spec.ts"
+  ],
+  "verified": [
+    "20-row keyset search reaches all eligible candidates beyond the previous1000cap without duplicate-primary repeats.",
+    "The1005th selected target resolves independently of the displayed page.",
+    "Delay and aborted fetch retain selected target, email, draft and safe returnTo; explicit retry works.",
+    "SPA target change and Back refresh the target; synthetic composing-key event is not cancelled.",
+    "Stale target POST is rejected before mail/rate mutation and retains draft with explicit reselection required. Direct invalid GET remains404."
+  ],
+  "screenshots": [
+    "chromium-failure.png",
+    "chromium-restored.png",
+    "mobile-chromium-failure.png",
+    "mobile-chromium-restored.png"
+  ],
+  "prior_failures": [
+    "Original worker cold Vite optimizer/hydration click failure was preserved; warm results were not called cold-start recovery.",
+    "A-to-B stale selection and composing preventDefault were reproduced and corrected.",
+    "Initial stale POST discarded the form; structured404 and selective revalidation now preserve it.",
+    "One worker browser expectation selected textarea via old label matching; role-based selector correction was recorded."
+  ],
+  "limits": [
+    "This is not an OS keyboard/IME measurement.",
+    "Full S07 confirmed-email-to-admin completion, actual external mail and production data were not exercised.",
+    "No required-CI bypass, main merge or production deployment."
+  ]
+}

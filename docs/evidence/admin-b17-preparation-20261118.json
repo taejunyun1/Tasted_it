@@ -1,0 +1,37 @@
+{
+  "build": "PASS",
+  "wranglerDryRun": "PASS",
+  "nameMatched": true,
+  "maintenanceOff": true,
+  "cronCount": 2,
+  "dbMatched": true,
+  "observedAt": "2026-11-17T18:27:51.016498+00:00",
+  "sourceBeforeEvidence": "3594bb04b8079d71999c7612d3cb40f489bf8df9",
+  "reviewedCodeHead": "e02543e47e8d2ae4fe9d34af63fdc0d52577b740",
+  "sourceDocsHead": "bb76cdd95c77581855c4c55ef8a087064fea4fdb",
+  "productionDependencyAudit": "PASS_ZERO_KNOWN",
+  "productionDeployExecuted": false,
+  "requiredCI": "NOT_PASSED_BILLING_BLOCK",
+  "runtimeBaselineReadOnly": {
+    "observedAt": "2026-11-17T18:20:14.124Z",
+    "created_on": "2026-11-14T08:52:09.456585Z",
+    "versions": [
+      {
+        "version_id": "d285759b-d529-4ea0-a7e9-9cf88b3e7cf1",
+        "percentage": 100
+      }
+    ],
+    "readOnly": true
+  },
+  "postReviewAdjustments": [
+    "0056: removed one trailing blank line; SQL statements unchanged"
+  ],
+  "observedRequiredCI": {
+    "head": "d6916c57bfdca73d514e1a9851e32d8cc001cdc8",
+    "run": 44148152396,
+    "jobs": 4,
+    "executedSteps": 0,
+    "outcome": "BLOCKED_PAYMENT_OR_SPENDING_LIMIT",
+    "url": "https://github.com/taejunyun1/Tasted_it/actions/runs/44148152396"
+  }
+}

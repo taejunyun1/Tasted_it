@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
 import { asc, desc, inArray } from "drizzle-orm";
-import { Form, Link, redirect, useNavigation } from "react-router";
+import { Form, isRouteErrorResponse, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/admin-ratings";
 
 import { createDb } from "../db/client.server";
 import { goldenPickEvents, integrityCases, places, ratingRecomputeJobs, ratingSnapshots } from "../db/schema";
 import { readSessionId, requireAdmin } from "../features/auth/session.server";
+import { RATING_V2_POLICY, RATING_V2_VERSION } from "../features/ratings/rating-v2";
 import { getActiveRatingConfig } from "../features/ratings/rating-config.server";
 import { commitIntegrityOperation, prepareIntegrityOperation, readIntegrityOperation, type IntegrityOperationKind } from "../features/ratings/admin-integrity.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
@@ -20,7 +21,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const admin = await requireAdmin(request);
   const db = createDb(env.DB); const now = new Date().toISOString();
   const [config, snapshots, jobs, cases, picks, placeRows] = await Promise.all([
-    getActiveRatingConfig(db, now),
+    getActiveRatingConfig(db, now).catch((error: unknown) => {
+      if (error instanceof Error && error.message === "ACTIVE_RATING_CONFIG_NOT_FOUND") throw new Response("현재 사용할 평가 설정이 없습니다.", { status: 503, headers: PRIVATE_HEADERS });
+      throw error;
+    }),
     db.select().from(ratingSnapshots).orderBy(desc(ratingSnapshots.computedAt)).limit(100),
     db.select().from(ratingRecomputeJobs).orderBy(desc(ratingRecomputeJobs.createdAt)).limit(100),
     db.select().from(integrityCases).where(inArray(integrityCases.status, ["OPEN", "REVIEWING", "CONFIRMED"])).orderBy(asc(integrityCases.createdAt)).limit(100),
@@ -191,6 +195,7 @@ function integrityFailureMessage(code: string) {
 function ratingJobMessage(status: string) {
   switch (status) {
     case "COMPLETED": return "요청한 장소의 재계산이 완료됐습니다.";
+    case "NONCURRENT": return "저장된 완료 이력이며 현재 적격 설정의 결과는 아닙니다.";
     case "RUNNING": return "요청한 작업을 처리 중입니다. 작업 상태를 다시 확인해 주세요.";
     case "STALE": return "실행 기한이 지났습니다. 처리 결과와 복구 가능 여부를 확인해 주세요.";
     case "PENDING": return "요청한 작업이 대기 중입니다.";
@@ -201,6 +206,7 @@ function ratingJobMessage(status: string) {
 }
 
 function inspectedResultStatus(result: Pick<RatingJobResult, "job" | "status">, now: string) {
+  if (result.status === "NONCURRENT") return "NONCURRENT";
   return result.job ? inspectRatingJob(result.job, now).status : result.status;
 }
 
@@ -220,7 +226,7 @@ const jobActionLabel = { CANCEL: "대기 작업 취소", RETRY: "실패 작업 �
 function isRatingJobAction(value: string): value is RatingJobAction {
   return value === "CANCEL" || value === "RETRY" || value === "RECOVER";
 }
-const jobStateLabel: Record<string, string> = { PENDING: "접수·대기", RUNNING: "실행 중", UNKNOWN: "실행 상태 미확인", STALE: "실행 기한 경과·결과 확인 필요", COMPLETED: "완료", FAILED: "실패", CANCELLED: "취소" };
+const jobStateLabel: Record<string, string> = { PENDING: "접수·대기", RUNNING: "실행 중", UNKNOWN: "실행 상태 미확인", STALE: "실행 기한 경과·결과 확인 필요", COMPLETED: "완료", NONCURRENT: "현재 설정과 다름", FAILED: "실패", CANCELLED: "취소" };
 function jobTime(value: string | null) {
   if (!value) return "미기록";
   const date = new Date(value);
@@ -236,7 +242,7 @@ export default function AdminRatings({ loaderData, actionData }: Route.Component
   const preview = actionData && "preview" in actionData ? actionData.preview : null;
   const requestedJob = actionData && "requestedJob" in actionData ? actionData.requestedJob : loaderData.requestedJob;
   const requestedJobStatus = requestedJob?.inspectedStatus ?? "UNKNOWN";
-  return <main id="main" className="admin-rating-shell"><header><p className="eyebrow">ADMIN / RATING OPERATIONS</p><h1>평가 운영</h1><Link to="/admin/reviewer-visits">방문 리뷰 검수 대기열</Link><p>활성 알고리즘 <strong>{loaderData.config.algorithmVersion}</strong> · 최소 공개 {loaderData.config.minimumVisibleSamples}표</p></header>{actionData?.message && <p className="admin-notice">{actionData.message}</p>}<section className="admin-rating-stats"><Stat label="반영 대기" value={loaderData.stats.stale}/><Stat label="재계산 대기" value={loaderData.stats.pending}/><Stat label="재계산 실패" value={loaderData.stats.failed}/><Stat label="검토·확인" value={loaderData.stats.openCases}/><Stat label="Golden Pick" value={loaderData.stats.activeGoldenPicks}/></section><section className="admin-rating-section"><h2>수동 재계산</h2><Form method="post"><input type="hidden" name="intent" value="recompute"/><select name="placeId" aria-label="재계산 장소">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name}</option>)}</select><button>선택 장소 재계산</button></Form>
+  return <main id="main" className="admin-rating-shell"><header><p className="eyebrow">ADMIN / RATING OPERATIONS</p><h1>평가 운영</h1><Link to="/admin/reviewer-visits">방문 리뷰 검수 대기열</Link><p>점수 산식 <strong>{RATING_V2_VERSION}</strong> · 점수 공개 최소 {RATING_V2_POLICY.minimumVisibleSamples}표 · 선택 DB 버전 {loaderData.config.algorithmVersion} · 신뢰 비교 최소 {loaderData.config.minimumVisibleSamples}표</p><Link to="/admin/rating-config">평가 실효값·합성 비교</Link></header>{actionData?.message && <p className="admin-notice">{actionData.message}</p>}<section className="admin-rating-stats"><Stat label="반영 대기" value={loaderData.stats.stale}/><Stat label="재계산 대기" value={loaderData.stats.pending}/><Stat label="재계산 실패" value={loaderData.stats.failed}/><Stat label="검토·확인" value={loaderData.stats.openCases}/><Stat label="Golden Pick" value={loaderData.stats.activeGoldenPicks}/></section><section className="admin-rating-section"><h2>수동 재계산</h2><Form method="post"><input type="hidden" name="intent" value="recompute"/><select name="placeId" aria-label="재계산 장소">{loaderData.places.map((place) => <option key={place.id} value={place.id}>{place.name}</option>)}</select><button>선택 장소 재계산</button></Form>
       {actionData && "operationRetryId" in actionData && actionData.operationRetryId && <Form method="post">
         <input type="hidden" name="intent" value="confirm-recompute" />
         <input type="hidden" name="operationId" value={actionData.operationRetryId} />
@@ -256,7 +262,7 @@ export default function AdminRatings({ loaderData, actionData }: Route.Component
       </div>}
       {requestedJob && <div role="status" aria-live="polite" className="admin-notice">
         <p>{ratingJobMessage(requestedJobStatus)}</p>
-        <p style={{ overflowWrap: "anywhere" }}>작업 ID <code>{requestedJob.jobId}</code> · {jobStateLabel[requestedJobStatus] ?? requestedJobStatus} (저장 상태 {requestedJob.status})</p>
+        <p style={{ overflowWrap: "anywhere" }}>작업 ID <code>{requestedJob.jobId}</code> · {jobStateLabel[requestedJobStatus] ?? requestedJobStatus} (저장 상태 {requestedJob.job?.status ?? requestedJob.status})</p>
         <Link to={`?jobId=${encodeURIComponent(requestedJob.jobId)}`}>이 작업 상태 다시 확인</Link>
         {requestedJob.job && <>
           <p style={{ overflowWrap: "anywhere" }}>장소 <code>{requestedJob.job.placeId}</code> · 설정 <code>{requestedJob.job.configId}</code> · 시도 {requestedJob.job.attempts}회</p>
@@ -334,3 +340,10 @@ export default function AdminRatings({ loaderData, actionData }: Route.Component
 }
 
 function Stat({ label, value }: { label: string; value: number }) { return <article><span>{label}</span><strong>{value}</strong></article>; }
+
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const unavailable = isRouteErrorResponse(error) && error.status === 503 && error.data === "현재 사용할 평가 설정이 없습니다.";
+  const forbidden = isRouteErrorResponse(error) && error.status === 403;
+  return <main id="main" className="admin-rating-shell"><h1>{unavailable ? "현재 사용할 평가 설정이 없습니다." : forbidden ? "관리자만 조회할 수 있습니다." : "평가 운영을 불러올 수 없습니다."}</h1>
+    <p>{unavailable ? "설정의 시작일·종료 여부·지원 버전을 확인해 주세요. 미래 설정으로 대체하거나 재계산을 실행하지 않았습니다." : "잠시 후 다시 조회해 주세요."}</p><Link to="/admin">운영 홈</Link></main>;
+}

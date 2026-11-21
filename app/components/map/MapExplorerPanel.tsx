@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { PlaceSummary } from "../../features/places/place.types";
+import type { PlaceSummary, PublicPlaceCounts } from "../../features/places/place.types";
 import type { RegionCluster, RegionClusterLevel, RegionGroup } from "../../features/maps/region-cluster-policy";
 import { MapPlaceList } from "./MapPlaceList";
 
@@ -8,28 +8,33 @@ export interface PublicCategoryGroup {
   slug: string;
   name: string;
   emoji: string;
-  children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }>;
+  children: Array<{ id: string; slug: string; name: string; emoji: string; count: number; overallCount?: number }>;
 }
 
-export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, hasSelectedPlace, onSelect, onSearch, onCategory, onLocate, onGroupSelect }: {
+export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, counts, hasSelectedPlace, onSelect, onSearch, onCategory, onLocate, onGroupSelect, onExpandBounds }: {
   places: PlaceSummary[];
   groups: PublicCategoryGroup[];
   regionGroups: RegionGroup[];
   clusterLevel: RegionClusterLevel;
   query: string;
   category: string | null;
+  counts?: PublicPlaceCounts | null;
   hasSelectedPlace: boolean;
   onSelect: (id: string) => void;
   onSearch: (query: string) => void;
   onCategory: (slug: string | null) => void;
   onLocate: () => void;
   onGroupSelect: (cluster: RegionCluster) => void;
+  onExpandBounds?: (bounds: [number, number, number, number]) => void;
 }) {
   const selectedGroup = groups.find((group) => group.children.some((child) => child.slug === category))?.id ?? null;
   const [groupId, setGroupId] = useState<string | null>(selectedGroup);
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const [searchQuery, setSearchQuery] = useState(query);
   const children = useMemo(() => groups.find((group) => group.id === groupId)?.children ?? [], [groupId, groups]);
+  const currentCount = counts?.count ?? places.length;
+  const expansionBounds = counts?.overallBounds;
+  const canExpand = currentCount === 0 && Boolean(counts?.overallCount && expansionBounds && onExpandBounds);
 
   useEffect(() => {
     setGroupId(selectedGroup);
@@ -50,7 +55,7 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
   };
 
   return <aside className="map-explorer-panel" data-mobile-view={mobileView} aria-label="장소 탐색">
-    <div className="map-mobile-tabs" aria-label="모바일 보기 방식">
+    <div className="map-mobile-tabs" role="group" aria-label="모바일 보기 방식">
       <button type="button" aria-pressed={mobileView === "map"} onClick={() => setMobileView("map")}>지도</button>
       <button type="button" aria-pressed={mobileView === "list"} onClick={() => setMobileView("list")}>목록</button>
     </div>
@@ -68,15 +73,20 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
         </form>
         <button type="button" className="map-locate" onClick={onLocate}>◎ 내 주변</button>
       </div>
-      <div className="map-category-groups" aria-label="대표 카테고리">
+      <div className="map-category-groups" role="group" aria-label="대표 카테고리">
         <button type="button" aria-pressed={!category} data-active={!category || undefined} onClick={() => { setGroupId(null); onCategory(null); }}>전체</button>
-        {groups.map((group) => <button type="button" key={group.id} aria-expanded={group.id === groupId} data-expanded={group.id === groupId || undefined} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}
+        {groups.map((group) => <button type="button" key={group.id} aria-expanded={group.id === groupId} aria-pressed={group.id === selectedGroup} data-expanded={group.id === groupId || undefined} onClick={() => setGroupId(group.id)}>{group.emoji} {group.name}</button>)}
       </div>
-      {groupId && <div className="map-category-children" aria-label="세부 카테고리">
-        {children.map((child) => <button type="button" key={child.id} aria-pressed={child.slug === category} data-active={child.slug === category || undefined} onClick={() => onCategory(child.slug)}>{child.emoji} {child.name} <small>{child.count}</small></button>)}
+      {groupId && <div className="map-category-children" role="group" aria-label="세부 카테고리">
+        {children.map((child) => <button type="button" key={child.id} aria-label={`${child.name}, 현재 범위 ${child.count}곳, 전체 검색 결과 ${child.overallCount ?? child.count}곳`} aria-pressed={child.slug === category} data-active={child.slug === category || undefined} onClick={() => onCategory(child.slug)}>{child.emoji} {child.name} <small>범위 안 {child.count} · 전체 {child.overallCount ?? child.count}</small></button>)}
       </div>}
-      <div className="map-result-head"><span>현재 지도 안의 기록</span><strong>{places.length}</strong><small>곳</small></div>
-      <MapPlaceList places={places} groups={regionGroups} level={clusterLevel} onSelect={onSelect} onGroupSelect={onGroupSelect} />
+      <div className="map-result-head" aria-live="polite"><span>현재 지도 안의 기록</span><strong>{currentCount}</strong><small>곳</small></div>
+      {currentCount > places.length && <p className="mx-4 mb-4 text-sm" role="status">전체 {currentCount}곳 중 이름순 첫 {places.length}곳을 표시합니다. 검색어나 지도 범위를 좁혀 주세요.</p>}
+      {canExpand && <div className="mx-4 mb-4 border border-current p-4 text-sm" role="status">
+        <p>이 범위에는 조건에 맞는 장소가 없어요. 검색 조건을 유지하고 지도 범위를 넓힐 수 있습니다.</p>
+        <button type="button" className="map-locate mt-3 min-h-[var(--control-height)] w-full" onClick={() => { if (expansionBounds) onExpandBounds?.(expansionBounds); }}>전체 결과 {counts?.overallCount}곳 보기</button>
+      </div>}
+      {!canExpand && <MapPlaceList places={places} groups={regionGroups} level={clusterLevel} onSelect={onSelect} onGroupSelect={onGroupSelect} />}
     </div>
   </aside>;
 }

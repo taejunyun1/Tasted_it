@@ -1,0 +1,39 @@
+{
+  "code_source_sha": "8248172c5455adffa993002a350e714c42f9a182",
+  "environment": "LOCAL_COMPILED_WORKER_SYNTHETIC_D1",
+  "executed_at_kst": "2026-11-18T11:07:07.569612+09:00",
+  "build_server_sha256": "3cdd48971e4d69889218ad02354e18cf06d1cb1716011c063ad55381b111870b",
+  "implementation": [
+    "Named discovery list and div listitem preserve navigation and card styling.",
+    "Named category groups expose selection separately from expansion.",
+    "Header and map controls meet44px; scoped CSS preserves course minimum50/54px."
+  ],
+  "checks": {
+    "typecheck": "PASS",
+    "production_build": "PASS",
+    "production_dependency_audit": "0 vulnerabilities",
+    "independent_review": "PASS after article-role and broad-selector fixes",
+    "browser_batch": {
+      "passed": 11,
+      "failed": 1,
+      "failed_case": "1440px course min-height expected54px; existing CSS is50px",
+      "classification": "TEST_EXPECTATION_ERROR"
+    },
+    "corrected_case": {
+      "passed": 1,
+      "failed": 0,
+      "change": "Only expected course min-height adjusted to existing breakpoint contract."
+    },
+    "wrangler_dry_run": "PASS (no deployment)"
+  },
+  "screenshots": [
+    "2026-11-18-explorer-accessibility-390.png",
+    "2026-11-18-explorer-accessibility-768.png"
+  ],
+  "limitations": [
+    "Local evidence only; no merge or deployment.",
+    "Discovery keyboard proof covers the first ordinary rail; Golden horizontal rail not claimed.",
+    "Full U/D/S/T01-T08 acceptance and actual operator/contact/retention facts remain open."
+  ],
+  "reference": "https://www.w3.org/TR/html-aria/#el-article"
+}

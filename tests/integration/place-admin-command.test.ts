@@ -14,8 +14,12 @@ import { publishReviewedPlaces } from "../../app/features/places/place-review-pu
 import { listPlaceReviewWorkItems } from "../../app/features/places/place-review-query.server";
 import { advancePlaceReviewWorkItems, newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
 import { resolvePlaceLivenessCase } from "../../app/features/places/place-revalidation.server";
-import { getPlaceBySlug, listPlaces } from "../../app/features/places/place.server";
+import { getPlaceBySlug, listPlaces, listRecommendationCandidates } from "../../app/features/places/place.server";
+import { getPublicReviewerVisits } from "../../app/features/ratings/reviewer-moderation.server";
+import { getReviewerPhotoPreview } from "../../app/features/ratings/reviewer-photo-access.server";
+import { loader as photoLoader } from "../../app/routes/reviewer-photo";
 import { getStudentSubject } from "../../app/features/students/subjects.server";
+import { seedApprovedReviewerVote } from "./reviewer-public-fixtures";
 
 const now = "2026-11-14T09:00:00.000Z";
 const reason = "합성 관리 변경 사유";
@@ -142,6 +146,36 @@ async function expectPending(operationId: string) {
 }
 
 describe("single-place administrative operations", () => {
+  it("recalls one approved place across public discovery, visits and direct photos only after confirmation", async () => {
+    const actor = await admin(), placeId = await place(), reviewerId = await user();
+    await env.DB.prepare("UPDATE users SET role='REVIEWER' WHERE id=?").bind(reviewerId).run();
+    const eventId = crypto.randomUUID();
+    const { reviewId } = await seedApprovedReviewerVote(db, { reviewerId, placeId, eventId, value: 1, now, withPhoto: true });
+    const photoId = `photo-${eventId}`, objectKey = `reviews/${reviewId}/fixture.jpg`;
+    await env.REVIEW_PHOTOS.put(objectKey, new Uint8Array([0xff, 0xd8, 0xff, 0xd9]));
+    const publicPhoto = () => photoLoader({ request: new Request(`https://fixture.test/review-photos/${photoId}`), params: { photoId } } as never);
+    const detailStatus = async () => {
+      try { await getPlaceBySlug(db, placeId); return 200; }
+      catch (error) { if (error instanceof Response) return error.status; throw error; }
+    };
+    const discovery = async () => ({
+      detail: await detailStatus(),
+      search: (await listPlaces(db, { query: placeId })).map(row => row.id),
+      candidates: (await listRecommendationCandidates(db, { query: placeId })).map(row => row.id),
+      visits: (await getPublicReviewerVisits(db, reviewerId)).map(row => row.id),
+      photoStatus: (await publicPhoto()).status,
+    });
+    const visible = { detail: 200, search: [placeId], candidates: [placeId], visits: [reviewId], photoStatus: 200 };
+    expect(await discovery()).toEqual(visible);
+    const prepared = await preparePlaceAdminOperation(env.DB, { ...actor, command: { change: "RECALL", placeId, reason } });
+    expect(await discovery()).toEqual(visible);
+    await commitPlaceAdminOperation(env.DB, { ...actor, operationId: prepared.operationId });
+    expect(await discovery()).toEqual({ detail: 404, search: [], candidates: [], visits: [], photoStatus: 404 });
+    expect(await getReviewerPhotoPreview(db, { photoId, actorUserId: reviewerId })).toMatchObject({ id: photoId });
+    expect(await env.REVIEW_PHOTOS.head(objectKey)).toBeTruthy();
+    expect(await env.DB.prepare("SELECT status FROM reviewer_visit_reviews WHERE id=?").bind(reviewId).first("status")).toBe("APPROVED");
+  });
+
   it("keeps an enrolled Jeonbuk draft private through all review stages until a confirmed B09 publication", async () => {
     const actor = await admin(), target = await intakeDraft(actor.actorUserId);
     const queue = { step: 1, page: 1, pageSize: 25, status: "pending", region: null } as const;
@@ -201,7 +235,8 @@ describe("single-place administrative operations", () => {
     await runAutoReviewPipeline(db, { now, confidentAdvanceEnabled: true, naverAdapter: {
       async search(request) { queries.push(request.businessName); return []; },
     } });
-    expect(queries).toEqual([subject.name]);
+    expect(queries).toContain(subject.name);
+    expect(queries).not.toContain(created.subject.name);
     expect(await workItemRow(created.workItemId)).toMatchObject({ stage: "NAVER_VERIFICATION", manual_evidence_reason: null });
     expect(await placeRow(created.id)).toMatchObject({ status: "DRAFT" });
   });

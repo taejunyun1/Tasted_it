@@ -11,6 +11,7 @@ import { AdminBlockingOverlay } from "./AdminBlockingOverlay";
 import { PlaceReviewCard } from "./PlaceReviewCard";
 import { PlaceReviewStepNav } from "./PlaceReviewStepNav";
 import { PlaceReviewToolbar } from "./PlaceReviewToolbar";
+import { PlaceReviewSkippedResults, type ReviewSkippedItem } from "./PlaceReviewSkippedResults";
 
 const stageByStep: Record<PlaceReviewQuery["step"], ReviewStage> = {
   1: "SOURCE_REVIEW",
@@ -36,9 +37,10 @@ type NaverBatch = {
   passed: number;
   attention: number;
   failed: number;
+  skipped: ReviewSkippedItem[];
 };
 
-type NaverBatchActionData = { ok?: boolean; batchId?: string; error?: string; passed?: number; attention?: number; failed?: number };
+type NaverBatchActionData = { ok?: boolean; batchId?: string; code?: string; error?: string; passed?: number; attention?: number; failed?: number; skipped?: ReviewSkippedItem[] };
 
 const overlayCopyByIntent: Record<string, string> = {
   "approve-manual-review-evidence": "수동 근거로 이동하는 중입니다",
@@ -52,7 +54,7 @@ const overlayCopyByIntent: Record<string, string> = {
   "advance-confident-review-items": "근거 있는 항목만 다음 단계로 옮기는 중입니다",
 };
 
-export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverRegionUsage, message, error, nextStep, processedWorkItemIds, confidentAdvanceEnabled }: {
+export function PlaceReviewPipeline({ query, page, counts, categories, duplicateCandidates, naverRegionUsage, message, error, skipped = [], suggestionPage, nextStep, processedWorkItemIds, confidentAdvanceEnabled }: {
   query: PlaceReviewQuery;
   page: PlaceReviewPage;
   counts: PlaceReviewStageCounts;
@@ -61,6 +63,8 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   naverRegionUsage: Array<{ regionCode: RegionCode; displayName: string; used: number; budget: number; enabled: boolean }>;
   message?: string;
   error?: string;
+  skipped?: ReviewSkippedItem[];
+  suggestionPage?: number;
   nextStep?: 3;
   processedWorkItemIds: string[];
   confidentAdvanceEnabled: boolean;
@@ -68,6 +72,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [naverBatch, setNaverBatch] = useState<NaverBatch | null>(null);
   const [naverBatchMessage, setNaverBatchMessage] = useState<string | null>(null);
+  const [naverBatchSkipped, setNaverBatchSkipped] = useState<ReviewSkippedItem[]>([]);
   const navigation = useNavigation();
   const naverBatchFetcher = useFetcher<NaverBatchActionData>();
   const naverFetcherState = useRef(naverBatchFetcher.state);
@@ -112,13 +117,20 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     else if ((data.passed ?? 0) > 0) next.passed += 1;
     else if ((data.failed ?? 0) > 0) next.failed += 1;
     else next.attention += 1;
+    const item = naverBatch.items[naverBatch.nextIndex]!;
+    const itemSkipped = data?.batchId === expectedRequestId && data.skipped?.length ? data.skipped
+      : !matched ? [{ workItemId: item.workItemId, code: data?.batchId === expectedRequestId ? data.code ?? "UNKNOWN" : "UNKNOWN" }]
+      : (data.passed ?? 0) > 0 ? []
+      : [{ workItemId: item.workItemId, code: (data.failed ?? 0) > 0 ? "NAVER_RETRY_REQUIRED" : "NAVER_REVIEW_REQUIRED" }];
+    const nextSkipped = [...naverBatch.skipped, ...itemSkipped];
     const nextIndex = naverBatch.nextIndex + 1;
     if (nextIndex < naverBatch.items.length) {
-      setNaverBatch({ ...naverBatch, nextIndex, awaiting: false, ...next });
+      setNaverBatch({ ...naverBatch, nextIndex, awaiting: false, ...next, skipped: nextSkipped });
       return;
     }
     setSelectedIds((current) => current.filter((id) => !naverBatch.items.some((item) => item.workItemId === id)));
     setNaverBatchMessage(`NAVER 순차 검증 완료 · 통과 ${next.passed}곳 · 확인 필요 ${next.attention}곳 · 실패 ${next.failed}곳`);
+    setNaverBatchSkipped(nextSkipped);
     setNaverBatch(null);
   }, [naverBatch, naverBatchFetcher.data, naverBatchFetcher.state]);
 
@@ -135,7 +147,8 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     });
     if (!items.length) return;
     setNaverBatchMessage(null);
-    setNaverBatch({ id: `${Date.now()}-${Math.random()}`, items, nextIndex: 0, awaiting: false, passed: 0, attention: 0, failed: 0 });
+    setNaverBatchSkipped([]);
+    setNaverBatch({ id: `${Date.now()}-${Math.random()}`, items, nextIndex: 0, awaiting: false, passed: 0, attention: 0, failed: 0, skipped: [] });
   };
   const submitting = navigation.state !== "idle" && navigation.formData?.get("intent") != null;
   const actionMessage = overlayCopyByIntent[String(navigation.formData?.get("intent") ?? "")] ?? "검수 결과를 저장하는 중입니다";
@@ -147,10 +160,12 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
     {message && <p className="admin-notice" role="status">{message}</p>}
     {naverBatchMessage && <p className="admin-notice" role="status">{naverBatchMessage}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}
+    <PlaceReviewSkippedResults skipped={skipped} />
+    <PlaceReviewSkippedResults skipped={naverBatchSkipped} />
     <PlaceReviewStepNav currentStep={query.step} counts={counts} />
     <p className="place-review-confident-copy" role="status">{formatConfidentAdvanceQueueCopy(counts[5])}</p>
     <div className="place-review-quota"><span>오늘 NAVER 요청</span>{naverRegionUsage.map((row) => <strong key={row.regionCode}>{row.displayName} {row.enabled ? "켜짐" : "꺼짐"} {row.used.toLocaleString()} / {row.budget.toLocaleString()}회</strong>)}<p>지역 예산은 팩 필드입니다. 한 지역이 소진돼도 다른 지역은 계속됩니다. {selectionLimit}곳까지 선택할 수 있습니다. NAVER 검증은 최대 {NAVER_REVIEW_RUN_MAX}곳을 한 곳씩 순차 처리합니다. 노매치는 자동으로 넘어가지 않으며 확인필요로 남습니다. 조건부 이동 스위치(`REVIEW_CONFIDENT_ADVANCE_ENABLED`)는 {confidentAdvanceEnabled ? "켜짐" : "꺼짐"}입니다. 꺼져 있으면 근거 버튼은 0곳입니다. NAVER 호출과 공개는 하지 않습니다.</p></div>
-    <PlaceReviewToolbar query={query} page={page} />
+    <PlaceReviewToolbar query={query} page={page} suggestionPage={suggestionPage} />
     <Form method="post" className="place-review-batch-form">
       <input type="hidden" name="expectedStage" value={stageByStep[query.step]} />
       {query.step === 1 && page.rows.map((row) => <input key={`auto:${row.workItemId}`} type="hidden" name="autoWorkItem" value={row.workItemId} />)}
@@ -200,7 +215,7 @@ export function PlaceReviewPipeline({ query, page, counts, categories, duplicate
         {query.step === 3 && <button className="secondary" name="intent" value="apply-category-fallback">카테고리 없는 항목 폴백 배정</button>}
       </div>
     </Form>
-    <PlaceReviewToolbar query={query} page={page} />
+    <PlaceReviewToolbar query={query} page={page} suggestionPage={suggestionPage} />
     <AdminBlockingOverlay active={submitting || Boolean(naverBatch)} label={naverBatch ? `NAVER 근거를 순차 확인하는 중입니다 (${naverBatch.nextIndex + 1}/${naverBatch.items.length})` : actionMessage} />
   </section>;
 }

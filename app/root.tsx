@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { Form, isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from "react-router";
+import { Form, isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation, type ShouldRevalidateFunction } from "react-router";
 import type { Route } from "./+types/root";
 import { authEntryHref } from "./features/auth/login";
 import { getOptionalUser } from "./features/auth/session.server";
@@ -7,8 +7,14 @@ import { createDb } from "./db/client.server";
 import { getStudentSeat } from "./features/students/invitations.server";
 import { getGuestChoiceMergeState } from "./features/onboarding/guest-saves.server";
 import { GuestMergeRetry } from "./components/onboarding/GuestMergeRetry";
+import { PlaceSearchError } from "./components/places/PlaceSearchError";
+import { CourseSearchError } from "./components/courses/CourseSearchError";
+import { keepMapShell } from "./features/maps/map-read-recovery";
+import { mapViewerKey } from "./features/maps/map-viewer-key.server";
 import "./app.css";
 import "./styles/design-system.css";
+
+export const shouldRevalidate: ShouldRevalidateFunction = (input) => keepMapShell(input) ? false : input.defaultShouldRevalidate;
 
 export const links: Route.LinksFunction = () => [
   { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/sunn-us/SUIT/fonts/static/woff2/SUIT.css" },
@@ -21,7 +27,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const studentWorkspaceEnabled = env.STUDENT_WORKSPACE_ENABLED === "true";
   const student = user && user.role !== "ADMIN" && studentWorkspaceEnabled ? await getStudentSeat(createDb(env.DB), { userId: user.id, now: new Date().toISOString() }) : null;
   const guestMergeState = user && env.ONBOARDING_ENABLED === "true" ? await getGuestChoiceMergeState(createDb(env.DB), request, new Date().toISOString()) : "NONE";
-  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student), guestMergeState };
+  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student), guestMergeState, mapViewerKey: await mapViewerKey(request, user) };
 }
 export function Layout({ children }: { children: React.ReactNode }) { return <html lang="ko"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><Meta/><Links/></head><body><a className="skip-link" href="#main">본문으로 건너뛰기</a>{children}<ScrollRestoration/><Scripts/></body></html>; }
 export default function App({ loaderData }: Route.ComponentProps) {
@@ -65,8 +71,15 @@ export default function App({ loaderData }: Route.ComponentProps) {
   </>;
 }
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const location = useLocation();
   const notFound = isRouteErrorResponse(error) && error.status === 404;
   const forbidden = isRouteErrorResponse(error) && error.status === 403;
+  if (location.pathname === "/places" && !notFound && !forbidden) {
+    return <PlaceSearchError search={location.search} />;
+  }
+  if (location.pathname === "/courses" && !notFound && !forbidden) {
+    return <CourseSearchError search={location.search} />;
+  }
   return (
     <main id="main" className="error-page">
       <p className="eyebrow">{notFound ? "404 / NOT FOUND" : forbidden ? "403 / FORBIDDEN" : "ERROR"}</p>

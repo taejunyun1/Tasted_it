@@ -52,6 +52,7 @@ export default function AdminActivity({ loaderData }: Route.ComponentProps) {
       <Link to={activityHref({ view: "audit", kind: state.kind })} aria-current={state.view === "audit" ? "page" : undefined}>감사 기록</Link>
       <Link to={activityHref({ view: "operations", kind: state.kind })} aria-current={state.view === "operations" ? "page" : undefined}>작업 영수증</Link>
       <Link to="/admin/audit">원장 정합성 검사</Link>
+      <Link to="/admin/records">CSV·정책 문서</Link>
     </nav>
     <Form method="get" className="admin-home__filter"><input type="hidden" name="view" value={state.view}/><label htmlFor="activity-kind">작업 종류</label><select name="kind" id="activity-kind" defaultValue={state.kind} key={state.kind}><option value="all">전체 종류</option>{Object.entries(ACTIVITY_KINDS).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select><button type="submit">조회</button></Form>
     <p className="admin-home__timestamp">목록 기준 <time dateTime={state.cutoff}>{time(state.cutoff)}</time> · 한 페이지 최대 {state.pageSize}건 · 현재 페이지 {state.rows.length}건</p>

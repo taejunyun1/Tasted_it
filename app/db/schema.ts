@@ -775,10 +775,30 @@ export const reviewerPhotoCleanupJobs = sqliteTable(
     objectKeysJson: text("object_keys_json").notNull(),
     nextAttemptAt: text("next_attempt_at").notNull(),
     attemptCount: integer("attempt_count").notNull().default(0),
+    revision: integer("revision").notNull().default(1),
+    status: text("status", { enum: ["PENDING", "RUNNING", "FAILED"] }).notNull().default("PENDING"),
+    leaseId: text("lease_id"),
+    leaseExpiresAt: text("lease_expires_at"),
+    lastError: text("last_error"),
     ...timestamps,
   },
   (table) => [index("reviewer_photo_cleanup_due_idx").on(table.nextAttemptAt, table.createdAt)],
 );
+
+export const reviewerPhotoCleanupGuards = sqliteTable("reviewer_photo_cleanup_guards", {
+  id: text("id").primaryKey(), passed: integer("passed").notNull(),
+});
+
+export const privacyRequests = sqliteTable("privacy_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  kind: text("kind", { enum: ["ACCESS", "CORRECTION", "DELETION", "RESTRICTION"] }).notNull(),
+  status: text("status", { enum: ["RECEIVED", "REVIEWING", "POLICY_HOLD", "GUIDANCE_RECORDED"] }).notNull().default("RECEIVED"),
+  revision: integer("revision").notNull().default(1),
+  decisionCode: text("decision_code", { enum: ["REVIEW_STARTED", "POLICY_UNRESOLVED", "SELF_SERVICE_GUIDANCE"] }),
+  decidedBy: text("decided_by").references(() => users.id, { onDelete: "restrict" }),
+  receivedAt: text("received_at").notNull(), updatedAt: text("updated_at").notNull(),
+}, (table) => [index("privacy_request_updated_idx").on(table.updatedAt, table.id)]);
 
 export const rateLimitWindows = sqliteTable(
   "rate_limit_windows",
@@ -1255,3 +1275,17 @@ export const reviewerReviewTransitions = sqliteTable("reviewer_review_transition
   ruleVersion: text("rule_version").notNull(),
   createdAt: text("created_at").notNull(),
 }, (table) => [uniqueIndex("reviewer_review_transition_version_uidx").on(table.reviewId, table.toVersion)]);
+
+export const providerDailyQuotas = sqliteTable("provider_daily_quotas", {
+  provider: text("provider").notNull(), utcDay: text("utc_day").notNull(),
+  legacyTotal: integer("legacy_total").notNull().default(0), legacyGwangju: integer("legacy_gwangju").notNull().default(0), legacyJeonnam: integer("legacy_jeonnam").notNull().default(0),
+  reservedTotal: integer("reserved_total").notNull().default(0), reservedGwangju: integer("reserved_gwangju").notNull().default(0), reservedJeonnam: integer("reserved_jeonnam").notNull().default(0),
+  baselineAt: text("baseline_at").notNull(), baselineSource: text("baseline_source").notNull(), cutoverState: text("cutover_state").notNull(),
+  isCutoverAnchor: integer("is_cutover_anchor", { mode: "boolean" }).notNull().default(false), cutoverVerifiedAt: text("cutover_verified_at"), readyAfterUtcDay: text("ready_after_utc_day"), cutoverReceiptRef: text("cutover_receipt_ref"),
+  lastReservationId: text("last_reservation_id"), ...timestamps,
+}, (table) => [primaryKey({ columns: [table.provider, table.utcDay] })]);
+export const providerCallAttempts = sqliteTable("provider_call_attempts", {
+  id: text("id").primaryKey(), provider: text("provider").notNull(), utcDay: text("utc_day").notNull(), regionCode: text("region_code").notNull(), source: text("source").notNull(),
+  runId: text("run_id").references(() => naverLocalCategoryRuns.id, { onDelete: "restrict" }), reservedAt: text("reserved_at").notNull(), dispatchStartedAt: text("dispatch_started_at"), finishedAt: text("finished_at"),
+  outcome: text("outcome", { enum: ["PENDING", "SUCCEEDED", "FAILED", "UNKNOWN"] }).notNull().default("PENDING"), failureCode: text("failure_code"),
+}, (table) => [index("provider_attempts_day_region_idx").on(table.provider, table.utcDay, table.regionCode), index("provider_attempts_run_idx").on(table.runId)]);

@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { isControlledLocalBaseUrl } from "./local-test-target";
 
 // Uses only the local QA account and isolated D1 fixture.
-test.skip(Boolean(process.env.BASE_URL), "Vote withdrawal fixture runs only against the isolated local database");
+test.skip(!isControlledLocalBaseUrl(), "Vote withdrawal fixture runs only against the isolated local database");
 test("public vote change and withdrawal survive reload without clearing a saved place", async ({ context, page }, testInfo) => {
   await context.addCookies([{ name: "retaste_session", value: "qa-admin-session", domain: "127.0.0.1", path: "/" }]);
   const route = "/places/sample-dongmyeong-ramen";

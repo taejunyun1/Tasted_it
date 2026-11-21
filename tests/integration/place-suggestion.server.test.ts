@@ -193,8 +193,8 @@ describe("place suggestions", () => {
     await approvePlaceSuggestion(db, { suggestionId: `${prefix}-done`, actorUserId: `${prefix}-admin`, reason: "정보 확인", now });
 
     const listed = await listReviewablePlaceSuggestions(db);
-    const open = listed.find((item) => item.id === `${prefix}-open`);
-    const done = listed.find((item) => item.id === `${prefix}-done`);
+    const open = listed.rows.find((item) => item.id === `${prefix}-open`);
+    const done = listed.rows.find((item) => item.id === `${prefix}-done`);
 
     expect(open).toMatchObject({ status: "SUBMITTED", name: "목록 식당" });
     expect(done).toBeUndefined();
