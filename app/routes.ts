@@ -48,6 +48,7 @@ export default [
   route("admin/candidates", "routes/admin-candidates.tsx"),
   route("admin/candidates/bulk", "routes/admin-candidates-bulk.tsx"),
   route("admin/data-sync", "routes/admin-data-sync.tsx"),
+  route("admin/jobs/parking", "routes/admin-parking-jobs.tsx"),
   route("admin/reviewers", "routes/admin-reviewers.tsx"),
   route("admin/ratings", "routes/admin-ratings.tsx"),
   route("admin/reviewer-visits", "routes/admin-reviewer-visits.tsx"),

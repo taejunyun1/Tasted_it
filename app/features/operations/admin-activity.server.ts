@@ -105,6 +105,16 @@ async function readDetail(database: D1Database, operationId: string, now: string
       && !(current.status === "RUNNING" && !current.lease_id);
     job = { reference: await reference(runId), status: known ? (current.status === "RUNNING" && current.lease_expires_at && current.lease_expires_at <= now ? "STALE" : current.status) : "UNKNOWN", checkedAt: now, finishedAt: timestamp(current?.finished_at) };
   }
+  if (kind === "PARKING_SYNC_CONTROL" && row.status === "COMMITTED") {
+    const runId = identifier(result?.runId), snapshotId = identifier(result?.snapshotId);
+    const current = linked && runId && snapshotId && ["PARKING", "EV"].includes(String(result?.source))
+      ? await database.prepare(`SELECT status,lease_expires_at,finished_at FROM parking_sync_runs
+          WHERE id=? AND snapshot_id=? AND source=?`).bind(runId, snapshotId, String(result?.source))
+        .first<{ status: string; lease_expires_at: string | null; finished_at: string | null }>() : null;
+    let observed = current && ["PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"].includes(current.status) ? current.status : "UNKNOWN";
+    if (current?.status === "RUNNING") observed = !current.lease_expires_at ? "UNKNOWN" : current.lease_expires_at <= now ? "STALE" : "RUNNING";
+    job = { reference: await reference(runId), status: observed, checkedAt: now, finishedAt: timestamp(current?.finished_at) };
+  }
   return {
     operationId: row.id, kind, title: kind ? ACTIVITY_KINDS[kind] : "기타 작업", state: status(row, now),
     actor: await reference(row.actor_user_id), createdAt: timestamp(row.created_at), expiresAt: timestamp(row.expires_at), committedAt: timestamp(row.committed_at),

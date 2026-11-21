@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { evChargingStations, parkingDataSnapshots, parkingEvLinks, parkingFacilities, parkingSyncRuns } from "../../db/schema";
 import { evZcodesForActivePacks } from "../regions/region-pack";
+import { activateParkingJob, assertParkingLease, claimParkingJob, failParkingJob, insertParkingRows, parkingJobResult, parkingOwnership, leaseValues, type ParkingLease } from "./parking-job.server";
 import { buildEvDataUrl, classifyParkingEvLink, normalizeEvStations, parseEvResponse, type EvRegionCode } from "./ev-data";
 
 const REGIONS: EvRegionCode[] = evZcodesForActivePacks();
@@ -24,7 +25,7 @@ function nearbyParking<T extends { latitude: number; longitude: number }>(grid: 
   return result;
 }
 
-export async function linkParkingSnapshotToEvSnapshot(db: AppDb, input: { parkingSnapshotId: string; evSnapshotId: string; now: string }) {
+export async function linkParkingSnapshotToEvSnapshot(db: AppDb, input: { parkingSnapshotId: string; evSnapshotId: string; now: string; lease?: ParkingLease }) {
   const parking = await db.select({
     id: parkingFacilities.id, name: parkingFacilities.name, roadAddress: parkingFacilities.roadAddress, lotAddress: parkingFacilities.lotAddress,
     latitude: parkingFacilities.latitude, longitude: parkingFacilities.longitude,
@@ -42,59 +43,48 @@ export async function linkParkingSnapshotToEvSnapshot(db: AppDb, input: { parkin
     const match = classifyParkingEvLink(facility, station);
     return match ? [{ parkingFacilityId: facility.id, evStationId: station.id, relationship: match.relationship, matchMethod: match.matchMethod, confidence: match.confidence, createdAt: input.now }] : [];
   }));
-  for (const group of chunks(links, 100)) await db.insert(parkingEvLinks).values(group).onConflictDoNothing();
+  for (const group of chunks(links, 100)) {
+    if (input.lease) await insertParkingRows(db, parkingEvLinks, group, input.lease);
+    else await db.insert(parkingEvLinks).values(group).onConflictDoNothing();
+  }
   return { linked: links.length };
 }
 
-export async function syncEvDataSnapshot(db: AppDb, input: { serviceKey: string; fetcher?: typeof fetch; now?: string }) {
+export async function syncEvDataSnapshot(db: AppDb, input: { serviceKey: string; fetcher?: typeof fetch; now?: string; runId?: string }) {
   if (!input.serviceKey.trim()) throw new Error("DATA_GO_KR_SERVICE_KEY_REQUIRED");
-  const now = input.now ?? new Date().toISOString();
-  const fetcher = input.fetcher ?? fetch;
-  const existing = await db.query.parkingSyncRuns.findFirst({
-    where: and(eq(parkingSyncRuns.source, "EV"), eq(parkingSyncRuns.status, "RUNNING")),
-    orderBy: desc(parkingSyncRuns.startedAt),
-  });
-  const runId = existing?.id ?? crypto.randomUUID();
-  const snapshotId = existing?.snapshotId ?? crypto.randomUUID();
-
-  if (!existing) await db.batch([
-    db.insert(parkingDataSnapshots).values({ id: snapshotId, source: "EV", status: "STAGING", rowCount: 0, createdAt: now, updatedAt: now }),
-    db.insert(parkingSyncRuns).values({ id: runId, source: "EV", status: "RUNNING", snapshotId, nextPage: 1, startedAt: now, createdAt: now, updatedAt: now }),
-  ]);
-
+  const now = input.now ?? new Date().toISOString(), fetcher = input.fetcher ?? fetch;
+  const { job, lease } = await claimParkingJob(db, "EV", now, input.runId);
+  if (!lease) return { ...await parkingJobResult(db, job.id), linked: 0 };
   try {
-    const responses = await Promise.all(REGIONS.map(async (regionCode) => {
-      const response = await fetcher(buildEvDataUrl({ serviceKey: input.serviceKey, regionCode }), { headers: { Accept: "application/json" } });
+    const responses = [];
+    // Sequential requests give cancellation a boundary before each fixed region.
+    for (const regionCode of REGIONS) {
+      await assertParkingLease(db, lease);
+      const response = await fetcher(buildEvDataUrl({ serviceKey: input.serviceKey, regionCode }), { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
       if (!response.ok) throw new Error(`EV_DATA_HTTP_${response.status}`);
       const parsed = parseEvResponse(await response.json());
+      if (!Number.isSafeInteger(parsed.totalCount) || parsed.totalCount < 0 || parsed.items.length > 9_999) throw new Error("EV_DATA_INVALID_PAGE");
       if (parsed.totalCount > parsed.items.length) throw new Error(`EV_DATA_INCOMPLETE_${regionCode}`);
-      return parsed;
-    }));
+      responses.push(parsed);
+    }
+    await assertParkingLease(db, lease);
     const rawItems = responses.flatMap((response) => response.items);
     const stations = normalizeEvStations(rawItems).filter((station) => !station.isDeleted);
     const prior = await db.query.parkingDataSnapshots.findFirst({ where: and(eq(parkingDataSnapshots.source, "EV"), eq(parkingDataSnapshots.status, "ACTIVE")), orderBy: desc(parkingDataSnapshots.activatedAt) });
     if (prior && stations.length < prior.rowCount * 0.7) throw new Error("EV_DATA_QUALITY_ROW_DROP");
-
-    await db.delete(evChargingStations).where(eq(evChargingStations.snapshotId, snapshotId));
-    const stationRows = stations.map((station) => ({ id: `${snapshotId}:${station.sourceStationId}`, snapshotId, ...station, createdAt: now, updatedAt: now }));
-    for (const group of chunks(stationRows, 50)) await db.insert(evChargingStations).values(group);
-
+    await db.$client.prepare(`DELETE FROM ev_charging_stations WHERE snapshot_id=? AND ${parkingOwnership}`).bind(lease.snapshotId, ...leaseValues(lease)).run();
+    await insertParkingRows(db, evChargingStations, stations.map((station) => ({ id: `${lease.snapshotId}:${station.sourceStationId}`, snapshotId: lease.snapshotId, ...station, createdAt: now, updatedAt: now })), lease);
     const activeParking = await db.query.parkingDataSnapshots.findFirst({ where: and(eq(parkingDataSnapshots.source, "PARKING"), eq(parkingDataSnapshots.status, "ACTIVE")), orderBy: desc(parkingDataSnapshots.activatedAt) });
-    const links = activeParking ? await linkParkingSnapshotToEvSnapshot(db, { parkingSnapshotId: activeParking.id, evSnapshotId: snapshotId, now }) : { linked: 0 };
-
+    const links = activeParking ? await linkParkingSnapshotToEvSnapshot(db, { parkingSnapshotId: activeParking.id, evSnapshotId: lease.snapshotId, now, lease }) : { linked: 0 };
     const dates = stations.map((station) => station.referenceDate).sort();
-    await db.batch([
-      db.update(parkingDataSnapshots).set({ status: "RETIRED", updatedAt: now }).where(and(eq(parkingDataSnapshots.source, "EV"), eq(parkingDataSnapshots.status, "ACTIVE"))),
-      db.update(parkingDataSnapshots).set({ status: "ACTIVE", rowCount: stations.length, sourceReferenceDateMin: dates.at(0) ?? null, sourceReferenceDateMax: dates.at(-1) ?? null, activatedAt: now, updatedAt: now }).where(eq(parkingDataSnapshots.id, snapshotId)),
-      db.update(parkingSyncRuns).set({ status: "COMPLETED", nextPage: 2, totalCount: responses.reduce((sum, response) => sum + response.totalCount, 0), fetchedCount: rawItems.length, acceptedCount: stations.length, skippedCount: rawItems.length - stations.length, finishedAt: now, updatedAt: now }).where(eq(parkingSyncRuns.id, runId)),
-    ]);
-    return { runId, snapshotId, completed: true, fetched: rawItems.length, accepted: stations.length, skipped: rawItems.length - stations.length, linked: links.linked };
+    await activateParkingJob(db, lease, now, { nextPage: 2, totalCount: responses.reduce((sum, response) => sum + response.totalCount, 0), fetched: rawItems.length, accepted: stations.length, skipped: rawItems.length - stations.length }, { min: dates.at(0) ?? null, max: dates.at(-1) ?? null });
+    return { ...await parkingJobResult(db, job.id, true), linked: links.linked };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "UNKNOWN";
-    await db.batch([
-      db.update(parkingSyncRuns).set({ status: "FAILED", errorSummary: message, finishedAt: now, updatedAt: now }).where(eq(parkingSyncRuns.id, runId)),
-      db.update(parkingDataSnapshots).set({ status: "FAILED", updatedAt: now }).where(eq(parkingDataSnapshots.id, snapshotId)),
-    ]);
-    throw error;
+    if (error instanceof Error && error.message === "PARKING_JOB_OWNERSHIP_LOST") return { ...await parkingJobResult(db, job.id, true), linked: 0 };
+    const message = error instanceof Error && /^EV_DATA_(HTTP_\d{3}|INVALID_PAGE|QUALITY_ROW_DROP|INCOMPLETE_(29|46))$/.test(error.message) ? error.message : "EV_SYNC_FAILED";
+    await failParkingJob(db, lease, now, message);
+    const current = await parkingJobResult(db, job.id, true);
+    if (current.status !== "FAILED" || current.job?.leaseVersion !== lease.version) return { ...current, linked: 0 };
+    throw new Error(message);
   }
 }
