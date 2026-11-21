@@ -58,9 +58,10 @@ async function schemaSha256(db: D1Database) {
 }
 
 async function fixture(db: D1Database) {
-  // applyD1Migrations uses Wrangler's ledger shape. Recreate it explicitly so
-  // wall-clock application times cannot make the two synthetic copies differ.
   await applyD1Migrations(db, bindings.TEST_MIGRATIONS);
+  // Category migrations use the wall clock. Keep both synthetic copies identical.
+  await db.prepare("UPDATE categories SET created_at=?,updated_at=?").bind(NOW, NOW).run();
+  // Recreate Wrangler's ledger with fixed application times as well.
   await db.prepare('DROP TABLE "d1_migrations"').run();
   await db.prepare(`CREATE TABLE "d1_migrations"(id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE,applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)`).run();

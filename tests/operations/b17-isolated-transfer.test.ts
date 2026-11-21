@@ -59,9 +59,14 @@ it("holds before adapter access if approval aliases the same physical D1", async
 
 it("verifies an isolated pair and holds if D1 drifts during read-only reconciliation", async () => {
   const { DB: source, MIGRATION_DB: candidate } = bindings;
+  const fixtureTimestamp = "2026-11-18 00:00:00";
   for (const db of [source, candidate]) {
     await applyD1Migrations(db, bindings.TEST_MIGRATIONS);
-    await db.prepare("UPDATE d1_migrations SET applied_at='2026-11-18 00:00:00'").run();
+    // Stabilize wall-clock seed and ledger values before freezing the source.
+    await db.batch([
+      db.prepare("UPDATE categories SET created_at=?,updated_at=?").bind(fixtureTimestamp, fixtureTimestamp),
+      db.prepare("UPDATE d1_migrations SET applied_at=?").bind(fixtureTimestamp),
+    ]);
   }
   const catalog = (await source.prepare(getB17BaselineCatalogQuery()).all()).results;
   const freeze = buildB17FreezeStatements(catalog);
