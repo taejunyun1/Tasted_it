@@ -1140,6 +1140,19 @@ export const placeReviewDuplicateResolutions = sqliteTable(
   ],
 );
 
+export const placeIntakeReviewLinks = sqliteTable("place_intake_review_links", {
+  batchId: text("batch_id").notNull(),
+  position: integer("position").notNull(),
+  workItemId: text("work_item_id").notNull().unique().references(() => placeReviewWorkItems.id, { onDelete: "restrict" }),
+  mode: text("mode", { enum: ["LINK", "CREATE"] }).notNull(),
+  actorUserId: text("actor_user_id").notNull(),
+  enrolledAt: text("enrolled_at").notNull(),
+  subjectName: text("subject_name").notNull(),
+  subjectAddress: text("subject_address").notNull(),
+  subjectLatitude: real("subject_latitude").notNull(),
+  subjectLongitude: real("subject_longitude").notNull(),
+}, (table) => [primaryKey({ columns: [table.batchId, table.position] })]);
+
 export const productEvents = sqliteTable("product_events", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),

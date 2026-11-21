@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type BrowserContext, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page, type Response, type TestInfo } from "@playwright/test";
 
 test.skip(Boolean(process.env.BASE_URL), "방문 검수 시험은 격리한 로컬 합성 자료에서만 실행합니다.");
 const pendingCleanup = new WeakMap<BrowserContext, string>();
@@ -36,7 +36,25 @@ async function visitEvidence(page: Page, scope = page.locator(".reviewer-preview
 }
 async function createPendingVisit(page: Page, outputPath?: (name: string) => string, mark: (phase: string) => void = () => {}) {
   mark("owner-workspace:start");
-  await page.goto("/reviewer/ratings");
+  const outdatedDependencyOrigins = new Set<string>();
+  const recordOutdatedDependency = (response: Response) => {
+    if (response.status() !== 504 || response.statusText() !== "Outdated Optimize Dep") return;
+    const url = new URL(response.url());
+    if (url.pathname.startsWith("/node_modules/.vite/deps/")) outdatedDependencyOrigins.add(url.origin);
+  };
+
+  // The local Vite optimizer can replace the dependency graph on its first crawl.
+  // Reload this document once if a stale bundle blocked the initial hydration.
+  page.on("response", recordOutdatedDependency);
+  try {
+    const navigation = await page.goto("/reviewer/ratings");
+    if (navigation?.ok() && outdatedDependencyOrigins.has(new URL(navigation.url()).origin)) {
+      mark("owner-workspace:reload-outdated-vite-dependency");
+      await page.reload();
+    }
+  } finally {
+    page.off("response", recordOutdatedDependency);
+  }
   await page.getByPlaceholder("다녀온 장소 검색").fill("샘플 라멘 동명");
   await page.getByRole("button", { name: /Re:Taste 샘플 라멘 동명/ }).click();
   await page.getByRole("button", { name: "다음: 평가" }).click();

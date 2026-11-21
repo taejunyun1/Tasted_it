@@ -6,6 +6,7 @@ import {
   businessLicenses,
   categories,
   naverLocalCategoryVerifications,
+  placeIntakeReviewLinks,
   placeLivenessStates,
   places,
   placeReviewWorkItems,
@@ -30,9 +31,10 @@ export type PlaceReviewQueueRow = {
   subjectType: "BUSINESS_LICENSE" | "PLACE";
   subjectId: string;
   sourceKind: "PUBLIC_DATA" | "PLACE_SUGGESTION" | "CATEGORY_RECALL" | "LIVENESS_RECHECK";
+  intakeMode?: "LINK" | "CREATE";
   name: string;
   address: string;
-  region: RegionCode | null;
+  region: RegionCode | "JEONBUK" | null;
   placeStatus: "DRAFT" | "PUBLISHED" | "HIDDEN" | null;
   naverStatus: string | null;
   naverScore: number | null;
@@ -100,13 +102,14 @@ function reviewConditions(query: PlaceReviewQuery): SQL[] {
   }
 
   if (query.query) {
-    const pattern = `%${query.query}%`;
+    const text = query.query.toLocaleLowerCase("ko-KR");
     conditions.push(or(
-      like(businessLicenses.businessName, pattern),
-      like(businessLicenses.roadAddress, pattern),
-      like(businessLicenses.lotAddress, pattern),
-      like(places.name, pattern),
-      like(places.address, pattern),
+      eq(placeReviewWorkItems.id, query.query),
+      sql`instr(lower(${businessLicenses.businessName}), ${text}) > 0`,
+      sql`instr(lower(${businessLicenses.roadAddress}), ${text}) > 0`,
+      sql`instr(lower(${businessLicenses.lotAddress}), ${text}) > 0`,
+      sql`instr(lower(${places.name}), ${text}) > 0`,
+      sql`instr(lower(${places.address}), ${text}) > 0`,
     )!);
   }
 
@@ -160,6 +163,9 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     placeNaverScore: placeLivenessStates.naverMatchScore,
     selectedCategoryName: selectedCategories.name,
     naverMappedCategoryName: naverMappedCategories.name,
+    intakeMode: placeIntakeReviewLinks.mode,
+    intakeRegion: sql<RegionCode | "JEONBUK" | null>`(select region_code from place_intake_entries
+      where batch_id=${placeIntakeReviewLinks.batchId} and position=${placeIntakeReviewLinks.position})`,
   })
     .from(placeReviewWorkItems)
     .leftJoin(businessLicenses, eq(businessLicenses.id, placeReviewWorkItems.businessLicenseId))
@@ -168,6 +174,7 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
     .leftJoin(placeLivenessStates, eq(placeLivenessStates.placeId, places.id))
     .leftJoin(selectedCategories, eq(selectedCategories.id, placeReviewWorkItems.selectedCategoryId))
     .leftJoin(naverMappedCategories, eq(naverMappedCategories.id, naverLocalCategoryVerifications.mappedCategoryId))
+    .leftJoin(placeIntakeReviewLinks, eq(placeIntakeReviewLinks.workItemId, placeReviewWorkItems.id))
     .where(inArray(placeReviewWorkItems.id, workItemIds.map((row) => row.id)));
 
   const rowsById = new Map(await Promise.all(hydrated.map(async (row) => {
@@ -194,9 +201,10 @@ export async function listPlaceReviewWorkItems(db: AppDb, query: PlaceReviewQuer
       subjectType: isBusinessLicense ? "BUSINESS_LICENSE" : "PLACE",
       subjectId: workItem.businessLicenseId ?? workItem.placeId!,
       sourceKind: workItem.sourceKind,
+      ...(row.intakeMode ? { intakeMode: row.intakeMode } : {}),
       name: businessLicense?.businessName ?? place?.name ?? "",
       address,
-      region: businessLicense?.regionCode ?? regionFromAddress(place?.address ?? null),
+      region: row.intakeRegion ?? businessLicense?.regionCode ?? regionFromAddress(place?.address ?? null),
       placeStatus: place?.status ?? null,
       naverStatus,
       naverScore: row.candidateNaverScore ?? row.placeNaverScore ?? null,
