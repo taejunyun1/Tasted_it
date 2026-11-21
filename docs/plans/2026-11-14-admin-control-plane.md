@@ -1,5 +1,11 @@
 # ADMIN 전역 운영 통제 계획
 
+## 2026-11-22 운영 현황
+
+[#448](https://github.com/taejunyun1/Tasted_it/pull/448) `65485b7`에서 B10 평가·공공 수집·주차 제어의 운영 적용을 마쳤다. 0050–0052를 적용하고 관련 19개 테이블의 기존 행과 감사 이력을 대조했다. 새 Worker에서 ADMIN 3개 경로 조회와 권한 차단, 공공 수집 미리보기, RSI 6/6, 검증 세션 잔존 0을 확인했다. [CST 서비스 SSOT](2026-11-13-cst-service-ssot.md#admin-b10-운영-적용--2026-11-22)에 한정된 운영 검증 범위를 기록했다.
+
+[#470](https://github.com/taejunyun1/Tasted_it/pull/470)은 ADMIN 후속과 UI 코드를 통합한다. B17 운영 전환은 기존 HTTP·R2 작업 종료 또는 격리 근거와 새 D1 기준선을 갖춘 별도 운영 PR까지 HOLD다. #397은 HOLD를 유지하고 실제 운영자·문의처·보관 및 삭제 기간은 정책 확인 필요로 둔다.
+
 ## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
 
 최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 직전 확인 head `484aba9`의 [CI 44148261161](https://github.com/taejunyun1/Tasted_it/actions/runs/44148261161)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
