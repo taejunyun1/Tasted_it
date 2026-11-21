@@ -3,11 +3,14 @@ import { z } from "zod";
 const id = z.string().min(1).max(160);
 const reason = z.string().trim().max(300);
 export const placeAdminCommandSchema = z.discriminatedUnion("change", [
-  z.object({ change: z.literal("PUBLISH"), workItemId: id, expectedVersion: z.number().int().nonnegative().optional(), reason }).strict(),
+  z.object({ change: z.literal("PUBLISH"), workItemId: id, expectedVersion: z.number().int().nonnegative().optional(), reason,
+    intakeUnitCorrection: z.object({ revisionId: z.uuid(), approvedPlanSha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
+  }).strict(),
   z.object({ change: z.literal("MERGE"), sourcePlaceId: id, targetPlaceId: id, reason: reason.min(1) }).strict(),
   z.object({ change: z.literal("RECALL"), placeId: id, reason: reason.min(1) }).strict(),
   z.object({ change: z.literal("RESTORE_RECALL"), recallOperationId: z.uuid(), reason: reason.min(1) }).strict(),
-]).refine((value) => !value.reason.includes("\0") && (value.change !== "MERGE" || value.sourcePlaceId !== value.targetPlaceId));
+]).refine((value) => !value.reason.includes("\0") && (value.change !== "MERGE" || value.sourcePlaceId !== value.targetPlaceId)
+  && (value.change !== "PUBLISH" || !value.intakeUnitCorrection || value.expectedVersion !== undefined));
 export type PlaceAdminCommand = z.infer<typeof placeAdminCommandSchema>;
 export type PlaceAdminChange = PlaceAdminCommand["change"];
 export const PLACE_ADMIN_CHANGE_LABELS = { PUBLISH: "선택 장소 공개", MERGE: "장소 병합", RECALL: "장소 공개 회수", RESTORE_RECALL: "직전 회수 복원" } as const;

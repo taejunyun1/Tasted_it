@@ -16,10 +16,19 @@ import { placeSnapshotDigest, placeSnapshotStatement, type PlaceSnapshot, type P
 import { calculatePlaceAdminImpact } from "./place-admin-impact.server";
 
 type Caller = { actorUserId: string; sessionId: string; now: string };
+type PublishCommand = Extract<PlaceAdminCommand, { change: "PUBLISH" }>;
 const payloadSchema = z.object({ command: placeAdminCommandSchema, digest: z.string().regex(/^[a-f0-9]{64}$/),
-  scope: z.object({ workItemId: z.string().optional(), sourcePlaceId: z.string().optional(), targetPlaceId: z.string().optional() }).strict(),
+  scope: z.object({ workItemId: z.string().optional(), sourcePlaceId: z.string().optional(), targetPlaceId: z.string().optional(), intakeUnitRevisionId: z.uuid().optional() }).strict(),
   targetId: z.string(), slug: z.string().optional(), newWorkItemId: z.string().optional(),
   impact: z.record(z.string(), z.number().int().min(-1)),
+}).strict().refine(({ command, scope }) => {
+  const revisionId = command.change === "PUBLISH" ? command.intakeUnitCorrection?.revisionId : undefined;
+  return scope.intakeUnitRevisionId === revisionId && (revisionId === undefined
+    || (command.change === "PUBLISH" && scope.workItemId === command.workItemId && !scope.sourcePlaceId && !scope.targetPlaceId));
+});
+const unitCorrectionBefore = z.object({ address: z.string() }).strict();
+const unitCorrectionAfter = z.object({ address: z.string(), batchId: z.string(), position: z.number().int().positive(),
+  unit: z.number().int().min(1).max(99_999), approvedPlanSha256: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 type Payload = z.infer<typeof payloadSchema>;
 function fail(code = "PLACE_ADMIN_NOT_ELIGIBLE"): never { throw new Error(code); }
@@ -36,10 +45,10 @@ async function authorize(db: D1Database, caller: Caller) {
     .bind(caller.actorUserId, caller.sessionId, caller.now, caller.now, caller.now).first();
   if (!row) fail("ADMIN_REQUIRED");
 }
-async function impact(rows: PlaceSnapshot, command: PlaceAdminCommand, targetId: string, now: string): Promise<PlaceAdminImpact> {
-  const valid = command.change === "PUBLISH" ? await publication(rows, command, now) : null;
+async function impact(rows: PlaceSnapshot, command: PlaceAdminCommand, targetId: string, caller: Caller): Promise<PlaceAdminImpact> {
+  const valid = command.change === "PUBLISH" ? await publication(rows, command, caller) : null;
   return calculatePlaceAdminImpact(rows, { change: command.change, targetId, sourceId: command.change === "MERGE" ? command.sourcePlaceId : undefined,
-    now, publishedCategoryId: valid ? String(valid.category.id) : undefined, publishedLicenseId: valid?.license ? String(valid.license.id) : undefined });
+    now: caller.now, publishedCategoryId: valid ? String(valid.category.id) : undefined, publishedLicenseId: valid?.license ? String(valid.license.id) : undefined });
 }
 function duplicateOpen(rows: PlaceSnapshot, item: Record<string, unknown>, subject: { name: string; address: string; latitude: number; longitude: number }) {
   if (classifyChainStore(subject.name)) return false;
@@ -52,7 +61,29 @@ function duplicateOpen(rows: PlaceSnapshot, item: Record<string, unknown>, subje
     return near && !rows.duplicates.some((resolution) => resolution.candidatePlaceId === candidate.id && resolution.decision === "DISTINCT");
   });
 }
-async function publication(rows: PlaceSnapshot, command: Extract<PlaceAdminCommand, { change: "PUBLISH" }>, now: string) {
+function originalAddressForUnitCorrection(rows: PlaceSnapshot, command: PublishCommand, caller: Caller,
+  item: Record<string, unknown>, currentAddress: string) {
+  const correction = command.intakeUnitCorrection;
+  if (!correction) return undefined;
+  const link = first(rows, "intakeLinks"), entry = first(rows, "intakeEntries");
+  const revision = first(rows, "intakeUnitRevisions", correction.revisionId);
+  if (link?.mode !== "CREATE" || !entry || item.businessLicenseId !== null
+    || !revision || revision.placeId !== item.placeId || revision.actorUserId !== caller.actorUserId
+    || revision.action !== "CORRECTION" || revision.sourceType !== "INTAKE_UNIT_CORRECTION" || revision.sourceId !== command.workItemId
+    || typeof revision.beforeJson !== "string" || typeof revision.afterJson !== "string") fail();
+  let before: z.infer<typeof unitCorrectionBefore>, after: z.infer<typeof unitCorrectionAfter>;
+  try {
+    before = unitCorrectionBefore.parse(JSON.parse(revision.beforeJson));
+    after = unitCorrectionAfter.parse(JSON.parse(revision.afterJson));
+  } catch { fail(); }
+  const match = /^(.+[0-9])((?: \([^()]+\))?)$/u.exec(before.address);
+  if (!match || after.address !== `${match[1]}, ${after.unit}호${match[2]}` || after.address !== currentAddress
+    || after.batchId !== link.batchId || after.position !== link.position || after.approvedPlanSha256 !== correction.approvedPlanSha256
+    || before.address !== link.subjectAddress || entry.address !== before.address || entry.name !== link.subjectName
+    || entry.latitude !== link.subjectLatitude || entry.longitude !== link.subjectLongitude) fail();
+  return before.address;
+}
+async function publication(rows: PlaceSnapshot, command: PublishCommand, caller: Caller) {
   const item = first(rows, "workItems", command.workItemId);
   if (!item || item.status !== "ACTIVE" || item.stage !== "FINAL_APPROVAL" || item.claimToken !== null
     || (command.expectedVersion !== undefined && item.stageVersion !== command.expectedVersion)) fail();
@@ -63,23 +94,25 @@ async function publication(rows: PlaceSnapshot, command: Extract<PlaceAdminComma
   if (license && (license.normalizedStatus !== "OPEN" || license.reviewStatus !== "PENDING" || rows.exclusions.some((row) => row.businessLicenseId === license.id && row.status === "ACTIVE"))) fail();
   const context = await reviewDiningContextFromRows(item as never, license as never, place as never,
     first(rows, "candidateNaver", String(item.businessLicenseId), "businessLicenseId") as never,
-    first(rows, "liveness", String(item.placeId), "placeId") as never, now);
+    first(rows, "liveness", String(item.placeId), "placeId") as never, caller.now);
   if (context.decision.decision !== "ELIGIBLE") fail();
   const subject = license ? { name: String(license.businessName), address: String(license.roadAddress ?? license.lotAddress ?? ""), latitude: Number(license.latitude), longitude: Number(license.longitude) }
     : { name: String(place!.name), address: String(place!.address), latitude: Number(place!.latitude), longitude: Number(place!.longitude) };
   const intakeLink = first(rows, "intakeLinks");
   const intake = first(rows, "intakeEntries");
+  const originalAddress = originalAddressForUnitCorrection(rows, command, caller, item, subject.address);
   if (intakeLink) {
     const region = /^(?:전북특별자치도|전라북도|전북)(?:\s|$)/u.test(subject.address.trim()) ? "JEONBUK" : regionFromAddress(subject.address);
     if (!intake || !region || intake.region !== region || intake.selection !== "CANDIDATE"
       || (intake.kind !== "DINING" && intake.kind !== "CAFE")
       || !(intakeLink.mode === "LINK" && item.sourceKind === "PUBLIC_DATA" && license
         || intakeLink.mode === "CREATE" && item.sourceKind === "PLACE_SUGGESTION" && place?.status === "DRAFT" && place.closedAt === null)
-      || intakeLink.subjectName !== subject.name || intakeLink.subjectAddress !== subject.address
+      || intakeLink.subjectName !== subject.name || intakeLink.subjectAddress !== (originalAddress ?? subject.address)
       || intakeLink.subjectLatitude !== subject.latitude || intakeLink.subjectLongitude !== subject.longitude) fail();
   }
   const neighborhood = extractNeighborhood(subject.address) ?? (typeof intake?.neighborhood === "string" ? intake.neighborhood : null);
-  if (duplicateOpen(rows, item, subject) || !neighborhood || !Number.isFinite(subject.latitude) || subject.latitude < 33 || subject.latitude > 39 || !Number.isFinite(subject.longitude) || subject.longitude < 124 || subject.longitude > 132) fail();
+  if (duplicateOpen(rows, item, subject) || (originalAddress && duplicateOpen(rows, item, { ...subject, address: originalAddress }))
+    || !neighborhood || !Number.isFinite(subject.latitude) || subject.latitude < 33 || subject.latitude > 39 || !Number.isFinite(subject.longitude) || subject.longitude < 124 || subject.longitude > 132) fail();
   if (rows.tempEntries.some((entry) => entry.ownsPlace && rows.tempBatches.some((batch) => batch.id === entry.batchId && batch.status !== "PUBLISHED"))) fail();
   return { item, category, license, place, subject, neighborhood };
 }
@@ -124,22 +157,26 @@ export async function preparePlaceAdminOperation(db: D1Database, input: Caller &
   let scope: PlaceSnapshotScope;
   let targetId: string;
   let slug: string | undefined;
-  if (command.change === "PUBLISH") { scope = { workItemId: command.workItemId }; targetId = ""; }
+  if (command.change === "PUBLISH") {
+    scope = { workItemId: command.workItemId, ...(command.intakeUnitCorrection ? { intakeUnitRevisionId: command.intakeUnitCorrection.revisionId } : {}) };
+    targetId = "";
+  }
   else if (command.change === "MERGE") { scope = { sourcePlaceId: command.sourcePlaceId, targetPlaceId: command.targetPlaceId }; targetId = command.targetPlaceId; }
   else if (command.change === "RECALL") { scope = { targetPlaceId: command.placeId }; targetId = command.placeId; }
   else { targetId = (await originalRecall(db, input, command.recallOperationId)).targetId; scope = { targetPlaceId: targetId }; }
   const snapshot = await placeSnapshotStatement(db, scope, command.change === "PUBLISH").read();
   const digest = await placeSnapshotDigest(snapshot.raw);
   if (command.change === "PUBLISH") {
-    const valid = await publication(snapshot.rows, command, input.now);
+    const valid = await publication(snapshot.rows, command, input);
     targetId = valid.place ? String(valid.place.id) : crypto.randomUUID();
     if (!valid.place) { const base = slugifyPlaceNameForAddress(valid.subject.name, valid.subject.address); slug = base;
       for (let suffix = 2; snapshot.rows.catalog.some((row) => row.slug === slug); suffix++) slug = `${base}-${suffix}`; }
   } else if (command.change === "MERGE") mergeEligible(snapshot.rows, command, input.now);
   else if (command.change === "RECALL") recallEligible(snapshot.rows, targetId);
   else if ((await originalRecall(db, input, command.recallOperationId)).afterDigest !== digest) fail("ADMIN_OPERATION_CONFLICT");
-  const payload: Payload = { command, digest, scope, targetId, impact: await impact(snapshot.rows, command, targetId, input.now), ...(slug ? { slug } : {}), ...(command.change === "RECALL" ? { newWorkItemId: crypto.randomUUID() } : {}) };
-  return prepareAdminOperation(db, { ...input, kind: "PLACE_ADMIN_CHANGE", payload, summary: { title: PLACE_ADMIN_CHANGE_LABELS[command.change], count: 1 } });
+  const payload: Payload = { command, digest, scope, targetId, impact: await impact(snapshot.rows, command, targetId, input), ...(slug ? { slug } : {}), ...(command.change === "RECALL" ? { newWorkItemId: crypto.randomUUID() } : {}) };
+  return prepareAdminOperation(db, { ...input, kind: "PLACE_ADMIN_CHANGE", payload,
+    summary: { title: PLACE_ADMIN_CHANGE_LABELS[command.change], count: 1 }, pruneExpired: scope.intakeUnitRevisionId === undefined });
 }
 function insert(db: D1Database, table: Table, values: Record<string, unknown>) {
   const columns = getTableColumns(table), entries = Object.entries(values);
@@ -186,13 +223,14 @@ export async function commitPlaceAdminOperation(db: D1Database, input: Caller & 
     const footprint = placeSnapshotStatement(db, payload.scope, command.change === "PUBLISH");
     const snapshot = await footprint.read(), rows = snapshot.rows;
     if (await placeSnapshotDigest(snapshot.raw) !== payload.digest) fail("ADMIN_OPERATION_CONFLICT");
-    const currentImpact = await impact(rows, command, payload.targetId, input.now).catch(() => fail("ADMIN_OPERATION_CONFLICT"));
+    const currentImpact = await impact(rows, command, payload.targetId, input).catch(() => fail("ADMIN_OPERATION_CONFLICT"));
     const ordered = (value: Record<string, number>) => JSON.stringify(Object.keys(value).sort().map((key) => [key, value[key]]));
     if (ordered(currentImpact) !== ordered(payload.impact)) fail("ADMIN_OPERATION_CONFLICT");
     const statements: D1PreparedStatement[] = [], additionalChecks: D1PreparedStatement[] = [];
     const result: PlaceAdminResult = { change: command.change, requestedCount: 1, appliedCount: 1, skippedCount: 0, targetId: payload.targetId, impact: payload.impact };
     if (command.change === "PUBLISH") {
-      const current = await publication(rows, command, input.now);
+      const current = await publication(rows, command, input);
+      if (command.intakeUnitCorrection && current.place?.id !== payload.targetId) fail("ADMIN_OPERATION_CONFLICT");
       if (current.license) {
         if (!payload.slug || rows.catalog.some((row) => row.slug === payload.slug)) fail("ADMIN_OPERATION_CONFLICT");
         const neighborhood = current.neighborhood;

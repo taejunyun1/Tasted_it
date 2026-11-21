@@ -108,17 +108,20 @@ it("reopens only the approved held license with recent password assurance and on
     selected_category_id: null });
 });
 
-it("reopens a matching held draft at NAVER verification and recognizes its exact receipt", async () => {
+it.each([false, true])("reopens a matching held draft at NAVER verification with a unit correction %s", async (correctUnit) => {
   const db = env.DB;
   const now = new Date().toISOString();
   const earlier = new Date(Date.now() - 60_000).toISOString();
   const expires = new Date(Date.now() + 60_000).toISOString();
-  const operator = "held-create-admin";
-  const session = "held-create-session";
-  const auditId = "held-create-reopen-audit";
+  const prefix = correctUnit ? "held-unit" : "held-create";
+  const operator = `${prefix}-admin`;
+  const session = `${prefix}-session`;
+  const auditId = `${prefix}-reopen-audit`;
+  const revisionId = "bc785dcb-cbbd-4587-ad1c-c5da703458db";
   const selectedCategoryId = await db.prepare("SELECT id FROM categories WHERE slug='other'").first<string>("id");
   expect(selectedCategoryId).toBeTruthy();
-  const subject = { name: "합성 보류 카페", address: "전북특별자치도 전주시 합성로 1 (효자동)", latitude: 35.81, longitude: 127.11 };
+  const subject = { name: correctUnit ? "합성 호수 보류 카페" : "합성 보류 카페",
+    address: "전북특별자치도 전주시 합성로 1 (효자동)", latitude: 35.81, longitude: 127.11 };
   const input = JSON.stringify({ format: "retaste-place-intake-v1", label: "합성 초안 재검수", rows: [{
     ...subject, position: 1, neighborhood: "효자동", categoryLabel: "카페", categorySlug: "cafe", kind: "CAFE",
     source: "SHARED_MAP", selection: "CANDIDATE", reason: null, note: null, photo: "NOT_SUPPLIED",
@@ -126,9 +129,9 @@ it("reopens a matching held draft at NAVER verification and recognizes its exact
   const enrollment = JSON.stringify({ format: "retaste-intake-enrollment-v1", intakeSha256: hash(input), entries: [{ mode: "CREATE", position: 1 }] });
   await db.batch([
     db.prepare(`INSERT INTO users(id,email,display_name,role,email_verified_at,created_at,updated_at)
-      VALUES(?,'held-create@example.test','관리자','ADMIN',?,?,?)`).bind(operator, earlier, earlier, earlier),
+      VALUES(?,?,'관리자','ADMIN',?,?,?)`).bind(operator, `${prefix}@example.test`, earlier, earlier, earlier),
     db.prepare(`INSERT INTO admin_audit_logs(id,actor_user_id,action,target_type,target_id,created_at)
-      VALUES('held-create-designation',?,'OPERATOR_ADMIN_PROVISIONED','USER',?,?)`).bind(operator, operator, earlier),
+      VALUES(?,?,'OPERATOR_ADMIN_PROVISIONED','USER',?,?)`).bind(`${prefix}-designation`, operator, operator, earlier),
     db.prepare("INSERT INTO sessions(id,user_id,created_at,expires_at) VALUES(?,?,?,?)").bind(session, operator, earlier, expires),
     db.prepare("INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at) VALUES(?,?,'PASSWORD',?,?)")
       .bind(session, operator, earlier, expires),
@@ -144,14 +147,33 @@ it("reopens a matching held draft at NAVER verification and recognizes its exact
     hold_code='ADMIN_REVIEW_HOLD',selected_category_id=?,category_override_reason='category evidence',
     manual_evidence_reason='manual evidence',local_dining_evidence_json='{}' WHERE id=?`).bind(selectedCategoryId, workItemId).run();
 
-  const plan = JSON.stringify({ mode: "CREATE", batchId, position: 1, workItemId, placeId, stageVersion: 2,
+  const plan = { mode: "CREATE", batchId, position: 1, workItemId, placeId, stageVersion: 2,
     stage: "NAVER_VERIFICATION", categoryId: selectedCategoryId, targetCategorySlug: "cafe", actorUserId: operator,
-    auditId, reason: "Matched the archived draft and current in-person service evidence." });
-  const reopen = () => reopenHeldPlaceIntakeReview(db, plan, { approvedPlanSha256: hash(plan), now });
+    auditId, reason: "Matched the archived draft and current in-person service evidence.",
+    ...(correctUnit ? { unitCorrection: { revisionId, originalAddress: subject.address, unit: 2 } } : {}),
+  };
+  const planText = JSON.stringify(plan);
+  const reopen = (text = planText) => reopenHeldPlaceIntakeReview(db, text, { approvedPlanSha256: hash(text), now });
+  const readRevision = () => db.prepare("SELECT * FROM place_revisions WHERE id=?").bind(revisionId).first();
   await db.prepare("UPDATE places SET address='changed source' WHERE id=?").bind(placeId).run();
   await expect(reopen()).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
   expect(await db.prepare("SELECT id FROM admin_audit_logs WHERE id=?").bind(auditId).first()).toBeNull();
   await db.prepare("UPDATE places SET address=? WHERE id=?").bind(subject.address, placeId).run();
+
+  if (correctUnit) {
+    await expect(reopen(JSON.stringify({ ...plan, unitCorrection: { revisionId, originalAddress: "다른 주소 2 (효자동)", unit: 2 } })))
+      .rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+    await expect(reopen(JSON.stringify({ ...plan, unitCorrection: { revisionId, originalAddress: subject.address, unit: -1 } })))
+      .rejects.toThrow("PLACE_INTAKE_REOPEN_PLAN_INVALID");
+    await db.prepare(`CREATE TRIGGER test_held_unit_guard BEFORE UPDATE OF address ON places
+      WHEN NEW.id=OLD.id BEGIN SELECT RAISE(IGNORE); END`).run();
+    await expect(reopen()).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+    expect(await db.prepare("SELECT id FROM admin_audit_logs WHERE id=?").bind(auditId).first()).toBeNull();
+    expect(await readRevision()).toBeNull();
+    expect(await db.prepare("SELECT status,stage_version FROM place_review_work_items WHERE id=?").bind(workItemId).first())
+      .toEqual({ status: "ON_HOLD", stage_version: 2 });
+    await db.prepare("DROP TRIGGER test_held_unit_guard").run();
+  }
 
   await expect(reopen()).resolves.toEqual({ applied: 1, state: "REOPENED" });
   await expect(reopen()).resolves.toEqual({ applied: 0, state: "EXISTING" });
@@ -160,9 +182,24 @@ it("reopens a matching held draft at NAVER verification and recognizes its exact
     selected_category_id: selectedCategoryId, category_override_reason: "category evidence",
     manual_evidence_reason: "manual evidence", local_dining_evidence_json: "{}", hold_code: null,
   });
-  expect(await db.prepare("SELECT status,address FROM places WHERE id=?").bind(placeId).first()).toEqual({ status: "DRAFT", address: subject.address });
+  const expectedAddress = correctUnit ? "전북특별자치도 전주시 합성로 1, 2호 (효자동)" : subject.address;
+  expect(await db.prepare("SELECT status,address,search_text,latitude,longitude FROM places WHERE id=?").bind(placeId).first()).toEqual({
+    status: "DRAFT", address: expectedAddress, search_text: `${subject.name} ${expectedAddress} 효자동`,
+    latitude: subject.latitude, longitude: subject.longitude,
+  });
   expect(await db.prepare("SELECT subject_address FROM place_intake_review_links WHERE work_item_id=?").bind(workItemId)
     .first("subject_address")).toBe(subject.address);
   expect(await db.prepare("SELECT COUNT(*) AS n FROM admin_audit_logs WHERE action='PLACE_INTAKE_REVIEW_REOPEN' AND target_id=?")
     .bind(workItemId).first("n")).toBe(1);
+  if (correctUnit) {
+    expect(await readRevision()).toMatchObject({ id: revisionId, place_id: placeId, actor_user_id: operator, action: "CORRECTION",
+      source_type: "INTAKE_UNIT_CORRECTION", source_id: workItemId, reason: plan.reason,
+      before_json: JSON.stringify({ address: subject.address }),
+      after_json: JSON.stringify({ address: expectedAddress, batchId, position: 1, unit: 2, approvedPlanSha256: hash(planText) }),
+    });
+    await db.prepare("DELETE FROM place_revisions WHERE id=?").bind(revisionId).run();
+    await expect(reopen()).rejects.toThrow("PLACE_INTAKE_REOPEN_REJECTED");
+  } else {
+    expect(await readRevision()).toBeNull();
+  }
 });

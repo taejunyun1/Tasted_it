@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenses, categories, placeReviewWorkItems, places } from "../../app/db/schema";
+import { businessLicenses, categories, placeReviewWorkItems, placeRevisions, places } from "../../app/db/schema";
 import { prepareAdminOperation } from "../../app/features/operations/admin-operation.server";
 import { confirmLocalDiningReview } from "../../app/features/places/local-dining-review.server";
 import { commitPlaceAdminOperation, getPlaceAdminOperation, preparePlaceAdminOperation } from "../../app/features/places/place-admin.server";
@@ -209,6 +209,47 @@ describe("single-place administrative operations", () => {
       .rejects.toThrow("PLACE_ADMIN_NOT_ELIGIBLE");
     await expectPending(prepared.operationId);
     await expect(getPlaceBySlug(db, target.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("publishes an enrolled draft with an authorized unit correction and preserves the archive and link", async () => {
+    const actor = await admin(), target = await intakeDraft(actor.actorUserId);
+    const link = env.DB.prepare("SELECT * FROM place_intake_review_links WHERE work_item_id=?").bind(target.workItemId);
+    const originalLink = (await link.first<{ batch_id: string; position: number }>())!;
+    const archive = env.DB.prepare("SELECT * FROM place_intake_entries WHERE batch_id=? AND position=?").bind(originalLink.batch_id, originalLink.position);
+    const originalEntry = await archive.first();
+    const address = `${target.subject.address}, 2호`, revisionId = crypto.randomUUID(), approvedPlanSha256 = "f".repeat(64);
+    const afterJson = JSON.stringify({ address, batchId: originalLink.batch_id, position: originalLink.position, unit: 2, approvedPlanSha256 });
+    await db.update(places).set({ address }).where(eq(places.id, target.id));
+    await db.insert(placeRevisions).values({ id: revisionId, placeId: target.id, actorUserId: actor.actorUserId,
+      action: "CORRECTION", sourceType: "INTAKE_UNIT_CORRECTION", sourceId: target.workItemId, reason, createdAt: now,
+      beforeJson: JSON.stringify({ address: target.subject.address }), afterJson });
+    const expectedVersion = await advanceIntakeDraft(actor.actorUserId, target);
+    const ordinary = { change: "PUBLISH" as const, workItemId: target.workItemId, expectedVersion, reason: "" };
+    const command = { ...ordinary, intakeUnitCorrection: { revisionId, approvedPlanSha256 } };
+    const correction = await db.select().from(placeRevisions).where(eq(placeRevisions.id, revisionId));
+    await expect(preparePlaceAdminOperation(env.DB, { ...actor, command: ordinary })).rejects.toThrow("PLACE_ADMIN_NOT_ELIGIBLE");
+    const otherActor = await admin();
+    await expect(preparePlaceAdminOperation(env.DB, { ...otherActor, command })).rejects.toThrow("PLACE_ADMIN_NOT_ELIGIBLE");
+    await expect(preparePlaceAdminOperation(env.DB, { ...actor, command: { ...command, intakeUnitCorrection: { revisionId, approvedPlanSha256: "0".repeat(64) } } }))
+      .rejects.toThrow("PLACE_ADMIN_NOT_ELIGIBLE");
+    const prepared = await preparePlaceAdminOperation(env.DB, { ...actor, command });
+    const input = { ...actor, operationId: prepared.operationId };
+    expect(await getPlaceAdminOperation(env.DB, input)).toMatchObject({ status: "PENDING", stale: false,
+      targets: [{ id: target.id, address, status: "DRAFT", afterStatus: "PUBLISHED" }] });
+    await expect(getPlaceBySlug(db, target.id)).rejects.toMatchObject({ status: 404 });
+
+    await db.update(placeRevisions).set({ reason: "변경된 합성 정정 이력" }).where(eq(placeRevisions.id, revisionId));
+    expect(await getPlaceAdminOperation(env.DB, input)).toMatchObject({ status: "PENDING", stale: true });
+    await expect(commitPlaceAdminOperation(env.DB, input)).rejects.toThrow("ADMIN_OPERATION_CONFLICT");
+    await expectPending(prepared.operationId);
+    await db.update(placeRevisions).set({ reason }).where(eq(placeRevisions.id, revisionId));
+
+    expect(await commitPlaceAdminOperation(env.DB, input)).toMatchObject({ result: { change: "PUBLISH", targetId: target.id } });
+    expect(await getPlaceAdminOperation(env.DB, input)).toMatchObject({ status: "COMMITTED", targets: [{ id: target.id, address, status: "PUBLISHED" }] });
+    expect(await getPlaceBySlug(db, target.id)).toMatchObject({ id: target.id, address });
+    expect(await archive.first()).toEqual(originalEntry);
+    expect(await link.first()).toEqual(originalLink);
+    expect(await db.select().from(placeRevisions).where(eq(placeRevisions.placeId, target.id))).toEqual(correction);
   });
 
   it("routes an enrolled public-license item through B09 and retains its original public-data source", async () => {
