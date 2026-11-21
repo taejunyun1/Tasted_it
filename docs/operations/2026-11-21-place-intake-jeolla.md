@@ -1,6 +1,6 @@
 # 제공받은 장소 목록 보관과 전라도 공개 범위
 
-2026-11-21 · [#474](https://github.com/taejunyun1/Tasted_it/issues/474) · [#475](https://github.com/taejunyun1/Tasted_it/pull/475) · Jay/Codex · **중복 판정 및 연결 계획 갱신 / 운영 반입 대기**.
+2026-11-21 · [#474](https://github.com/taejunyun1/Tasted_it/issues/474) · [#475](https://github.com/taejunyun1/Tasted_it/pull/475) · Jay/Codex · **보류 후속 확인 및 83곳 연결 계획 갱신 / 운영 반입 대기**.
 
 사용자가 제공한 공유 목록 855곳과 별도 제보 1곳을 모두 보관한다. 이 목록에서 공개 검수를 받을 수 있는 범위는 광주·전남·전북의 식당과 카페다. 타지역 440곳이나 비식음료·근거가 부족한 장소는 공개 목록에서 제외한다. 주점 17곳은 식사 장소인지 확인이 필요하다. 기존 광주·전남 공공데이터·NAVER·EV의 지역 연결 설정은 독립적으로 유지한다.
 
@@ -37,7 +37,7 @@
 
 ## 통과 85곳의 관리자 검수 연결
 
-아래 수량은 중복 재판정 이전의 격리 검증 범위다. 운영에는 [중복 재판정으로 갱신한 계획](#중복-9곳-재판정과-갱신-계획)을 사용한다.
+아래 수량은 중복 재판정 이전의 격리 검증 범위다. 현행 운영 범위는 [보류 후속 확인](#보류-2곳-후속-확인)을 따른다.
 
 - 기존 인허가 검수 15곳은 정확한 검수 항목 ID와 인허가 ID, 단계 버전, 상호·주소·좌표를 대조해 연결한다. 기존 단계와 버전은 그대로 유지한다. 12곳은 출처 검수, 2곳은 NAVER 확인, 1곳은 최종 승인 대기 단계에서 이어간다.
 - 70곳은 `DRAFT` 장소와 `SOURCE_REVIEW` 검수 항목으로 생성한다. 관리자 검수에는 **사용자 제공 목록**으로 표시한다. 상호 또는 정확한 검수 항목 ID로 찾을 수 있다. 신규 ID는 `intake:<batchId>:<position>`이고 기존 ID는 비공개 연결 계획에 있다. 신규 항목은 학생 검수와 예약 NAVER 자동 조회에서 제외한다.
@@ -58,6 +58,8 @@
 
 ## 중복 9곳 재판정과 갱신 계획
 
+다음은 보류 2곳의 후속 조회 이전에 고정한 계획이다.
+
 11월 21일 보존 지도 상세주소, 식약처 인허가, 지자체·사업자 근거와 운영 검수 이력을 대조했다. 일부 지도 상세는 재조회가 제한돼 보존 자료로 대조했다. 층·호 미기재 항목은 공란으로 유지했다. 업소의 동일성은 상호·주소·지점과 상세 주소의 일치 여부를 종합해 판단했다. [식품안전나라 업체검색](https://www.foodsafetykorea.go.kr/portal/specialinfo/searchInfoCompany.do?menu_grp=MENU_NEW04) · [소상공인시장진흥공단 상권자료](https://www.data.go.kr/data/15083033/fileData.do)
 
 | 판정 | 수량 | 처리 |
@@ -74,11 +76,25 @@
 
 갱신 파일을 격리 workerd D1에서 실행해 856건 전량 보관, 기존 단계·버전 유지 21건, 신규 비공개 초안 61건, 재등록 중복 0건, 신규 공개 0건을 확인했다. 별도 확인 대상 3건과 타지역 440건에는 검수 연결이 없었다. 운영 검수 상태는 읽기 전용으로 조회했다.
 
+## 보류 2곳 후속 확인
+
+- 층이 충돌한 곳은 업소가 작성한 지도 출입 안내, 골프클럽의 복어요리전문점 채용 공고, 동일 상호의 인허가가 같은 도로명주소를 가리켜 동일 업소로 판단했다. 인접 건물의 2층 표기는 다른 시설의 방문 후기에 나온 정보다. 활성 인허가 검수에 연결한다. 사업자 안내의 1층과 인허가의 지하 1층은 각각 보존한다. 운영자는 실제 출입 층과 공개할 주소를 확인하기까지 이 항목을 공개 승인 대기로 유지한다. B09가 공개에 쓰는 연결 주소는 고정된다. 인허가 주소 정정이 필요하면 반입 전에 계획을 다시 고정하고, 이미 연결된 경우에는 별도 승인된 연결 정정 절차를 확보한 뒤 공개한다.
+- 인허가 재검수 대상은 일치한 주소의 장소 페이지에서 11월 3일과 14일 결제 인증 방문을 확인했다. 과거 영업 불확실 판단을 재검토할 근거를 비공개 후속 계획에 기록했다. 기존 관리자 제외 이력으로 활성 검수 항목이 없어 원장의 `REVIEW`를 유지한다. 승인된 인허가 재검수 뒤 활성 항목 ID와 버전을 읽어 후속 연결을 고정한다.
+
+현행 원장은 856곳을 전량 보존한다. 기존 검수 LINK 22곳과 신규 비공개 초안 CREATE 61곳을 합해 83곳(광주 36·전남 25·전북 22)을 등록한다. 추가 확인 205곳과 비노출 568곳을 유지하며, 이전 체인점 제외 1곳은 `HIDDEN`이다.
+
+- 856건 입력 SHA-256 `1d89bd318b79aebf2ed532f26ecb9006f22f5a522549b2a0daf39cf1857b4419`
+- 83건 연결 계획 SHA-256 `704588118b52d704f16353090c701d4d84273eaabbc01f4650b3288bac4fe740`
+
+격리 workerd D1에서 원장 856건, LINK 22건의 단계·버전 유지, 신규 초안 61건, 재실행 중복 0건, 신규 공개 0건을 확인했다. 인허가 재검수 1건, 체인 제외 1건과 타지역 440건은 검수 연결이 없었다.
+
 ## CI 복구 후 실행
 
-1. 최종 PR 커밋의 필수 CI 네 항목이 통과하면 PR을 병합한다. 배포 담당자는 병합된 `main`에서 대상 Worker·D1 계정/ID, Time Travel 복구 지점, 현재 버전, 장소 기준 집계와 적용 migration 목록을 확인한다. 마지막 확인에서 `0050`·`0051`은 대기 중이었다. 해당 변경의 운영 절차와 적용 결과를 먼저 확인한다. 전체 대기 migration을 일괄 적용하거나 B17 후보 DB를 사용하지 않는다.
+[병합된 #446](https://github.com/taejunyun1/Tasted_it/pull/446)의 운영 범위는 [#448](https://github.com/taejunyun1/Tasted_it/pull/448)의 B10 합동 전환을 전제로 한다. B10은 대상 대기 migration이 `0050`·`0051`·`0052` 세 파일일 때 실행한다. #475가 먼저 병합되면 `0061`·`0062`도 대기 목록에 들어가므로 B10 적용을 먼저 완료한다. 최신 읽기 전용 조회의 운영 기준은 `0049`다.
+
+1. B10 선행 적용을 확인하고 최신 `main`을 반영한 이 PR의 최종 커밋에서 필수 CI 네 항목을 확인한 뒤 병합한다. 배포 담당자는 병합된 `main`에서 대상 Worker·D1 계정/ID, Time Travel 복구 지점, 현재 버전, 장소 기준 집계와 적용 migration 목록을 확인한다. B17 후보 DB는 별도 운영 범위로 유지한다.
 2. 정확히 `0061_private_place_intake.sql`과 `0062_place_intake_review_links.sql`만 대기함을 확인한 뒤 표준 D1 migration을 적용한다. 새 테이블·가드와 외래키 검사를 확인하고, 병합된 Worker를 배포한 뒤 관리자 검수와 공개 목록의 사전 스모크를 확인한다. 이 시점에는 목록 입력이 없다.
-3. 배포 담당자는 중복 재판정 계획의 SHA-256과 비공개 입력 SHA-256, LINK 21곳과 CREATE 61곳을 병합된 PR에서 확인한다. 기존 장소, 기존 인허가·검수 항목과 신규 대상의 중복을 읽기 전용으로 다시 대조한다. 근거, 상태 또는 대상이 바뀌면 실행을 멈추고 재검수한다.
+3. 배포 담당자는 최신 계획의 SHA-256과 비공개 입력 SHA-256, LINK 22곳과 CREATE 61곳을 병합된 PR에서 확인한다. 기존 장소, 기존 인허가·검수 항목과 신규 대상의 중복을 읽기 전용으로 다시 대조한다. 근거, 상태 또는 대상이 바뀌면 실행을 멈추고 재검수한다.
 4. 배포 담당자는 검증된 관리자 ID, 비공개 두 파일, 승인 계획 SHA-256과 LINK·CREATE 건수, 그리고 확인한 운영 D1 하나만 `binding: "DB"`, `remote: true`로 설정한 별도 Wrangler JSON을 로컬 환경 변수로 제공한다. 설정의 계정과 DB ID를 독립적으로 대조한 뒤 병합된 저장소 루트에서 아래 명령을 실행한다. [Wrangler D1 바인딩 실행 API](https://developers.cloudflare.com/workers/wrangler/api/#getplatformproxy)
 
    ```sh
@@ -90,8 +106,8 @@
    const { RETASTE_INTAKE_CONFIG, RETASTE_ACCOUNT_ID, RETASTE_D1_ID, RETASTE_ADMIN_ID,
      RETASTE_INTAKE_FILE, RETASTE_INTAKE_PLAN, RETASTE_APPROVED_PLAN_SHA256, RETASTE_EXPECTED_LINK,
      RETASTE_EXPECTED_CREATE } = process.env;
-   const previousPlan = "c7130bc0f62ea92c8e8f9d54543a546ec36d426484b8581b57aa2d3547685e6d";
-   if (!/^[a-f0-9]{64}$/.test(RETASTE_APPROVED_PLAN_SHA256 ?? "") || RETASTE_APPROVED_PLAN_SHA256 === previousPlan
+   const reviewedPlan = "704588118b52d704f16353090c701d4d84273eaabbc01f4650b3288bac4fe740";
+   if (RETASTE_APPROVED_PLAN_SHA256 !== reviewedPlan
      || !/^\d{1,2}$/.test(RETASTE_EXPECTED_LINK ?? "") || !/^\d{1,2}$/.test(RETASTE_EXPECTED_CREATE ?? "")) {
      throw Error("PLACE_INTAKE_REVISED_PLAN_REQUIRED");
    }
