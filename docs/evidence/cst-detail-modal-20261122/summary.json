@@ -1,0 +1,21 @@
+{
+  "sourceSha": "2da615e406623ca612e97f787106598a804ccaaf",
+  "appTree": "41383b4282e2e6c7cf39390de66a47723b059cec",
+  "environment": "로컬 컴파일 Worker와 합성 D1, 데스크톱 및 모바일 Chromium, 로컬 지도 SDK 모의 응답",
+  "checks": {
+    "unit": 41,
+    "browserBeforeFinalFocusFix": {"passed": 66, "deviceSkips": 12},
+    "browserFinalFocusAndMapRecovery": {"passed": 9, "deviceSkips": 1},
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "모바일 홈 지도·분류 지도·목록의 공통 상세와 데스크톱 정식 상세 이동",
+    "네이티브 모달 배경의 실제 접근성 트리 제외, Escape·닫기·배경·뒤로가기 후 초점 및 스크롤 복원",
+    "분류 지도의 실패 후 상세 닫기, SDK가 다시 만든 같은 핀에 초점 복원, 접힌 지도 탭 가시성",
+    "빠른 정보와 헤더의 동시 조작, 상세 재시도, 기존 추천 출처와 저장 결과 보존"
+  ],
+  "screenshots": ["desktop-map-quick-info.png", "mobile-category-detail.png", "mobile-place-detail.png"],
+  "limits": ["실제 NAVER SDK와 다른 브라우저의 사용 검증, 모바일 반응 및 공개 콘텐츠, 전체 T07 수용은 별도다."]
+}
