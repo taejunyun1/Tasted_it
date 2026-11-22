@@ -1,10 +1,13 @@
-import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
+import { and, asc, eq, sql, type SQLWrapper } from "drizzle-orm";
 import { publicVenueVisibilityCondition } from "../places/public-venue-visibility.server";
 import type { AppDb } from "../../db/client.server";
 import {
   currentVotes,
   places,
+  reviewerProfiles,
   reviewerPublicationState,
+  reviewerVisitReviews,
+  users,
 } from "../../db/schema";
 
 export const REVIEWER_PUBLICATION_RULE = "cst-reviewer-publication-v1";
@@ -70,6 +73,16 @@ export function eligibleReviewCondition(
       pp.taken_on is null or pp.rights_basis is null or length(trim(pp.caption))=0 or pp.caption is null
       or pp.privacy_checked<>1 or (pp.rights_basis='PERMISSION' and coalesce(length(trim(pp.rights_note)),0)=0)
     )))`;
+}
+
+export function listPublicPlaceReviewers(db: AppDb, placeId: string) {
+  return db
+    .select({ slug: reviewerProfiles.slug, displayName: users.displayName })
+    .from(reviewerVisitReviews)
+    .innerJoin(reviewerProfiles, eq(reviewerProfiles.userId, reviewerVisitReviews.reviewerUserId))
+    .innerJoin(users, eq(users.id, reviewerVisitReviews.reviewerUserId))
+    .where(and(eq(reviewerVisitReviews.placeId, placeId), eligibleReviewCondition(reviewerVisitReviews.id)))
+    .orderBy(asc(users.displayName), asc(reviewerProfiles.slug));
 }
 
 export function eligibleVoteCondition() {

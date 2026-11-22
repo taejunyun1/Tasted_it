@@ -91,7 +91,7 @@ import {
 } from "../../app/features/ratings/reviewer-moderation.server";
 import { castVote, withdrawVote } from "../../app/features/ratings/vote.server";
 import { getPlaceBySlug } from "../../app/features/places/place.server";
-import { getPublicationEpoch } from "../../app/features/ratings/reviewer-publication.server";
+import { getPublicationEpoch, listPublicPlaceReviewers } from "../../app/features/ratings/reviewer-publication.server";
 
 const admin = "moderation-admin";
 const checks = {
@@ -249,7 +249,10 @@ it("does not resurrect a reaction after a newer general create-then-withdraw ABA
 it("approves HOLD without a neutral vote, and withdraws an unchanged prior reaction", async () => {
   const db = createDb(env.DB);
   const empty = await submit("HOLD");
+  expect(await listPublicPlaceReviewers(db, place)).toEqual([]);
   await approve(empty.id);
+  expect(await listPublicPlaceReviewers(db, place)).toEqual([{ slug: reviewer, displayName: "리뷰어" }]);
+  expect(await listPublishedPlaceReviewPhotos(db, place)).toEqual([]);
   expect(
     await env.DB.prepare(
       "SELECT * FROM vote_events WHERE user_id=? AND place_id=?",
@@ -279,6 +282,7 @@ it("approves HOLD without a neutral vote, and withdraws an unchanged prior react
     reason: "수정",
     now,
   });
+  expect(await listPublicPlaceReviewers(db, place)).toEqual([]);
   await approve(edited.id, edited.version);
   expect(
     await env.DB.prepare(

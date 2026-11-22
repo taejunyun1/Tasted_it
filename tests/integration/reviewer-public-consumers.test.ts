@@ -2,12 +2,12 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDb } from "../../app/db/client.server";
-import { categories, currentVotes, placeCategories, places, ratingSnapshots, reviewerProfiles, reviewerReliabilitySnapshots, reviewerVisitReviews, users, voteEvents } from "../../app/db/schema";
+import { categories, currentVotes, placeCategories, places, ratingSnapshots, reviewerProfiles, reviewerReliabilitySnapshots, reviewerVisitPhotos, reviewerVisitReviews, users, voteEvents } from "../../app/db/schema";
 import { getLatestRatingSnapshot, recomputePlaceRating } from "../../app/features/ratings/recompute.server";
 
 import { listPlaces } from "../../app/features/places/place.server";
 import { loadPlaceLivenessEvidence } from "../../app/features/places/place-liveness.server";
-import { getPublicationEpoch } from "../../app/features/ratings/reviewer-publication.server";
+import { getPublicationEpoch, listPublicPlaceReviewers } from "../../app/features/ratings/reviewer-publication.server";
 import { seedApprovedReviewerVote } from "./reviewer-public-fixtures";
 
 const now = "2026-11-13T00:00:00.000Z";
@@ -24,6 +24,77 @@ beforeEach(async () => {
 });
 
 describe("reviewer publication consumers", () => {
+  it("returns only public names and profile slugs for the current place in stable order", async () => {
+    const db = createDb(env.DB);
+    const otherPlaceId = crypto.randomUUID();
+    await db.insert(places).values({
+      id: otherPlaceId, slug: otherPlaceId, name: "다른 합성 장소", status: "PUBLISHED", address: "광주", neighborhood: "동명동",
+      latitude: 35.16, longitude: 126.93, searchText: "합성", createdAt: now, updatedAt: now,
+    });
+    for (const slug of ["public-z", "public-a", "public-other"]) {
+      const reviewerId = crypto.randomUUID();
+      await db.insert(users).values({
+        id: reviewerId, email: `${reviewerId}@example.test`, displayName: "공개 이름", role: "REVIEWER", createdAt: now, updatedAt: now,
+      });
+      await seedApprovedReviewerVote(db, {
+        reviewerId, placeId: slug === "public-other" ? otherPlaceId : placeId, eventId: reviewerId, value: 1, now, projectVote: false,
+      });
+      await db.update(reviewerProfiles).set({ slug }).where(eq(reviewerProfiles.userId, reviewerId));
+    }
+    expect(await listPublicPlaceReviewers(db, placeId)).toEqual([
+      { slug: "public-a", displayName: "공개 이름" },
+      { slug: "public-z", displayName: "공개 이름" },
+    ]);
+    expect(await listPublicPlaceReviewers(db, otherPlaceId)).toEqual([{ slug: "public-other", displayName: "공개 이름" }]);
+  });
+
+  it("removes a place reviewer when the review, photo rights, author, or venue becomes ineligible", async () => {
+    const db = createDb(env.DB);
+    const reviewerId = crypto.randomUUID();
+    const email = `${reviewerId}@example.test`;
+    await db.insert(users).values({ id: reviewerId, email, displayName: "검수 리뷰어", role: "REVIEWER", createdAt: now, updatedAt: now });
+    const { reviewId } = await seedApprovedReviewerVote(db, {
+      reviewerId, placeId, eventId: reviewerId, value: 1, now, withPhoto: true, projectVote: false,
+    });
+    const reviewers = () => listPublicPlaceReviewers(db, placeId);
+    const expected = [{ slug: reviewerId, displayName: "검수 리뷰어" }];
+    expect(await reviewers()).toEqual(expected);
+
+    const review = db.update(reviewerVisitReviews);
+    const reviewKey = eq(reviewerVisitReviews.id, reviewId);
+    for (const status of ["PENDING", "CHANGES_REQUESTED", "REJECTED", "WITHDRAWN", "LEGACY_UNREVIEWED"] as const) {
+      await review.set({ status }).where(reviewKey);
+      expect(await reviewers(), status).toEqual([]);
+    }
+    await review.set({ status: "APPROVED" }).where(reviewKey);
+    await review.set({ approvedContentVersion: 0 }).where(reviewKey);
+    expect(await reviewers()).toEqual([]);
+    await review.set({ approvedContentVersion: 1 }).where(reviewKey);
+    expect(await reviewers()).toEqual(expected);
+
+    const photoKey = eq(reviewerVisitPhotos.reviewId, reviewId);
+    await db.update(reviewerVisitPhotos).set({ rightsBasis: "PERMISSION", rightsNote: null }).where(photoKey);
+    expect(await reviewers()).toEqual([]);
+    await db.update(reviewerVisitPhotos).set({ rightsBasis: "OWN_WORK" }).where(photoKey);
+
+    const profileKey = eq(reviewerProfiles.userId, reviewerId);
+    for (const status of ["DORMANT", "SUSPENDED"] as const) {
+      await db.update(reviewerProfiles).set({ status }).where(profileKey);
+      expect(await reviewers(), status).toEqual([]);
+    }
+    await db.update(reviewerProfiles).set({ status: "ACTIVE" }).where(profileKey);
+    const userKey = eq(users.id, reviewerId);
+    await db.update(users).set({ role: "USER" }).where(userKey);
+    expect(await reviewers()).toEqual([]);
+    await db.update(users).set({ role: "REVIEWER", email: `withdrawn.${reviewerId}@invalid.local` }).where(userKey);
+    expect(await reviewers()).toEqual([]);
+    await db.update(users).set({ email }).where(userKey);
+    expect(await reviewers()).toEqual(expected);
+
+    await db.update(places).set({ status: "HIDDEN" }).where(eq(places.id, placeId));
+    expect(await reviewers()).toEqual([]);
+  });
+
   it.each(["author", "place", "evaluation"] as const)("rejects a reviewer event pointing to another approved review's %s", async (mismatch) => {
     const db=createDb(env.DB);
     const reviewerId=`corrupt-author-${placeId}`;
