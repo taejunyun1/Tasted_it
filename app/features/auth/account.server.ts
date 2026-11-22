@@ -6,6 +6,7 @@ import { memberSaveChoices, accountTokens, authIdentities, oauthRequests, review
 import { DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT, hashPassword, verifyPassword } from "./password.server";
 import { isWithdrawnEmail, WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "./withdraw";
 import { assertMemberAccess } from "./member-access.server";
+import { createUserSession } from "./session.server";
 
 const TOKEN_TTL_MS = 30 * 60 * 1000;
 const encoder = new TextEncoder();
@@ -67,7 +68,7 @@ export async function verifyEmailToken(db: AppDb, input: { token: string; now: D
   return { userId };
 }
 
-export async function authenticateAccount(db: AppDb, input: { email: string; password: string }) {
+async function authenticatePasswordAccount(db: AppDb, input: { email: string; password: string }) {
   const user = await db.query.users.findFirst({ where: eq(users.email, input.email.trim().toLowerCase()) });
   const valid = await verifyPassword(
     input.password,
@@ -77,7 +78,20 @@ export async function authenticateAccount(db: AppDb, input: { email: string; pas
   if (!user?.passwordHash || !user.passwordSalt || !valid || isWithdrawnEmail(user.email)) throw new Error("LOGIN_INVALID");
   if (!user.emailVerifiedAt) throw new Error("EMAIL_NOT_VERIFIED");
   await assertMemberAccess(db, user.id);
-  return { id: user.id, email: user.email, displayName: user.displayName, role: user.role };
+  return {
+    user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role },
+    passwordProof: { email: user.email, hash: user.passwordHash, salt: user.passwordSalt, verifiedAt: user.emailVerifiedAt },
+  };
+}
+
+export async function authenticateAccount(db: AppDb, input: { email: string; password: string }) {
+  return (await authenticatePasswordAccount(db, input)).user;
+}
+
+export async function authenticatePasswordSession(db: AppDb, input: { email: string; password: string; now: Date; requestUrl: string }) {
+  const { user, passwordProof } = await authenticatePasswordAccount(db, input);
+  const cookie = await createUserSession({ userId: user.id, now: input.now, requestUrl: input.requestUrl, passwordProof });
+  return { userId: user.id, cookie };
 }
 
 export async function requestPasswordReset(db: AppDb, input: { email: string; now: Date }) {

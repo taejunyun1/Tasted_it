@@ -3,7 +3,7 @@ import { data, Link, redirect } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/login";
 import { createDb } from "../db/client.server";
-import { authenticateAccount } from "../features/auth/account.server";
+import { authenticatePasswordSession } from "../features/auth/account.server";
 import {
   AuthDivider,
   GoogleAuthButton,
@@ -11,7 +11,7 @@ import {
 } from "../features/auth/google-auth-ui";
 import { publicLoginError, retainedAuthFields, safeReturnTo } from "../features/auth/login";
 import { NaverAuthButton, naverOAuthErrorMessage } from "../features/auth/naver-auth-ui";
-import { createUserSession, getOptionalUser } from "../features/auth/session.server";
+import { getOptionalUser } from "../features/auth/session.server";
 import { ACCOUNT_RESTRICTED_MESSAGE, isAccountRestrictedError } from "../features/auth/member-access.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 import { consumeLoginRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
@@ -58,14 +58,14 @@ export async function action({ request }: Route.ActionArgs) {
         headers: { "Retry-After": String(limited.retryAfterSeconds) },
       });
     }
-    const user = await authenticateAccount(db, parsed.data);
+    const { userId, cookie } = await authenticatePasswordSession(db, { ...parsed.data, now, requestUrl: request.url });
     const headers = new Headers();
-    headers.append("Set-Cookie", await createUserSession({ userId: user.id, now, requestUrl: request.url }));
+    headers.append("Set-Cookie", cookie);
     await appendGuestTasteMergeCookie({
       headers,
       db,
       request,
-      userId: user.id,
+      userId,
       now: now.toISOString(),
     });
     return redirect(safeReturnTo(parsed.data.returnTo), { headers });

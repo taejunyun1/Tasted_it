@@ -113,16 +113,34 @@ export async function createUserSession(input: {
   userId: string;
   now: Date;
   requestUrl: string;
+  passwordProof?: { email: string; hash: string; salt: string; verifiedAt: string };
 }): Promise<string> {
   const id = crypto.randomUUID();
+  const createdAt = input.now.toISOString();
   const expiresAt = new Date(
     input.now.getTime() + SESSION_TTL_SECONDS * 1000,
   ).toISOString();
   const db = createDb(env.DB);
-  await assertMemberAccess(db, input.userId, input.now.toISOString());
-  await assertFreshMemberAuthentication(db,input.userId,input.now.toISOString());
+  await assertMemberAccess(db, input.userId, createdAt);
+  await assertFreshMemberAuthentication(db, input.userId, createdAt);
   try {
-    await db.insert(sessions).values({ id, userId: input.userId, createdAt: input.now.toISOString(), expiresAt });
+    if (input.passwordProof) {
+      const { email, hash, salt, verifiedAt } = input.passwordProof;
+      // A password reset may have completed while credential verification was pending.
+      const verifiedAccount = db.select({
+        id: sql<string>`${id}`.as("id"),
+        userId: users.id,
+        expiresAt: sql<string>`${expiresAt}`.as("expires_at"),
+        createdAt: sql<string>`${createdAt}`.as("created_at"),
+      }).from(users).where(and(
+        eq(users.id, input.userId), eq(users.email, email), eq(users.emailVerifiedAt, verifiedAt),
+        eq(users.passwordHash, hash), eq(users.passwordSalt, salt),
+      ));
+      const [session] = await db.insert(sessions).select(verifiedAccount).returning({ id: sessions.id });
+      if (!session) throw new Error("LOGIN_INVALID");
+    } else {
+      await db.insert(sessions).values({ id, userId: input.userId, createdAt, expiresAt });
+    }
   } catch (error) {
     if (isAccountRestrictedError(error) || String(error).includes("ACCOUNT_RESTRICTED")) throw new AccountRestrictedError();
     throw error;

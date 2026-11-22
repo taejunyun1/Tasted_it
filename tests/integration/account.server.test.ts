@@ -1,8 +1,10 @@
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { eq } from "drizzle-orm";
 import { authenticateAccount, registerAccount, requestPasswordReset, resetPassword, verifyEmailToken, withdrawAccount } from "../../app/features/auth/account.server";
+import { getOptionalUser } from "../../app/features/auth/session.server";
+import { action as loginAction } from "../../app/routes/login";
 import { action as resetPasswordAction } from "../../app/routes/reset-password";
 import { WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "../../app/features/auth/withdraw";
 import { castVote } from "../../app/features/ratings/vote.server";
@@ -102,6 +104,44 @@ describe("member accounts", () => {
     await resetPassword(db, { token: reset!.token, password: "new-password-456", now: new Date("2026-08-05T12:03:00Z") });
     const remaining = await db.select().from(sessions).where(eq(sessions.userId, registration.userId));
     expect(remaining).toHaveLength(0);
+  });
+
+  it("keeps password sign-in consistent when a reset overlaps credential verification", async () => {
+    const now = new Date();
+    const { db, email, oldPassword, userId, token } = await passwordResetFixture(now);
+    const newPassword = "new-password-456";
+    const origin = "https://retaste.test";
+    const returnTo = "/me";
+    const login = (password: string) => loginAction({ request: new Request(`${origin}/login`, {
+      method: "POST", body: new URLSearchParams({ email, password, returnTo }),
+    }) } as never);
+    const readUser = (response: Response) => getOptionalUser(new Request(`${origin}/me`, {
+      headers: { Cookie: response.headers.get("Set-Cookie")?.split(";")[0] ?? "" },
+    }));
+
+    const before = await login(oldPassword);
+    expect(before).toBeInstanceOf(Response);
+    await expect(readUser(before as Response)).resolves.toMatchObject({ id: userId });
+
+    const deriveBits = crypto.subtle.deriveBits.bind(crypto.subtle);
+    const overlappingReset = vi.spyOn(crypto.subtle, "deriveBits").mockImplementationOnce(async (...args) => {
+      const result = await deriveBits(...args);
+      await resetPassword(db, { token, password: newPassword, now });
+      return result;
+    });
+    try {
+      expect(await login(oldPassword)).toMatchObject({ init: { status: 400 } });
+      expect(overlappingReset).toHaveBeenCalled();
+    } finally {
+      overlappingReset.mockRestore();
+    }
+    await expect(readUser(before as Response)).resolves.toBeNull();
+    expect(await db.select().from(sessions).where(eq(sessions.userId, userId))).toHaveLength(0);
+
+    const after = await login(newPassword);
+    expect(after).toBeInstanceOf(Response);
+    expect((after as Response).headers.get("Location")).toBe(returnTo);
+    await expect(readUser(after as Response)).resolves.toMatchObject({ id: userId });
   });
 
   it("anonymizes a member, drops credentials, and keeps vote events", async () => {
