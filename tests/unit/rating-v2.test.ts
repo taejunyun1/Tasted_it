@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  calculateNeutralRatingV2Score,
   calculateRatingV2,
   calculateReviewerReliability,
 } from "../../app/features/ratings/rating-v2";
@@ -74,6 +75,25 @@ describe("rating-v2", () => {
     expect(result.reviewers).toMatchObject({ rawEffectiveWeight: 8, combinedEffectiveWeight: 8, displayScore: 83 });
     expect(result.reviewerWeightShare).toBe(1);
     expect(result.reasons).toEqual([]);
+    expect(calculateNeutralRatingV2Score({
+      userPositive: 0, userNegative: 0, reviewerPositive: 8, reviewerNegative: 0,
+    })).toBe(result.overall.displayScore);
+  });
+
+  it("matches neutral snapshot rounding at the home quality boundary", () => {
+    const snapshot = calculateRatingV2({
+      userVotes: [1, -1],
+      reviewerVotes: Array.from({ length: 50 }, (_, index) => ({
+        reviewerId: `rounding-${index}`,
+        value: index < 43 ? 1 : -1,
+        reliabilityWeight: 1,
+        similarityDamping: 1,
+      })),
+    });
+    expect(snapshot.overall.displayScore).toBe(54);
+    expect(calculateNeutralRatingV2Score({
+      userPositive: 1, userNegative: 1, reviewerPositive: 43, reviewerNegative: 7,
+    })).toBe(snapshot.overall.displayScore);
   });
 
   it("uses neutral trust while calibrating and bounded posterior trust afterward", () => {

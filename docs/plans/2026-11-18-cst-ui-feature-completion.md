@@ -90,7 +90,7 @@
 | D02 분류·중복·제외 | place-review pipeline, 분류/제외/중복 및 재검증 서비스 | `VERIFIED_LOCAL_SCOPED`: 기존 체인·비음식점 분류에 더해 DISTINCT/LINK_EXISTING/MERGE 결정·사유·감사·stale 거절과 MOVED의 주소 보존·공개/추천 제외를 확인했다. 중복 결정 기록은 실제 장소 병합·공개가 아니며 B09 별도 확정 절차를 따른다. 실제 영업 사실은 별도다. |
 | D03 검수·보완 | reviewer/admin 검수와 후보/정정 UI, moderator CAS·감사·결과 | `VERIFIED_LOCAL_SCOPED/VERIFY`: `4267bce`의 항목별 결과·제안201번째 접근·독립 페이지 상태는 확인했다. 승인/반려/보완/경합·권리 전체 조합은 T04/T05 범위로 남긴다. |
 | D04 공개/회수 | place-operations/publication-recall, B09 및 public-consumer 검증 | `VERIFIED_LOCAL_SCOPED`: 관리자 미리보기에는 변화가 없고 확정 뒤 상세404·검색/추천 후보/공개 방문 제외·직접 사진404가 함께 적용됨을 D1과 리소스 로더로 확인했다. 원본·본인 preview는 보존하며 B09의 실제 브라우저 회수/영수증 증거와 연결한다. |
-| D05 평가 규칙 | rating/recompute·eligible input, rating-v2·reviewer-similarity/trust·NAVER adapter 검증 | `VERIFIED_LOCAL_SCOPED`: 7/8/9 및 하위집단 최소표본, 일반 반응이 있을 때의 리뷰어30% 상한과 일반0 예외, 신뢰·감쇠의 독립 기대값, 같은 입력의 id/hash/단일 snapshot, 외부 별점 필드 배제를 기존 집중 시험으로 재확인했다. 새 수치 정책 생성0이며 실제 운영 재계산/수용은 별도다. |
+| D05 평가 규칙 | rating/recompute·eligible input, rating-v2·reviewer-similarity/trust·NAVER adapter 검증 | `VERIFIED_LOCAL_SCOPED`: 7/8/9 및 하위집단 최소표본, 일반 반응이 있을 때의 리뷰어30% 상한과 일반0 예외, 신뢰·감쇠의 독립 기대값, 같은 입력의 id/hash/단일 snapshot, 외부 별점 필드 배제를 기존 집중 시험으로 재확인했다. 홈·개인·신뢰·코스의 재계산 대기 중에도 기존 리뷰어 상한과 중립 보정을 적용했다. 공개 점수는 유효한 스냅샷을 기다린다. 실제 운영 재계산/수용은 별도다. [추천 점수 검증](../evidence/cst-neutral-rating-fallback-20261122/summary.json) |
 | D06 운영·복구 | 운영 런북, 합성 D1 복원 증거, B17 migration 보존 리허설 | `VERIFIED_LOCAL_SCOPED/EXTERNAL_GATE`: 합성 보존/복원과 실제 운영 R2/삭제 후 복원을 구분. T08 실제 복구 증거·보존/RPO/RTO 정책은 미완료. |
 
 ## 4. 화면 흐름 전체 연결

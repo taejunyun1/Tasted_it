@@ -1,5 +1,4 @@
 import type { HomeCurationMode, HomeTimeSlot } from "../maps/home-curation-options";
-import { calculateRating } from "../ratings/rating-v1";
 import { buildHomeCandidateFeatures } from "./home-curation-features";
 import type { HomeLocationSource, HomeRecommendationHistory } from "./home-curation-history.client";
 import {
@@ -11,6 +10,7 @@ import {
 } from "./home-curation-ranking";
 import { distanceInMeters, type DiscoveryCenter, type DiscoveryPlace, type RankingTasteSignal } from "./place-discovery";
 import { evaluateAppEligibility } from "./recommendation-eligibility";
+import { recommendationRatingScore } from "./recommendation-rating";
 
 export type HomeCurationSlot = "BEST_NOW" | "TASTE_MATCH" | "TIME_MATCH" | "TRUSTED_PICK" | "DISCOVERY";
 
@@ -75,11 +75,9 @@ function sampleCount(place: DiscoveryPlace) {
 }
 
 export function passesHomeQuality(place: DiscoveryPlace) {
-  const samples = sampleCount(place);
-  const visibleScore = place.ratingScore ?? calculateRating(place).displayScore;
   return evaluateAppEligibility({
-    sampleCount: samples,
-    visibleScore,
+    sampleCount: sampleCount(place),
+    visibleScore: recommendationRatingScore(place),
     currentlyDisliked: false,
   }).decision === "ALLOW";
 }
@@ -121,7 +119,8 @@ export function rankHomeCuration(input: HomeCurationInput): HomeCuratedPlace[] {
         }),
         golden: summary?.active ? summary.activeStrength : legacy ? 1 : 0,
         pastGolden: summary?.pastStrength ?? 0,
-        reviewerConfidence: reviewerConfidenceScore(place.reviewerRatingScore, place.reviewerRatingSampleCount),
+        reviewerConfidence: place.ratingIsStale === true ? 0
+          : reviewerConfidenceScore(place.reviewerRatingScore, place.reviewerRatingSampleCount),
         reviewerId: summary?.reviewerUserId ?? legacy?.reviewerUserId ?? null,
       };
     });
