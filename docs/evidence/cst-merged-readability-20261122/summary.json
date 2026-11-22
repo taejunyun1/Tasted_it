@@ -1,0 +1,26 @@
+{
+  "sourceSha": "b416bf1f5dd94ff568b7de5750cecb785ee848e0",
+  "appTree": "cb929b7af27c88d7c0c99d84bce1c464851b99c2",
+  "baselineSha": "296cb43481e12c016aae8099db88b2fba9b535c5",
+  "environment": "로컬 컴파일 Worker, 격리 D1, Chromium의 320·390·768·1440px",
+  "startedAt": "2026-11-22T03:41:48.901Z",
+  "checks": {
+    "beforePassed": 6,
+    "beforeFailed": 2,
+    "browser": 8,
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "홈의 접힌 지도에서 320px와 390px의 접근성 트리에 제목이 없는 것을 재현했다.",
+    "같은 제목 한 개를 스크린리더에 노출하고 접힌 패널 배치와 목록·데스크톱의 제목을 유지했다.",
+    "공개 검색, 지도, 코스, 회원, 관리자 영역에서 해당 라벨과 조작 크기, 문서 폭과 제목을 다시 확인했다."
+  ],
+  "screenshots": [
+    "mobile-map.png",
+    "desktop-map.png"
+  ],
+  "limits": [
+    "로컬 Chromium의 접근성 트리를 검증했다. 실제 운용 기기·보조기기와 전체 T07 실증은 별도다."
+  ]
+}
