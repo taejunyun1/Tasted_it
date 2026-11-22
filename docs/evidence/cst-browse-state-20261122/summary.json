@@ -1,0 +1,40 @@
+{
+  "sourceSha": "ce9d982ba50dc54bc0546640feeff8c25b203769",
+  "appTree": "99c5a0be31cd8b4eeee11e21d5a7c0291bd0998f",
+  "completedAtKst": "2026-11-22T11:32:20+09:00",
+  "environment": "Local compiled Worker / synthetic D1 / desktop and mobile Chromium / external map requests blocked",
+  "results": {
+    "browser": {
+      "passed": 55,
+      "skippedDeviceSpecific": 5,
+      "failed": 0
+    },
+    "unit": 36,
+    "integration": 5,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "BBox-only and zero-result map/list round trip, explicit reset, Back and reload",
+    "Second page of 125 places: 25 same results, search, category, badges, selected place",
+    "TEMP publication and source labels, same target outside the current bbox",
+    "Map transport failure retains last-success selection and allows explicit retry",
+    "Mobile list search opens without quick-info overlap and the SDK failure notice avoids the minimap",
+    "Category href/path, viewport fallback and session-change regressions"
+  ],
+  "initialFailures": [
+    "The list-to-map link had no browse view in the previous baseline.",
+    "Mobile quick info intercepted the list search, and the failed-map notice overlapped the minimap."
+  ],
+  "screenshots": [
+    "desktop-map.png",
+    "mobile-map.png",
+    "desktop-temp.png",
+    "mobile-temp.png"
+  ],
+  "limits": [
+    "Actual Naver SDK keyboard behavior and live deployment are outside this run.",
+    "This is scoped evidence for T01 and T07, not full acceptance."
+  ]
+}
