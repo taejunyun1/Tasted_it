@@ -9,7 +9,6 @@ import {
 describe("map location policy", () => {
   it.each([
     { name: "Seoul", latitude: 37.5665, longitude: 126.978 },
-    { name: "Jeonju", latitude: 35.8242, longitude: 127.148 },
     { name: "Jeju", latitude: 33.4996, longitude: 126.5312 },
   ])("falls back to Gwangju for $name outside the service area", ({ latitude, longitude }) => {
     expect(resolveLocationViewport({ latitude, longitude })).toEqual({
@@ -21,6 +20,8 @@ describe("map location policy", () => {
   it.each([
     { name: "Gwangju", latitude: 35.1595, longitude: 126.8526 },
     { name: "Yeosu", latitude: 34.7604, longitude: 127.6622 },
+    { name: "Gunsan", latitude: 35.9891, longitude: 126.7102 },
+    { name: "Jeonju", latitude: 35.8242, longitude: 127.148 },
   ])("keeps $name locations centered on the current position", ({ latitude, longitude }) => {
     const result = resolveLocationViewport({ latitude, longitude });
 

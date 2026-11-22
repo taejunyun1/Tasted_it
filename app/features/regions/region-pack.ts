@@ -3,10 +3,9 @@
  *
  * Bbox choice: public map / URL fallback uses `map-state` `DEFAULT_BBOX`
  * `[126.72, 35.03, 127.02, 35.25]`. Default center is the public map
- * constructor/QA pin `[35.1595, 126.8526]`. Service/supported bounds use
- * `location-policy` `SERVICE_AREA_BBOX` `[125, 33.85, 127.85, 35.55]`
- * (the user-facing “outside 전라남도” gate), not `place-location`
- * `SUPPORTED_BOUNDS` which was wider and accepted 전주-area coordinates.
+ * constructor/QA pin `[35.1595, 126.8526]`. The active packs govern
+ * launch-market collection, suggestions, and course location. Public map
+ * browsing also accepts the Jeonbuk viewport in `maps/location-policy`.
  *
  * This module is data only. It does not add a city, table, or binding.
  */

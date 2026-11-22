@@ -6,6 +6,7 @@ describe("course location feedback", () => {
   it("accepts in-market coordinates but keeps out-of-market or invalid coordinates out of the search", () => {
     expect(resolveCourseDeviceLocation({ latitude: 35.1595, longitude: 126.8526 })).toEqual({ latitude: 35.1595, longitude: 126.8526 });
     expect(resolveCourseDeviceLocation({ latitude: 37.5, longitude: 127 })).toBeNull();
+    expect(resolveCourseDeviceLocation({ latitude: 35.9891, longitude: 126.7102 })).toBeNull();
     expect(resolveCourseDeviceLocation({ latitude: Number.NaN, longitude: 126.8 })).toBeNull();
   });
 

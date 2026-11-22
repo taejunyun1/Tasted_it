@@ -150,7 +150,7 @@ test("an outside current location falls back to the default Gwangju area", async
 
   await page.getByRole("button", { name: /내 주변/ }).click();
 
-  const outsideNotice = "현재 위치는 전라남도 범위 밖에 있습니다.";
+  const outsideNotice = "현재 위치는 광주·전남·전북 탐색 범위 밖에 있습니다.";
   await expect(page.getByRole("status").filter({ hasText: outsideNotice })).toHaveText(outsideNotice);
   await expect.poll(() => new URL(page.url()).searchParams.get("bbox"))
     .toBe("126.72000,35.03000,127.02000,35.25000");
