@@ -7,8 +7,10 @@ function qaPath(search = "") {
   return `/?${params.toString()}`;
 }
 
+const samplePlaces = new URLSearchParams({ q: "Re:Taste 샘플" }).toString();
+
 test("a map pin opens a quick bottom sheet while preserving the explorer list", async ({ page }, testInfo) => {
-  await page.goto(qaPath());
+  await page.goto(qaPath(samplePlaces));
   const map = page.getByLabel("장소 지도");
   await map.getByRole("button", { name: /음식점 \d+곳, 확대해서 보기$/ }).first().click();
   await expect(map).toHaveAttribute("data-map-zoom", "13");
@@ -24,25 +26,25 @@ test("a map pin opens a quick bottom sheet while preserving the explorer list", 
   await expect(page).toHaveURL(/selected=/);
   await expect(pin).toHaveClass(/is-selected/);
   await expect(page.getByRole("complementary", { name: "장소 탐색" })).toBeVisible();
-  await expect(page.getByRole("dialog", { name: `${placeName} 빠른 정보` })).toBeVisible();
-  await expect(page.getByRole("heading", { name: placeName })).toBeVisible();
-  await expect(page.getByRole("progressbar", { name: "추천 지표" })).toBeVisible();
-  await expect(page.getByText("검수 완료", { exact: true }).last()).toBeVisible();
-  await expect(page.getByRole("link", { name: "상세 보기" })).toBeVisible();
   const dialog = page.getByRole("dialog", { name: `${placeName} 빠른 정보` });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: placeName })).toBeVisible();
+  await expect(dialog.getByRole("progressbar", { name: "평가 표본 수" })).toHaveAttribute("aria-valuenow", "0");
+  await expect(dialog.getByRole("link", { name: "상세 보기" })).toBeVisible();
+  await expect(dialog.getByText("공개 장소", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "빠른 정보 닫기" })).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(dialog.getByRole("link", { name: "상세 보기" })).toBeFocused();
-  await page.screenshot({ path: `docs/evidence/2026-08-26-place-sheet-focus-${testInfo.project.name}.png`, fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("place-sheet-focus.png"), fullPage: true });
 });
 
-test("the explorer presents the local food atlas identity and verified places", async ({ page }) => {
+test("the explorer presents the local food atlas identity and public places", async ({ page }) => {
   await page.goto(qaPath());
 
   const explorer = page.getByRole("complementary", { name: "장소 탐색" });
-  await expect(explorer.getByText("GWANGJU · JEONNAM FOOD ATLAS")).toBeVisible();
+  await expect(explorer.getByText("광주 · 전남 · 전북", { exact: true })).toBeVisible();
   await expect(explorer.getByRole("heading", { name: "동네의 맛을 지도에서 찾기" })).toBeVisible();
-  await expect(explorer.getByText("검수 완료", { exact: true }).first()).toBeVisible();
+  await expect(explorer.getByText("공개 장소", { exact: true }).first()).toBeVisible();
 });
 
 test("tags and status badges use a friendly rounded shape", async ({ page }) => {
@@ -51,11 +53,11 @@ test("tags and status badges use a friendly rounded shape", async ({ page }) => 
   const categoryRadius = await page.getByRole("complementary", { name: "장소 탐색" })
     .getByRole("button", { name: "전체", exact: true })
     .evaluate((element) => getComputedStyle(element).borderRadius);
-  const verifiedRadius = await page.getByText("검수 완료", { exact: true }).first()
+  const badgeRadius = await page.getByText("공개 장소", { exact: true }).first()
     .evaluate((element) => getComputedStyle(element).borderRadius);
 
   expect(Number.parseFloat(categoryRadius)).toBeGreaterThanOrEqual(12);
-  expect(Number.parseFloat(verifiedRadius)).toBeGreaterThanOrEqual(12);
+  expect(Number.parseFloat(badgeRadius)).toBeGreaterThanOrEqual(12);
 });
 
 test("desktop keeps the explorer beside the map and gives the map priority", async ({ page }, testInfo) => {
@@ -73,7 +75,7 @@ test("desktop keeps the explorer beside the map and gives the map priority", asy
 });
 
 test("a list item opens the same detail and returning preserves filters", async ({ page }) => {
-  await page.goto(qaPath());
+  await page.goto(qaPath(samplePlaces));
   const result = page.getByRole("button", { name: /선택$/ }).first();
   await expect(result).toBeVisible();
 
@@ -81,12 +83,13 @@ test("a list item opens the same detail and returning preserves filters", async 
   await expect(page).toHaveURL(/selected=/);
   await expect(page.getByLabel("장소 지도")).toHaveAttribute("data-focused-place", /.+/);
   await expect(page.getByRole("complementary", { name: "장소 탐색" })).toBeVisible();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("progressbar", { name: "추천 지표" })).toBeVisible();
-  await page.getByRole("button", { name: "빠른 정보 닫기" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("progressbar", { name: "평가 표본 수" })).toHaveAttribute("aria-valuenow", "0");
+  await dialog.getByRole("button", { name: "빠른 정보 닫기" }).click();
 
-  await expect(page).toHaveURL(/qa=/);
-  await expect(page).not.toHaveURL(/selected=/);
+  await expect(page).toHaveURL(url => url.searchParams.has("qa")
+    && url.searchParams.get("q") === "Re:Taste 샘플" && !url.searchParams.has("selected"));
   await expect(result).toBeVisible();
 });
 
@@ -136,7 +139,8 @@ test("an outside current location falls back to the default Gwangju area", async
 
   await page.getByRole("button", { name: /내 주변/ }).click();
 
-  await expect(page.getByRole("status")).toHaveText("현재 위치는 전라남도 범위 밖에 있습니다.");
+  const outsideNotice = "현재 위치는 전라남도 범위 밖에 있습니다.";
+  await expect(page.getByRole("status").filter({ hasText: outsideNotice })).toHaveText(outsideNotice);
   await expect.poll(() => new URL(page.url()).searchParams.get("bbox"))
     .toBe("126.72000,35.03000,127.02000,35.25000");
   await expect(page.getByRole("complementary", { name: "장소 탐색" }).getByRole("button", { name: /선택$/ }).first()).toBeVisible();
@@ -181,7 +185,7 @@ test("mobile collapses the list when quick information opens and restores it on 
   await expect(page.getByRole("button", { name: /선택$/ }).first()).toBeVisible();
 });
 
-test("mobile detail sheet keeps the verified place context", async ({ page }, testInfo) => {
+test("mobile detail sheet keeps the public place context", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium");
   await page.goto(qaPath());
 
@@ -191,5 +195,5 @@ test("mobile detail sheet keeps the verified place context", async ({ page }, te
 
   const detail = page.getByRole("dialog", { name: /상세 정보$/ });
   await expect(detail).toBeVisible();
-  await expect(detail.getByText("검수 완료", { exact: true })).toBeVisible();
+  await expect(detail.getByText("공개 장소", { exact: true })).toBeVisible();
 });

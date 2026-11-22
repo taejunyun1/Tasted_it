@@ -1,5 +1,6 @@
 import { Form, Link } from "react-router";
 import { readPlaceSearchContext, type PlaceSearchContext } from "../../features/places/place-search-feedback";
+import { publicPlaceBrowseHref } from "../../features/places/public-place-browse";
 
 export function PlaceSearchForm({ context, pending = false, retry = false }: { context: PlaceSearchContext; pending?: boolean; retry?: boolean }) {
   return <Form method="get" action="/places" className="discovery-search" reloadDocument={retry}>
@@ -22,7 +23,7 @@ export function PlaceSearchError({ search, status = 500 }: { search: string; sta
     <PlaceSearchForm context={context} retry />
     <nav className="flex flex-wrap gap-4" aria-label="검색 복구">
       <Link className="inline-flex min-h-11 items-center underline!" to="/places">전체 목록에서 다시 시작</Link>
-      <Link className="inline-flex min-h-11 items-center underline!" to={`/${search}`}>지도에서 보기</Link>
+      <Link className="inline-flex min-h-11 items-center underline!" to={publicPlaceBrowseHref("map", search)}>지도에서 보기</Link>
     </nav>
   </main>;
 }

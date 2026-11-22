@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
     timeSlot: "lunch",
     radiusMeters: 3_000,
   })),
-  listPlaces: vi.fn(async () => []),
+  getPublicPlacePage: vi.fn(async (_db: unknown, _filters: unknown, page = 1) => ({ places: [], total: 0, page, pageSize: 100, totalPages: 1, start: 0, end: 0, outOfRange: page > 1 })),
   listPublicCategoryGroups: vi.fn(async () => []),
   getPublicPlaceCounts: vi.fn(async () => ({ count: 0, overallCount: 0, overallBounds: null })),
 }));
@@ -45,7 +45,7 @@ vi.mock("../../app/features/places/home-curation.server", () => ({
   getHomeCurationPage: mocks.getHomeCurationPage,
 }));
 vi.mock("../../app/features/places/place.server", () => ({
-  listPlaces: mocks.listPlaces,
+  getPublicPlacePage: mocks.getPublicPlacePage,
   listPublicCategoryGroups: mocks.listPublicCategoryGroups,
   getPublicPlaceCounts: mocks.getPublicPlaceCounts,
 }));
@@ -56,7 +56,7 @@ afterEach(() => {
   mocks.getGuestOnboardingFromRequest.mockReset();
   mocks.getGuestOnboardingFromRequest.mockResolvedValue(null);
   mocks.getHomeCurationPage.mockClear();
-  mocks.listPlaces.mockClear();
+  mocks.getPublicPlacePage.mockClear();
   mocks.listPublicCategoryGroups.mockClear();
   mocks.getPublicPlaceCounts.mockClear();
 });
@@ -89,7 +89,7 @@ describe("home curated route", () => {
       mode: "now",
       tasteBadgeIds: ["food-gukbap", "style-local"],
     }));
-    expect(mocks.listPlaces).not.toHaveBeenCalled();
+    expect(mocks.getPublicPlacePage).not.toHaveBeenCalled();
   });
 
   it("초기 큐레이션 loader가 URL의 위치 출처를 추천 이유 계산에 전달한다", async () => {
@@ -118,11 +118,21 @@ describe("home curated route", () => {
     const result = await loader({ request: new Request("https://retaste.example/?view=browse&q=국밥") } as never);
 
     expect(result.view).toBe("browse");
-    expect(mocks.listPlaces).toHaveBeenCalled();
+    expect(mocks.getPublicPlacePage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ query: "국밥", bbox: expect.any(Array) }), 1);
     expect(mocks.listPublicCategoryGroups).toHaveBeenCalled();
     expect(mocks.listPublicCategoryGroups).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ query: "국밥", bbox: expect.any(Array) }));
     expect(mocks.getPublicPlaceCounts).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ query: "국밥", bbox: expect.any(Array) }));
     expect(mocks.getHomeCurationPage).not.toHaveBeenCalled();
+  });
+
+  it("TEMP 전체지도는 범위 없이 공개 TEMP의 동일 페이지를 조회한다", async () => {
+    const { loader } = await import("../../app/routes/home");
+    const result = await loader({ request: new Request("https://retaste.example/?view=browse&temp=1&page=2&bbox=126.9,35.1,127,35.2") } as never);
+
+    expect(result).toMatchObject({ view: "browse", tempOnly: true, pagination: { page: 2, outOfRange: true } });
+    expect(mocks.getPublicPlacePage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ bbox: undefined, tempOnly: true }), 2);
+    expect(mocks.listPublicCategoryGroups).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ bbox: undefined, tempOnly: true }));
+    expect(mocks.getPublicPlaceCounts).not.toHaveBeenCalled();
   });
 
   it("큐레이션 내부 모드·선택 변경만 loader 재검증을 생략한다", async () => {
@@ -157,7 +167,7 @@ describe("home curated route", () => {
     expect(source).toContain('import type { loader as homeRecommendationLoader } from "./home-recommendations-resource"');
     expect(source).toContain("useFetcher<typeof homeRecommendationLoader>");
     expect(source).toContain("/resources/home-recommendations");
-    expect(source).toContain("onPendingBounds={setPendingBounds}");
+    expect(source).toContain("onPendingBounds={isCurated ? setPendingBounds : setBounds}");
     expect(source).toContain("이 지역 다시 추천");
     expect(source).toContain("markerRanks={markerRanks}");
     expect(source).toContain("추천 지도");
