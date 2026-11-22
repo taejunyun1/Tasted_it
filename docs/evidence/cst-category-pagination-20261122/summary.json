@@ -1,0 +1,29 @@
+{
+  "sourceSha": "dd9062dec82c84464a6969eeb01fe3af65365ec7",
+  "appTree": "ad12ad2b3818ca2111889d111bfd2167dd335631",
+  "priorSourceSha": "acb143b5a863d185b18cf3815372548d6c0418df",
+  "environment": "로컬 컴파일 Worker와 격리 D1, 데스크톱·모바일 Chromium",
+  "startedAt": "2026-11-22T03:37:03.120Z",
+  "checks": {
+    "browserCombined": 2,
+    "browserScopedBeforeRebase": 12,
+    "unit": 12,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "같은 분류·검색·지도 범위의 125곳 중 2페이지 25곳이 지도와 목록에서 일치했다.",
+    "2페이지 응답을 보류한 사이 보기 전환 후에도 2페이지를 보존했다.",
+    "검색 또는 범위 변경 시 첫 페이지, 범위 밖 페이지의 복귀, 칸이 비어도 분류 이름을 확인했다."
+  ],
+  "screenshots": [
+    "desktop-map-second-page.png",
+    "desktop-list-second-page.png",
+    "mobile-map-second-page.png",
+    "mobile-list-second-page.png"
+  ],
+  "limits": [
+    "외부 지도 SDK는 합성 모드다. 실제 SDK 및 전체 T01/T07 운영 수용은 별도다."
+  ]
+}
