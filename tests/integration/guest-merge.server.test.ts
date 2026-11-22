@@ -3,7 +3,6 @@ import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeMocks = vi.hoisted(() => ({
-  authenticateAccount: vi.fn(),
   completeGoogleLogin: vi.fn(),
   completeNaverFlow: vi.fn(),
   consumeGoogleOAuthRequest: vi.fn(),
@@ -49,9 +48,6 @@ vi.mock("react-router", () => ({
   },
 }));
 
-vi.mock("../../app/features/auth/account.server", () => ({
-  authenticateAccount: routeMocks.authenticateAccount,
-}));
 vi.mock("../../app/features/auth/email.server", () => ({
   sendGoogleWelcomeIfNeeded: routeMocks.sendGoogleWelcomeIfNeeded,
 }));
@@ -72,6 +68,7 @@ vi.mock("../../app/features/auth/oauth-request.server", () => ({
 }));
 
 import { createDb, type AppDb } from "../../app/db/client.server";
+import { hashPassword } from "../../app/features/auth/password.server";
 import {
   guestTasteBadges,
   guestTasteSessions,
@@ -428,15 +425,14 @@ type LoginProvider = "email" | "google" | "naver";
 async function executeLoginRoute(provider: LoginProvider, userId: string, guestId: string) {
   const email = `${userId}@example.com`;
   if (provider === "email") {
-    routeMocks.authenticateAccount.mockResolvedValue({
-      id: userId,
-      email,
-      displayName: "이메일 사용자",
-      role: "USER",
-    });
+    const password = "test-password";
+    const credential = await hashPassword(password);
+    await createDb(env.DB).update(users).set({
+      passwordHash: credential.hash, passwordSalt: credential.salt, emailVerifiedAt: CREATED_AT,
+    }).where(eq(users.id, userId));
     const form = new FormData();
     form.set("email", email);
-    form.set("password", "test-password");
+    form.set("password", password);
     form.set("returnTo", "/places");
     const { action } = await import("../../app/routes/login");
     return action({

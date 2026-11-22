@@ -1,0 +1,13 @@
+{
+  "sourceSha": "7293668c8022348a0f07cdd468ef8b75ec1b5b4b",
+  "appTree": "203d1eaf6ee1c5f48071bea22dcf6e07bb071fd9",
+  "verifiedOnKst": "2026-11-22",
+  "environment": "합성 계정을 사용한 로컬 Workers D1",
+  "checks": {"d1Integration": 30, "typecheck": "PASS", "productionDependencyAudit": "PASS", "diffCheck": "PASS"},
+  "scope": [
+    "비밀번호 재설정이 끝나면 기존 이메일 로그인 세션을 사용할 수 없었다. 재설정과 겹친 로그인은 세션을 발급하지 않았다.",
+    "새 비밀번호로 로그인하면 기존 목적지로 돌아가고 인증된 사용자를 조회할 수 있었다.",
+    "게스트 취향 병합의 성공·실패에서 이메일 로그인 쿠키 동작과 합성 공급자 접근 제한 회귀를 확인했다."
+  ],
+  "limits": "로컬 D1에서 해당 로그인 경로를 검증했다. 실제 공급자·운영 검증과 전체 S06/T03 수용은 별도다."
+}
