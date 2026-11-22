@@ -228,6 +228,8 @@ Cloudflare 배포 조회에서 #475와 연결된 Worker 버전이 트래픽 100%
 
 같은 코드로 두 격리 D1을 비교했다. 운영 migration과 같은 파일 집합을 적용한 D1에서 B09의 NAVER 이용량 조회와 회원 개인정보 요청 조회가 실패했다. 자동 검수는 환경 설정이 켜져 있어도 비활성으로 판정됐고, 사진 업로드를 껐어도 예약 사진 정리에 실패 1건이 기록됐다. 평가 설정 조회는 양쪽에서 일치했으며 0060의 승인 변경 트리거는 별도로 대조했다. 0053을 포함한 합성 D1 역시 전환 승인 기록이 없으면 NAVER 호출 제한 상태다. [검증 결과](../evidence/cst-runtime-schema-baseline-20261122/summary.json)
 
+#510을 포함한 코드도 실제 운영 원장의 적용 순서를 맞춘 별도 합성 D1에서 실행했다. B09 검수 대기열은 HTTP 200과 이용량 조회 실패 안내를 표시했다. 비로그인 장소 상세와 회원 `/me`는 200이었다. 같은 회원 세션의 `/me/privacy`는 `privacy_requests` 테이블 누락으로 500이었다. [B09 변경 #510](https://github.com/taejunyun1/Tasted_it/pull/510) · [경로별 결과](../evidence/cst-runtime-schema-baseline-20261122/summary.json)
+
 운영 적용 직전 원장과 Worker를 읽기 전용으로 다시 대조하고, 해당 schema에서 기존 B09 검수·외부 사용량 제어·자동 검수·정리와 공개/회원 접근 경계를 보존한 후보를 시험해 판단한다. B17 전환을 적용하는 경우에는 기존 격리 전환안의 승인 범위를 따른다. 어느 경로든 적용 대상 Worker·코드·설정·검증·복구를 명시한 병합 운영 PR이 기준이다. 현재 Worker의 복구 버전은 `ff51553c-c8fb-462d-a9ae-a72c4f9e1082`이며 실제 실행 직전 다시 확인한다. [운영 공동작업 규칙](../../COWORK.md) · [B17 격리 전환안](../operations/2026-11-18-admin-b17-isolated-cutover.md)
 
 최신 main의 합성 D1 전체 백업·복원은 PASS다. 운영 D1/R2 복구, 실제 데이터 처리 정책, B17 및 #397은 기존 상태로 유지한다. [실행 원장](../evidence/cst-20261210/execution-log.csv) · [복원 절차](../operations/cst-local-d1-recovery.md)

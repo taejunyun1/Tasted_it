@@ -74,5 +74,31 @@
   "providerRequests": 0,
   "productionExecuted": false,
   "deploymentReadiness": "BLOCKED_DOCUMENTED_SCHEMA_COMPATIBILITY",
-  "restoreEvidence": "./d1-rehearsal.json"
+  "restoreEvidence": "./d1-rehearsal.json",
+  "postFixRouteProbe": {
+    "reference": "https://github.com/taejunyun1/Tasted_it/pull/510",
+    "sourceSha": "9de8b9b36b26ca5ab2fbea9f4b5da8bdf5844efa",
+    "appTree": "518bea92f4714e140a114eed3dae3e6b036f426f",
+    "environment": "컴파일한 로컬 Worker, 운영 원장과 파일명 및 적용 순서가 일치하는 합성 D1 56개 migration",
+    "b09": {
+      "status": 200,
+      "queue": true,
+      "unknownUsageNotice": true,
+      "counterDisplayed": false
+    },
+    "public": {
+      "status": 200,
+      "fixtureRendered": true
+    },
+    "memberBaseline": {
+      "status": 200,
+      "syntheticSessionAuthenticated": true
+    },
+    "memberPrivacy": {
+      "status": 500,
+      "privacyFormRendered": false
+    },
+    "observedAt": "2026-11-22T13:22:05+09:00",
+    "privacyFailure": "privacy_requests 테이블 없음"
+  }
 }
