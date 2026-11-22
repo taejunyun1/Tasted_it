@@ -107,7 +107,11 @@ export async function resetPassword(db: AppDb, input: { token: string; password:
   } catch (error) {
     let cause: unknown = error;
     for (let depth = 0; depth < 4 && cause instanceof Error; depth++) {
-      if (cause.message.includes("malformed JSON")) throw new Error("TOKEN_INVALID");
+      if (cause.message.includes("malformed JSON")) {
+        // A concurrent use consumes the token. A rolled-back write leaves it available.
+        await readPendingToken(db, input.token, "RESET_PASSWORD", input.now);
+        break;
+      }
       cause = cause.cause;
     }
     throw error;

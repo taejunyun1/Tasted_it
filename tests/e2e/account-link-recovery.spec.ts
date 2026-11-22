@@ -52,7 +52,10 @@ test("password reset returns to the original place after a rejected submission",
   test.skip(!baseURL || !["127.0.0.1", "localhost", "[::1]"].includes(new URL(baseURL).hostname), "Requires the local synthetic mailbox");
   const email = `reset-ux-${crypto.randomUUID()}@example.test`;
   const password = `synthetic-${crypto.randomUUID()}`;
-  const returnTo = "/places/sample-dongmyeong-ramen?from=map&selected=sample-place-1";
+  const mobile = testInfo.project.name === "mobile-chromium";
+  const placePath = "/places/sample-dongmyeong-ramen";
+  const returnTo = mobile ? `/places?${new URLSearchParams({ q: "라멘", bbox: "126.8,35.1,127,35.2", selected: "sample-place-1", place: placePath })}`
+    : `${placePath}?from=map&selected=sample-place-1`;
   const destination = encodeURIComponent(returnTo);
   const capturedLink = async () => {
     const delivery = await context.request.get(`/__e2e/email?email=${encodeURIComponent(email)}`);
@@ -107,6 +110,11 @@ test("password reset returns to the original place after a rejected submission",
   await page.getByLabel("비밀번호", { exact: true }).fill(changedPassword);
   await page.getByRole("button", { name: "로그인", exact: true }).click();
   await expect(page).toHaveURL(new URL(returnTo, baseURL).href);
+  if (mobile) {
+    const sheet = page.locator("dialog.place-detail-sheet:modal");
+    await expect(sheet.getByRole("heading", { level: 2, name: "Re:Taste 샘플 라멘 동명" })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("after-reset-mobile-sheet.png"), fullPage: true });
+  }
 
   await page.goto(resetLink.href);
   await newPassword.fill(password);

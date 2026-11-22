@@ -21,8 +21,11 @@ export async function action({ request }: Route.ActionArgs) {
       now: new Date(),
     });
     return { ok: true, message: "새 비밀번호가 저장되었습니다." };
-  } catch {
-    return data({ ok: false, message: "링크가 만료되었거나 비밀번호가 10자 미만입니다." }, { status: 400 });
+  } catch (error) {
+    if (error instanceof Error && (error.message === "TOKEN_INVALID" || error.message === "PASSWORD_TOO_SHORT")) {
+      return data({ ok: false, message: "링크가 만료되었거나 비밀번호가 10자 미만입니다." }, { status: 400 });
+    }
+    return data({ ok: false, message: "비밀번호를 저장하지 못했습니다. 같은 링크에서 다시 시도해 주세요." }, { status: 503 });
   }
 }
 
