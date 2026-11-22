@@ -18,9 +18,15 @@ test("T05 applies a verified closure report through the authenticated B09 recall
   try {
     fixture.create();
     operator = await fixture.createRecallOperator();
-    for (const context of [page.context(), admin]) {
-      await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
-    }
+    await page.context().route("**/*", (route) => {
+      const request = route.request();
+      if (new URL(request.url()).origin !== origin) return route.abort();
+      // The local mock-mail Worker shares loopback with other suites.
+      return request.method() === "POST"
+        ? route.continue({ headers: { ...request.headers(), "cf-connecting-ip": fixture.clientIp } })
+        : route.continue();
+    });
+    await admin.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
     await admin.addCookies([{ name: "retaste_session", value: operator.sessionId, url: baseURL! }]);
     const adminPage = await admin.newPage();
 

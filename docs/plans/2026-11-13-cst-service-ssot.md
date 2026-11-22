@@ -235,7 +235,7 @@ B09 영수증과 공개 감사, 최종 검수 완료, 실제 공개 상태가 �
 | --- | --- | --- | --- |
 | D01 p3 | admin-import/data-sync, `tests/unit/place-import.test.ts` | 출처·시각·결과·재반입 idempotency, 로컬 fixture와 승인된 원격 증거 분리 | T05, 11/23 |
 | D02 p3 | 분류·dedup·place-review pipeline, #348~351 | 체인·비음식점·폐업/이전·중복의 근거와 보완/제외, #352 실제 처리 집계는 별도 | T05, 11/25 |
-| D03 p3 | #382 CAS/감사 backend·#390 리뷰어/admin 검수 UI 병합, 기존 후보/정정 | 전체 후보/정정 운영 검수·실제 자료 승인 | T04/T05, 11/25 |
+| D03 p3 | #382 CAS/감사 backend·#390 리뷰어/admin 검수 UI 병합. 폐업 신고를 B09 회수와 결속하고 정정 큐를 25건씩 표시한다. [검증 증거](../evidence/cst-correction-recall-20261122/summary.json) | 전체 후보/정정 운영 검수·실제 자료 승인 | T04/T05, 11/25 |
 | D04 p3 | place-operations·admin audit, 공개 적격 판정 | admin만 발행, 비공개 즉시 검색/추천 제외·변경 전후·사유 검증 | T04/T05, 11/25 |
 | D05 p3 | #382 출처/회수 gate, #386 DEC-03 고정 기대값·신뢰/감쇠→점수·외부평점 배제·재계산 반복 검증 | 전체 T06 수용·실제 운영 입력/재계산 영향 확인 | T06, 11/26 |
 | D06 p3 | 기존 운영 런북, #378 합성 local D1 복원69table/157row·schema/data/손상 거절 PASS | 실제 R2/삭제 후 복원·중단/복구·운영 보관/백업 주기/RPO/RTO·전체 T08 | T08, 11/27 |
