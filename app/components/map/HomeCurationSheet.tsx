@@ -31,7 +31,7 @@ export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCuration
   const handleRef = useRef<HTMLButtonElement | null>(null);
   const pointerStartY = useRef<number | null>(null);
   const suppressClick = useRef(false);
-  const selectedPlace = props.page.places.find((place) => place.id === props.selectedPlaceId);
+  const peekPlace = snap === "peek" ? props.page.places.find((place) => place.id === props.selectedPlaceId) : undefined;
 
   const handlePlaceSelect = (placeId: string) => {
     onSnapChange(homeSheetSnapAfterPlaceSelect());
@@ -72,15 +72,17 @@ export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCuration
       }}
     ><span aria-hidden="true" /></button>
     <div className="home-curation-sheet__summary">
-      {snap === "peek" && selectedPlace ? <div className="home-curation-sheet__selection" aria-live="polite">
-        <span className="home-curation-sheet__selection-rank">{String(selectedPlace.rank).padStart(2, "0")}</span>
-        <strong className="home-curation-sheet__selection-name">{selectedPlace.name}</strong>
-      </div> : <>
-        <div><p className="eyebrow">NEARBY / CURATED</p><p className="home-curation-sheet__title">지금 갈 만한 5곳</p></div>
-        <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
-      </>}
+      <div className={peekPlace ? "sr-only" : undefined}>
+        {!peekPlace && <p className="eyebrow">NEARBY / CURATED</p>}
+        <p className="home-curation-sheet__title" role="heading" aria-level={1}>지금 갈 만한 5곳</p>
+      </div>
+      {peekPlace ? <div className="home-curation-sheet__selection" aria-live="polite">
+        <span className="home-curation-sheet__selection-rank">{String(peekPlace.rank).padStart(2, "0")}</span>
+        <strong className="home-curation-sheet__selection-name">{peekPlace.name}</strong>
+      </div> : <button type="button" className="home-curation-locate" disabled={props.locating || props.locationBlocked} aria-busy={Boolean(props.locating)} onClick={props.onLocate}>내 위치</button>}
     </div>
     <div className="home-curation-sheet__body">
+      {props.locationNotice && <p className="home-curation-intro mt-0!" role="status">{props.locationNotice}</p>}
       {props.page.status !== "UNAVAILABLE" && props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
       <HomeCurationModeControls {...props} />
       <HomeCurationError {...props} />

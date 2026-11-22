@@ -15,7 +15,7 @@ export interface PublicCategoryGroup {
 
 export type BrowseMobileView = "map" | "list";
 
-export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, counts, pagination, tempOnly = false, browseSearch = "", listHref, mobileView = "map", onMobileViewChange, onSelect, onSearch, onCategory, onLocate, onGroupSelect, onExpandBounds }: {
+export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, counts, pagination, tempOnly = false, browseSearch = "", listHref, mobileView = "map", onMobileViewChange, onSelect, onSearch, onCategory, locating = false, locationBlocked = false, onLocate, onGroupSelect, onExpandBounds }: {
   places: PlaceSummary[];
   groups: PublicCategoryGroup[];
   regionGroups: RegionGroup[];
@@ -32,6 +32,8 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
   onSelect: (id: string) => void;
   onSearch: (query: string) => void;
   onCategory: (slug: string | null) => void;
+  locating?: boolean;
+  locationBlocked?: boolean;
   onLocate: () => void;
   onGroupSelect: (cluster: RegionCluster) => void;
   onExpandBounds?: (bounds: [number, number, number, number]) => void;
@@ -76,7 +78,7 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
           <input id="map-search" name="q" value={searchQuery} onChange={(event) => setSearchQuery(event.currentTarget.value)} placeholder="동네·상호명 검색" />
           <button>검색</button>
         </form>
-        <button type="button" className="map-locate" onClick={onLocate}>◎ 내 주변</button>
+        <button type="button" className="map-locate" disabled={locating || locationBlocked} aria-busy={locating} onClick={onLocate}>◎ 내 주변</button>
       </div>
       {listHref && <Link className="mx-4 hidden min-h-11 items-center text-sm font-semibold underline! min-[761px]:inline-flex" to={listHref}>목록에서 보기</Link>}
       <div className="map-category-groups" role="group" aria-label="대표 카테고리">

@@ -12,8 +12,9 @@ export function HomeCurationPanel(props: HomeCurationPresentationProps) {
         <p className="eyebrow">NEARBY / CURATED</p>
         <h1>지금 갈 만한 5곳</h1>
       </div>
-      <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
+      <button type="button" className="home-curation-locate" disabled={props.locating || props.locationBlocked} aria-busy={Boolean(props.locating)} onClick={props.onLocate}>내 위치</button>
     </header>
+    {props.locationNotice && <p className="home-curation-intro" role="status">{props.locationNotice}</p>}
     {props.page.status !== "UNAVAILABLE" && props.page.notice && <p className="home-curation-intro" role="status">{props.page.notice}</p>}
     <p className="home-curation-intro">모든 장소 대신, 거리·취향·시간대·평가를 함께 본 다섯 곳만 보여드려요.</p>
     <HomeCurationModeControls {...props} />
