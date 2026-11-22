@@ -1,0 +1,21 @@
+{
+  "sourceSha": "20a6b1e62262bd6e14426f8260c2816175bdbe17",
+  "appTree": "386539743c67a781a8702aff155cf185d0d9b27d",
+  "environment": "Vitest Workers와 격리 합성 D1",
+  "executedAtKst": "2026-11-22T12:59:30+09:00",
+  "checks": {
+    "d1Integration": 22,
+    "providerSuccessCases": 2,
+    "typecheck": "PASS",
+    "productionDependencyAudit": "알려진 취약점 0건"
+  },
+  "command": "pnpm test:integration tests/integration/oauth-login-recovery.test.ts tests/integration/oauth-request.server.test.ts tests/integration/guest-merge-completion.test.ts",
+  "results": [
+    "Google·NAVER 시작과 콜백에서 테스트용 서명 토큰을 실제 토큰 검증 경로로 확인했다. 제공자 응답은 토큰·공개 키·NAVER 프로필의 HTTP 경계에서 모의 처리했다.",
+    "콜백에 별도 목적지를 넣어도 D1의 검증된 원래 상세로 복귀했다. 계정 연결과 읽기 가능한 회원 세션은 제공자당 한 건이었다.",
+    "계정마다 임시 취향과 저장을 각각 한 건 승계했다. 원본 선택과 임시 쿠키를 정리했고, 같은 콜백을 다시 보내면 추가 요청과 승계가 발생하지 않았다."
+  ],
+  "limits": [
+    "합성 계정의 경로 검증이다. 실제 제공자 앱 승인, 외부 인증·메일 전달과 전체 T03 수용은 별도다."
+  ]
+}
