@@ -18,7 +18,7 @@ describe("course score v2", () => {
       center: { latitude: 35.15, longitude: 126.85 }, mealCategories: ["grill"], second: "cafe", radiusKm: 3, resolvedTime: "dinner", timeWasAuto: false,
     });
     expect(ranked[0]?.first.id).toBe("good");
-    expect(ranked[0]?.badges).toContain("지금 영업 중");
+    expect(ranked[0]?.badges).toContain("기록상 두 곳 모두 영업시간");
   });
 
   it("hard-excludes known closed places and keeps an unknown-hours notice", () => {

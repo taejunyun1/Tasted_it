@@ -114,9 +114,9 @@ function PlaceStop({ index, place, role, score, availability }: { index: number;
   const count = place.positive + place.negative;
   return <article className="course-stop">
     <span className="course-stop-index">{String(index).padStart(2, "0")}</span>
-    <div className="course-stop-main"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3><small>{role} · {availability === "OPEN" ? "지금 영업 중" : "영업시간 확인 필요"}</small></div>
+    <div className="course-stop-main"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h3><Link to={`/places/${place.slug}`}>{place.name}</Link></h3><small>{role} · {availability === "OPEN" ? "기록상 영업시간에 해당" : "영업시간 확인 필요"}</small></div>
     {score != null && <strong className="course-stop-score">{score}점</strong>}
-    <div className="course-stop-tags"><span>{count >= 8 ? `추천 평가 ${count}명` : `평가 ${count}/8`}</span><span>검수 공개 장소</span></div>
+    <div className="course-stop-tags"><span>{count >= 8 ? `추천 평가 ${count}명` : `평가 ${count}/8`}</span><span>{place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
   </article>;
 }
 

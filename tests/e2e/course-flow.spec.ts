@@ -40,7 +40,7 @@ test.beforeAll(({}, info) => {
     INSERT INTO place_categories(place_id,category_id,is_primary)
     SELECT '${prefix}-cafe',id,1 FROM categories WHERE slug='cafe';
     INSERT INTO place_operating_hours(id,place_id,weekday,opens_at,closes_at,is_closed,last_verified_at,created_at,updated_at)
-    VALUES ${[0, 1, 2, 3, 4, 5, 6].flatMap(day => ["meal", "cafe"].map(stop => `('${prefix}-${stop}-hours-${day}','${prefix}-${stop}',${day},'00:00','23:59',0,'${now}','${now}','${now}')`)).join(",")};`);
+    VALUES ${[0, 1, 2, 3, 4, 5, 6].flatMap(day => ["meal", "cafe"].map(stop => `('${prefix}-${stop}-hours-${day}','${prefix}-${stop}',${day},'00:00','00:00',0,'${now}','${now}','${now}')`)).join(",")};`);
 });
 
 test.beforeEach(async ({ page, baseURL }) => {
@@ -59,6 +59,43 @@ test("database-backed courses survive unavailable parking", async ({ page }, inf
   await expect(page.getByText("주차 정보 준비 중", { exact: true })).toBeVisible();
   await expect(page.getByText("조건에 맞는 주차장 없음", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("course-parking-unavailable.png"), fullPage: true });
+});
+
+test("course cards identify TEMP venues and qualify their hours", async ({ page }, info) => {
+  const sourceUrl = "https://tour.gwangju.go.kr/example";
+  const payload = JSON.stringify({
+    sourceId: "temp100-001",
+    name: "합성 코스 카페",
+    address: "합성 카페 주소",
+    region: "광주",
+    cuisine: "카페",
+    summary: "코스 상태 표시를 확인하기 위한 합성 장소입니다.",
+    sourceUrl,
+    sourceTitle: "합성 출처",
+    checkedAt: now,
+    evaluation: { kind: "OFFICIAL_CURATION", provider: "합성", sourceUrl },
+    photo: null,
+  });
+  const batchId = `${prefix}-temp`;
+  try {
+    sql(`INSERT INTO temp_catalog_batches(id,source_hash,manifest_hash,status,created_at,updated_at)
+      VALUES('${batchId}','${batchId}','${batchId}','PUBLISHED','${now}','${now}');
+      INSERT INTO temp_catalog_entries(id,batch_id,source_id,place_id,payload_json,created_at,updated_at)
+      VALUES('${batchId}-entry','${batchId}','temp100-001','${prefix}-cafe','${payload.replaceAll("'", "''")}','${now}','${now}');`);
+    await page.goto(courseUrl());
+    const meal = page.locator(".course-stop").filter({ has: page.getByRole("link", { name: "합성 코스 식당", exact: true }) });
+    const cafe = page.locator(".course-stop").filter({ has: page.getByRole("link", { name: "합성 코스 카페", exact: true }) });
+    await expect(meal.getByText("공개 장소", { exact: true })).toBeVisible();
+    await expect(cafe.getByText("TEMP · 영업 미확인", { exact: true })).toBeVisible();
+    const contextEnabled = process.env.COURSE_CONTEXT_V2_ENABLED === "true";
+    const hoursLabel = contextEnabled ? "기록상 영업시간에 해당" : "영업시간 확인 필요";
+    await expect(meal).toContainText(hoursLabel);
+    await expect(cafe).toContainText(hoursLabel);
+    await expect(page.getByText("기록상 두 곳 모두 영업시간", { exact: true })).toHaveCount(contextEnabled ? 1 : 0);
+    await page.screenshot({ path: info.outputPath("course-recorded-hours-and-temp.png"), fullPage: true });
+  } finally {
+    sql(`DELETE FROM temp_catalog_batches WHERE id='${batchId}';`);
+  }
 });
 
 test("database-backed parking renders the near facility, distance and fee", async ({ page }, info) => {

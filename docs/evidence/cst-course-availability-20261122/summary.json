@@ -1,0 +1,30 @@
+{
+  "sourceSha": "cf3f69e7237627aa78ca59a484b992f70cf70e04",
+  "appTree": "ccfa3aafdb1cb2b63c9a2f9786ad75a3ef785ddf",
+  "completedAtKst": "2026-11-22T11:32:29+09:00",
+  "environment": "Local compiled Worker, synthetic D1, desktop and mobile Chromium",
+  "checks": {
+    "unit": 8,
+    "integration": 6,
+    "browserFinalV2": 2,
+    "browserBaseModeEarlier": 2,
+    "browserV2FullSuiteBeforeDateValidation": 12,
+    "build": "PASS",
+    "typecheck": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "Same-day overnight opening, previous-day carry, exclusive end, invalid/partial recorded hours",
+    "Actual D1 101 and 250 candidates, preserved contexts and indexed lookups, malformed date as unknown",
+    "Honest public/TEMP labels, recorded hours and existing base-mode unknown copy"
+  ],
+  "screenshots": [
+    "desktop.png",
+    "mobile.png"
+  ],
+  "limits": [
+    "The existing course v2 flag was enabled only on a local synthetic Worker.",
+    "Whole T08, live provider and recovery verification are still pending.",
+    "The change does not introduce a new freshness, arrival-time or real-time operating status policy."
+  ]
+}
