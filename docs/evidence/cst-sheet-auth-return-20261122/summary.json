@@ -2,7 +2,7 @@
   "sourceSha": "522a6068e858f1c4cd176f67166be14cbee00286",
   "appTree": "791779e6ef02076cd51dcec1e9868608975eaaca",
   "environment": "로컬 컴파일 Worker, 합성 D1·모의 인증 메일, 데스크톱 및 모바일 Chromium",
-  "checks": {"unit": 53, "integrationBeforeFinalFocusIntegration": 77, "mobileBrowserOnCombinedCode": 6, "desktopBrowserOnCombinedCode": 1, "typecheck": "PASS", "build": "PASS", "productionDependencyAudit": "PASS"},
+  "checks": {"unit": 53, "integrationOnCombinedCode": 81, "mobileBrowserOnCombinedCode": 6, "desktopBrowserOnCombinedCode": 1, "typecheck": "PASS", "build": "PASS", "productionDependencyAudit": "PASS"},
   "scope": [
     "홈 지도, 분류 지도, 목록에서 열었던 같은 장소 상세로 돌아가며 검색어·범위·선택과 중첩 추천 출처를 유지한다.",
     "Google·NAVER 시작 실패에서 이메일 회원가입·모의 확인·비밀번호 로그인으로 전환한 뒤 같은 탐색 상태를 확인했다.",
