@@ -112,7 +112,7 @@ test("mobile recommendation card preserves provenance through sheet detail and s
     expect(detailPath).toMatch(/^\/places\/[^?]+\?sourceRail=PERSONAL&discoveryMode=(?:FAMILIAR|ADJACENT|EXPLORATION|ONBOARDING)&recommendationRequestId=[0-9a-f-]{36}$/i);
     const provenance = new URL(detailPath!, baseURL).searchParams;
     const metadataJson = JSON.stringify({ sourceRail: provenance.get("sourceRail"), discoveryMode: provenance.get("discoveryMode") });
-    await expect(sheet.locator("form").filter({ has: sheet.locator('input[name="intent"][value="save"]') }))
+    await expect(sheet.locator('form:has(input[name="intent"][value="save"])'))
       .toHaveAttribute("action", detailPath!);
     const postPromise = page.waitForRequest((request) => request.method() === "POST" && new URL(request.url()).pathname.startsWith("/places/"));
     await sheet.getByRole("button", { name: "맛집지도에 추가" }).click();

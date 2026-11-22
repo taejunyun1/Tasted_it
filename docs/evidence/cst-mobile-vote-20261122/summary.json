@@ -1,0 +1,15 @@
+{
+  "sourceSha": "dbe92cf52c647d91729bd5a6a8028bd492dacb8b",
+  "appTree": "8e8543cb2dc9bab07e94eb0c67dadc5b8c0b2586",
+  "environment": "로컬 컴파일 Worker와 합성 D1, 브라우저 데스크톱·모바일 Chromium",
+  "checks": {"unit": 49, "voteAndModerationIntegration": 31, "guestSaveBoundedBodyIntegration": 7, "browserBeforeAuthBodyHardening": 5, "browserFinalFocused": 16, "typecheck": "PASS", "build": "PASS", "productionDependencyAudit": "PASS"},
+  "scope": [
+    "모바일 추천·비추천과 사유·취소, 공개 Golden Pick·Hidden Gem, 승인 사진과 고정 장소 정정 링크",
+    "전송 전후 응답 유실과 기존 평가 경합은 현재 상태를 확인할 때까지 변경을 잠그고 명시적 GET으로 복원",
+    "실제 합성 세션 만료 후 같은 추천 상세를 복원하며 미확정 평가를 재전송하지 않음",
+    "인증 전 본문 읽기는 URL 인코딩과 8 KiB로 한정하고, 대상 장소·추천 출처가 일치하는 탐색 복귀 주소만 수용",
+    "계정 저장과 추천 출처, 정식 상세의 평가·저장·새로고침 회귀 확인"
+  ],
+  "screenshots": ["desktop-public-evidence.png", "mobile-recommendation.png", "mobile-after-login.png"],
+  "limits": ["합성 화면과 로컬 D1의 결과다. 실제 사용자와 제공자, 전체 T02/S03 수용과 운영 반영은 별도다."]
+}
