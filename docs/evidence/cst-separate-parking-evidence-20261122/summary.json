@@ -22,5 +22,11 @@
   ],
   "limits": [
     "설치 정보는 스냅샷 기반이며 실시간 빈자리나 충전기 가동 여부를 뜻하지 않는다. 전체 T08 운영 수용은 별도다."
-  ]
+  ],
+  "combinedWithParkingRecovery": {
+    "sourceSha": "47d3bd719aedd1729e6b17ad1e20841da8e34f06",
+    "appTree": "2cf35f1b14e2f3cd67a47fb322caadf056e97697",
+    "browser": 4,
+    "startedAt": "2026-11-22T03:35:41.432Z"
+  }
 }
