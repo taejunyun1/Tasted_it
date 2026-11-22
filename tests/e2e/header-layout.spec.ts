@@ -43,7 +43,8 @@ for (const user of ["anonymous", "reviewer"] as const) {
     if (user === "reviewer") await context.addCookies([{ name: "retaste_session", value: "qa-active-reviewer-session", domain: "127.0.0.1", path: "/" }]);
     for (const [width, zoom, fontMode] of [[320, 1, "default"], [640, 2, "default"], [320, 1, "monospace-stress"], [640, 2, "monospace-stress"], [1280, 1, "default"]] as const) {
       await page.setViewportSize({ width, height: 1000 });
-      await page.goto("/places");
+      // Give each layout its own history entry so Enter below must finish a navigation.
+      await page.goto(`/places?header-layout=${width}-${zoom}-${fontMode}`);
       if (zoom === 2) await page.addStyleTag({ content: "html { zoom: 2; }" });
       if (fontMode === "monospace-stress") await page.addStyleTag({ content: ".site-head, .site-head * { font-family: monospace !important; }" });
       // Ignore CSS smooth scrolling when resetting a previous Tab traversal.
