@@ -1,0 +1,35 @@
+{
+  "sourceSha": "487d8c81cdb7f8f2a0badee149e073db34f9809b",
+  "appTree": "a6b27692107197f82b42656a7e8487097fdcddcf",
+  "testBlob": "0ac19a65ef34e065a313e960cd57e1089b1229dc",
+  "baselineSha": "d05b1d4cfb04632f429df0ad43b220b2359abdfe",
+  "completedAtKst": "2026-11-22T13:00:44+09:00",
+  "environment": "ISOLATED_LOCAL_VITEST_WORKERS_D1",
+  "scope": "T05/D01에서 시작한 합성 광주 식당 한 곳의 원천 반입·재반입, B09 공개 확정, S07 상호 정정과 감사",
+  "checks": [
+    {
+      "command": "pnpm exec vitest run --config vitest.workers.config.ts tests/integration/place-admin-command.test.ts",
+      "files": 1,
+      "passed": 19,
+      "failed": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "pnpm audit --prod",
+      "vulnerabilities": 0,
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "evidence": [
+    "공공 인허가 응답을 합성한 두 수집 실행의 신규 1건·갱신 1건을 검증했다. 원천 ID·최초 확인일·동일 검수 항목이 이어지고, B09 확정 전까지 공개 목록에 나오지 않았다.",
+    "수동 근거, 지역 식당 기준과 분류를 실제 서버 경로로 확인했다. B09 미리보기 동안 비공개였고, 확정 후 갱신된 원천 상호가 공개 목록·상세에 표시되며 원천 연결과 영수증 및 감사가 남았다.",
+    "S07 접수 및 인증·검토를 거쳐 상호를 정정했다. 같은 ID와 상세 URL에서 정정 상호가 표시됐으며, 미인증 적용은 거절됐다. 공개 상태, 승인된 원천과 연결, 정정 전후 리비전 및 관리 감사가 확인됐다."
+  ],
+  "limits": [
+    "단일 합성 원천과 격리 D1에서 서버 경로를 검증했다. 실제 원천·메일·브라우저·운영 검증, 실자료 권리 확인 및 전체 T05 수용은 별도다."
+  ]
+}
