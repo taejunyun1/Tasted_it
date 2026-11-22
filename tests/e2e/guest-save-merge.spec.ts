@@ -134,7 +134,8 @@ test("guest saves survive reload, keep their unsave intent after failure and con
 test("a failed login merge keeps the guest original and offers explicit retry on the return page", async ({ page, context }, testInfo) => {
   const userId = `e2e-onboarding-${testInfo.project.name}`;
   const trigger = `e2e_guest_merge_failure_${testInfo.project.name.replaceAll("-", "_")}`;
-  await page.goto(detail);
+  // The enabled save control below waits for hydration, independent of third-party assets.
+  await page.goto(detail, { waitUntil: "commit" });
   await page.getByRole("button", { name: "임시 저장", exact: true }).click();
   await expect(page.getByRole("button", { name: "임시 저장 해제", exact: true })).toBeEnabled();
   localD1(`CREATE TRIGGER ${trigger} BEFORE INSERT ON saved_places WHEN NEW.user_id='${userId}' BEGIN SELECT RAISE(ABORT,'synthetic guest merge failure'); END;`);
