@@ -1,0 +1,27 @@
+{
+  "sourceSha": "ec141546cd5f430f7454c3b1c0932a89c5b9cc7b",
+  "appTree": "d8a49ce7e4ae316284ce7a0cc8ab820eda8f5939",
+  "environment": "로컬 컴파일 Worker와 합성 D1, 데스크톱·모바일 Chromium",
+  "checks": {
+    "unit": 25,
+    "d1Integration": 46,
+    "browserModeration": 6,
+    "browserFinalLinkAndPrivacy": 2,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "localRemainingFixturePhotoRows": 0
+  },
+  "scope": [
+    "장소 상세와 모바일 시트에 현재 승인된 방문의 공개 이름·프로필 링크만 표시",
+    "사진 없는 승인 방문도 연결한다. 비공개 근거와 내부 계정 ID는 응답에서 제외하며 사진 권리 조건을 적용한다.",
+    "장소와 공개 프로필 양방향 이동, 재편집·반려·철회 후 링크 및 사진 비노출",
+    "데스크톱과 모바일에서 계산된 밑줄 표시 확인"
+  ],
+  "screenshots": [
+    "desktop-reviewer-link.png",
+    "mobile-reviewer-link.png"
+  ],
+  "limits": [
+    "합성 계정·콘텐츠 결과다. 운영 반영과 실제 권리 승인, 전체 T04 수용은 별도다."
+  ]
+}
