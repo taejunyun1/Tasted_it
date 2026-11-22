@@ -29,6 +29,10 @@ describe("place suggestion approval action wiring", () => {
     expect(card).toContain("초안 승인");
     expect(card).toContain('placeholder="승인 근거"');
     expect(route).toContain("suggestionApprovalErrorMessage");
-    expect(route).toContain("status: 400");
+    expect(card.match(/name="expectedRevision"/g)).toHaveLength(2);
+    expect(route).toContain("item.decisionRevision");
+    expect(route).toContain("conflict ? 409");
+    expect(route).toContain("suggestionApprovalNotice");
+    expect(card).not.toContain("생성한 초안 보기");
   });
 });

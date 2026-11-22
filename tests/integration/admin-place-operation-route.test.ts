@@ -71,6 +71,40 @@ describe("B09 place operation HTTP boundaries",()=>{
     const admin=await caller();
     for(const path of ["/admin/place-operations?operation=not-an-id","/admin/place-operations?place=a&place=b"]) await expect(loader({request:request(admin.sessionId,undefined,"https://place.test",path)} as never)).rejects.toMatchObject({status:400});
   });
+  it("requires the current suggestion card for decisions and identifies an exact approval replay", async () => {
+    const admin = await caller(), member = await caller("USER");
+    const suggestionId = crypto.randomUUID(), categoryId = await env.DB.prepare("SELECT id FROM categories ORDER BY id LIMIT 1").first("id");
+    expect(categoryId).toBeTruthy();
+    const address = "광주광역시 동구 합성로 10";
+    await env.DB.prepare(`INSERT INTO place_suggestions(id,user_id,status,name,normalized_name,address,normalized_address,neighborhood,
+      latitude,longitude,category_id,created_at,updated_at) VALUES(?,?,'SUBMITTED','합성 제안','합성제안',?,?,'동명동',35.15,126.92,?,?,?)`)
+      .bind(suggestionId, member.userId, address, address, categoryId, "2026-07-01T00:00:00.000Z", admin.now).run();
+    const revision = async () => {
+      const page = await loader({ request: request(admin.sessionId) } as never);
+      if (page.data.tab !== "review") throw new Error("missing suggestion review tab");
+      return page.data.suggestions.rows.find((row) => row.id === suggestionId)!.decisionRevision;
+    };
+    const post = (fields: Record<string, string>) => action({ request: request(admin.sessionId, new URLSearchParams(fields).toString()) } as never);
+    const firstRevision = await revision();
+    const transition = { intent: "transition-suggestion", suggestionId, status: "NEEDS_INFO", reason: "신청 정보 추가 확인" };
+    expect(status(await post(transition))).toBe(409);
+    expect(status(await post({ ...transition, expectedRevision: firstRevision }))).toBe(200);
+
+    const prefix = `approval-${suggestionId}-`;
+    const approve = { intent: "approve-suggestion", suggestionId, reason: "확인된 초안 승인",
+      [`${prefix}address`]: address, [`${prefix}neighborhood`]: "동명동", [`${prefix}locationConfirmed`]: "true",
+      [`${prefix}originLatitude`]: "35.15", [`${prefix}originLongitude`]: "126.92",
+      [`${prefix}latitude`]: "35.15", [`${prefix}longitude`]: "126.92" };
+    expect(await post(approve)).toMatchObject({ init: { status: 409 }, data: { code: "SUGGESTION_STALE", suggestionId } });
+    expect(await post({ ...approve, expectedRevision: firstRevision })).toMatchObject({ init: { status: 409 }, data: { code: "SUGGESTION_STALE", suggestionId } });
+    expect(await env.DB.prepare("SELECT id FROM places WHERE id=?").bind(suggestionId).first()).toBeNull();
+    const current = { ...approve, expectedRevision: await revision() };
+    expect(await post(current)).toMatchObject({ ok: true, placeId: suggestionId, message: "제안을 비공개 초안으로 승인했습니다." });
+    expect(await post(current)).toMatchObject({ ok: true, placeId: suggestionId, message: "이미 기록된 초안 승인을 확인했습니다." });
+    expect(await env.DB.prepare("SELECT status FROM places WHERE id=?").bind(suggestionId).first("status")).toBe("DRAFT");
+    expect(await env.DB.prepare("SELECT count(*) n FROM admin_audit_logs WHERE target_type='PLACE_SUGGESTION' AND target_id=?")
+      .bind(suggestionId).first("n")).toBe(2);
+  });
   it("previews without changing publication and returns to the same operation after required reauthentication",async()=>{
     const admin=await caller(),id=await place(admin.now);
     const prepared=await action({request:request(admin.sessionId,new URLSearchParams({intent:"recall",placeId:id,reason:"합성 공개 회수 검증"}).toString())} as never);

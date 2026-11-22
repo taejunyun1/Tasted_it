@@ -1,13 +1,88 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeReviewWorkItems, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../db/schema";
 import { classifyPlaceDuplicate, normalizePlaceIdentity, type PlaceIdentityInput } from "./place-duplicate-policy";
 import { isSupportedRegionAddress, normalizeSupportedRegionAddress, validateAdjustedCoordinate, validatePlaceCoordinate } from "../maps/place-location";
+import { isWithdrawnEmail } from "../auth/withdraw";
 import { slugifyPlaceNameForAddress } from "./place-slug";
 import { newReviewWorkItemValues } from "./place-review-work-items.server";
 import { enforceReviewDiningExclusion } from "./local-dining-review.server";
 import { reviewableSuggestionStatuses } from "./place-suggestion-io";
+
+type Suggestion = typeof placeSuggestions.$inferSelect;
+type SuggestionDecision = { suggestionId: string; actorUserId: string; expectedRevision?: string; reason: string; now: string };
+const suggestionColumns = getTableColumns(placeSuggestions);
+const suggestionKeys = Object.keys(suggestionColumns) as Array<keyof Suggestion>;
+
+async function decisionDigest(value: unknown) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function decisionRevision(suggestion: Suggestion) {
+  return decisionDigest(suggestionKeys.map((key) => suggestion[key]));
+}
+
+function exactDecision(suggestion: Suggestion, input: SuggestionDecision) {
+  return and(
+    ...suggestionKeys.map((key) => sql`${suggestionColumns[key]} is ${suggestion[key]}`),
+    sql`exists (select 1 from users where id=${input.actorUserId} and role='ADMIN'
+      and lower(email) not like 'withdrawn.%@invalid.local'
+      and not exists (select 1 from member_access_restrictions r
+        where r.user_id=${input.actorUserId} and r.lifted_at is null and r.starts_at<=${input.now} and r.expires_at>${input.now}))`,
+  );
+}
+
+// D1 checks and writes share one transaction. An unchanged update or a
+// suppressed insert must abort it before a later statement can report success.
+function requireOneChange(db: AppDb) {
+  return db.run(sql`SELECT json(CASE WHEN changes()=1 THEN 'true' ELSE 'SUGGESTION_CAS_CONFLICT' END)`);
+}
+
+async function commitDecision(db: AppDb, statements: Parameters<AppDb["batch"]>[0]) {
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    for (let cause = error; cause instanceof Error; cause = cause.cause) {
+      if (cause.message.includes("malformed JSON")) throw new Error("SUGGESTION_STALE");
+    }
+    throw error;
+  }
+}
+
+async function readDecision(db: AppDb, input: SuggestionDecision) {
+  const [suggestion, actor] = await Promise.all([
+    db.query.placeSuggestions.findFirst({ where: eq(placeSuggestions.id, input.suggestionId) }),
+    db.query.users.findFirst({ where: eq(users.id, input.actorUserId) }),
+  ]);
+  if (actor?.role !== "ADMIN" || isWithdrawnEmail(actor.email)) throw new Error("ADMIN_REQUIRED");
+  if (!suggestion) throw new Error("SUGGESTION_NOT_REVIEWABLE");
+  if (!input.reason.trim()) throw new Error("REVIEW_REASON_REQUIRED");
+  return suggestion;
+}
+
+async function assertReviewable(suggestion: Suggestion, expectedRevision?: string) {
+  if (suggestion.approvedPlaceId !== null || !reviewableSuggestionStatuses.some((status) => status === suggestion.status)) {
+    throw new Error("SUGGESTION_NOT_REVIEWABLE");
+  }
+  if (expectedRevision !== undefined && await decisionRevision(suggestion) !== expectedRevision) throw new Error("SUGGESTION_STALE");
+}
+
+async function findApprovalReceipt(db: AppDb, suggestion: Suggestion, input: SuggestionDecision, requestDigest: string) {
+  if (suggestion.status !== "APPROVED" || suggestion.approvedPlaceId !== suggestion.id || suggestion.reviewedBy !== input.actorUserId) return null;
+  const [existingPlace, approvals] = await Promise.all([
+    db.query.places.findFirst({ where: eq(places.id, suggestion.id), columns: { id: true, slug: true, status: true } }),
+    db.select({ id: adminAuditLogs.id }).from(adminAuditLogs).where(and(
+      eq(adminAuditLogs.action, "APPROVE_PLACE_SUGGESTION"),
+      eq(adminAuditLogs.targetType, "PLACE_SUGGESTION"),
+      eq(adminAuditLogs.targetId, suggestion.id),
+      eq(adminAuditLogs.actorUserId, input.actorUserId),
+      sql`json_extract(${adminAuditLogs.afterState}, '$.requestDigest')=${requestDigest}`,
+    )).limit(2),
+  ]);
+  return existingPlace && approvals.length === 1 ? { placeId: existingPlace.id, slug: existingPlace.slug, status: existingPlace.status, replayed: true } : null;
+}
 
 export interface SuggestionInput extends PlaceIdentityInput {
   id: string; userId: string; neighborhood: string; categoryId: string;
@@ -68,20 +143,15 @@ export async function listReviewablePlaceSuggestions(db: AppDb, requestedPage = 
   const total = Number(count?.total ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(totalPages, Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1);
-  const rows = await db.select({
-    id: placeSuggestions.id,
-    status: placeSuggestions.status,
-    name: placeSuggestions.name,
-    address: placeSuggestions.address,
-    neighborhood: placeSuggestions.neighborhood,
-    latitude: placeSuggestions.latitude,
-    longitude: placeSuggestions.longitude,
-    description: placeSuggestions.description,
-  }).from(placeSuggestions)
+  const rows = await db.select().from(placeSuggestions)
     .where(where)
     .orderBy(asc(placeSuggestions.createdAt), asc(placeSuggestions.id))
     .limit(pageSize).offset((page - 1) * pageSize);
-  return { rows, pagination: { page, pageSize, total, totalPages } };
+  const listings = await Promise.all(rows.map(async (suggestion) => {
+    const { id, status, name, address, neighborhood, latitude, longitude, description } = suggestion;
+    return { id, status, name, address, neighborhood, latitude, longitude, description, decisionRevision: await decisionRevision(suggestion) };
+  }));
+  return { rows: listings, pagination: { page, pageSize, total, totalPages } };
 }
 
 async function uniqueSlug(db: AppDb, name: string, address: string) {
@@ -90,35 +160,21 @@ async function uniqueSlug(db: AppDb, name: string, address: string) {
   return slug;
 }
 
-export async function approvePlaceSuggestion(db: AppDb, input: {
-  suggestionId: string;
-  actorUserId: string;
+export async function approvePlaceSuggestion(db: AppDb, input: SuggestionDecision & {
   address?: string | null;
   neighborhood?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   originLatitude?: number | null;
   originLongitude?: number | null;
-  reason: string;
-  now: string;
 }) {
-  const [suggestion, actor] = await Promise.all([
-    db.query.placeSuggestions.findFirst({ where: eq(placeSuggestions.id, input.suggestionId) }),
-    db.query.users.findFirst({ where: eq(users.id, input.actorUserId) }),
-  ]);
-  if (actor?.role !== "ADMIN") throw new Error("ADMIN_REQUIRED");
-  if (!suggestion) throw new Error("SUGGESTION_NOT_REVIEWABLE");
-
-  // A browser can lose the response after the D1 batch commits. Treat an
-  // identical follow-up request as the already-completed approval instead of
-  // making the reviewer retry into a terminal-state error.
-  if (suggestion.status === "APPROVED" && suggestion.approvedPlaceId === suggestion.id) {
-    const existingPlace = await db.query.places.findFirst({ where: eq(places.id, suggestion.id) });
-    if (existingPlace) return { placeId: existingPlace.id, slug: existingPlace.slug, status: existingPlace.status };
-  }
-
-  if (!["SUBMITTED", "NEEDS_INFO", "REVIEWING"].includes(suggestion.status)) throw new Error("SUGGESTION_NOT_REVIEWABLE");
-  if (!input.reason.trim()) throw new Error("REVIEW_REASON_REQUIRED");
+  const suggestion = await readDecision(db, input);
+  const reason = input.reason.trim();
+  const requestDigest = await decisionDigest([input.expectedRevision, reason, input.address?.trim(), input.neighborhood?.trim(),
+    input.originLatitude, input.originLongitude, input.latitude, input.longitude]);
+  const existing = await findApprovalReceipt(db, suggestion, input, requestDigest);
+  if (existing) return existing;
+  await assertReviewable(suggestion, input.expectedRevision);
   const address = normalizeSupportedRegionAddress(input.address?.trim() || suggestion.address);
   const neighborhood = input.neighborhood?.trim() || suggestion.neighborhood;
   if (!address || !neighborhood) throw new Error("SUGGESTION_REQUIRED_FIELDS");
@@ -139,37 +195,51 @@ export async function approvePlaceSuggestion(db: AppDb, input: {
   const placeId = suggestion.id;
   const slug = await uniqueSlug(db, suggestion.name, address);
   const place = { id: placeId, slug, name: suggestion.name, status: "DRAFT" as const, address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, phone: suggestion.phone, searchText: `${suggestion.name} ${address} ${neighborhood}`.toLocaleLowerCase("ko-KR"), lastVerifiedAt: input.now, createdAt: input.now, updatedAt: input.now };
+  const claim = { status: "REVIEWING" as const, address, normalizedAddress: normalized.address, neighborhood,
+    latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, reviewReason: reason,
+    reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now };
   try {
-    await db.batch([
-    // Claim with REVIEWING before the place insert. A suggestion cannot point to
-    // a draft that does not exist yet because approved_place_id is a foreign key.
-    // The D1 batch is atomic, so REVIEWING is never externally visible on failure.
-    db.update(placeSuggestions).set({ status: "REVIEWING", address, normalizedAddress: normalized.address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(eq(placeSuggestions.id, suggestion.id), inArray(placeSuggestions.status, ["SUBMITTED", "NEEDS_INFO", "REVIEWING"]))),
-    db.insert(places).values(place),
-    db.insert(placeCategories).values({ placeId, categoryId: suggestion.categoryId, isPrimary: true }),
-    db.insert(placeReviewWorkItems).values(newReviewWorkItemValues({ placeId, sourceKind: "PLACE_SUGGESTION", now: input.now })).onConflictDoNothing(),
-    db.update(placeSuggestions).set({ status: "APPROVED", approvedPlaceId: placeId, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(eq(placeSuggestions.id, suggestion.id), eq(placeSuggestions.status, "REVIEWING"), eq(placeSuggestions.reviewedBy, input.actorUserId), eq(placeSuggestions.reviewedAt, input.now))),
-    db.update(placeDuplicateCandidates).set({ status: "DISMISSED", resolvedBy: input.actorUserId, resolvedAt: input.now, updatedAt: input.now }).where(eq(placeDuplicateCandidates.suggestionId, suggestion.id)),
-    db.update(reviewerApplications).set({ approvedSuggestionCount: sql`${reviewerApplications.approvedSuggestionCount} + 1`, updatedAt: input.now }).where(and(eq(reviewerApplications.userId, suggestion.userId), inArray(reviewerApplications.status, ["APPLIED", "REVIEWING"]))),
-    db.insert(placeRevisions).values({ id: crypto.randomUUID(), placeId, actorUserId: input.actorUserId, action: "CREATE_FROM_SUGGESTION", reason: input.reason.trim(), beforeJson: null, afterJson: JSON.stringify(place), sourceType: "PLACE_SUGGESTION", sourceId: suggestion.id, createdAt: input.now }),
-    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "APPROVE_PLACE_SUGGESTION", targetType: "PLACE_SUGGESTION", targetId: suggestion.id, beforeState: JSON.stringify({ status: suggestion.status, address: suggestion.address, neighborhood: suggestion.neighborhood, latitude: suggestion.latitude, longitude: suggestion.longitude }), afterState: JSON.stringify({ status: "APPROVED", placeId, address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude }), createdAt: input.now }),
+    await commitDecision(db, [
+      db.update(placeSuggestions).set(claim).where(exactDecision(suggestion, input)), requireOneChange(db),
+      db.insert(places).values(place), requireOneChange(db),
+      db.insert(placeCategories).values({ placeId, categoryId: suggestion.categoryId, isPrimary: true }), requireOneChange(db),
+      db.insert(placeReviewWorkItems).values(newReviewWorkItemValues({ placeId, sourceKind: "PLACE_SUGGESTION", now: input.now })), requireOneChange(db),
+      db.update(placeSuggestions).set({ status: "APPROVED", approvedPlaceId: placeId }).where(exactDecision({ ...suggestion, ...claim }, input)), requireOneChange(db),
+      db.update(placeDuplicateCandidates).set({ status: "DISMISSED", resolvedBy: input.actorUserId, resolvedAt: input.now, updatedAt: input.now }).where(eq(placeDuplicateCandidates.suggestionId, suggestion.id)),
+      db.update(reviewerApplications).set({ approvedSuggestionCount: sql`${reviewerApplications.approvedSuggestionCount} + 1`, updatedAt: input.now }).where(and(eq(reviewerApplications.userId, suggestion.userId), inArray(reviewerApplications.status, ["APPLIED", "REVIEWING"]))),
+      db.insert(placeRevisions).values({ id: crypto.randomUUID(), placeId, actorUserId: input.actorUserId, action: "CREATE_FROM_SUGGESTION", reason, beforeJson: null, afterJson: JSON.stringify(place), sourceType: "PLACE_SUGGESTION", sourceId: suggestion.id, createdAt: input.now }),
+      requireOneChange(db),
+      db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "APPROVE_PLACE_SUGGESTION", targetType: "PLACE_SUGGESTION", targetId: suggestion.id,
+        beforeState: JSON.stringify({ status: suggestion.status, reviewReason: suggestion.reviewReason, address: suggestion.address, neighborhood: suggestion.neighborhood, latitude: suggestion.latitude, longitude: suggestion.longitude }),
+        afterState: JSON.stringify({ status: "APPROVED", reviewReason: reason, placeId, address, neighborhood, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, requestDigest }),
+        createdAt: input.now }),
+      requireOneChange(db),
     ]);
   } catch (error) {
     const alreadyApproved = await db.query.placeSuggestions.findFirst({ where: eq(placeSuggestions.id, suggestion.id) });
-    const existingPlace = await db.query.places.findFirst({ where: eq(places.id, placeId) });
-    if (alreadyApproved?.status === "APPROVED" && alreadyApproved.approvedPlaceId === placeId && existingPlace) {
-      return { placeId, slug: existingPlace.slug, status: "DRAFT" as const };
-    }
+    const receipt = alreadyApproved && await findApprovalReceipt(db, alreadyApproved, input, requestDigest);
+    if (receipt) return receipt;
     throw error;
   }
   const reviewItem = await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.placeId, placeId) });
   if (reviewItem) await enforceReviewDiningExclusion(db, reviewItem, input.actorUserId, input.now);
-  return { placeId, slug, status: "DRAFT" as const };
+  return { placeId, slug, status: "DRAFT" as const, replayed: false };
 }
 
-export async function transitionPlaceSuggestion(db: AppDb, input: { suggestionId: string; actorUserId: string; status: "NEEDS_INFO" | "REVIEWING" | "REJECTED" | "DUPLICATE"; reason: string; now: string }) {
-  const actor = await db.query.users.findFirst({ where: eq(users.id, input.actorUserId) });
-  if (actor?.role !== "ADMIN") throw new Error("ADMIN_REQUIRED");
-  if (!input.reason.trim()) throw new Error("REVIEW_REASON_REQUIRED");
-  await db.update(placeSuggestions).set({ status: input.status, reviewReason: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(eq(placeSuggestions.id, input.suggestionId));
+export async function transitionPlaceSuggestion(db: AppDb, input: SuggestionDecision & { status: "NEEDS_INFO" | "REVIEWING" | "REJECTED" | "DUPLICATE" }) {
+  const suggestion = await readDecision(db, input);
+  await assertReviewable(suggestion, input.expectedRevision);
+  const reason = input.reason.trim();
+  if (suggestion.status === input.status && suggestion.reviewReason === reason) throw new Error("SUGGESTION_UNCHANGED");
+  await commitDecision(db, [
+    db.update(placeSuggestions).set({ status: input.status, reviewReason: reason, reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now })
+      .where(exactDecision(suggestion, input)),
+    requireOneChange(db),
+    db.insert(adminAuditLogs).values({ id: crypto.randomUUID(), actorUserId: input.actorUserId, action: "TRANSITION_PLACE_SUGGESTION",
+      targetType: "PLACE_SUGGESTION", targetId: suggestion.id, createdAt: input.now,
+      beforeState: JSON.stringify({ status: suggestion.status, reviewReason: suggestion.reviewReason }),
+      afterState: JSON.stringify({ status: input.status, reviewReason: reason }),
+    }),
+    requireOneChange(db),
+  ]);
 }

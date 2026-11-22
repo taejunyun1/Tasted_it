@@ -1,11 +1,117 @@
 import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { categories, placeCategories, placeDuplicateCandidates, placeReviewWorkItems, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../app/db/schema";
-import { approvePlaceSuggestion, listReviewablePlaceSuggestions, submitPlaceSuggestion } from "../../app/features/places/place-suggestion.server";
+import { adminAuditLogs, categories, placeCategories, placeDuplicateCandidates, placeReviewWorkItems, placeRevisions, places, placeSuggestions, reviewerApplications, users } from "../../app/db/schema";
+import { approvePlaceSuggestion, listReviewablePlaceSuggestions, submitPlaceSuggestion, transitionPlaceSuggestion } from "../../app/features/places/place-suggestion.server";
+
+async function decisionFixture() {
+  const db = createDb(env.DB), prefix = crypto.randomUUID(), now = "2026-08-01T10:00:00.000Z";
+  const category = await db.query.categories.findFirst();
+  if (!category) throw new Error("category fixture missing");
+  const userId = `${prefix}-member`, actorUserId = `${prefix}-admin`, otherAdmin = `${prefix}-other`, suggestionId = `${prefix}-suggestion`;
+  await db.insert(users).values([userId, actorUserId, otherAdmin].map((id) => ({
+    id, email: `${id}@example.test`, displayName: "합성 계정", role: id === userId ? "USER" : "ADMIN", emailVerifiedAt: now, createdAt: now, updatedAt: now,
+  })));
+  await submitPlaceSuggestion(db, {
+    id: suggestionId, userId, name: "합성 제안 식당", address: "광주광역시 동구 합성로 10", neighborhood: "동명동",
+    originLatitude: 35.16, originLongitude: 126.93, latitude: 35.16, longitude: 126.93,
+    phone: null, categoryId: category.id, description: null, duplicateOverrideReason: "독립 시험 대상", now,
+  });
+  const read = () => db.query.placeSuggestions.findFirst({ where: eq(placeSuggestions.id, suggestionId) });
+  const audit = () => db.query.adminAuditLogs.findMany({ where: eq(adminAuditLogs.targetId, suggestionId) });
+  const current = async () => (await listReviewablePlaceSuggestions(db)).rows.find((row) => row.id === suggestionId)!;
+  return { db, input: { suggestionId, actorUserId, now, reason: "합성 검수 근거" }, otherAdmin, read, audit, current };
+}
 
 describe("place suggestions", () => {
+  it("writes no approval records if rejection commits before the approval batch", async () => {
+    const f = await decisionFixture();
+    const { db, input } = f;
+    const originalBatch = db.batch.bind(db);
+    const batch = vi.spyOn(db, "batch").mockImplementationOnce(async (...statements) => {
+      await transitionPlaceSuggestion(db, { ...input, actorUserId: f.otherAdmin, status: "REJECTED", reason: "검수 반려 근거" });
+      return originalBatch(...statements);
+    });
+    try {
+      await expect(approvePlaceSuggestion(db, input)).rejects.toThrow("SUGGESTION_STALE");
+    } finally {
+      batch.mockRestore();
+    }
+    expect(await f.read()).toMatchObject({ status: "REJECTED", approvedPlaceId: null });
+    expect(await db.query.places.findFirst({ where: eq(places.id, input.suggestionId) })).toBeUndefined();
+    expect(await db.query.placeReviewWorkItems.findFirst({ where: eq(placeReviewWorkItems.placeId, input.suggestionId) })).toBeUndefined();
+    expect(await db.query.placeRevisions.findFirst({ where: eq(placeRevisions.placeId, input.suggestionId) })).toBeUndefined();
+    expect((await f.audit()).map((row) => row.action)).toEqual(["TRANSITION_PLACE_SUGGESTION"]);
+  });
+
+  it("locks approved and rejected suggestions and audits only real status decisions", async () => {
+    const approved = await decisionFixture();
+    await approvePlaceSuggestion(approved.db, approved.input);
+    await expect(transitionPlaceSuggestion(approved.db, { ...approved.input, status: "REJECTED" })).rejects.toThrow("SUGGESTION_NOT_REVIEWABLE");
+    expect(await approved.read()).toMatchObject({ status: "APPROVED", approvedPlaceId: approved.input.suggestionId });
+    expect(await approved.audit()).toHaveLength(1);
+
+    const rejected = await decisionFixture();
+    const decision = { ...rejected.input, status: "REJECTED" as const };
+    await transitionPlaceSuggestion(rejected.db, decision);
+    await expect(transitionPlaceSuggestion(rejected.db, { ...decision, status: "NEEDS_INFO" })).rejects.toThrow("SUGGESTION_NOT_REVIEWABLE");
+    await expect(transitionPlaceSuggestion(rejected.db, { ...decision, suggestionId: "missing-suggestion" })).rejects.toThrow("SUGGESTION_NOT_REVIEWABLE");
+    expect(await rejected.read()).toMatchObject({ status: "REJECTED", approvedPlaceId: null });
+    const [audit] = await rejected.audit();
+    expect(audit).toMatchObject({ actorUserId: decision.actorUserId, action: "TRANSITION_PLACE_SUGGESTION", targetType: "PLACE_SUGGESTION", createdAt: decision.now });
+    expect(JSON.parse(audit!.beforeState!)).toMatchObject({ status: "SUBMITTED", reviewReason: null });
+    expect(JSON.parse(audit!.afterState!)).toMatchObject({ status: "REJECTED", reviewReason: decision.reason });
+  });
+
+  it("rejects old forms after a same-timestamp decision and reports an exact no-op", async () => {
+    const f = await decisionFixture();
+    const initialRevision = (await f.current()).decisionRevision;
+    const first = { ...f.input, expectedRevision: initialRevision, status: "NEEDS_INFO" as const };
+    await transitionPlaceSuggestion(f.db, first);
+    const memoRevision = (await f.current()).decisionRevision;
+    expect(memoRevision).not.toBe(initialRevision);
+    expect(await f.read()).toMatchObject({ updatedAt: f.input.now });
+    await expect(transitionPlaceSuggestion(f.db, { ...first, actorUserId: f.otherAdmin, reason: "다른 운영자의 확인" })).rejects.toThrow("SUGGESTION_STALE");
+    await expect(approvePlaceSuggestion(f.db, { ...f.input, expectedRevision: initialRevision })).rejects.toThrow("SUGGESTION_STALE");
+    await expect(transitionPlaceSuggestion(f.db, { ...first, expectedRevision: memoRevision })).rejects.toThrow("SUGGESTION_UNCHANGED");
+    expect(await f.audit()).toHaveLength(1);
+    expect(await f.read()).toMatchObject({ status: "NEEDS_INFO", reviewReason: first.reason, reviewedBy: first.actorUserId });
+  });
+
+  it("keeps the single approved draft and audit when approval commits before rejection", async () => {
+    const f = await decisionFixture();
+    const revision = (await f.current()).decisionRevision;
+    const originalBatch = f.db.batch.bind(f.db);
+    const batch = vi.spyOn(f.db, "batch").mockImplementationOnce(async (...statements) => {
+      await approvePlaceSuggestion(f.db, { ...f.input, actorUserId: f.otherAdmin, expectedRevision: revision });
+      return originalBatch(...statements);
+    });
+    try {
+      await expect(transitionPlaceSuggestion(f.db, { ...f.input, status: "REJECTED", expectedRevision: revision })).rejects.toThrow("SUGGESTION_STALE");
+    } finally {
+      batch.mockRestore();
+    }
+    expect(await f.read()).toMatchObject({ status: "APPROVED", reviewedBy: f.otherAdmin, approvedPlaceId: f.input.suggestionId });
+    expect(await f.db.query.places.findFirst({ where: eq(places.id, f.input.suggestionId) })).toMatchObject({ status: "DRAFT" });
+    expect((await f.audit()).map((row) => row.action)).toEqual(["APPROVE_PLACE_SUGGESTION"]);
+  });
+
+  it("rolls back a decision if its audit insert is skipped", async () => {
+    const f = await decisionFixture();
+    await env.DB.exec("CREATE TRIGGER test_skip_suggestion_audit BEFORE INSERT ON admin_audit_logs WHEN NEW.target_type='PLACE_SUGGESTION' BEGIN SELECT RAISE(IGNORE); END;");
+    try {
+      await expect(transitionPlaceSuggestion(f.db, { ...f.input, status: "NEEDS_INFO" })).rejects.toThrow("SUGGESTION_STALE");
+      await expect(approvePlaceSuggestion(f.db, f.input)).rejects.toThrow("SUGGESTION_STALE");
+    } finally {
+      await env.DB.exec("DROP TRIGGER test_skip_suggestion_audit");
+    }
+    expect(await f.read()).toMatchObject({ status: "SUBMITTED", reviewReason: null, approvedPlaceId: null });
+    expect(await f.db.query.places.findFirst({ where: eq(places.id, f.input.suggestionId) })).toBeUndefined();
+    expect(await f.db.query.placeRevisions.findFirst({ where: eq(placeRevisions.placeId, f.input.suggestionId) })).toBeUndefined();
+    expect(await f.audit()).toHaveLength(0);
+  });
   it("requires verified email and explicit duplicate override", async () => {
     const db = createDb(env.DB); const prefix = `suggest-${crypto.randomUUID()}`; const now = "2026-08-06T10:00:00.000Z";
     const category = await db.query.categories.findFirst(); if (!category) throw new Error("category fixture missing");
@@ -129,8 +235,10 @@ describe("place suggestions", () => {
     expect((await db.select().from(placeRevisions)).filter((item) => item.placeId === `${prefix}-suggestion` && item.action === "CREATE_FROM_SUGGESTION")).toHaveLength(1);
     expect((await db.select().from(placeSuggestions)).find((item) => item.id === `${prefix}-suggestion`)).toMatchObject({ status: "APPROVED", approvedPlaceId: `${prefix}-suggestion` });
     expect((await db.select().from(reviewerApplications)).find((item) => item.id === `${prefix}-application`)?.approvedSuggestionCount).toBe(1);
-    await expect(approvePlaceSuggestion(db, { suggestionId: `${prefix}-suggestion`, actorUserId: `${prefix}-admin`, reason: "네트워크 재시도", now }))
-      .resolves.toMatchObject({ placeId: `${prefix}-suggestion`, status: "DRAFT" });
+    await expect(approvePlaceSuggestion(db, { suggestionId: `${prefix}-suggestion`, actorUserId: `${prefix}-admin`, reason: "정보 확인", now }))
+      .resolves.toMatchObject({ placeId: `${prefix}-suggestion`, status: "DRAFT", replayed: true });
+    await expect(approvePlaceSuggestion(db, { suggestionId: `${prefix}-suggestion`, actorUserId: `${prefix}-admin`, reason: "다른 승인 근거", now }))
+      .rejects.toThrow("SUGGESTION_NOT_REVIEWABLE");
   });
 
   it("returns the committed draft when D1 loses only the approval response", async () => {
@@ -149,7 +257,7 @@ describe("place suggestions", () => {
     });
     try {
       await expect(approvePlaceSuggestion(db, { suggestionId: `${prefix}-suggestion`, actorUserId: `${prefix}-admin`, reason: "정보 확인", now }))
-        .resolves.toMatchObject({ placeId: `${prefix}-suggestion`, status: "DRAFT" });
+        .resolves.toMatchObject({ placeId: `${prefix}-suggestion`, status: "DRAFT", replayed: true });
     } finally {
       batch.mockRestore();
     }

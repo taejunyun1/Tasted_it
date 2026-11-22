@@ -8,6 +8,7 @@ import {
 
 const validApproval = {
   suggestionId: "suggestion-1",
+  expectedRevision: "a".repeat(64),
   address: "광주광역시 동구 서석로 1",
   neighborhood: "서석동",
   originLatitude: "35.146",
@@ -24,6 +25,7 @@ describe("place suggestion approval contract", () => {
       ok: true,
       value: {
         suggestionId: "suggestion-1",
+        expectedRevision: validApproval.expectedRevision,
         address: "광주광역시 동구 서석로 1",
         neighborhood: "서석동",
         originLatitude: 35.146,
@@ -47,26 +49,39 @@ describe("place suggestion approval contract", () => {
   });
 
   it("allows only additional-info and reject transitions", () => {
+    const expectedRevision = validApproval.expectedRevision;
     expect(checkSuggestionTransitionRequest({
       suggestionId: "suggestion-1",
+      expectedRevision,
       status: "NEEDS_INFO",
       reason: "상호 확인이 더 필요합니다.",
     }).ok).toBe(true);
     expect(checkSuggestionTransitionRequest({
       suggestionId: "suggestion-1",
+      expectedRevision,
       status: "REJECTED",
       reason: "음식점이 아닙니다.",
     }).ok).toBe(true);
     expect(checkSuggestionTransitionRequest({
       suggestionId: "suggestion-1",
+      expectedRevision,
       status: "APPROVED",
       reason: "우회 승인",
     })).toEqual({ ok: false, code: "INVALID_INTENT" });
     expect(checkSuggestionTransitionRequest({
       suggestionId: "suggestion-1",
+      expectedRevision,
       status: "NEEDS_INFO",
       reason: " ",
     })).toEqual({ ok: false, code: "REVIEW_REASON_REQUIRED" });
+  });
+
+  it("requires the review card revision for both decisions", () => {
+    for (const expectedRevision of [null, "a".repeat(63), "g".repeat(64), "0".repeat(65)]) {
+      expect(checkSuggestionApprovalRequest({ ...validApproval, expectedRevision })).toEqual({ ok: false, code: "SUGGESTION_STALE" });
+      expect(checkSuggestionTransitionRequest({ suggestionId: validApproval.suggestionId, expectedRevision, status: "REJECTED", reason: "검수 근거" }))
+        .toEqual({ ok: false, code: "SUGGESTION_STALE" });
+    }
   });
 
   it("keeps approval copy distinct from review hold/exclude copy", () => {
