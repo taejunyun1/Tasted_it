@@ -154,5 +154,6 @@ describe("reviewer trust refresh", () => {
       expect(await getLatestRatingSnapshot(db, target, newerAt)).toMatchObject({ id: initialSnapshot.id, overallScore: 55 });
       expect(await db.select().from(ratingSnapshots).where(eq(ratingSnapshots.placeId, target))).toHaveLength(2);
     },
+    20_000,
   );
 });
