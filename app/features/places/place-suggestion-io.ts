@@ -6,6 +6,7 @@ export type SuggestionTransitionStatus = (typeof suggestionTransitionStatuses)[n
 
 export type SuggestionApprovalInput = {
   suggestionId: string;
+  expectedRevision: string;
   address: string;
   neighborhood: string;
   originLatitude: number;
@@ -20,7 +21,7 @@ export type SuggestionApprovalCheck =
   | { ok: false; code: SuggestionApprovalErrorCode };
 
 export type SuggestionTransitionCheck =
-  | { ok: true; value: { suggestionId: string; status: SuggestionTransitionStatus; reason: string } }
+  | { ok: true; value: { suggestionId: string; expectedRevision: string; status: SuggestionTransitionStatus; reason: string } }
   | { ok: false; code: SuggestionApprovalErrorCode };
 
 export type SuggestionApprovalErrorCode =
@@ -30,6 +31,8 @@ export type SuggestionApprovalErrorCode =
   | "LOCATION_OUT_OF_SCOPE"
   | "REVIEW_REASON_REQUIRED"
   | "SUGGESTION_NOT_REVIEWABLE"
+  | "SUGGESTION_STALE"
+  | "SUGGESTION_UNCHANGED"
   | "SUGGESTION_REQUIRED_FIELDS"
   | "ADMIN_REQUIRED"
   | "INVALID_INTENT"
@@ -37,6 +40,10 @@ export type SuggestionApprovalErrorCode =
 
 function textValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function revisionValue(value: unknown) {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) ? value : null;
 }
 
 function finiteNumber(value: unknown) {
@@ -50,6 +57,7 @@ function finiteNumber(value: unknown) {
 
 export function checkSuggestionApprovalRequest(input: {
   suggestionId: unknown;
+  expectedRevision: unknown;
   address: unknown;
   neighborhood: unknown;
   originLatitude: unknown;
@@ -60,6 +68,7 @@ export function checkSuggestionApprovalRequest(input: {
   reason: unknown;
 }): SuggestionApprovalCheck {
   const suggestionId = textValue(input.suggestionId);
+  const expectedRevision = revisionValue(input.expectedRevision);
   const address = textValue(input.address);
   const neighborhood = textValue(input.neighborhood);
   const reason = textValue(input.reason);
@@ -79,19 +88,22 @@ export function checkSuggestionApprovalRequest(input: {
   }
   if (!reason) return { ok: false, code: "REVIEW_REASON_REQUIRED" };
   if (reason.length > 300) return { ok: false, code: "SUGGESTION_APPROVAL_INCOMPLETE" };
+  if (!expectedRevision) return { ok: false, code: "SUGGESTION_STALE" };
 
   return {
     ok: true,
-    value: { suggestionId, address, neighborhood, originLatitude, originLongitude, latitude, longitude, reason },
+    value: { suggestionId, expectedRevision, address, neighborhood, originLatitude, originLongitude, latitude, longitude, reason },
   };
 }
 
 export function checkSuggestionTransitionRequest(input: {
   suggestionId: unknown;
+  expectedRevision: unknown;
   status: unknown;
   reason: unknown;
 }): SuggestionTransitionCheck {
   const suggestionId = textValue(input.suggestionId);
+  const expectedRevision = revisionValue(input.expectedRevision);
   const status = textValue(input.status);
   const reason = textValue(input.reason);
   if (!suggestionId || suggestionId.length > 160) return { ok: false, code: "SUGGESTION_NOT_REVIEWABLE" };
@@ -100,11 +112,13 @@ export function checkSuggestionTransitionRequest(input: {
   }
   if (!reason) return { ok: false, code: "REVIEW_REASON_REQUIRED" };
   if (reason.length > 300) return { ok: false, code: "SUGGESTION_APPROVAL_INCOMPLETE" };
-  return { ok: true, value: { suggestionId, status: status as SuggestionTransitionStatus, reason } };
+  if (!expectedRevision) return { ok: false, code: "SUGGESTION_STALE" };
+  return { ok: true, value: { suggestionId, expectedRevision, status: status as SuggestionTransitionStatus, reason } };
 }
 
 export function suggestionApprovalErrorMessage(code: string) {
-  if (code === "SUGGESTION_NOT_REVIEWABLE") return "이미 처리됐거나 다른 관리자가 검토 중인 제안입니다. 목록을 새로고침해 주세요.";
+  if (code === "SUGGESTION_NOT_REVIEWABLE" || code === "SUGGESTION_STALE") return "제안이 이미 처리됐거나 검토 내용이 바뀌었습니다. 목록을 새로고침해 주세요.";
+  if (code === "SUGGESTION_UNCHANGED") return "이 상태와 검토 사유는 이미 저장되어 있습니다.";
   if (code === "SUGGESTION_COORDINATES_REQUIRED" || code === "LOCATION_REQUIRED") return "지도에서 위치를 확인한 뒤 승인해 주세요.";
   if (code === "LOCATION_OUT_OF_SCOPE") return "광주·전남 범위 안의 위치만 승인할 수 있어요.";
   if (code === "REVIEW_REASON_REQUIRED") return "승인 근거를 입력해 주세요.";

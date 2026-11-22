@@ -1,0 +1,101 @@
+{
+  "sourceSha": "56d9cf2ef27f7cb55de5ff46774e0dba56c377ea",
+  "appTree": "1a829b3daf9be54f1d39a403aa79c142090935bd",
+  "branchAfterRebase": "f9c7f73e4f1c64632fd122bbeb1a0436c2440802",
+  "environment": "로컬 컴파일 Worker, 격리 D1, 데스크톱 Chromium과 Pixel 7 에뮬레이션",
+  "observedAt": "2026-11-22T03:30:40.311239+00:00",
+  "checks": {
+    "unit": 7,
+    "integration": 21,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS",
+    "browser": {
+      "devices": [
+        "Desktop Chrome",
+        "Pixel 7"
+      ],
+      "missingReason": 400,
+      "freshApproval": 200,
+      "approvalReplay": 200,
+      "receiptAfterCardRemoval": true,
+      "publicDraftLinkCount": 0,
+      "pendingButtonsDisabled": true,
+      "staleTransition": 409,
+      "approvalErrorTargeted": true,
+      "transitionErrorTargeted": true,
+      "errorsFocused": true
+    },
+    "isolatedApproval": [
+      {
+        "results": [
+          {
+            "status": "APPROVED",
+            "linked": 1
+          }
+        ],
+        "success": true,
+        "meta": {
+          "duration": 0
+        }
+      },
+      {
+        "results": [
+          {
+            "status": "DRAFT"
+          }
+        ],
+        "success": true,
+        "meta": {
+          "duration": 0
+        }
+      },
+      {
+        "results": [
+          {
+            "n": 1
+          }
+        ],
+        "success": true,
+        "meta": {
+          "duration": 0
+        }
+      },
+      {
+        "results": [
+          {
+            "status": "NEEDS_INFO"
+          }
+        ],
+        "success": true,
+        "meta": {
+          "duration": 0
+        }
+      },
+      {
+        "results": [
+          {
+            "n": 1
+          }
+        ],
+        "success": true,
+        "meta": {
+          "duration": 0
+        }
+      }
+    ]
+  },
+  "scope": [
+    "최신 제안 행과 관리자 권한을 대조하고 승인 초안·변경 이력·감사를 함께 확정했다.",
+    "이전 제안 판정 제출은 409와 해당 카드 안의 안내로 복구한다.",
+    "동일 승인 재전송은 기존 결과를 반환하며 제안이 큐에서 제거된 뒤에도 결과를 읽을 수 있다."
+  ],
+  "screenshots": [
+    "desktop-approval-receipt.png",
+    "mobile-approval-replay.png",
+    "mobile-stale-decision.png"
+  ],
+  "limits": [
+    "합성 관리자와 장소의 기술 검증이다. 실제 자료와 전체 T05/S08 운영 수용은 별도다."
+  ]
+}

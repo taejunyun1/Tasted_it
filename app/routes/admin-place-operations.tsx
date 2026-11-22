@@ -100,6 +100,12 @@ function operationsCaughtError(error: unknown) {
   return operationsActionError(error instanceof Error ? error.message : "UNKNOWN");
 }
 
+function suggestionDecisionFailure(code: string, suggestionId: string, suggestionIntent: "approve" | "transition") {
+  const conflict = ["SUGGESTION_NOT_REVIEWABLE", "SUGGESTION_STALE", "SUGGESTION_UNCHANGED"].includes(code);
+  return data({ ok: false, error: suggestionApprovalErrorMessage(code), code, suggestionId, suggestionIntent },
+    { status: conflict ? 409 : code === "ADMIN_REQUIRED" ? 403 : 400, headers: PRIVATE });
+}
+
 function selectedWorkItems(form: FormData) {
   const versions: Record<string, number> = Object.create(null);
   const workItemIds = form.getAll("workItem").flatMap((value) => {
@@ -203,6 +209,7 @@ export async function action({ request }: Route.ActionArgs) {
     const prefix = `approval-${suggestionId}-`;
     const checked = checkSuggestionApprovalRequest({
       suggestionId,
+      expectedRevision: form.get("expectedRevision"),
       address: form.get(`${prefix}address`),
       neighborhood: form.get(`${prefix}neighborhood`),
       originLatitude: form.get(`${prefix}originLatitude`),
@@ -212,32 +219,32 @@ export async function action({ request }: Route.ActionArgs) {
       locationConfirmed: form.get(`${prefix}locationConfirmed`),
       reason: form.get("reason"),
     });
-    if (!checked.ok) {
-      return data({ ok: false, error: suggestionApprovalErrorMessage(checked.code), code: checked.code, suggestionId }, { status: 400 });
-    }
+    if (!checked.ok) return suggestionDecisionFailure(checked.code, suggestionId, "approve");
     try {
       const result = await approvePlaceSuggestion(db, { ...checked.value, actorUserId: admin.id, now });
-      return { ok: true, suggestionId: checked.value.suggestionId, placeId: result.placeId, slug: result.slug, message: "제안을 비공개 초안으로 승인했습니다." };
+      return { ok: true, suggestionIntent: "approve" as const, suggestionId: checked.value.suggestionId, placeId: result.placeId, slug: result.slug,
+        message: result.replayed ? "이미 기록된 초안 승인을 확인했습니다." : "제안을 비공개 초안으로 승인했습니다." };
     } catch (error) {
       const code = error instanceof Error ? error.message : "UNKNOWN";
-      return data({ ok: false, error: suggestionApprovalErrorMessage(code), code, suggestionId }, { status: 400 });
+      return suggestionDecisionFailure(code, suggestionId, "approve");
     }
   }
   if (intent === "transition-suggestion") {
+    const suggestionId = String(form.get("suggestionId") ?? "");
     const checked = checkSuggestionTransitionRequest({
-      suggestionId: form.get("suggestionId"),
+      suggestionId,
+      expectedRevision: form.get("expectedRevision"),
       status: form.get("status"),
       reason: form.get("reason"),
     });
-    if (!checked.ok) {
-      return data({ ok: false, error: suggestionApprovalErrorMessage(checked.code), code: checked.code }, { status: 400 });
-    }
+    if (!checked.ok) return suggestionDecisionFailure(checked.code, suggestionId, "transition");
     try {
       await transitionPlaceSuggestion(db, { ...checked.value, actorUserId: admin.id, now });
-      return { ok: true, message: checked.value.status === "REJECTED" ? "제안을 반려했습니다." : "추가 정보를 요청했습니다." };
+      return { ok: true, suggestionIntent: "transition" as const,
+        message: checked.value.status === "REJECTED" ? "제안을 반려했습니다." : "추가 정보를 요청했습니다." };
     } catch (error) {
       const code = error instanceof Error ? error.message : "UNKNOWN";
-      return data({ ok: false, error: suggestionApprovalErrorMessage(code), code }, { status: 400 });
+      return suggestionDecisionFailure(code, suggestionId, "transition");
     }
   }
   if (intent === "apply-correction") {
@@ -476,6 +483,11 @@ const operationTabs: Array<{ id: PlaceOperationsTab; label: string }> = [
 export default function AdminPlaceOperations({ loaderData, actionData }: Route.ComponentProps) {
   const message = actionData && "message" in actionData ? actionData.message : undefined;
   const error = actionData && "error" in actionData ? actionData.error : undefined;
+  const suggestionErrorId = error && actionData && "suggestionId" in actionData && typeof actionData.suggestionId === "string"
+    ? actionData.suggestionId : undefined;
+  const suggestionIntent = actionData && "suggestionIntent" in actionData ? actionData.suggestionIntent : undefined;
+  const suggestionApprovalNotice = loaderData.tab === "review" && loaderData.query.step === 1 && suggestionIntent === "approve"
+    ? message : undefined;
   const skipped = actionData && "skipped" in actionData ? actionData.skipped : [];
   const nextStep = actionData && "nextStep" in actionData && actionData.nextStep === 3 ? 3 : undefined;
   const processedWorkItemIds = actionData && "processedWorkItemIds" in actionData && Array.isArray(actionData.processedWorkItemIds)
@@ -487,7 +499,7 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
       <div><p className="eyebrow">ADMIN / PLACE REVIEW</p><h1>장소 검수</h1><p>원천부터 NAVER 근거, 카테고리, 중복 검토를 순서대로 확인한 뒤 선택 공개합니다. 영업 재검증·정정·병합은 옆 탭에서 처리합니다.</p></div>
       <nav><Link to="/admin/data-sync">공공데이터 수집</Link><Link to="/admin/ratings">평가 운영</Link></nav>
     </header>
-    {message && <p className="admin-notice" role="status">{message}</p>}
+    {message && !suggestionApprovalNotice && <p className="admin-notice" role="status">{message}</p>}
     <PlaceOperationPreview view={loaderData.operation??undefined} correctionPage={correctionPage} />
     {loaderData.operationUnavailable && <p className="operation-error" role="alert">미리보기 또는 영수증을 확인할 수 없습니다. 대상과 현재 권한을 확인해 주세요.</p>}
     <details className="place-ops-section"><summary>기존 공개 회수 복원 검토</summary><p>원래 공개 회수 작업 번호를 입력해 새 미리보기를 준비합니다. 현재 관리자 재인증과 회수 뒤 변경 여부를 다시 확인하며, 병합 전체를 되돌리지 않습니다.</p><Form method="post" className="ops-form"><input type="hidden" name="intent" value="restore-recall"/><label>원 공개 회수 작업 번호<input name="recallOperationId" required maxLength={36}/></label><label>공개 회수 복원 사유<input name="reason" required maxLength={300}/></label><button>기존 회수 복원 미리보기</button></Form></details>
@@ -507,18 +519,23 @@ export default function AdminPlaceOperations({ loaderData, actionData }: Route.C
         {loaderData.query.step === 1 && <section className="place-ops-section" aria-labelledby="suggestion-review-heading">
           <h2 id="suggestion-review-heading">회원 장소 제안</h2>
           <p>제출·보완 요청·검토 중인 제안을 지도에서 확인한 뒤 초안으로 승인하면 아래 1단계 검수 큐에 들어갑니다.</p>
+          {suggestionApprovalNotice && <p className="admin-notice" role="status">{suggestionApprovalNotice}</p>}
+          {suggestionErrorId !== undefined && !loaderData.suggestions.rows.some((row) => row.id === suggestionErrorId) &&
+            <p className="operation-error" role="alert">{error}</p>}
           <PlaceSuggestionPagination query={loaderData.query} pagination={loaderData.suggestions.pagination} />
           {loaderData.suggestions.rows.map((item) => (
             <PlaceSuggestionReviewCard
-              key={item.id}
+              key={`${item.id}:${item.decisionRevision}`}
               item={item}
+              approvalError={item.id === suggestionErrorId && suggestionIntent === "approve" ? error : undefined}
+              transitionError={item.id === suggestionErrorId && suggestionIntent === "transition" ? error : undefined}
               clientId={loaderData.naverMapsClientId}
               geocodingAvailable={loaderData.placeGeocodingEnabled && Boolean(loaderData.naverMapsClientId)}
             />
           ))}
           {!loaderData.suggestions.rows.length && <p>검토할 제안이 없습니다.</p>}
         </section>}
-        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverRegionUsage={loaderData.naverRegionUsage} message={message} error={error} skipped={skipped} suggestionPage={loaderData.suggestions.pagination.page} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} confidentAdvanceEnabled={loaderData.confidentAdvanceEnabled} />
+        <PlaceReviewPipeline query={loaderData.query} page={loaderData.page} counts={loaderData.counts} categories={loaderData.categories} duplicateCandidates={loaderData.duplicateCandidates} naverRegionUsage={loaderData.naverRegionUsage} message={suggestionApprovalNotice ? undefined : message} error={loaderData.query.step === 1 && suggestionErrorId !== undefined ? undefined : error} skipped={skipped} suggestionPage={loaderData.suggestions.pagination.page} nextStep={nextStep} processedWorkItemIds={processedWorkItemIds} confidentAdvanceEnabled={loaderData.confidentAdvanceEnabled} />
       </>}
       {loaderData.tab === "liveness" && <PlaceLivenessPanel livenessFilter={loaderData.livenessFilter} livenessRows={loaderData.livenessRows} />}
       {loaderData.tab === "corrections" && <PlaceCorrectionPanel {...loaderData.corrections} />}
