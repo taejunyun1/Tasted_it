@@ -1,15 +1,13 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
-import { loadInD1Chunks } from "../../db/d1-query-chunks";
 import type { AppDb } from "../../db/client.server";
 import {
   currentVotes,
   invalidatedVoteEvents,
-  reviewerReliabilitySnapshots,
   reviewerSimilarityEdges,
   voteEvents,
 } from "../../db/schema";
-import { enqueueRatingRecompute, markRatingStale } from "./recompute.server";
+import { enqueueRatingRecompute, getCurrentReviewerReliability, markRatingStale } from "./recompute.server";
 import { getActiveRatingConfig } from "./rating-config.server";
 import { calculateReviewerReliability } from "./rating-v2";
 import { buildReviewerClusters } from "./reviewer-similarity";
@@ -83,30 +81,8 @@ export async function refreshReviewerTrust(db: AppDb, input: { now: string }) {
   const reviewerIds = [
     ...new Set(reviewerVotes.map((vote) => vote.reviewerId)),
   ].sort();
-  const previous = reviewerIds.length
-    ? await loadInD1Chunks(
-        reviewerIds,
-        (reviewerChunk) =>
-          db
-            .select()
-            .from(reviewerReliabilitySnapshots)
-            .where(
-              and(
-                eq(reviewerReliabilitySnapshots.configId, config.id),
-                eq(
-                  reviewerReliabilitySnapshots.moderationEpoch,
-                  moderationEpoch,
-                ),
-                inArray(
-                  reviewerReliabilitySnapshots.reviewerUserId,
-                  reviewerChunk,
-                ),
-              ),
-            ),
-        { reservedBindings: 2 },
-      )
-    : [];
-  let reliabilityChanged = false;
+  const previous = await getCurrentReviewerReliability(db, { reviewerIds, configId: config.id, moderationEpoch });
+  const changedReviewers = new Set<string>();
   for (const reviewerId of reviewerIds) {
     const comparable = reviewerVotes.filter(
       (vote) => vote.reviewerId === reviewerId && consensus.has(vote.placeId),
@@ -125,31 +101,39 @@ export async function refreshReviewerTrust(db: AppDb, input: { now: string }) {
         })),
       }),
     );
-    if (
-      previous.some(
-        (row) =>
-          row.reviewerUserId === reviewerId && row.inputHash === inputHash,
-      )
-    )
-      continue;
+    const current = previous.get(reviewerId);
+    if (current?.inputHash === inputHash || (current && current.computedAt > input.now)) continue;
     const reliability = calculateReviewerReliability({
       eligible: comparable.length,
       correct,
     });
-    await db.insert(reviewerReliabilitySnapshots).values({
-      id: crypto.randomUUID(),
-      reviewerUserId: reviewerId,
-      configId: config.id,
-      inputHash,
-      moderationEpoch,
-      eligibleCount: reliability.eligible,
-      correctCount: reliability.correct,
-      posteriorAccuracy: reliability.posteriorAccuracy,
-      reliabilityWeight: reliability.weight,
-      calibrationStatus: reliability.status,
-      computedAt: input.now,
-    });
-    reliabilityChanged = true;
+    const [activation] = await db.$client.batch([
+      // Keep one row per exact input. Advancing its internal row order resolves
+      // equal computed_at values without changing other rows or inventing time.
+      db.$client.prepare(`INSERT INTO reviewer_reliability_snapshots
+        (id, reviewer_user_id, config_id, input_hash, moderation_epoch, eligible_count,
+         correct_count, posterior_accuracy, reliability_weight, calibration_status, computed_at)
+        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE (SELECT epoch FROM reviewer_publication_state WHERE id = 'global') = ?
+          AND (SELECT rowid FROM reviewer_reliability_snapshots
+            WHERE reviewer_user_id = ? AND config_id = ? AND moderation_epoch = ?
+            ORDER BY computed_at DESC, rowid DESC LIMIT 1) IS ?
+        ON CONFLICT(reviewer_user_id, config_id, input_hash) DO UPDATE SET
+          computed_at = excluded.computed_at,
+          rowid = (SELECT COALESCE(MAX(rowid), 0) + 1 FROM reviewer_reliability_snapshots)
+        WHERE reviewer_reliability_snapshots.moderation_epoch = excluded.moderation_epoch`).bind(
+        crypto.randomUUID(), reviewerId, config.id, inputHash, moderationEpoch, reliability.eligible,
+        reliability.correct, reliability.posteriorAccuracy, reliability.weight, reliability.status, input.now,
+        moderationEpoch, reviewerId, config.id, moderationEpoch, current?.rowOrder ?? null,
+      ),
+      // Readers can never observe the newly active trust alongside a still-fresh
+      // score that used the prior weight. The existing maintenance can retry a job.
+      db.$client.prepare(`UPDATE rating_snapshots SET is_stale = 1, updated_at = ?
+        WHERE changes() = 1 AND is_stale = 0 AND config_id = ? AND moderation_epoch = ?
+          AND place_id IN (SELECT cv.place_id FROM current_votes cv JOIN vote_events v ON v.id = cv.event_id
+            WHERE cv.user_id = ? AND v.source = 'REVIEWER')`).bind(input.now, config.id, moderationEpoch, reviewerId),
+    ]);
+    if (activation?.meta.changes === 1) changedReviewers.add(reviewerId);
   }
 
   const clusters = buildReviewerClusters(reviewerVotes);
@@ -203,12 +187,11 @@ export async function refreshReviewerTrust(db: AppDb, input: { now: string }) {
       );
   }
 
-  const changedPlaces =
-    reliabilityChanged || edgesChanged
-      ? [...new Set(reviewerVotes.map((vote) => vote.placeId))].sort()
-      : [];
+  const changedPlaces = [...new Set(reviewerVotes
+    .filter(vote => edgesChanged || changedReviewers.has(vote.reviewerId))
+    .map(vote => vote.placeId))].sort();
   for (const placeId of changedPlaces) {
-    await markRatingStale(db, placeId, input.now);
+    if (edgesChanged) await markRatingStale(db, placeId, input.now);
     await enqueueRatingRecompute(db, {
       placeId,
       reason: "REVIEWER_TRUST_REFRESH",

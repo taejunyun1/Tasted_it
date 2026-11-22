@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { loadInD1Chunks } from "../../db/d1-query-chunks";
@@ -102,8 +102,14 @@ export async function enqueueRatingRecompute(
   return existing;
 }
 
-async function rejectSnapshotFence(db: AppDb, now: string, configId: string): Promise<never> {
+async function assertReviewerReliability(db: AppDb, fence?: SQL) {
+  if (fence && !(await db.get<{ matches: number }>(sql`SELECT ${fence} AS matches`))?.matches)
+    throw new Error("RATING_REVIEWER_TRUST_CHANGED");
+}
+
+async function rejectSnapshotFence(db: AppDb, now: string, configId: string, reliabilityFence?: SQL): Promise<never> {
   if ((await getActiveRatingConfig(db, now)).id !== configId) throw new Error("RATING_CONFIG_CHANGED");
+  await assertReviewerReliability(db, reliabilityFence);
   throw new Error("RATING_JOB_OWNERSHIP_LOST");
 }
 
@@ -115,6 +121,28 @@ async function sha256(value: string) {
   return [...new Uint8Array(bytes)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+export async function getCurrentReviewerReliability(db: AppDb, input: { reviewerIds: string[]; configId: string; moderationEpoch: number }) {
+  const rowOrder = sql<number>`rowid`;
+  const rows = input.reviewerIds.length ? await loadInD1Chunks(
+    input.reviewerIds,
+    (reviewerChunk) => db.select({
+      reviewerId: reviewerReliabilitySnapshots.reviewerUserId,
+      inputHash: reviewerReliabilitySnapshots.inputHash,
+      reliabilityWeight: reviewerReliabilitySnapshots.reliabilityWeight,
+      computedAt: reviewerReliabilitySnapshots.computedAt,
+      rowOrder,
+    }).from(reviewerReliabilitySnapshots).where(and(
+      eq(reviewerReliabilitySnapshots.configId, input.configId),
+      eq(reviewerReliabilitySnapshots.moderationEpoch, input.moderationEpoch),
+      inArray(reviewerReliabilitySnapshots.reviewerUserId, reviewerChunk),
+    )).orderBy(desc(reviewerReliabilitySnapshots.computedAt), desc(rowOrder)),
+    { reservedBindings: 2 },
+  ) : [];
+  const current = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) if (!current.has(row.reviewerId)) current.set(row.reviewerId, row);
+  return current;
 }
 
 export async function recomputePlaceRating(
@@ -154,34 +182,7 @@ export async function recomputePlaceRating(
   const reviewerIds = active
     .filter((row) => row.source === "REVIEWER")
     .map((row) => row.userId);
-  const reliabilities = reviewerIds.length
-    ? await loadInD1Chunks(
-        reviewerIds,
-        (reviewerChunk) =>
-          db
-            .select()
-            .from(reviewerReliabilitySnapshots)
-            .where(
-              and(
-                eq(reviewerReliabilitySnapshots.configId, config.id),
-                eq(
-                  reviewerReliabilitySnapshots.moderationEpoch,
-                  moderationEpoch,
-                ),
-                inArray(
-                  reviewerReliabilitySnapshots.reviewerUserId,
-                  reviewerChunk,
-                ),
-              ),
-            )
-            .orderBy(desc(reviewerReliabilitySnapshots.computedAt)),
-        { reservedBindings: 2 },
-      )
-    : [];
-  const reliabilityByUser = new Map<string, number>();
-  for (const row of reliabilities)
-    if (!reliabilityByUser.has(row.reviewerUserId))
-      reliabilityByUser.set(row.reviewerUserId, row.reliabilityWeight);
+  const reliabilityByUser = await getCurrentReviewerReliability(db, { reviewerIds, configId: config.id, moderationEpoch });
   const edges = reviewerIds.length
     ? await db
         .select()
@@ -207,7 +208,7 @@ export async function recomputePlaceRating(
       .map((row) => ({
         reviewerId: row.userId,
         value: row.value as -1 | 1,
-        reliabilityWeight: reliabilityByUser.get(row.userId) ?? 1,
+        reliabilityWeight: reliabilityByUser.get(row.userId)?.reliabilityWeight ?? 1,
         similarityDamping: dampingByUser.get(row.userId) ?? 1,
       })),
   });
@@ -219,7 +220,7 @@ export async function recomputePlaceRating(
   }));
   const trustInput = reviewerIds.sort().map((reviewerId) => ({
     reviewerId,
-    reliabilityWeight: reliabilityByUser.get(reviewerId) ?? 1,
+    reliabilityWeight: reliabilityByUser.get(reviewerId)?.reliabilityWeight ?? 1,
     similarityDamping: dampingByUser.get(reviewerId) ?? 1,
   }));
   const inputHash = await sha256(
@@ -232,7 +233,17 @@ export async function recomputePlaceRating(
     }),
   );
   const configFence = sql`${currentRatingConfigIdSql(input.now)}=${config.id}`;
-  const snapshotFence = and(jobFence(input.jobOwnership), configFence);
+  // A cross-place majority change can select a different reliability row without
+  // changing this place's vote revision or the global moderation epoch.
+  const reviewerRows = reviewerIds.map(id => [id, reliabilityByUser.get(id)?.rowOrder ?? null]);
+  const reliabilityFence = reviewerRows.length ? sql`NOT EXISTS (
+    SELECT 1 FROM json_each(${JSON.stringify(reviewerRows)}) expected
+    WHERE (SELECT actual.rowid FROM reviewer_reliability_snapshots actual
+      WHERE actual.reviewer_user_id = json_extract(expected.value, '$[0]')
+        AND actual.config_id = ${config.id} AND actual.moderation_epoch = ${moderationEpoch}
+      ORDER BY actual.computed_at DESC, actual.rowid DESC LIMIT 1) IS NOT json_extract(expected.value, '$[1]')
+  )` : undefined;
+  const snapshotFence = and(jobFence(input.jobOwnership), configFence, reliabilityFence);
   const existing = await db.query.ratingSnapshots.findFirst({
     where: and(
       eq(ratingSnapshots.placeId, input.placeId),
@@ -246,9 +257,10 @@ export async function recomputePlaceRating(
         .set({ isStale: false, updatedAt: input.now })
         .where(and(eq(ratingSnapshots.id, existing.id), snapshotFence))
         .returning({ id: ratingSnapshots.id });
-      if (!changed.length) await rejectSnapshotFence(db, input.now, config.id);
+      if (!changed.length) await rejectSnapshotFence(db, input.now, config.id, reliabilityFence);
     }
     if ((await getActiveRatingConfig(db, input.now)).id !== config.id) throw new Error("RATING_CONFIG_CHANGED");
+    await assertReviewerReliability(db, reliabilityFence);
     return { ...existing, isStale: false };
   }
   const snapshot = {
@@ -285,7 +297,7 @@ export async function recomputePlaceRating(
     db.insert(ratingSnapshots).select(sql`SELECT ${sql.join(values, sql`, `)} WHERE ${snapshotFence}`)
       .returning({ id: ratingSnapshots.id }),
   ]);
-  if (!inserted.length) await rejectSnapshotFence(db, input.now, config.id);
+  if (!inserted.length) await rejectSnapshotFence(db, input.now, config.id, reliabilityFence);
   return snapshot;
 }
 
@@ -374,9 +386,11 @@ export async function processRatingJob(
   } catch (error) {
     if (error instanceof Error && error.message === "RATING_JOB_OWNERSHIP_LOST")
       return { ...await getRatingJobResult(db, job.id, input.now), claimed: true };
+    const trustChanged = error instanceof Error && error.message === "RATING_REVIEWER_TRUST_CHANGED";
+    const retryTrustChange = trustChanged && claimed.attempts < RATING_JOB_MAX_ATTEMPTS;
     await db.update(ratingRecomputeJobs).set({
-      status: "FAILED", finishedAt: input.now, leaseExpiresAt: null, updatedAt: input.now,
-      errorSummary: error instanceof Error && ["RATING_CONFIG_CHANGED", "ACTIVE_RATING_CONFIG_NOT_FOUND"].includes(error.message)
+      status: retryTrustChange ? "PENDING" : "FAILED", finishedAt: retryTrustChange ? null : input.now, leaseExpiresAt: null, updatedAt: input.now,
+      errorSummary: error instanceof Error && ["RATING_CONFIG_CHANGED", "ACTIVE_RATING_CONFIG_NOT_FOUND", "RATING_REVIEWER_TRUST_CHANGED"].includes(error.message)
         ? error.message : "RATING_RECOMPUTE_FAILED",
     }).where(ownedAttempt);
   }
