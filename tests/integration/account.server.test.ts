@@ -3,9 +3,22 @@ import { describe, expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
 import { eq } from "drizzle-orm";
 import { authenticateAccount, registerAccount, requestPasswordReset, resetPassword, verifyEmailToken, withdrawAccount } from "../../app/features/auth/account.server";
+import { action as resetPasswordAction } from "../../app/routes/reset-password";
 import { WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "../../app/features/auth/withdraw";
 import { castVote } from "../../app/features/ratings/vote.server";
 import { authIdentities, reviewerApplications, reviewerProfiles, savedPlaces, sessions, users, voteEvents } from "../../app/db/schema";
+
+async function passwordResetFixture(resetAt = new Date("2026-08-05T12:02:00Z")) {
+  const db = createDb(env.DB);
+  const email = `reset-${crypto.randomUUID()}@example.com`;
+  const oldPassword = "old-password-123";
+  const { userId, token: verificationToken } = await registerAccount(db, { email, displayName: "회원", password: oldPassword, now: new Date("2026-08-05T12:00:00Z") });
+  await verifyEmailToken(db, { token: verificationToken, now: new Date("2026-08-05T12:01:00Z") });
+  await db.insert(sessions).values({ id: crypto.randomUUID(), userId, createdAt: "2026-08-05T12:01:00Z", expiresAt: "2026-08-12T12:01:00Z" });
+  const reset = await requestPasswordReset(db, { email, now: resetAt });
+  if (!reset) throw new Error("Reset test fixture did not issue a token");
+  return { db, email, oldPassword, userId, token: reset.token };
+}
 
 describe("member accounts", () => {
   it("requires email verification before password login", async () => {
@@ -28,6 +41,45 @@ describe("member accounts", () => {
     await resetPassword(db, { token: reset!.token, password: "new-password-456", now: new Date("2026-08-05T12:03:00Z") });
     await expect(authenticateAccount(db, { email, password: "new-password-456" })).resolves.toMatchObject({ email });
     await expect(resetPassword(db, { token: reset!.token, password: "another-password", now: new Date("2026-08-05T12:04:00Z") })).rejects.toThrow("TOKEN_INVALID");
+  });
+
+  it.each(["UPDATE OF password_hash ON users", "DELETE ON sessions"])("rolls back password reset when %s fails", async mutation => {
+    const now = new Date();
+    const { db, email, oldPassword, userId, token } = await passwordResetFixture(now);
+    const newPassword = "new-password-456";
+    const input = { token, password: newPassword, now };
+    const submit = () => resetPasswordAction({ request: new Request("https://retaste.test/reset-password", {
+      method: "POST", body: new URLSearchParams({ token, password: newPassword }),
+    }) } as never);
+    const ownerColumn = mutation.endsWith("users") ? "id" : "user_id";
+    await env.DB.exec(`CREATE TRIGGER fail_password_reset BEFORE ${mutation} WHEN OLD.${ownerColumn}='${userId}' BEGIN SELECT RAISE(ABORT,'fixture reset write failure'); END;`);
+    try {
+      await expect(submit()).resolves.toMatchObject({
+        data: { ok: false, message: "비밀번호를 저장하지 못했습니다. 같은 링크에서 다시 시도해 주세요." }, init: { status: 503 },
+      });
+      await expect(authenticateAccount(db, { email, password: oldPassword })).resolves.toMatchObject({ email });
+      await expect(authenticateAccount(db, { email, password: newPassword })).rejects.toThrow("LOGIN_INVALID");
+      expect(await db.select().from(sessions).where(eq(sessions.userId, userId))).toHaveLength(1);
+    } finally {
+      await env.DB.exec("DROP TRIGGER fail_password_reset");
+    }
+    await expect(resetPassword(db, input)).resolves.toEqual({ userId });
+    await expect(authenticateAccount(db, { email, password: newPassword })).resolves.toMatchObject({ email });
+    expect(await db.select().from(sessions).where(eq(sessions.userId, userId))).toHaveLength(0);
+  });
+
+  it("commits only one of two concurrent uses of the same reset token", async () => {
+    const { db, email, userId, token } = await passwordResetFixture();
+    const attempts = ["concurrent-password-1", "concurrent-password-2"].map(password => ({ token, password, now: new Date("2026-08-05T12:03:00Z") }));
+    const outcomes = await Promise.allSettled(attempts.map(input => resetPassword(db, input)));
+    const winner = outcomes.findIndex(outcome => outcome.status === "fulfilled");
+    expect(winner).toBeGreaterThanOrEqual(0);
+    const loser = winner === 0 ? 1 : 0;
+    expect(outcomes[winner]).toEqual({ status: "fulfilled", value: { userId } });
+    expect(outcomes[loser]).toMatchObject({ status: "rejected", reason: { message: "TOKEN_INVALID" } });
+    await expect(authenticateAccount(db, { email, password: attempts[winner]!.password })).resolves.toMatchObject({ email });
+    await expect(authenticateAccount(db, { email, password: attempts[loser]!.password })).rejects.toThrow("LOGIN_INVALID");
+    expect(await db.select().from(sessions).where(eq(sessions.userId, userId))).toHaveLength(0);
   });
 
   it("rejects an unknown email after running a password check", async () => {

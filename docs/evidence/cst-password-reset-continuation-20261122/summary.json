@@ -1,0 +1,27 @@
+{
+  "sourceSha": "2e4eb48c78086cccbacd8d2ee3a6a3bd1a6d7b4e",
+  "appTree": "f8fd3a92b494904e7b418e222215fce3beee5499",
+  "environment": "합성 메일과 격리 D1을 사용한 로컬 컴파일 Worker, 데스크톱·모바일 Chromium",
+  "startedAt": "2026-11-22T03:31:14.679Z",
+  "checks": {
+    "browser": 2,
+    "d1Integration": 15,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "안전한 원래 상세 목적지를 메일과 재설정 뒤 로그인에서 보존한다. 토큰은 URL fragment만 사용한다.",
+    "짧은 비밀번호 뒤 재시도, 데스크톱 상세·모바일 중첩 상세 복귀, 동일 토큰 재사용 거절을 확인했다.",
+    "저장 또는 기존 세션 철회 실패를 실제 D1에서 재현했다. 기존 비밀번호·세션을 보존하고 같은 링크의 재시도를 허용한다.",
+    "동일 링크의 동시 제출에서는 토큰을 소비한 한 요청만 비밀번호와 세션을 변경했다."
+  ],
+  "screenshots": [
+    "desktop-reset-confirmation.png",
+    "mobile-reset-confirmation.png",
+    "mobile-after-reset.png"
+  ],
+  "limits": [
+    "실제 발송 업체·운영 메일과 전체 S06/T03 수용은 별도다."
+  ]
+}

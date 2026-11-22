@@ -76,6 +76,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 export default function Login({ actionData, loaderData }: Route.ComponentProps) {
   const fieldErrors = actionData && "fieldErrors" in actionData ? actionData.fieldErrors as { email?: string; password?: string } : undefined;
+  const continuation = loaderData.returnTo === "/" ? "" : `?returnTo=${encodeURIComponent(loaderData.returnTo)}`;
   return <AuthPage eyebrow="WELCOME BACK" title="다시 취향을 이어가세요." description="가입한 이메일과 비밀번호로 로그인합니다.">
     {loaderData.oauthError && <p className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{loaderData.oauthError}</p>}
     <div className="mt-8 grid gap-3"><GoogleAuthButton returnTo={loaderData.returnTo} /><NaverAuthButton returnTo={loaderData.returnTo} /></div>
@@ -84,7 +85,11 @@ export default function Login({ actionData, loaderData }: Route.ComponentProps) 
       <input type="hidden" name="returnTo" value={loaderData.returnTo} />
       <AuthInput label="이메일" name="email" type="email" autoComplete="email" defaultValue={actionData?.email} error={fieldErrors?.email} />
       <AuthInput label="비밀번호" name="password" type="password" autoComplete="current-password" error={fieldErrors?.password} />
-    </AuthForm><div className="mt-5 flex flex-col gap-3 text-sm font-normal sm:flex-row sm:justify-between"><Link className="inline-flex min-h-11 items-center underline" to={loaderData.returnTo === "/" ? "/signup" : `/signup?returnTo=${encodeURIComponent(loaderData.returnTo)}`}>회원가입</Link><Link className="inline-flex min-h-11 items-center underline" to="/forgot-password">비밀번호 재설정</Link></div>
+    </AuthForm>
+    <div className="mt-5 flex flex-col gap-3 text-sm font-normal sm:flex-row sm:justify-between">
+      <Link className="inline-flex min-h-11 items-center underline" to={`/signup${continuation}`}>회원가입</Link>
+      <Link className="inline-flex min-h-11 items-center underline" to={`/forgot-password${continuation}`}>비밀번호 재설정</Link>
+    </div>
   </AuthPage>;
 }
 export function AuthPage({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: React.ReactNode }) {
