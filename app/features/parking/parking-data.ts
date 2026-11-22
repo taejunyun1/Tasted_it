@@ -1,4 +1,5 @@
 import { isCoordinateInPackBounds, regionFromAddress } from "../regions/region-pack";
+import type { ParkingSchedule } from "./parking-types";
 
 export const PARKING_DATA_URL = "https://api.data.go.kr/openapi/tn_pubr_prkplce_info_api";
 
@@ -17,10 +18,52 @@ export function buildParkingDataUrl(input: { serviceKey: string; page: number; r
 
 const clean = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
 const numberOrNull = (value: unknown) => value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value);
-const clock = (value: unknown) => {
-  const digits = String(value ?? "").replace(/\D/g, "").padStart(4, "0");
+function clock(value: unknown) {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const text = String(value).trim();
+  if (!/^(?:\d{1,4}|\d{1,2}:\d{2})$/.test(text)) return null;
+  const digits = text.replace(":", "").padStart(4, "0");
   return /^([01]\d|2[0-3])[0-5]\d$/.test(digits) ? `${digits.slice(0, 2)}:${digits.slice(2)}` : null;
-};
+}
+
+function managementNumber(item: Record<string, unknown>) {
+  return clean(item.prkplceNo) ?? clean(item.parkingLotNo) ?? clean(item.mngNo);
+}
+
+function normalizeParkingHours(item: Record<string, unknown>) {
+  return {
+    weekdayOpen: clock(item.weekdayOperOpenHhmm), weekdayClose: clock(item.weekdayOperColseHhmm),
+    saturdayOpen: clock(item.satOperOperOpenHhmm ?? item.satOperOpenHhmm), saturdayClose: clock(item.satOperCloseHhmm),
+    holidayOpen: clock(item.holidayOperOpenHhmm), holidayClose: clock(item.holidayCloseOpenHhmm ?? item.holidayOperCloseHhmm),
+  };
+}
+
+function sourceParkingHours(rawPayload: string, sourceManagementNo: string) {
+  let item: unknown;
+  try { item = JSON.parse(rawPayload); } catch { return null; }
+  if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+  const record = item as Record<string, unknown>;
+  return managementNumber(record) === sourceManagementNo ? normalizeParkingHours(record) : null;
+}
+
+export function confirmedParkingSchedule(stored: ReturnType<typeof normalizeParkingHours> & {
+  rawPayload: string;
+  sourceManagementNo: string;
+}): ParkingSchedule {
+  const source = sourceParkingHours(stored.rawPayload, stored.sourceManagementNo);
+  function hours(open: string | null, close: string | null, sourceOpen?: string | null, sourceClose?: string | null) {
+    if (!open || !close) return null;
+    if (source && (open !== sourceOpen || close !== sourceClose)) return null;
+    // Older normalization also encoded missing hours as midnight at both ends.
+    if (!source && open === "00:00" && close === "00:00") return null;
+    return { opensAt: open, closesAt: close };
+  }
+  return {
+    weekday: hours(stored.weekdayOpen, stored.weekdayClose, source?.weekdayOpen, source?.weekdayClose),
+    saturday: hours(stored.saturdayOpen, stored.saturdayClose, source?.saturdayOpen, source?.saturdayClose),
+    holiday: hours(stored.holidayOpen, stored.holidayClose, source?.holidayOpen, source?.holidayClose),
+  };
+}
 
 function region(address: string | null) {
   return regionFromAddress(address);
@@ -36,7 +79,7 @@ function coordinatesMatchRegion(regionCode: "GWANGJU" | "JEONNAM", latitude: num
 }
 
 export function normalizeParkingItem(item: Record<string, unknown>, now = new Date()) {
-  const sourceManagementNo = clean(item.prkplceNo) ?? clean(item.parkingLotNo) ?? clean(item.mngNo);
+  const sourceManagementNo = managementNumber(item);
   const name = clean(item.prkplceNm) ?? clean(item.parkingLotNm);
   const roadAddress = clean(item.rdnmadr) ?? clean(item.roadAddress);
   const lotAddress = clean(item.lnmadr) ?? clean(item.lotAddress);
@@ -62,14 +105,13 @@ export function normalizeParkingItem(item: Record<string, unknown>, now = new Da
   const additionalFee = numberOrNull(item.addUnitCharge);
   const dailyMaxFee = numberOrNull(item.dayCmmtkt);
   const age = monthsOld(referenceDate, now);
-  const complete = capacity != null && feeStatus !== "UNKNOWN" && (feeStatus === "FREE" || baseFee != null) && clock(item.weekdayOperOpenHhmm) && clock(item.weekdayOperColseHhmm);
+  const hours = normalizeParkingHours(item);
+  const complete = capacity != null && feeStatus !== "UNKNOWN" && (feeStatus === "FREE" || baseFee != null) && hours.weekdayOpen && hours.weekdayClose;
   const reliabilityGrade = age > 18 ? "C" as const : age > 12 || !complete ? "B" as const : "A" as const;
   return {
     sourceManagementNo, name, ownershipType, facilityType, roadAddress, lotAddress, regionCode, latitude, longitude,
     capacity, disabledSpaces: numberOrNull(item.hndicapPrkcmprt),
-    weekdayOpen: clock(item.weekdayOperOpenHhmm), weekdayClose: clock(item.weekdayOperColseHhmm),
-    saturdayOpen: clock(item.satOperOperOpenHhmm ?? item.satOperOpenHhmm), saturdayClose: clock(item.satOperCloseHhmm),
-    holidayOpen: clock(item.holidayOperOpenHhmm), holidayClose: clock(item.holidayCloseOpenHhmm ?? item.holidayOperCloseHhmm),
+    ...hours,
     feeStatus, baseMinutes, baseFee, additionalMinutes, additionalFee, dailyMaxFee,
     paymentMethods: clean(item.metpay), publicAccessStatus, reliabilityGrade, referenceDate, rawPayload: JSON.stringify(item),
   };

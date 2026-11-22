@@ -50,4 +50,39 @@ describe("parking recommendation service", () => {
     });
     expect(result.recommendedMode).toBe("SEPARATE");
   });
+
+  it("requires source evidence for legacy all-midnight schedules and rejects unconfirmed endpoints", async () => {
+    const timestamp = "2026-11-01T00:00:00.000Z";
+    await env.DB.prepare(`INSERT INTO parking_data_snapshots
+      (id, source, status, row_count, activated_at, created_at, updated_at)
+      VALUES ('hours-active', 'PARKING', 'ACTIVE', 3, ?, ?, ?)`).bind(timestamp, timestamp, timestamp).run();
+    const insert = env.DB.prepare(`INSERT INTO parking_facilities
+      (id, snapshot_id, source_management_no, name, ownership_type, facility_type, region_code, latitude, longitude,
+       weekday_open, weekday_close, fee_status, public_access_status, reliability_grade, reference_date, raw_payload, created_at, updated_at)
+      VALUES (?, 'hours-active', ?, '합성 주차장', 'PUBLIC', 'OFF_STREET', 'GWANGJU', 35.15, 126.85,
+       '00:00', ?, 'FREE', 'PUBLIC', 'A', '2026-11-01', ?, ?, ?)`);
+    for (const [id, close, source] of [
+      ["missing-hours", "00:00", { prkplceNo: "missing-hours", weekdayOperColseHhmm: "미확인" }],
+      ["without-source", "00:00", {}],
+      ["missing-opening", "22:00", { prkplceNo: "missing-opening", weekdayOperColseHhmm: "2200" }],
+    ] as const) {
+      await insert.bind(id, id, close, JSON.stringify(source), timestamp, timestamp).run();
+    }
+    const db = createDb(env.DB);
+    const input = {
+      first: { id: "meal", latitude: 35.15, longitude: 126.85 },
+      second: { id: "cafe", latitude: 35.151, longitude: 126.85 },
+      startsAt: "2026-11-23T12:00:00+09:00", firstStayMinutes: 60, secondStayMinutes: 60,
+      weather: "NORMAL", childAccompanied: false, evRequirement: "NONE", parkingMode: "auto",
+    } satisfies Parameters<typeof recommendParkingForCourse>[1];
+    expect(await recommendParkingForCourse(db, input)).toMatchObject({
+      status: "NO_ELIGIBLE_PARKING", shared: null, separate: null,
+    });
+
+    const proven = { prkplceNo: "without-source", weekdayOperOpenHhmm: 0, weekdayOperColseHhmm: "0000" };
+    await env.DB.prepare("UPDATE parking_facilities SET raw_payload=? WHERE id='without-source'").bind(JSON.stringify(proven)).run();
+    expect(await recommendParkingForCourse(db, input)).toMatchObject({
+      status: "READY", shared: { parking: { id: "without-source" } },
+    });
+  });
 });
