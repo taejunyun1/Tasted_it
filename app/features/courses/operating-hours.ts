@@ -7,9 +7,10 @@ export interface OperatingHoursInterval {
   isClosed: boolean;
 }
 
+const kstClock = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
 function kstParts(now: Date) {
-  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-  const parts = Object.fromEntries(formatter.formatToParts(now).map((part) => [part.type, part.value]));
+  const parts = Object.fromEntries(kstClock.formatToParts(now).map((part) => [part.type, part.value]));
   const weekday = ({ Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as const)[parts.weekday as "Sun"];
   return { weekday, minutes: Number(parts.hour) * 60 + Number(parts.minute) };
 }
@@ -20,22 +21,29 @@ function toMinutes(value: string | null) {
   return hour * 60 + minute;
 }
 
-function includes(interval: OperatingHoursInterval, weekday: number, minutes: number) {
-  if (interval.isClosed || interval.weekday !== weekday) return false;
-  const open = toMinutes(interval.opensAt);
-  const close = toMinutes(interval.closesAt);
-  if (open == null || close == null) return false;
-  return close > open ? minutes >= open && minutes < close : minutes >= open || minutes < close;
+function dailyIntervals(hours: OperatingHoursInterval[], weekday: number) {
+  const rows = hours.filter((row) => row.weekday === weekday);
+  if (!rows.length) return null;
+  if (rows.every((row) => row.isClosed && row.opensAt === null && row.closesAt === null)) return [];
+
+  const intervals: Array<{ open: number; close: number }> = [];
+  for (const row of rows) {
+    const open = toMinutes(row.opensAt);
+    const close = toMinutes(row.closesAt);
+    if (row.isClosed || open === null || close === null) return null;
+    intervals.push({ open, close });
+  }
+  return intervals;
 }
 
 export function operatingAvailabilityAt(hours: OperatingHoursInterval[], now: Date): OperatingAvailability {
   if (!hours.length) return "UNKNOWN";
   const { weekday, minutes } = kstParts(now);
-  const yesterday = (weekday + 6) % 7;
-  const open = hours.some((interval) => includes(interval, weekday, minutes)
-    || (interval.weekday === yesterday && !interval.isClosed && (() => {
-      const openAt = toMinutes(interval.opensAt); const closeAt = toMinutes(interval.closesAt);
-      return openAt != null && closeAt != null && closeAt <= openAt && minutes < closeAt;
-    })()));
-  return open ? "OPEN" : "CLOSED";
+  const today = dailyIntervals(hours, weekday);
+  const yesterday = dailyIntervals(hours, (weekday + 6) % 7);
+
+  // Equal or earlier closing times refer to the following day.
+  if (today?.some(({ open, close }) => minutes >= open && (close <= open || minutes < close))
+      || yesterday?.some(({ open, close }) => close <= open && minutes < close)) return "OPEN";
+  return today === null ? "UNKNOWN" : "CLOSED";
 }

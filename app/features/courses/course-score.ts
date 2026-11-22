@@ -87,7 +87,7 @@ function reliability(place: PlaceSummary) {
 
 function v2Badges(input: { first: CoursePlaceContextV2; second: CoursePlaceContextV2; compatibility: number; timeFit: number; expanded: boolean }) {
   const values: string[] = [];
-  if (input.first.availability === "OPEN" && input.second.availability === "OPEN") values.push("지금 영업 중");
+  if (input.first.availability === "OPEN" && input.second.availability === "OPEN") values.push("기록상 두 곳 모두 영업시간");
   else if (input.first.availability === "UNKNOWN" || input.second.availability === "UNKNOWN") values.push("영업시간 확인 필요");
   if (input.timeFit >= 0.8) values.push("시간대에 잘 맞음");
   if (input.compatibility >= 70) values.push("메뉴 조합 좋음");
