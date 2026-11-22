@@ -1,13 +1,16 @@
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { Link } from "react-router";
+import { restoreVisibleFocus } from "../../features/a11y/focus-return";
 import { formatPublicRatingSummary } from "../../features/places/place-discovery";
+import { PLACE_DETAIL_MOBILE_QUERY, shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
 import { publicRatingFromPlace } from "../../features/ratings/public-rating";
 import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 import type { PlaceSummary } from "../../features/places/place.types";
-import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
+import { safePlaceDetailSearchPath, type OpenPlaceDetail } from "../places/PlaceCard";
 
-export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSummary; onBack: () => void; onOpenDetail: (slug: string) => void }) {
+export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSummary; onBack: () => void; onOpenDetail: OpenPlaceDetail }) {
   const sheetRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const rating = publicRatingFromPlace(place);
   const score = rating.overallScore;
   const isVisible = score != null;
@@ -16,11 +19,29 @@ export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSu
   const progressMax = isVisible ? 100 : 8;
   const progressPercent = (progressValue / progressMax) * 100;
   const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(place.address || place.name)}`;
-  useDialogFocusTrap(sheetRef, { active: true, onClose: onBack });
+  const detailPath = safePlaceDetailSearchPath(place.slug);
+  useLayoutEffect(() => {
+    const opener = document.activeElement;
+    const sheet = sheetRef.current;
+    const pathname = window.location.pathname;
+    closeRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (window.location.pathname !== pathname || !sheet?.contains(document.activeElement)) return;
+      if (restoreVisibleFocus(opener)) return;
+      const fallback = window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches
+        ? ".map-mobile-tabs button[aria-pressed=true]" : "#map-search";
+      restoreVisibleFocus(document.querySelector(fallback));
+    };
+  }, []);
 
-  return <aside ref={sheetRef} className="map-place-sheet" role="dialog" aria-modal="true" tabIndex={-1} aria-label={`${place.name} 빠른 정보`}>
+  return <aside ref={sheetRef} className="map-place-sheet" role="dialog" aria-label={`${place.name} 빠른 정보`} onKeyDown={(event) => {
+    if (event.defaultPrevented || event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    onBack();
+  }}>
     <div className="map-place-sheet__handle" aria-hidden="true" />
-    <button type="button" className="map-place-sheet__close" aria-label="빠른 정보 닫기" onClick={onBack}>×</button>
+    <button ref={closeRef} type="button" className="map-place-sheet__close" aria-label="빠른 정보 닫기" onClick={onBack}>×</button>
     <div className="map-place-sheet__image">
       {place.heroImageUrl ? <img src={place.heroImageUrl} alt="" /> : <span>{place.primaryCategory.emoji}</span>}
     </div>
@@ -42,7 +63,11 @@ export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSu
     </div>
     <div className="map-place-sheet__actions">
       <a className="map-place-sheet__route" href={naverUrl} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
-      <Link className="map-place-sheet__more" to={`/places/${place.slug}`} onClick={(event) => { if (window.matchMedia("(max-width: 760px)").matches) { event.preventDefault(); onOpenDetail(place.slug); } }}>상세 보기</Link>
+      {detailPath && <Link className="map-place-sheet__more" to={detailPath} onClick={(event) => {
+        if (!shouldOpenPlaceDetailSheet({ ...event, mobile: window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches })) return;
+        event.preventDefault();
+        onOpenDetail(detailPath, event.currentTarget);
+      }}>상세 보기</Link>}
     </div>
   </aside>;
 }

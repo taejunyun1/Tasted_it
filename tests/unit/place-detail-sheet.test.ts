@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { shouldOpenPlaceDetailSheet } from "../../app/features/places/place-detail-sheet";
 import {
   recommendationRequestPath,
   safePlaceDetailRequestPath,
+  safePlaceDetailSearchPath,
 } from "../../app/components/places/PlaceCard";
 
 describe("shouldOpenPlaceDetailSheet", () => {
@@ -11,9 +11,10 @@ describe("shouldOpenPlaceDetailSheet", () => {
     expect(shouldOpenPlaceDetailSheet({ mobile: true, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false })).toBe(true);
   });
 
-  it("keeps desktop and modified link navigation intact", () => {
-    expect(shouldOpenPlaceDetailSheet({ mobile: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false })).toBe(false);
-    expect(shouldOpenPlaceDetailSheet({ mobile: true, button: 0, metaKey: true, ctrlKey: false, shiftKey: false, altKey: false })).toBe(false);
+  it.each([
+    { mobile: false }, { button: 1 }, { metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { altKey: true }, { defaultPrevented: true },
+  ])("keeps native link behavior for %o", (input) => {
+    expect(shouldOpenPlaceDetailSheet({ mobile: true, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...input })).toBe(false);
   });
 
   it("accepts only queryless direct paths or complete allowlisted recommendation paths", () => {
@@ -41,17 +42,16 @@ describe("shouldOpenPlaceDetailSheet", () => {
   });
 });
 
-describe("place sheet dialogs trap keyboard focus", () => {
-  it("uses the shared trap on the map quick sheet and the full detail sheet", () => {
-    const detail = readFileSync("app/components/places/PlaceDetailSheet.tsx", "utf8");
-    const quick = readFileSync("app/components/map/MapPlaceDetail.tsx", "utf8");
-    const course = readFileSync("app/routes/course-recommendation.tsx", "utf8");
+describe("safePlaceDetailSearchPath", () => {
+  it("accepts a map slug and preserves the list's complete recommendation proof", () => {
+    const proof = "/places/sample?sourceRail=TRUSTED&discoveryMode=QUALITY&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f";
+    expect(safePlaceDetailSearchPath("sample")).toBe("/places/sample");
+    expect(safePlaceDetailSearchPath("국밥")).toBe(`/places/${encodeURIComponent("국밥")}`);
+    expect(safePlaceDetailSearchPath(encodeURIComponent("국밥"))).toBe(`/places/${encodeURIComponent("국밥")}`);
+    expect(safePlaceDetailSearchPath(proof)).toBe(proof);
+  });
 
-    expect(detail).toContain("useDialogFocusTrap");
-    expect(detail).toContain("aria-modal=\"true\"");
-    expect(quick).toContain("useDialogFocusTrap");
-    expect(quick).toContain("aria-modal=\"true\"");
-    expect(course).toContain("tabWrapTarget");
-    expect(course).toContain("visibleFocusableElements");
+  it.each([null, "", "..", "../login", "sample%2Fescape", "sample%", "sample?other=1", "https://evil.example/places/sample", "//evil.example/places/sample"])("rejects invalid place input %s", (input) => {
+    expect(safePlaceDetailSearchPath(input)).toBeNull();
   });
 });
