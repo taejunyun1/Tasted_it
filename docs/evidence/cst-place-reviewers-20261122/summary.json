@@ -23,5 +23,11 @@
   ],
   "limits": [
     "합성 계정·콘텐츠 결과다. 운영 반영과 실제 권리 승인, 전체 T04 수용은 별도다."
-  ]
+  ],
+  "combinedMainVerification": {
+    "sourceSha": "1ac8bf64bb7791b3e4392c3bd96939b9f56c6ea4",
+    "appTree": "effcaa23c82a1abf40cda28d10eac1786100576a",
+    "startedAt": "2026-11-22T03:36:29.883Z",
+    "browser": 2
+  }
 }
