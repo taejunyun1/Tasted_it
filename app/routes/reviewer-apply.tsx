@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { asc, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { cloneElement, useEffect, useRef } from "react";
 import { data, Form, Link, useNavigation } from "react-router";
 
@@ -11,14 +11,27 @@ import { isSameOriginMutation } from "../features/http/same-origin";
 import { getReviewerDashboard, submitReviewerApplication } from "../features/reviewers/reviewer.server";
 import { validateReviewerApplication } from "../features/reviewers/reviewer-policy";
 
+export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
+
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
   const db = createDb(env.DB);
-  const [dashboard, parentCategories] = await Promise.all([
+  const [{ latestApplication, profile, approvedSuggestionCount }, parentCategories] = await Promise.all([
     getReviewerDashboard(db, user.id),
-    db.select().from(categories).where(isNull(categories.parentId)).orderBy(asc(categories.sortOrder)),
+    db.select({ id: categories.id, slug: categories.slug, name: categories.name, emoji: categories.emoji })
+      .from(categories).where(and(isNull(categories.parentId), eq(categories.isActive, true))).orderBy(asc(categories.sortOrder)),
   ]);
-  return { user, dashboard, parentCategories: parentCategories.filter((category) => category.isActive) };
+  return {
+    dashboard: {
+      latestApplication: latestApplication ?? null,
+      profile: profile ? {
+        status: profile.status,
+        publicSlug: profile.status === "ACTIVE" && user.role === "REVIEWER" ? profile.slug : null,
+      } : null,
+      approvedSuggestionCount,
+    },
+    parentCategories,
+  };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -72,7 +85,11 @@ export default function ReviewerApply({ loaderData, actionData }: Route.Componen
     </div>
     {actionData?.error && <p ref={errorRef} tabIndex={-1} role="alert" className="mt-6 border border-rose-500 bg-rose-50 px-4 py-3 text-sm text-rose-800">{actionData.error}</p>}
     {actionData?.ok && <p role="status" className="mt-6 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">신청이 접수됐습니다. 관리자 검토를 기다려 주세요.</p>}
-    {profile ? <section className="mt-8 border border-neutral-300 bg-white p-6"><h2 className="text-xl font-semibold">{profile.status === "ACTIVE" ? "현재 활동 중인 리뷰어입니다." : profile.status === "DORMANT" ? "현재 휴면 상태입니다." : "현재 활동이 정지됐습니다."}</h2><p className="mt-2 text-sm text-neutral-600">{profile.status === "ACTIVE" ? "승인된 리뷰어 프로필과 활동 기록을 관리할 수 있습니다." : "새로 신청하지 않고 운영자 확인 후 상태를 변경합니다."}</p>{profile.status !== "SUSPENDED" && <Link className="mt-4 inline-block border border-neutral-900 px-4 py-2 text-sm font-medium" to={`/reviewers/${profile.slug}`}>공개 프로필 보기</Link>}</section>
+    {profile ? <section className="mt-8 border border-neutral-300 bg-white p-6">
+      <h2 className="text-xl font-semibold">{profile.status === "ACTIVE" ? "현재 활동 중인 리뷰어입니다." : profile.status === "DORMANT" ? "현재 휴면 상태입니다." : "현재 활동이 정지됐습니다."}</h2>
+      <p className="mt-2 text-sm text-neutral-600">{profile.publicSlug ? "승인된 리뷰어 프로필과 활동 기록을 관리할 수 있습니다." : "새로 신청하지 않고 운영자 확인 후 상태를 변경합니다."}</p>
+      {profile.publicSlug && <Link className="mt-4 inline-block border border-neutral-900 px-4 py-2 text-sm font-medium" to={`/reviewers/${encodeURIComponent(profile.publicSlug)}`}>공개 프로필 보기</Link>}
+    </section>
       : hasOpen ? <StatusPanel status={latest.status} />
       : canApply && <Form ref={formRef} method="post" aria-busy={pending} onSubmit={(event) => {
         if (pending || submitGuard.current) event.preventDefault();

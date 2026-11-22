@@ -117,8 +117,12 @@ export async function getPublicReviewerProfile(db: AppDb, slug: string) {
 
 export async function getReviewerDashboard(db: AppDb, userId: string) {
   const [latestApplication, profile, approvedSuggestionCount] = await Promise.all([
-    db.query.reviewerApplications.findFirst({ where: eq(reviewerApplications.userId, userId), orderBy: [desc(reviewerApplications.createdAt)] }),
-    db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, userId) }),
+    db.query.reviewerApplications.findFirst({
+      columns: { status: true },
+      where: eq(reviewerApplications.userId, userId),
+      orderBy: [desc(reviewerApplications.createdAt)],
+    }),
+    db.query.reviewerProfiles.findFirst({ columns: { status: true, slug: true }, where: eq(reviewerProfiles.userId, userId) }),
     countApprovedPlaceSuggestions(db, userId),
   ]);
   return { latestApplication, profile, approvedSuggestionCount };

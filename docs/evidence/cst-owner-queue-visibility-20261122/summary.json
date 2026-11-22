@@ -1,0 +1,70 @@
+{
+  "sourceSha": "8ec5a8162804e647fbbdd27eed2474de07b4a091",
+  "appTree": "bf1df21f20ee7a896d522f5e9379a1cfa909f27c",
+  "environment": "로컬 컴파일 Worker, 합성 D1, desktop Chromium과 Pixel 7 Chromium",
+  "checks": {
+    "d1RegressionBeforeFix": "0/2. 내 제안의 실제 응답은 20개 필드를 반환했고 리뷰어 신청 응답에는 세션 사용자 객체가 포함됐다.",
+    "d1Integration": 5,
+    "unit": 11,
+    "browser": 2,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "알려진 취약점 0건"
+  },
+  "scope": [
+    "서로 다른 합성 계정에서 자기 제안과 회원용 검토 의견을 표시한다.",
+    "두 페이지의 실제 데이터 응답은 private, no-store와 Vary: Cookie를 보내고 운영자 식별자와 내부 메모를 제외한다.",
+    "활동 리뷰어의 링크를 열어 공개 프로필을 확인했다. 휴면 리뷰어는 링크가 없고 공개 주소는 404를 반환한다.",
+    "D1에서 활성 프로필을 가진 계정의 리뷰어 역할이 해제되면 공개 링크와 공개 읽기가 제한됨을 확인했다."
+  ],
+  "browser": [
+    {
+      "profile": "desktop-active",
+      "/me/suggestions.data": {
+        "status": 200,
+        "privateNoStore": true,
+        "varyCookie": true,
+        "absenceOfStaffFields": true
+      },
+      "/reviewer/apply.data": {
+        "status": 200,
+        "privateNoStore": true,
+        "varyCookie": true,
+        "absenceOfStaffFields": true
+      },
+      "ownSuggestionVisible": true,
+      "otherSuggestionAbsent": true,
+      "publicProfileLink": true,
+      "publicStatus": 200,
+      "memberFacingReviewReasonVisible": true
+    },
+    {
+      "profile": "mobile-dormant",
+      "/me/suggestions.data": {
+        "status": 200,
+        "privateNoStore": true,
+        "varyCookie": true,
+        "absenceOfStaffFields": true
+      },
+      "/reviewer/apply.data": {
+        "status": 200,
+        "privateNoStore": true,
+        "varyCookie": true,
+        "absenceOfStaffFields": true
+      },
+      "ownSuggestionVisible": true,
+      "otherSuggestionAbsent": true,
+      "publicProfileLink": false,
+      "publicStatus": 404,
+      "memberFacingReviewReasonVisible": true
+    }
+  ],
+  "screenshots": [
+    "desktop-active-reviewer.png",
+    "mobile-dormant-reviewer.png",
+    "mobile-dormant-suggestions.png"
+  ],
+  "limits": [
+    "합성 계정에 대한 로컬 검증이다. 실제 자료의 공개 권리 및 전체 T04/T05 실증·운영 수용은 별도다."
+  ]
+}
