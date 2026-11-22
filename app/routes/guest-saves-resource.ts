@@ -5,6 +5,7 @@ import type { Route } from "./+types/guest-saves-resource";
 import { createDb } from "../db/client.server";
 import { guestTasteSessions, places } from "../db/schema";
 import { getOptionalUser } from "../features/auth/session.server";
+import { readBoundedBody } from "../features/http/bounded-body";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
 import { getPlaceBySlug } from "../features/places/place.server";
@@ -27,16 +28,7 @@ export function headers() { return PRIVATE_HEADERS; }
 export async function readGuestSaveForm(request: Request) {
   if (!isSameOriginMutation(request)) throw new Response(null, { status: 403 });
   if (!request.headers.get("Content-Type")?.startsWith("application/x-www-form-urlencoded")) throw new Response(null, { status: 415 });
-  const reader = request.body?.getReader();
-  const chunks: Uint8Array[] = []; let length = 0;
-  if (reader) while (true) {
-    const { done, value } = await reader.read(); if (done) break;
-    length += value.byteLength;
-    if (length > 1024) { await reader.cancel(); throw new Response(null, { status: 413 }); }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(length); let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  const bytes = await readBoundedBody(request, 1024);
   const values: Record<string, string> = Object.create(null);
   for (const [key, value] of new URLSearchParams(new TextDecoder().decode(bytes))) {
     if (Object.hasOwn(values, key)) throw new Response(null, { status: 400 });

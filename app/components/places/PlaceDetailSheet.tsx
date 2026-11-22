@@ -1,12 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useFetcher, useLocation, useNavigate } from "react-router";
+import { useFetcher, useLocation, useNavigate } from "react-router";
 import type { clientLoader as placeDetailLoader } from "../../routes/place-detail";
 import { tabWrapTarget, visibleFocusableElements } from "../../features/a11y/dialog-focus";
 import { restoreVisibleFocus } from "../../features/a11y/focus-return";
-import { authEntryHref } from "../../features/auth/login";
 import { PLACE_DETAIL_MOBILE_QUERY } from "../../features/places/place-detail-sheet";
-import { GuestSaveControl } from "../onboarding/GuestSaveControl";
 import { TempCatalogNotice } from "../../features/temp-catalog/TempCatalogNotice";
 import type { PlaceDetailLoadFailure } from "../../features/places/place-detail-client";
 import { formatPublicRatingSummary } from "../../features/places/place-discovery";
@@ -14,9 +12,10 @@ import { formatRatingGroup } from "../../features/ratings/public-rating";
 import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 import { FlavorMeter } from "../ratings/FlavorMeter";
 import { PlaceInformation } from "./PlaceInformation";
+import { PlaceCorrectionLink, PlaceRatingBadges, PlaceReviewPhotos } from "./PlacePublicEvidence";
+import { VoteControl } from "../ratings/VoteControl";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
-type MutationData = { ok: boolean; error?: string; resultUnknown?: boolean; status?: number };
 
 export function PlaceDetailSheet({ detailPath, opener, replacementOpener, fallbackFocus, onClose }: {
   detailPath: string | null;
@@ -159,21 +158,8 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const detail = useFetcher<DetailData>();
-  const save = useFetcher<MutationData>();
-  const submissionLock = useRef(false);
-  const submissionStarted = useRef(false);
-  const [waiting, setWaiting] = useState(false);
   const [readFailure, setReadFailure] = useState<PlaceDetailLoadFailure | null>(null);
-  const [submission, setSubmission] = useState<{ intent: string; saved: boolean } | null>(null);
   useEffect(() => { void detail.load(requestPath); }, [requestPath, detail.load]);
-  useEffect(() => {
-    if (save.state !== "idle") submissionStarted.current = true;
-    else if (submissionStarted.current) {
-      submissionLock.current = false;
-      submissionStarted.current = false;
-      setWaiting(false);
-    }
-  }, [save.state]);
   useEffect(() => {
     if (detail.data && "detailError" in detail.data) setReadFailure(detail.data);
   }, [detail.data]);
@@ -182,20 +168,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
   const failure = readFailure ?? (detail.data && "detailError" in detail.data ? detail.data : null);
   const data = !failure && detail.data && !("detailError" in detail.data) ? detail.data : null;
   const loading = !data && !failure;
-  const busy = waiting || save.state !== "idle";
-  const resultUnknown = save.data?.resultUnknown === true;
-  const needsRead = save.data?.ok === false;
   const unavailable = failure?.status === 403 || failure?.status === 404;
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    if (submissionLock.current || busy || needsRead || detail.state !== "idle") {
-      event.preventDefault();
-      return;
-    }
-    const form = new FormData(event.currentTarget);
-    submissionLock.current = true;
-    setWaiting(true);
-    setSubmission({ intent: String(form.get("intent")), saved: form.get("saved") === "true" });
-  };
   return <>
       <span id={labelId} className="sr-only">{data ? `${data.place.name} 상세 정보` : "장소 상세 정보"}</span>
       {loading ? <p className="place-detail-sheet__loading" role="status">장소 정보를 불러오는 중…</p> : !data ? <div className="place-detail-sheet__body">
@@ -211,21 +184,26 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
           <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
           <h2>{data.place.name}</h2>
           {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
+          <PlaceRatingBadges goldenPick={data.hasGoldenPick} hiddenGem={data.hiddenGem.eligible} />
           <address>{data.place.address}</address>
           <div className="place-detail-sheet__score"><div><strong>{data.rating.overallScore !== null ? `${data.rating.overallScore}%` : data.rating.overallSampleCount < 8 ? `${data.rating.overallSampleCount}/8` : `${data.rating.overallSampleCount}명`}</strong><p className="public-rating-summary">{formatPublicRatingSummary(data.place)}</p></div><PublicRatingMeta place={data.place} /></div>
           <div className="place-detail-sheet__breakdown"><span>일반 회원 <b>{formatRatingGroup(data.rating.userScore, data.rating.userSampleCount)}</b></span><span>리뷰어 <b>{formatRatingGroup(data.rating.reviewerScore, data.rating.reviewerSampleCount)}</b></span></div>
           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
           <PlaceInformation place={data.place} />
-          {busy && <p role="status">{submission?.intent === "withdraw" ? "평가를 취소하고 있어요." : "저장 상태를 바꾸고 있어요."}</p>}
-          {!busy && submission && save.data?.ok && <p role="status">{submission.intent === "withdraw" ? "평가를 취소했어요." : submission.saved ? "맛집지도에 추가했어요." : "맛집지도에서 뺐어요."}</p>}
-          {!busy && save.data?.ok === false && <div role="alert">
-            <p>{resultUnknown ? "처리 결과를 확인하지 못했어요. 다시 요청하기 전에 현재 상태를 확인해 주세요." : save.data.error === "VOTE_VERSION_CONFLICT" ? "평가가 변경되었어요. 현재 상태를 다시 확인해 주세요." : "요청을 처리하지 못했어요. 현재 상태를 확인한 뒤 다시 시도해 주세요."}</p>
-          </div>}
-          <div className="place-detail-sheet__actions">
-            {data.user ? needsRead ? <button type="button" className="place-detail-sheet__save" onClick={onRetry}>현재 상태 다시 확인</button> : <save.Form method="post" action={requestPath} onSubmit={submit}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save" disabled={busy || detail.state !== "idle"} aria-pressed={data.saved}>{busy && submission?.intent === "save" ? "저장 중…" : data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></save.Form> : <div><Link className="place-detail-sheet__save" to={authEntryHref("/login", returnTo)}>로그인하고 맛집지도에 추가</Link><GuestSaveControl placeId={data.place.id} returnTo={returnTo} showLogin={false}/></div>}
-            {data.user && data.voteEventId && <save.Form method="post" action={requestPath} onSubmit={submit}><input type="hidden" name="intent" value="withdraw"/><input type="hidden" name="expectedEventId" value={data.voteEventId}/><button disabled={busy || needsRead || detail.state !== "idle"}>{busy && submission?.intent === "withdraw" ? "취소 중…" : "평가 취소"}</button></save.Form>}
-            <a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
-          </div>
+          <PlaceCorrectionLink placeId={data.place.id} />
+          <PlaceReviewPhotos placeName={data.place.name} photos={data.reviewPhotos} />
+          <VoteControl
+            placeId={data.place.id}
+            vote={data.vote}
+            voteEventId={data.voteEventId}
+            saved={data.saved}
+            signedIn={Boolean(data.user)}
+            returnTo={returnTo}
+            action={requestPath}
+            busyReading={detail.state !== "idle"}
+            onRefresh={onRetry}
+            directions={<a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>}
+          />
         </div>
       </>}
   </>;

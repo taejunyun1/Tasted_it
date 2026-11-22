@@ -48,6 +48,7 @@ describe("selectTasteSignals", () => {
 describe("VoteControl", () => {
   it("로그인 전에는 returnTo를 보존한 로그인 안내만 렌더링한다", () => {
     const html = renderVoteControl({
+      placeId: "market-gukbap",
       vote: null,
       saved: false,
       signedIn: false,
@@ -60,7 +61,7 @@ describe("VoteControl", () => {
   });
 
   it("비추천 상태에서 다섯 이유를 하나만 고르는 접근 가능한 그룹을 렌더링한다", () => {
-    const html = renderVoteControl({ vote: -1, saved: false, signedIn: true, returnTo: "/places/gukbap" });
+    const html = renderVoteControl({ placeId: "gukbap", vote: -1, saved: false, signedIn: true, returnTo: "/places/gukbap" });
     const visibleText = html.replace(/<[^>]+>/g, " ");
 
     expect(html).toContain("<fieldset");
@@ -75,8 +76,27 @@ describe("VoteControl", () => {
     expect(visibleText).not.toMatch(/(?:^|\s)-?\d+(?:\.\d+)?(?:\s|$)/);
   });
 
+  it("상세 시트의 평가·취소·저장 요청에 같은 추천 진입 경로를 사용한다", () => {
+    const action = "/places/gukbap?sourceRail=TRUSTED&discoveryMode=QUALITY&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f";
+    const html = renderVoteControl({
+      action,
+      directions: createElement("a", { href: "/directions" }),
+      placeId: "gukbap",
+      vote: -1,
+      voteEventId: "confirmed-event",
+      saved: true,
+      signedIn: true,
+      returnTo: "/places?place=gukbap",
+    });
+    expect([...html.matchAll(/<form[^>]+action="([^"]+)"/g)].map(match => match[1])).toEqual(
+      Array.from({ length: 4 }, () => action.replaceAll("&", "&amp;")),
+    );
+    expect(html).toContain('name="expectedEventId" value="confirmed-event"');
+    expect(html).toContain('name="saved" value="false"');
+  });
+
   it("추천 상태에서는 부정 이유 그룹을 숨긴다", () => {
-    const html = renderVoteControl({ vote: 1, saved: true, signedIn: true, returnTo: "/places/gukbap" });
+    const html = renderVoteControl({ placeId: "gukbap", vote: 1, saved: true, signedIn: true, returnTo: "/places/gukbap" });
 
     expect(html).not.toContain("비추천 이유를 하나 선택해 주세요");
     expect(html).not.toContain("name=\"reason\"");
