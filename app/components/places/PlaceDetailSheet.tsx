@@ -12,7 +12,7 @@ import { formatRatingGroup } from "../../features/ratings/public-rating";
 import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 import { FlavorMeter } from "../ratings/FlavorMeter";
 import { PlaceInformation } from "./PlaceInformation";
-import { PlaceCorrectionLink, PlaceRatingBadges, PlaceReviewPhotos } from "./PlacePublicEvidence";
+import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "./PlacePublicEvidence";
 import { VoteControl } from "../ratings/VoteControl";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
@@ -191,6 +191,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
           <PlaceInformation place={data.place} />
           <PlaceCorrectionLink placeId={data.place.id} />
+          <PlacePublicReviewers reviewers={data.publicReviewers} heading="h3" />
           <PlaceReviewPhotos placeName={data.place.name} photos={data.reviewPhotos} />
           <VoteControl
             placeId={data.place.id}

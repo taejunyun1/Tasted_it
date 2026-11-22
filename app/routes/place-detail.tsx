@@ -9,7 +9,7 @@ import { formatPublicRatingSummary } from "../features/places/place-discovery";
 import { PublicRatingMeta } from "../components/ratings/PublicRatingMeta";
 import { FlavorMeter } from "../components/ratings/FlavorMeter";
 import { PlaceInformation } from "../components/places/PlaceInformation";
-import { PlaceCorrectionLink, PlaceRatingBadges, PlaceReviewPhotos } from "../components/places/PlacePublicEvidence";
+import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "../components/places/PlacePublicEvidence";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
@@ -27,6 +27,7 @@ import {
   type RecommendationSourceRail,
 } from "../components/places/PlaceCard";
 import { VoteControl } from "../components/ratings/VoteControl";
+import { listPublicPlaceReviewers } from "../features/ratings/reviewer-publication.server";
 import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
 import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
 import { loadPlaceDetailSafely, mutatePlaceDetailSafely } from "../features/places/place-detail-client";
@@ -96,11 +97,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
+  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos, publicReviewers] = await Promise.all([
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
     listPublishedPlaceReviewPhotos(db, place.id, 12),
+    listPublicPlaceReviewers(db, place.id),
   ]);
   const rating = publicRatingFromPlace(place);
   if (provenance) {
@@ -120,7 +122,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
   const publicOrigin = resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL);
-  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, publicReviewers, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -222,7 +224,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
       <Link to="/places">맛집 리스트로</Link>
     </main>;
   }
-  const { place, rating, flavorPrint, reviewPhotos } = loaderData;
+  const { place, rating, flavorPrint, reviewPhotos, publicReviewers } = loaderData;
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
@@ -240,6 +242,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <fieldset className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl key={place.id} placeId={place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>
           <PlaceCorrectionLink placeId={place.id} />
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
+          <PlacePublicReviewers reviewers={publicReviewers} />
           <PlaceReviewPhotos placeName={place.name} photos={reviewPhotos} />
         </article>
       </div>

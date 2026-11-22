@@ -3,6 +3,35 @@ import { isControlledLocalBaseUrl } from "./local-test-target";
 
 test.skip(!isControlledLocalBaseUrl() || Boolean(process.env.BASE_URL) && process.env.CST_REVIEWER_LOCAL_FIXTURE !== "1", "방문 검수 시험은 격리한 로컬 합성 자료에서만 실행합니다.");
 const pendingCleanup = new WeakMap<BrowserContext, string>();
+const placeName = "Re:Taste 샘플 라멘 동명";
+const placePath = "/places/sample-dongmyeong-ramen";
+const profileName = "QA 국물 기록자";
+const profilePath = "/reviewers/qa-gukmul-reviewer";
+
+function approvedReviewers(surface: Locator) {
+  return surface.getByRole("region", { name: "승인된 방문을 남긴 리뷰어", exact: true });
+}
+
+function expectNoPrivateVisitEvidence(content: string) {
+  expect(content).not.toContain("qa-active-reviewer");
+  expect(content).not.toContain("자동시험을 위해 직접 생성한 합성 이미지입니다.");
+  expect(content).not.toContain("직접 확인한 방문 근거를 보완했습니다.");
+}
+
+async function openPublicPlace(page: Page, mobileSheet: boolean) {
+  if (!mobileSheet) {
+    await page.goto(placePath);
+    const detail = page.getByRole("main");
+    await expect(detail.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+    return detail;
+  }
+  const query = new URLSearchParams({ q: "샘플 라멘 동명", bbox: "126.80,35.10,127.00,35.25" });
+  await page.goto(`/places?${query}`);
+  await page.locator(".discovery-grid").getByRole("link", { name: `${placeName} 상세 보기`, exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: `${placeName} 상세 정보`, exact: true });
+  await expect(sheet.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+  return sheet;
+}
 
 test.beforeEach(async ({ page }) => {
   // 방문 검수 시험은 외부 지도 공급자를 호출하지 않는다.
@@ -217,7 +246,9 @@ test("administrator requests corrections and approves resubmitted private materi
   const moderate = moderationDriver(actors.adminPage, reviewId, mark, true);
   try {
     mark("pending-fixture:ready");
-    await actors.publicPage.goto("/reviewers/qa-gukmul-reviewer");
+    const pendingPlace = await openPublicPlace(actors.publicPage, testInfo.project.name === "mobile-chromium");
+    await expect(approvedReviewers(pendingPlace)).toHaveCount(0);
+    await actors.publicPage.goto(profilePath);
     await expect(actors.publicPage.getByText("공개 승인된 방문 자료가 아직 없어요.")).toBeVisible();
     await moderate("CHANGES_REQUESTED", "합성 검수: 방문 근거를 더 구체적으로 보완해 주세요.");
     await page.reload();
@@ -237,17 +268,46 @@ test("administrator requests corrections and approves resubmitted private materi
     expect(approved.status()).toBe(200);
     expect(approved.headers()["cache-control"]).toContain("no-store");
     await actors.publicPage.reload();
-    const publicHtml = await actors.publicPage.content();
-    expect(publicHtml).not.toContain("qa-active-reviewer");
-    expect(publicHtml).not.toContain("자동시험을 위해 직접 생성한 합성 이미지입니다.");
-    expect(publicHtml).not.toContain("직접 확인한 방문 근거를 보완했습니다.");
+    expectNoPrivateVisitEvidence(await actors.publicPage.content());
     const publicVisit = actors.publicPage.locator(".reviewer-public-visit");
     await expect(publicVisit.getByRole("link", { name: "Re:Taste 샘플 라멘 동명" })).toBeVisible();
     await expect(publicVisit.getByRole("img", { name: "승인 흐름 검증용 합성 사진" })).toBeVisible();
     await actors.publicPage.screenshot({ path: testInfo.outputPath("approved-profile.png"), fullPage: true });
     await actors.adminPage.locator(`#moderation-${reviewId}`).screenshot({ path: testInfo.outputPath("admin-approved.png") });
     await publicVisit.getByRole("link", { name: "Re:Taste 샘플 라멘 동명" }).click();
+    await expect(actors.publicPage).toHaveURL((url) => url.pathname === placePath);
     await expect(actors.publicPage.locator(`.review-photo-gallery img[src="${publicUrl}"]`)).toBeVisible();
+    const detail = actors.publicPage.getByRole("main");
+    const profileLink = approvedReviewers(detail).getByRole("link", { name: profileName, exact: true });
+    await expect(profileLink).toHaveAttribute("href", profilePath);
+    await expect(profileLink).toHaveCSS("text-decoration-line", "underline");
+    const detailDocument = await actors.anon.request.get(placePath);
+    expect(detailDocument.status()).toBe(200);
+    expectNoPrivateVisitEvidence(await detailDocument.text());
+    if (testInfo.project.name === "chromium") {
+      await actors.publicPage.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await expect.poll(() => actors.publicPage.evaluate(() => window.scrollY)).toBe(0);
+      await actors.publicPage.screenshot({ path: testInfo.outputPath("t04-desktop-place-reviewer.png"), fullPage: true, animations: "disabled" });
+    }
+    await profileLink.click();
+    await expect(actors.publicPage).toHaveURL((url) => url.pathname === profilePath);
+    await expect(actors.publicPage.getByRole("heading", { name: profileName, exact: true })).toBeVisible();
+    if (testInfo.project.name === "mobile-chromium") {
+      const detailData = actors.publicPage.waitForResponse(response => new URL(response.url()).pathname === placePath + ".data"
+        && response.request().method() === "GET");
+      const sheet = await openPublicPlace(actors.publicPage, true);
+      const response = await detailData;
+      expect(response.status()).toBe(200);
+      expectNoPrivateVisitEvidence(await response.text());
+      const sheetLink = approvedReviewers(sheet).getByRole("link", { name: profileName, exact: true });
+      await expect(sheetLink).toHaveAttribute("href", profilePath);
+      await expect(sheetLink).toHaveCSS("text-decoration-line", "underline");
+      await sheetLink.scrollIntoViewIfNeeded();
+      await actors.publicPage.screenshot({ path: testInfo.outputPath("t04-mobile-sheet-reviewer.png"), animations: "disabled" });
+      await sheetLink.click();
+      await expect(actors.publicPage).toHaveURL((url) => url.pathname === profilePath);
+      await expect(actors.publicPage.getByRole("heading", { name: profileName, exact: true })).toBeVisible();
+    }
     mark("approved-captures:complete");
   } finally { await actors.close(); }
 });
@@ -274,6 +334,7 @@ test("administrator rejection preserves the owner preview while public profile a
     await actors.publicPage.goto("/places/sample-dongmyeong-ramen");
     await expect(actors.publicPage.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명", exact: true })).toBeVisible();
     await expect(actors.publicPage.locator(`img[src="${publicUrl}"]`)).toHaveCount(0);
+    await expect(approvedReviewers(actors.publicPage.getByRole("main"))).toHaveCount(0);
     await page.reload();
     await expect(ownRow).toContainText("반려");
     await ownRow.screenshot({ path: testInfo.outputPath("rejected-owner-preview.png") });
@@ -298,20 +359,32 @@ test("correcting and withdrawing the same approved visit removes its public phot
     const { ownRow, previewUrl, publicUrl } = await photoReferences(page, reviewId);
     await expect(ownRow).toContainText("승인됨");
     expect((await actors.anon.request.get(publicUrl)).status()).toBe(200);
-    await actors.publicPage.goto("/reviewers/qa-gukmul-reviewer");
+    await actors.publicPage.goto(profilePath);
     await expect(actors.publicPage.locator(".reviewer-public-visit")).toHaveCount(1);
+    const showSheet = testInfo.project.name === "mobile-chromium";
+    const place = await openPublicPlace(actors.publicPage, showSheet);
+    const profileLink = approvedReviewers(place).getByRole("link", { name: profileName, exact: true });
+    await expect(profileLink).toHaveAttribute("href", profilePath);
     mark("approved-fixture:ready");
     const moderate = moderationDriver(actors.adminPage, reviewId, mark);
     await editVisit(page, ownRow, "공개 이후 내용을 고쳐 다시 검수 요청합니다.");
     expect((await actors.anon.request.get(publicUrl)).status()).toBe(404);
     await actors.publicPage.reload();
+    await expect(place.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+    await expect(approvedReviewers(place)).toHaveCount(0);
+    await actors.publicPage.goto(profilePath);
     await expect(actors.publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
     mark("owner-edit-public-removal:complete");
     await moderate("APPROVED", "합성 재검수: 수정한 내용 확인 완료.");
     expect((await actors.anon.request.get(publicUrl)).status()).toBe(200);
+    await openPublicPlace(actors.publicPage, showSheet);
+    await expect(profileLink).toHaveAttribute("href", profilePath);
     await moderate("WITHDRAWN", "합성 검수: 공개 회수 경계 시험.");
     expect((await actors.anon.request.get(publicUrl)).status()).toBe(404);
     await actors.publicPage.reload();
+    await expect(place.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+    await expect(approvedReviewers(place)).toHaveCount(0);
+    await actors.publicPage.goto(profilePath);
     await expect(actors.publicPage.locator(".reviewer-public-visit")).toHaveCount(0);
     mark("admin-withdrawal-public-removal:complete");
     await page.reload();

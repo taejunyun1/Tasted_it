@@ -12,6 +12,22 @@ export function PlaceCorrectionLink({ placeId }: { placeId: string }) {
   return <p><Link to={`/corrections/new?${new URLSearchParams({ placeId })}`}>이 장소 정보 정정 요청</Link></p>;
 }
 
+export function PlacePublicReviewers({ reviewers, heading: Heading = "h2" }: {
+  reviewers: readonly { slug: string; displayName: string }[];
+  heading?: "h2" | "h3";
+}) {
+  const title = useId();
+  if (!reviewers.length) return null;
+  return <section className="place-public-reviewers mt-6" aria-labelledby={title}>
+    <Heading id={title} className="font-semibold">승인된 방문을 남긴 리뷰어</Heading>
+    <ul className="flex flex-wrap gap-x-4">
+      {reviewers.map(({ slug, displayName }) => <li key={slug} className="min-w-0">
+        <Link className="inline-flex min-h-11 items-center underline! underline-offset-4 [overflow-wrap:anywhere]" to={`/reviewers/${encodeURIComponent(slug)}`}>{displayName}</Link>
+      </li>)}
+    </ul>
+  </section>;
+}
+
 export function PlaceReviewPhotos({ placeName, photos }: { placeName: string; photos: readonly { id: string; url: string }[] }) {
   const title = useId();
   if (!photos.length) return null;
