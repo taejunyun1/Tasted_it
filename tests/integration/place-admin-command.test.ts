@@ -1,15 +1,18 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenses, categories, placeCorrectionRequests, placeReviewWorkItems, placeRevisions, places } from "../../app/db/schema";
+import { adminAuditLogs, businessLicenses, categories, placeCorrectionRequests, placeReviewWorkItems, placeRevisions, placeSourceLinks, places } from "../../app/db/schema";
+import { syncPublicDataBatch } from "../../app/features/candidates/sync.server";
 import { prepareAdminOperation } from "../../app/features/operations/admin-operation.server";
+import { LOCAL_DINING_POLICY_VERSION } from "../../app/features/places/local-dining-policy";
 import { confirmLocalDiningReview } from "../../app/features/places/local-dining-review.server";
 import { commitPlaceAdminOperation, getPlaceAdminOperation, preparePlaceAdminOperation } from "../../app/features/places/place-admin.server";
-import { applyPlaceCorrection } from "../../app/features/places/place-correction.server";
+import { applyPlaceCorrection, createPlaceCorrectionRequest, transitionPlaceCorrection, verifyPlaceCorrectionRequest } from "../../app/features/places/place-correction.server";
 import { runAutoReviewPipeline } from "../../app/features/places/place-review-auto-pipeline.server";
 import { confirmReviewItemCategories } from "../../app/features/places/place-review-category.server";
+import { approveManualReviewEvidence } from "../../app/features/places/place-review-naver.server";
 import { publishReviewedPlaces } from "../../app/features/places/place-review-publication.server";
 import { listPlaceReviewWorkItems } from "../../app/features/places/place-review-query.server";
 import { advancePlaceReviewWorkItems, newReviewWorkItemValues } from "../../app/features/places/place-review-work-items.server";
@@ -106,16 +109,16 @@ async function intakeDraft(actorUserId: string, region: "GWANGJU" | "JEONBUK" = 
   return { id, workItemId: item.id, categoryId, subject };
 }
 
-async function advanceIntakeDraft(actorUserId: string, target: Awaited<ReturnType<typeof intakeDraft>>) {
+async function advancePublicationReview(actorUserId: string, target: { workItemId: string; categoryId: string }) {
   const { workItemId, categoryId } = target;
   const input = { workItemIds: [workItemId], actorUserId, now };
   const versions = async () => ({ [workItemId]: Number((await workItemRow(workItemId))?.stage_version) });
-  const advance = async (expectedStage: Parameters<typeof advancePlaceReviewWorkItems>[1]["expectedStage"], manualEvidenceReason?: string) => {
-    const result = await advancePlaceReviewWorkItems(db, { ...input, expectedStage, expectedVersions: await versions(), manualEvidenceReason });
+  const advance = async (expectedStage: Parameters<typeof advancePlaceReviewWorkItems>[1]["expectedStage"]) => {
+    const result = await advancePlaceReviewWorkItems(db, { ...input, expectedStage, expectedVersions: await versions() });
     expect(result).toEqual({ advanced: [workItemId], skipped: [] });
   };
   await advance("SOURCE_REVIEW");
-  await advance("NAVER_VERIFICATION", diningReason);
+  await approveManualReviewEvidence(db, { workItemId, expectedStageVersion: (await versions())[workItemId]!, actorUserId, reason: diningReason, now });
   await confirmLocalDiningReview(db, { ...input, expectedVersions: await versions(), reason: diningReason, confirmed: true });
   expect(await confirmReviewItemCategories(db, { actorUserId, now, selections: [{ workItemId, categoryId, reason: "" }] }))
     .toMatchObject({ confirmed: [workItemId], skipped: [] });
@@ -196,7 +199,7 @@ describe("single-place administrative operations", () => {
     expect(byId.rows).toMatchObject([{ workItemId: target.workItemId }]);
     expect((await listPlaceReviewWorkItems(db, { ...queue, query: "합성%카페" })).rows).toEqual([]);
     await expect(getStudentSubject(db, "PLACE", target.workItemId, now)).rejects.toThrow("STUDENT_TARGET_UNAVAILABLE");
-    const expectedVersion = await advanceIntakeDraft(actor.actorUserId, target);
+    const expectedVersion = await advancePublicationReview(actor.actorUserId, target);
     const legacy = await publishReviewedPlaces(db, { ...actor, workItemIds: [target.workItemId], expectedVersions: { [target.workItemId]: expectedVersion } });
     expect(legacy).toEqual({ published: [], skipped: [{ workItemId: target.workItemId, code: "PUBLISH_CONFIRM_REQUIRED" }] });
     const prepared = await preparePlaceAdminOperation(env.DB, { ...actor, command: { change: "PUBLISH", workItemId: target.workItemId, expectedVersion, reason: "" } });
@@ -210,7 +213,7 @@ describe("single-place administrative operations", () => {
 
   it("blocks an enrolled draft if new dining evidence confirms a different address", async () => {
     const actor = await admin(), target = await intakeDraft(actor.actorUserId);
-    const expectedVersion = await advanceIntakeDraft(actor.actorUserId, target);
+    const expectedVersion = await advancePublicationReview(actor.actorUserId, target);
     const command = { change: "PUBLISH" as const, workItemId: target.workItemId, expectedVersion, reason: "" };
     const prepared = await preparePlaceAdminOperation(env.DB, { ...actor, command });
     await db.update(places).set({ address: target.subject.address.replace("10", "12") }).where(eq(places.id, target.id));
@@ -234,7 +237,7 @@ describe("single-place administrative operations", () => {
     await db.insert(placeRevisions).values({ id: revisionId, placeId: target.id, actorUserId: actor.actorUserId,
       action: "CORRECTION", sourceType: "INTAKE_UNIT_CORRECTION", sourceId: target.workItemId, reason, createdAt: now,
       beforeJson: JSON.stringify({ address: target.subject.address }), afterJson });
-    const expectedVersion = await advanceIntakeDraft(actor.actorUserId, target);
+    const expectedVersion = await advancePublicationReview(actor.actorUserId, target);
     const ordinary = { change: "PUBLISH" as const, workItemId: target.workItemId, expectedVersion, reason: "" };
     const command = { ...ordinary, intakeUnitCorrection: { revisionId, approvedPlanSha256 } };
     const correction = await db.select().from(placeRevisions).where(eq(placeRevisions.id, revisionId));
@@ -276,6 +279,123 @@ describe("single-place administrative operations", () => {
     const committed = await commitPlaceAdminOperation(env.DB, { ...actor, operationId: prepared.operationId });
     expect(await listPlaces(db, { query: target.id.slice(-12) })).toMatchObject([{ id: committed.result.targetId }]);
     expect(await workItemRow(target.workItemId)).toMatchObject({ source_kind: "PUBLIC_DATA", business_license_id: target.id, status: "COMPLETED" });
+  });
+
+  it("keeps the same public source linked from reimport through B09 publication and S07 correction", async () => {
+    const actor = await admin();
+    const { actorUserId } = actor;
+    const sourceManagementNo = crypto.randomUUID();
+    const suffix = sourceManagementNo.slice(-12);
+    const firstName = `합성원수집-${suffix}`;
+    const importedName = `합성재반입-${suffix}`;
+    const correctedName = `합성상호정정-${suffix}`;
+    const address = "광주광역시 동구 합성검증로 34 (동명동)";
+    const sync = (businessName: string, sourceDate: string, runAt: string) => syncPublicDataBatch(db, {
+      serviceKey: "synthetic", sourceType: "GENERAL_RESTAURANT", addressField: "ROAD_NM_ADDR", maxPages: 1, now: runAt,
+      fetcher: async () => Response.json({
+        response: { header: { resultCode: "0" }, body: { totalCount: 1, items: { item: [{
+          MNG_NO: sourceManagementNo, BPLC_NM: businessName, ROAD_NM_ADDR: address, BZSTAT_SE_NM: "한식",
+          SALS_STTS_CD: "01", SALS_STTS_NM: "영업/정상", DTL_SALS_STTS_CD: "01", DTL_SALS_STTS_NM: "영업",
+          CRD_INFO_X: 191724, CRD_INFO_Y: 183438, LAST_MDFCN_PNT: sourceDate,
+        }] } } },
+      }),
+    });
+    const sourceRows = () => db.select().from(businessLicenses).where(eq(businessLicenses.sourceManagementNo, sourceManagementNo));
+    const firstAt = "2026-11-12T09:00:00.000Z";
+    const first = await sync(firstName, "2026-11-12", firstAt);
+    expect(first.run).toMatchObject({ status: "COMPLETED", fetchedCount: 1, insertedCount: 1, updatedCount: 0 });
+    const [source] = await sourceRows();
+    expect(source).toMatchObject({ businessName: firstName, roadAddress: address, regionCode: "GWANGJU", normalizedStatus: "OPEN" });
+    const licenseId = source!.id;
+    const reviewRows = () => db.select().from(placeReviewWorkItems).where(eq(placeReviewWorkItems.businessLicenseId, licenseId));
+    const linkRows = () => db.select().from(placeSourceLinks).where(eq(placeSourceLinks.businessLicenseId, licenseId));
+    const [initialReview] = await reviewRows();
+    expect(initialReview).toMatchObject({ sourceKind: "PUBLIC_DATA", status: "ACTIVE", stage: "SOURCE_REVIEW", stageVersion: 0 });
+    expect(await listPlaces(db, { query: suffix })).toEqual([]);
+
+    const secondAt = "2026-11-13T09:00:00.000Z";
+    const second = await sync(importedName, "2026-11-13", secondAt);
+    expect(second.runId).not.toBe(first.runId);
+    expect(second.run).toMatchObject({ status: "COMPLETED", fetchedCount: 1, insertedCount: 0, updatedCount: 1 });
+    expect(await sourceRows()).toEqual([expect.objectContaining({
+      id: licenseId, businessName: importedName, firstSeenAt: firstAt, createdAt: firstAt, lastSeenAt: secondAt, sourceUpdatedAt: "2026-11-13",
+    })]);
+    expect(await reviewRows()).toEqual([initialReview]);
+    expect(await listPlaces(db, { query: suffix })).toEqual([]);
+
+    const workItemId = initialReview!.id;
+    const categoryId = crypto.randomUUID();
+    await db.insert(categories).values({ id: categoryId, slug: categoryId, name: "한식", emoji: "🍚", sortOrder: 0, createdAt: now, updatedAt: now });
+    const expectedVersion = await advancePublicationReview(actorUserId, { workItemId, categoryId });
+    const prepared = await preparePlaceAdminOperation(env.DB, {
+      ...actor, command: { change: "PUBLISH", workItemId, expectedVersion, reason },
+    });
+    const operation = { ...actor, operationId: prepared.operationId };
+    expect(await getPlaceAdminOperation(env.DB, operation)).toMatchObject({ status: "PENDING", change: "PUBLISH" });
+    expect(await listPlaces(db, { query: suffix })).toEqual([]);
+    expect(await linkRows()).toEqual([]);
+    const committed = await commitPlaceAdminOperation(env.DB, operation);
+    const placeId = committed.result.targetId;
+    expect(committed.result).toMatchObject({ change: "PUBLISH", appliedCount: 1 });
+    expect(await receiptCount(prepared.operationId)).toBe(1);
+    expect(await auditCount(prepared.operationId)).toBe(1);
+    expect(await reviewRows()).toEqual([expect.objectContaining({ id: workItemId, sourceKind: "PUBLIC_DATA", status: "COMPLETED" })]);
+    expect(await listPlaces(db, { query: suffix })).toMatchObject([{ id: placeId, name: importedName, address }]);
+    const publishedPlace = await db.query.places.findFirst({ where: eq(places.id, placeId) });
+    const slug = publishedPlace!.slug;
+    expect(await getPlaceBySlug(db, slug)).toMatchObject({ id: placeId, name: importedName, address });
+    const publishedLink = await linkRows();
+    expect(publishedLink).toEqual([expect.objectContaining({ placeId, businessLicenseId: licenseId, isPrimary: true })]);
+    const approvedSource = await sourceRows();
+    expect(approvedSource).toEqual([expect.objectContaining({
+      id: licenseId, businessName: importedName, reviewStatus: "APPROVED", reviewedBy: actorUserId,
+    })]);
+
+    const requestId = crypto.randomUUID();
+    const submittedAt = "2026-11-14T09:01:00.000Z";
+    const verifiedAt = "2026-11-14T09:02:00.000Z";
+    const reviewAt = "2026-11-14T09:03:00.000Z";
+    const appliedAt = "2026-11-14T09:04:00.000Z";
+    const reviewReason = "합성 정정 근거 검토";
+    const correctionReason = "합성 영업 상호 확인";
+    const { token } = await createPlaceCorrectionRequest(db, {
+      id: requestId, placeId, requesterUserId: null, requesterEmail: `${requestId}@example.test`, requesterRelation: "방문자",
+      requestType: "INFORMATION", requestedChanges: { name: correctedName }, evidenceNote: "합성 상호 정정 근거", now: new Date(submittedAt),
+    });
+    const correction = { requestId, actorUserId, reason: correctionReason, preservePublicationState: true };
+    await expect(applyPlaceCorrection(db, { ...correction, now: submittedAt, expectedUpdatedAt: submittedAt })).rejects.toThrow("CORRECTION_NOT_APPLICABLE");
+    expect(await getPlaceBySlug(db, slug)).toMatchObject({ id: placeId, name: importedName });
+    await expect(verifyPlaceCorrectionRequest(db, { token, now: new Date(verifiedAt) })).resolves.toEqual({ id: requestId });
+    await transitionPlaceCorrection(db, { requestId, actorUserId, status: "REVIEWING", reason: reviewReason, now: reviewAt, expectedUpdatedAt: verifiedAt });
+    expect(await getPlaceBySlug(db, slug)).toMatchObject({ id: placeId, name: importedName });
+    await applyPlaceCorrection(db, { ...correction, now: appliedAt, expectedUpdatedAt: reviewAt });
+
+    expect(await db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, requestId) })).toMatchObject({
+      placeId, status: "APPLIED", verifiedAt, verificationTokenHash: null, reviewedBy: actorUserId, reviewedAt: appliedAt, adminResponse: correctionReason,
+    });
+    expect(await getPlaceBySlug(db, slug)).toMatchObject({ id: placeId, name: correctedName, address });
+    expect(await listPlaces(db, { query: suffix })).toMatchObject([{ id: placeId, name: correctedName, address }]);
+    expect(await listPlaces(db, { query: importedName })).toEqual([]);
+    expect(await sourceRows()).toEqual(approvedSource);
+    expect(await linkRows()).toEqual(publishedLink);
+
+    const revisions = await db.select().from(placeRevisions).where(eq(placeRevisions.sourceId, requestId));
+    expect(revisions).toEqual([expect.objectContaining({
+      placeId, actorUserId, action: "CORRECTION", sourceType: "CORRECTION_REQUEST", reason: correctionReason, createdAt: appliedAt,
+    })]);
+    const revision = revisions[0]!;
+    expect(JSON.parse(revision.beforeJson!)).toMatchObject({ id: placeId, name: importedName, status: "PUBLISHED" });
+    expect(JSON.parse(revision.afterJson)).toMatchObject({ changedFields: { name: correctedName }, publicationState: "PRESERVED" });
+
+    const audits = await db.select().from(adminAuditLogs).where(inArray(adminAuditLogs.targetId, [placeId, requestId, workItemId]));
+    expect(audits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actorUserId, action: "PLACE_REVIEW_CONFIRM_LOCAL_DINING", targetId: workItemId, createdAt: now }),
+      expect.objectContaining({ actorUserId, action: "PLACE_REVIEW_PUBLISH", targetId: placeId, beforeState: "REVIEWED", afterState: "PUBLISHED", createdAt: now }),
+      expect.objectContaining({ actorUserId, action: "TRANSITION_PLACE_CORRECTION", targetId: requestId, createdAt: reviewAt }),
+      expect.objectContaining({ actorUserId, action: "APPLY_PLACE_CORRECTION", targetId: placeId, beforeState: revision.beforeJson, afterState: revision.afterJson, createdAt: appliedAt }),
+    ]));
+    const diningAudit = audits.find((audit) => audit.action === "PLACE_REVIEW_CONFIRM_LOCAL_DINING")!;
+    expect(JSON.parse(diningAudit.afterState!)).toMatchObject({ policyVersion: LOCAL_DINING_POLICY_VERSION, reason: diningReason });
   });
 
   it("keeps newly enrolled drafts out of scheduled NAVER lookups while continuing public-license verification", async () => {
