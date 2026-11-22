@@ -86,6 +86,10 @@ export function mobileSheetVoteFixture(baseURL: string, scenario: string) {
     pendingPhotoPath: "/review-photos/" + pendingPhotoId, create, cleanup, seedHiddenGem, loginCredentials,
     expireSession: () => sql(`UPDATE sessions SET expires_at='2000-01-01T00:00:00.000Z' WHERE id=${quote(id)} AND user_id=${quote(id)};`),
     events: fixture.events,
+    guestSaveCount: (sessionId: string) => sql<{ count: number }>(`SELECT COUNT(*) AS count
+      FROM guest_saved_places WHERE session_id=${quote(sessionId)} AND place_id=${quote(id)}`)[0]!.count,
+    cleanupGuest: (sessionId: string) => sql(`DELETE FROM product_events WHERE guest_session_id=${quote(sessionId)};
+      DELETE FROM guest_taste_sessions WHERE id=${quote(sessionId)};`),
     projection: () => sql<{ vote: number | null; reason: string | null; saved: number }>(`SELECT
       (SELECT value FROM current_votes WHERE user_id=${quote(id)} AND place_id=${quote(id)}) AS vote,
       (SELECT reason FROM recommendation_feedback WHERE user_id=${quote(id)} AND place_id=${quote(id)}) AS reason,

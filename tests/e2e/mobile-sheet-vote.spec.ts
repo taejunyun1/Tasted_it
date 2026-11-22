@@ -42,6 +42,121 @@ async function openListSheet(page: Page, fixture: Fixture, scope = ".discovery-g
   return sheet;
 }
 
+async function tabTo(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  for (let stops = 0; stops < 25; stops++) {
+    if (await target.evaluate(element => element === document.activeElement)) return;
+    await page.keyboard.press("Tab");
+  }
+  await expect(target).toBeFocused();
+}
+
+async function expectExposedKeyboardTarget(target: Locator) {
+  await expect(target).toBeFocused();
+  await expect.poll(() => target.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    return element.contains(document.elementFromPoint(x, y));
+  })).toBe(true);
+}
+
+test("T07 keyboard reads and saves from a failed category map at 320px", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "mobile-chromium");
+  const fixture = mobileSheetVoteFixture(baseURL!, "keyboard");
+  const origin = new URL(baseURL!).origin;
+  const browse = `/maps/ramen-detail?${new URLSearchParams({ view: "map", q: fixture.name, bbox, selected: fixture.id })}`;
+  let guestId: string | undefined;
+
+  async function openFromFailedMap() {
+    await page.goto(browse, { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".map-canvas")).toHaveAttribute("data-map-unavailable", "true");
+    const list = page.getByRole("navigation", { name: "보기 방식" }).getByRole("link", { name: "목록", exact: true });
+    await tabTo(page, list);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".explore-split")).toHaveAttribute("data-view", "list");
+
+    const opener = page.getByRole("region", { name: "장소 목록" }).getByRole("link", {
+      name: `${fixture.name} 상세 보기`, exact: true,
+    });
+    await tabTo(page, opener);
+    await expectExposedKeyboardTarget(opener);
+    await page.keyboard.press("Enter");
+    const sheet = detailSheet(page);
+    await expect(sheet.getByRole("heading", { name: fixture.name, exact: true })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "상세 정보 닫기", exact: true })).toBeFocused();
+
+    return { sheet, opener };
+  }
+
+  async function closeToList(opener: Locator) {
+    await page.keyboard.press("Escape");
+    await expect(detailSheet(page)).toHaveCount(0);
+    await expectExposedKeyboardTarget(opener);
+    await expect(page).toHaveURL(url => url.pathname === "/maps/ramen-detail" && !url.searchParams.has("place")
+      && url.searchParams.get("view") === "list" && url.searchParams.get("q") === fixture.name
+      && url.searchParams.get("bbox") === bbox && url.searchParams.get("selected") === fixture.id);
+  }
+
+  try {
+    fixture.create();
+    await page.setViewportSize({ width: 320, height: 700 });
+    await context.route(url => url.origin !== origin && url.protocol.startsWith("http"), route => route.abort());
+
+    const guest = await openFromFailedMap();
+    const saveTemporary = guest.sheet.getByRole("button", { name: "임시 저장", exact: true });
+    await expect(saveTemporary).toBeEnabled();
+    await tabTo(page, saveTemporary);
+    await expectExposedKeyboardTarget(saveTemporary);
+    await page.keyboard.press("Enter");
+    await expect(guest.sheet.getByRole("button", { name: "임시 저장 해제", exact: true })).toHaveAttribute("aria-pressed", "true");
+    guestId = (await context.cookies()).find(cookie => cookie.name === "retaste_guest")?.value;
+    expect(guestId).toBeTruthy();
+    expect(fixture.guestSaveCount(guestId!)).toBe(1);
+    await page.screenshot({ path: info.outputPath("t07-320-guest-keyboard.png"), animations: "disabled" });
+    await closeToList(guest.opener);
+    await context.clearCookies({ name: "retaste_guest" });
+
+    await context.addCookies([{ name: "retaste_session", value: fixture.session, url: origin }]);
+    const member = await openFromFailedMap();
+    const dislike = member.sheet.getByRole("button", { name: "비추천", exact: true });
+    await tabTo(page, dislike);
+    await expectExposedKeyboardTarget(dislike);
+    await page.keyboard.press("Enter");
+
+    const menu = member.sheet.getByRole("radio", { name: "메뉴", exact: true });
+    const distance = member.sheet.getByRole("radio", { name: "거리", exact: true });
+    await tabTo(page, menu);
+    await page.keyboard.press("Space");
+    await page.keyboard.press("ArrowRight");
+    await expect(distance).toBeFocused();
+    await expect(distance).toBeChecked();
+
+    const submit = member.sheet.getByRole("button", { name: "비추천 반영", exact: true });
+    await tabTo(page, submit);
+    await expectExposedKeyboardTarget(submit);
+    await page.keyboard.press("Enter");
+    await expect(dislike).toHaveAttribute("aria-pressed", "true");
+
+    const save = member.sheet.getByRole("button", { name: "맛집지도에 추가", exact: true });
+    await expect(save).toBeEnabled();
+    await tabTo(page, save);
+    await expectExposedKeyboardTarget(save);
+    await page.screenshot({ path: info.outputPath("t07-320-member-keyboard.png"), animations: "disabled" });
+    await page.keyboard.press("Enter");
+    await expect(member.sheet.getByRole("button", { name: "맛집지도에서 빼기", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(fixture.projection()).toEqual({ vote: -1, reason: "DISTANCE", saved: 1 });
+    await closeToList(member.opener);
+  } finally {
+    try {
+      guestId ??= (await context.cookies()).find(cookie => cookie.name === "retaste_guest")?.value;
+      if (guestId) fixture.cleanupGuest(guestId);
+    } finally {
+      fixture.cleanup();
+    }
+  }
+});
+
 test("T02 mobile recommendation voting and withdrawal keep the sheet, source and saved place", async ({ page, baseURL }, info) => {
   test.skip(info.project.name !== "mobile-chromium");
   test.setTimeout(90_000);
