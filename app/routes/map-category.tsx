@@ -106,7 +106,7 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
       const result = resolveLocationViewport(coords);
       setLocationBounds(result.bbox);
       setLocationNotice(result.notice
-        ? "Re:Taste는 지금 광주·전남만 다룹니다. 광주 기본 지도로 이동했습니다."
+        ? `${result.notice} 광주 기본 지도로 이동했습니다.`
         : "현재 위치 주변으로 지도를 이동했습니다.");
       setState("bbox", result.bbox.map((value) => value.toFixed(5)).join(","));
     }, (error) => {

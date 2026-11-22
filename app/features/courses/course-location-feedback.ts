@@ -1,9 +1,9 @@
-import { resolveLocationViewport } from "../maps/location-policy";
+import { isCoordinateInActiveMarket } from "../regions/region-pack";
 
 export type CourseLocationStatus = "IDLE" | "PENDING" | "SUCCESS" | "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "UNSUPPORTED" | "OUTSIDE";
 
 export function resolveCourseDeviceLocation(coordinates: { latitude: number; longitude: number }) {
-  return resolveLocationViewport(coordinates).notice ? null : coordinates;
+  return isCoordinateInActiveMarket(coordinates.latitude, coordinates.longitude) ? coordinates : null;
 }
 
 export function courseLocationMessage(status: CourseLocationStatus, hasCoordinates: boolean) {

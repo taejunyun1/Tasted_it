@@ -414,7 +414,8 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   return <div className="map-canvas" aria-label="장소 지도" aria-busy={mapLoading} data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent} onKeyDownCapture={handleMapKeyDown}>
     <div className="map-canvas__host" ref={host} />
     {(error || locationNotice) && <div className="map-error" role="status" aria-live="polite">
-      <span>{error || locationNotice}</span>
+      {error && <span>{error}</span>}
+      {locationNotice && <span className={error ? "mt-2 block" : undefined}>{locationNotice}</span>}
       {error && initialClientId.current && (retryAttempt < MAX_MAP_RETRIES
         ? <button type="button" className="mt-3 block min-h-[var(--control-height)] w-full rounded-[var(--radius-control)] border border-current bg-[var(--surface-card)] px-3 py-2 font-semibold disabled:opacity-60" disabled={mapLoading} onClick={retryMap}>지도 다시 불러오기</button>
         : <span> 다시 시도하려면 페이지를 새로고침해 주세요.</span>)}
