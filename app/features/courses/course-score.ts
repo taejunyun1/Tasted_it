@@ -1,6 +1,7 @@
-import type { PlaceSummary } from "../places/place.types";
 import { estimateWalkingMeters } from "../parking/parking-distance";
-import { calculateRating } from "../ratings/rating-v1";
+import type { PlaceSummary } from "../places/place.types";
+import { recommendationRatingScore } from "../places/recommendation-rating";
+import { RATING_V2_POLICY } from "../ratings/rating-v2";
 import { courseCompatibilityV2, hasCourseTraitPairing } from "./course-compatibility-v2";
 import { allowsCourseCandidate, normalizedCourseContext, timeFitScore, type CoursePlaceContextV2 } from "./course-context-v2";
 import type { ResolvedCourseTime } from "./course-options";
@@ -27,8 +28,9 @@ export interface RankedCoursePairV2 extends RankedCoursePair {
 }
 
 function quality(place: PlaceSummary) {
-  const rating = calculateRating(place);
-  return rating.sampleStatus === "VISIBLE" ? rating.displayScore : 50;
+  return place.positive + place.negative >= RATING_V2_POLICY.minimumVisibleSamples
+    ? recommendationRatingScore(place)
+    : 50;
 }
 
 function categoryMatchesSecond(place: PlaceSummary, second: "cafe" | "dessert") {

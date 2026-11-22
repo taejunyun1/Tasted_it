@@ -1,5 +1,6 @@
 import { calculateRating } from "../ratings/rating-v1";
 import { publicRatingFromPlace, type PublicRatingInput } from "../ratings/public-rating";
+import { RATING_V2_POLICY } from "../ratings/rating-v2";
 import type { TasteBadgeSource } from "../members/profile-taste-badges";
 import type { PlaceSummary } from "./place.types";
 import { seasonForMonth, TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
@@ -10,6 +11,7 @@ import {
   type PublicDiscoveryMatchKind,
   type RecommendationMatchKind,
 } from "./recommendation-action-values";
+import { recommendationRatingScore } from "./recommendation-rating";
 
 export interface DiscoveryCenter {
   latitude: number;
@@ -196,9 +198,11 @@ function matchesTerms(place: PlaceSummary, terms: string[]) {
 }
 
 function qualityScore(place: DiscoveryPlace) {
-  if (place.ratingScore != null) return place.ratingScore / 100;
-  const rating = calculateRating(place);
-  return rating.sampleStatus === "VISIBLE" ? rating.displayScore / 100 : Math.min(0.55, (place.positive + place.negative) / 16);
+  const hasCurrentScore = place.ratingIsStale !== true && place.ratingScore != null;
+  const sampleCount = place.positive + place.negative;
+  return hasCurrentScore || sampleCount >= RATING_V2_POLICY.minimumVisibleSamples
+    ? recommendationRatingScore(place) / 100
+    : Math.min(0.55, sampleCount / 16);
 }
 
 function distanceScore(center: DiscoveryCenter, place: DiscoveryPlace) {
@@ -305,9 +309,9 @@ export function rankPersonalDiscovery(input: {
 export function rankTrustedPlaces(input: { places: DiscoveryPlace[]; limit?: number }) {
   return input.places.map((place) => {
     const sample = place.ratingSampleCount ?? place.positive + place.negative;
-    const score = place.ratingScore ?? calculateRating(place).displayScore;
+    const score = recommendationRatingScore(place);
     const sampleConfidence = Math.min(1, Math.log1p(sample) / Math.log1p(50));
-    const agreement = place.userScore != null && place.reviewerScore != null
+    const agreement = place.ratingIsStale !== true && place.userScore != null && place.reviewerScore != null
       ? 1 - Math.abs(place.userScore - place.reviewerScore) / 100 : 0.5;
     return { ...place, recommendationReasons: [sample >= 8 ? "평가 신뢰도 상위" : "평가가 쌓이는 중"], _score: score / 100 * 0.6 + sampleConfidence * 0.3 + agreement * 0.1 };
   }).sort((left, right) => right._score - left._score || left.name.localeCompare(right.name, "ko"))

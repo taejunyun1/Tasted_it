@@ -53,6 +53,45 @@ function assertWeight(value: number) {
   if (!Number.isFinite(value) || value < 0) throw new Error("INVALID_WEIGHT");
 }
 
+function scoreFromWeights(positiveWeight: number, negativeWeight: number, policy: RatingV2Policy) {
+  const total = policy.alphaPrior + policy.betaPrior + positiveWeight + negativeWeight;
+  return Math.round((policy.alphaPrior + positiveWeight) / total * 100);
+}
+
+function reviewerWeightScale(userWeight: number, rawReviewerWeight: number, policy: RatingV2Policy) {
+  if (userWeight <= 0 || rawReviewerWeight <= 0) return 1;
+  const cap = (policy.reviewerMaxShare / (1 - policy.reviewerMaxShare)) * userWeight;
+  return Math.min(1, cap / rawReviewerWeight);
+}
+
+function addReviewerWeights(userCount: number, reviewerCount: number, scale: number) {
+  if (scale === 1) return userCount + reviewerCount;
+  // Match the snapshot's addition order so rounding cannot flip the quality floor.
+  let weight = userCount;
+  for (let added = 0; added < reviewerCount; added += 1) weight += scale;
+  return weight;
+}
+
+/** Internal ranking score from current eligible counts, with neutral reviewer trust and damping. */
+export function calculateNeutralRatingV2Score(counts: {
+  userPositive: number;
+  userNegative: number;
+  reviewerPositive: number;
+  reviewerNegative: number;
+}) {
+  const policy = RATING_V2_POLICY;
+  const scale = reviewerWeightScale(
+    counts.userPositive + counts.userNegative,
+    counts.reviewerPositive + counts.reviewerNegative,
+    policy,
+  );
+  return scoreFromWeights(
+    addReviewerWeights(counts.userPositive, counts.reviewerPositive, scale),
+    addReviewerWeights(counts.userNegative, counts.reviewerNegative, scale),
+    policy,
+  );
+}
+
 function scoreGroup(votes: Array<{ value: VoteValue; weight: number }>, policy: RatingV2Policy): RatingGroupResult {
   const positive = votes.filter((vote) => vote.value === 1).length;
   const negative = votes.length - positive;
@@ -66,9 +105,7 @@ function scoreGroup(votes: Array<{ value: VoteValue; weight: number }>, policy: 
     negativeWeight,
     sampleCount: votes.length,
     sampleStatus: visible ? "VISIBLE" : "INSUFFICIENT",
-    displayScore: visible
-      ? Math.round(((policy.alphaPrior + positiveWeight) / (policy.alphaPrior + policy.betaPrior + positiveWeight + negativeWeight)) * 100)
-      : null,
+    displayScore: visible ? scoreFromWeights(positiveWeight, negativeWeight, policy) : null,
   };
 }
 
@@ -118,10 +155,7 @@ function calculateWithPolicy(input: RatingV2Input, policy: RatingV2Policy): Rati
   }));
   const rawReviewerWeight = reviewerRaw.reduce((sum, vote) => sum + vote.weight, 0);
   const userWeight = userWeighted.length;
-  const reviewerCap = userWeight > 0
-    ? (policy.reviewerMaxShare / (1 - policy.reviewerMaxShare)) * userWeight
-    : rawReviewerWeight;
-  const reviewerScale = rawReviewerWeight > 0 ? Math.min(1, reviewerCap / rawReviewerWeight) : 1;
+  const reviewerScale = reviewerWeightScale(userWeight, rawReviewerWeight, policy);
   const reviewerCombined = reviewerRaw.map((vote) => ({ ...vote, weight: vote.weight * reviewerScale }));
   const combinedReviewerWeight = reviewerCombined.reduce((sum, vote) => sum + vote.weight, 0);
   const combinedWeight = userWeight + combinedReviewerWeight;
