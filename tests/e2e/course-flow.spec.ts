@@ -120,6 +120,56 @@ test("database-backed parking renders the near facility, distance and fee", asyn
   await page.screenshot({ path: info.outputPath("course-parking-ready.png"), fullPage: true });
 });
 
+test("parking at midnight requires source-confirmed hours and recovers after the source is corrected", async ({ page }, info) => {
+  parking();
+  const source = {
+    prkplceNo: `${prefix}-near`,
+    prkplceNm: "합성 가까운 주차장",
+    rdnmadr: "전라남도 화순군 화순읍 중앙로 1",
+    latitude: 35.0004,
+    longitude: 127,
+    referenceDate: "2026-11-17",
+  };
+  const unconfirmed = JSON.stringify({
+    ...source,
+    weekdayOperOpenHhmm: "invalid",
+    satOperOperOpenHhmm: "00:xx00",
+    holidayOperOpenHhmm: "",
+  });
+  sql(`UPDATE parking_facilities
+    SET weekday_open='00:00',weekday_close='00:00',saturday_open='00:00',saturday_close='00:00',holiday_open='00:00',holiday_close='00:00'
+    WHERE snapshot_id='${prefix}-parking';
+    UPDATE parking_facilities SET raw_payload='${unconfirmed}' WHERE id='${prefix}-near';`);
+
+  await page.goto(courseUrl());
+  const openingUrl = page.url();
+  const course = page.locator(".course-result-card").filter({ has: page.getByRole("link", { name: "합성 코스 식당", exact: true }) }).first();
+  await expect(course.getByRole("link", { name: "합성 코스 식당", exact: true })).toBeVisible();
+  await expect(course.getByRole("link", { name: "합성 코스 카페", exact: true })).toBeVisible();
+  const noParking = course.getByText("조건에 맞는 주차장 없음", { exact: true });
+  await expect(noParking).toBeVisible();
+  await expect(course.locator(".course-parking-options")).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("course-parking-midnight-unconfirmed.png"), fullPage: true });
+
+  const confirmed = JSON.stringify({
+    ...source,
+    weekdayOperOpenHhmm: "0000",
+    weekdayOperColseHhmm: "0000",
+    satOperOperOpenHhmm: "0000",
+    satOperCloseHhmm: "0000",
+    holidayOperOpenHhmm: "0000",
+    holidayCloseOpenHhmm: "0000",
+  });
+  sql(`UPDATE parking_facilities SET raw_payload='${confirmed}' WHERE id='${prefix}-near';`);
+  await page.reload();
+  await expect(page).toHaveURL(openingUrl);
+  const shared = course.locator(".course-parking-options > article").filter({ hasText: "한 곳 주차" });
+  await expect(shared.getByRole("heading", { name: "합성 가까운 주차장", exact: true })).toBeVisible();
+  await expect(noParking).toHaveCount(0);
+  await expect(course.getByRole("heading", { name: "합성 먼 공영 주차장", exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("course-parking-midnight-confirmed.png"), fullPage: true });
+});
+
 function parkingEv(status: "ACTIVE" | "RETIRED", latitude = 35.0004) {
   sql(`INSERT INTO parking_data_snapshots(id,source,status,row_count,activated_at,created_at,updated_at)
     VALUES('${prefix}-ev','EV','${status}',1,'${now}','${now}','${now}');

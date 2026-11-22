@@ -17,10 +17,9 @@ function seoulDay(date: Date) {
 }
 
 function parseClock(value: string) {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value);
   if (!match) return null;
-  const minutes = Number(match[1]) * 60 + Number(match[2]);
-  return minutes >= 0 && minutes < 24 * 60 ? minutes : null;
+  return Number(match[1]) * 60 + Number(match[2]);
 }
 
 function containsWindow(hours: DailyParkingHours, start: Date, endWithMargin: Date) {
@@ -28,10 +27,10 @@ function containsWindow(hours: DailyParkingHours, start: Date, endWithMargin: Da
   const closes = parseClock(hours.closesAt);
   if (opens == null || closes == null) return false;
   const startMinutes = minuteOfDay(start);
-  let endMinutes = minuteOfDay(endWithMargin);
-  const crossesMidnight = closes <= opens;
-  if (crossesMidnight && endWithMargin.getTime() > start.getTime() && endMinutes < startMinutes) endMinutes += 24 * 60;
-  const normalizedClose = crossesMidnight ? closes + 24 * 60 : closes;
+  // Compare closing and exit on the same timeline, including an elapsed date change.
+  const startMinuteTime = Math.floor(start.getTime() / 60_000) * 60_000;
+  const endMinutes = startMinutes + (endWithMargin.getTime() - startMinuteTime) / 60_000;
+  const normalizedClose = closes <= opens ? closes + 24 * 60 : closes;
   return startMinutes >= opens && endMinutes <= normalizedClose;
 }
 
@@ -42,6 +41,8 @@ export function isParkingOpenForWindow(
   exitMarginMinutes = 30,
   isHoliday = false,
 ) {
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) return false;
+  if (!Number.isFinite(exitMarginMinutes) || exitMarginMinutes < 0) return false;
   const endWithMargin = new Date(end.getTime() + exitMarginMinutes * 60_000);
   const day = seoulDay(start);
   const hours = isHoliday || day === "Sun"

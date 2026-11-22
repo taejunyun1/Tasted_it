@@ -13,6 +13,18 @@ describe("parking hours", () => {
     expect(isParkingOpenForWindow(schedule, new Date("2026-08-07T23:00:00+09:00"), new Date("2026-08-08T01:20:00+09:00"), 30)).toBe(true);
   });
 
+  it("counts the KST day boundary before comparing non-overnight closing", () => {
+    const daytime = { weekday: { opensAt: "09:00", closesAt: "23:00" } };
+    const start = new Date("2026-08-07T21:00:00+09:00");
+    expect(isParkingOpenForWindow(daytime, start, new Date("2026-08-07T22:30:00+09:00"), 30)).toBe(true);
+    expect(isParkingOpenForWindow(daytime, start, new Date("2026-08-08T00:30:00+09:00"), 30)).toBe(false);
+    expect(isParkingOpenForWindow(daytime, start, new Date("2026-08-07T22:30:01+09:00"), 30)).toBe(false);
+
+    const overnight = { weekday: { opensAt: "18:00", closesAt: "02:00" } };
+    expect(isParkingOpenForWindow(overnight, start, new Date("2026-08-08T01:30:00+09:00"), 30)).toBe(true);
+    expect(isParkingOpenForWindow(overnight, start, new Date("2026-08-08T01:31:00+09:00"), 30)).toBe(false);
+  });
+
   it("uses saturday and holiday schedules", () => {
     const schedule = {
       weekday: { opensAt: "09:00", closesAt: "18:00" },

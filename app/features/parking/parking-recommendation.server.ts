@@ -1,4 +1,5 @@
 import type { AppDb } from "../../db/client.server";
+import { confirmedParkingSchedule } from "./parking-data";
 import { estimateWalkingMeters } from "./parking-distance";
 import { calculateEstimatedFee } from "./parking-fee";
 import { isParkingOpenForWindow } from "./parking-hours";
@@ -29,15 +30,6 @@ function bounds(first: Coordinate, second: Coordinate) {
 }
 
 type RepositoryParking = Awaited<ReturnType<typeof listEligibleParking>>[number];
-
-function schedule(row: RepositoryParking) {
-  const hours = (opensAt: string | null, closesAt: string | null) => opensAt && closesAt ? { opensAt, closesAt } : null;
-  return {
-    weekday: hours(row.weekdayOpen, row.weekdayClose),
-    saturday: hours(row.saturdayOpen, row.saturdayClose),
-    holiday: hours(row.holidayOpen, row.holidayClose),
-  };
-}
 
 function candidate(row: RepositoryParking, stayMinutes: number): ParkingFacilityCandidate {
   return {
@@ -88,7 +80,7 @@ export async function recommendParkingForCourse(db: AppDb, input: ParkingCourseI
   const betweenMeters = estimateWalkingMeters(input.first, input.second);
   const baseMinutes = input.firstStayMinutes + input.secondStayMinutes + Math.ceil(betweenMeters / 80);
   const endsAt = new Date(startsAt.getTime() + (baseMinutes + 60) * 60_000);
-  const openRows = data.rows.filter((row) => isParkingOpenForWindow(schedule(row), startsAt, endsAt, 30));
+  const openRows = data.rows.filter((row) => isParkingOpenForWindow(confirmedParkingSchedule(row), startsAt, endsAt, 30));
   const sharedCandidates = openRows.map((row) => ({
     ...candidate(row, baseMinutes),
     firstMeters: estimateWalkingMeters(row, input.first),

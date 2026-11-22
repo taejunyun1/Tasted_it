@@ -1,0 +1,40 @@
+{
+  "sourceSha": "af7176da135e4708dad6747eb9a33c555628ef8f",
+  "appTree": "37882a1f0ab05ad9c745ed30f07e11702ff1b60d",
+  "testedBaseSha": "1860860e95797b691b808d279e0db5b09ae602ca",
+  "testedDiffSha256": "0df858e0506b9aae3b375e08cc10065964f24053286a17598378b5d95c7cf774",
+  "sourceVerification": "로컬 실행 뒤 코드를 커밋했으며 검증한 작업 트리의 diff SHA-256이 이 커밋의 diff와 일치한다.",
+  "environment": "격리된 합성 D1과 로컬 컴파일 Worker, 데스크톱·모바일 Chromium",
+  "browserStartedAt": "2026-11-22T03:51:36.080Z",
+  "checks": {
+    "reproducedUnitFailures": 2,
+    "reproducedIntegrationFailures": 1,
+    "unit": 15,
+    "integration": 24,
+    "browser": 4,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS",
+    "diffCheck": "PASS"
+  },
+  "scope": [
+    "누락·빈 값·형식 오류를 미확인으로 유지하고 기존 숫자와 콜론 형식의 명시 시각을 구분했다.",
+    "기존 자정 기록을 같은 주차장의 원본과 대조했다. 원본에서 확인된 자정·밤샘 운영과 두 시각이 다른 기존 유효 기록을 확인했다.",
+    "한국 시간의 마감 전후와 다음 날 경계에서 출차 여유를 반영했다.",
+    "미확인 주차 시간은 추천에서 제외하되 음식 코스를 유지했다. 합성 원본을 보완한 뒤 같은 조건에서 주차 추천이 표시됐다.",
+    "로컬 합성 장소·스냅샷·주차장 잔존 0을 확인했다."
+  ],
+  "limits": [
+    "지금의 운영 데이터 품질, 실제 외부 제공자, 운영 복구와 전체 T08 수용은 별도 확인 대상이다."
+  ],
+  "screenshots": [
+    {
+      "file": "desktop-confirmed.png",
+      "sha256": "19909cc8c5042aad95a98c59ddc58bb2a3d5e6d294d1aa6d7ca5ce583e96085b"
+    },
+    {
+      "file": "mobile-unconfirmed.png",
+      "sha256": "105e6539b31816857a9ba9765c2c0291a0f966ac03fa2a1a475ac7d7d78b62d4"
+    }
+  ]
+}

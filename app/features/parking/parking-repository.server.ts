@@ -16,6 +16,7 @@ export async function listEligibleParking(db: AppDb, bounds: { west: number; sou
   const rows = await db.select({
     id: parkingFacilities.id,
     snapshotId: parkingFacilities.snapshotId,
+    sourceManagementNo: parkingFacilities.sourceManagementNo,
     name: parkingFacilities.name,
     latitude: parkingFacilities.latitude,
     longitude: parkingFacilities.longitude,
@@ -36,6 +37,7 @@ export async function listEligibleParking(db: AppDb, bounds: { west: number; sou
     publicAccessStatus: parkingFacilities.publicAccessStatus,
     reliabilityGrade: parkingFacilities.reliabilityGrade,
     referenceDate: parkingFacilities.referenceDate,
+    rawPayload: parkingFacilities.rawPayload,
     hasOnsiteEv: sql<boolean>`max(case when ${parkingEvLinks.relationship} = 'ONSITE_CONFIRMED' and ${evSnapshots.id} is not null then 1 else 0 end)`,
   }).from(parkingFacilities)
     .innerJoin(parkingDataSnapshots, eq(parkingDataSnapshots.id, parkingFacilities.snapshotId))
