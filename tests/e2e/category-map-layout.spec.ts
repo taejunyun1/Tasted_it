@@ -51,6 +51,7 @@ async function installReadyMap(page: Page) {
       private node: HTMLElement;
       constructor(options: { map: FakeMap; icon: { content: HTMLElement } }) {
         this.node = options.icon.content;
+        Object.assign(this.node.style, { position: "absolute", top: "45%", left: "45%" });
         options.map.host.appendChild(this.node);
       }
       setMap(map: FakeMap | null) { if (map) map.host.appendChild(this.node); else this.node.remove(); }
@@ -138,4 +139,45 @@ test("a synthetic initialized category map retains its normal viewport area", as
   expect(blocked).toEqual([]);
   expect(errors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("map-ready-synthetic.png"), fullPage: true });
+});
+
+test("category map pins and list cards retain the current category and filters", async ({ page }, testInfo) => {
+  await blockNaverRequests(page);
+  await installReadyMap(page);
+  const opening = new URL(categoryPath(), "http://localhost");
+  await page.goto(`${opening.pathname}${opening.search}`);
+  const placeName = "Re:Taste 샘플 라멘 동명";
+  const pin = page.getByRole("button", { name: `${placeName} 지도 핀`, exact: true });
+  await expect(pin).toBeVisible();
+  await pin.focus();
+  await page.keyboard.press("Enter");
+  const sheet = page.locator("dialog.place-detail-sheet:modal");
+  const mobile = testInfo.project.name === "mobile-chromium";
+  if (mobile) {
+    await expect(sheet.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(pin).toBeFocused();
+    await expect(pin).toBeInViewport();
+  } else {
+    await expect(sheet).toHaveCount(0);
+  }
+
+  const tabs = page.getByRole("navigation", { name: "보기 방식" });
+  await tabs.getByRole("link", { name: "목록", exact: true }).click();
+  const card = page.locator(".result-panel").getByRole("link", { name: `${placeName} 상세 보기`, exact: true });
+  await card.click();
+  if (!mobile) {
+    await expect(page).toHaveURL(/\/places\/sample-dongmyeong-ramen$/);
+    await expect(page.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+    return;
+  }
+
+  await expect(sheet.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("mobile-category-detail.png"), animations: "disabled" });
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(card).toBeFocused();
+  await expect(page).toHaveURL((url) => url.pathname === opening.pathname && url.searchParams.get("view") === "list"
+    && !url.searchParams.has("place") && ["q", "bbox", "selected"].every((key) => url.searchParams.get(key) === opening.searchParams.get(key)));
 });

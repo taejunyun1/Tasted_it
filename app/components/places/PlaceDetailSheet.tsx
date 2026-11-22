@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useFetcher } from "react-router";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import { Link, useFetcher, useNavigate } from "react-router";
 import type { clientLoader as placeDetailLoader } from "../../routes/place-detail";
-import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
-import { safePlaceDetailRequestPath } from "./PlaceCard";
+import { tabWrapTarget, visibleFocusableElements } from "../../features/a11y/dialog-focus";
+import { restoreVisibleFocus } from "../../features/a11y/focus-return";
+import { PLACE_DETAIL_MOBILE_QUERY } from "../../features/places/place-detail-sheet";
 import { GuestSaveControl } from "../onboarding/GuestSaveControl";
 import { TempCatalogNotice } from "../../features/temp-catalog/TempCatalogNotice";
 import type { PlaceDetailLoadFailure } from "../../features/places/place-detail-client";
@@ -15,35 +17,152 @@ import { PlaceInformation } from "./PlaceInformation";
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
 type MutationData = { ok: boolean; error?: string; resultUnknown?: boolean; status?: number };
 
-export function PlaceDetailSheet({ detailPath, slug, onClose }: {
-  detailPath?: string | null;
-  slug?: string | null;
+export function PlaceDetailSheet({ detailPath, opener, replacementOpener, fallbackFocus, onClose }: {
+  detailPath: string | null;
+  opener: HTMLElement | null;
+  replacementOpener?: string;
+  fallbackFocus: string;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [mobile, setMobile] = useState<boolean | null>(null);
+  useEffect(() => {
+    const viewport = window.matchMedia(PLACE_DETAIL_MOBILE_QUERY);
+    const syncViewport = () => setMobile(viewport.matches);
+    syncViewport();
+    viewport.addEventListener("change", syncViewport);
+    return () => viewport.removeEventListener("change", syncViewport);
+  }, []);
+  useEffect(() => {
+    if (detailPath && mobile === false) void navigate(detailPath, { replace: true });
+  }, [detailPath, mobile, navigate]);
+
+  if (!detailPath || !mobile) return null;
+  // A failed map read disables its controls, but the independently loaded detail stays usable.
+  return createPortal(
+    <MobilePlaceDetailDialog requestPath={detailPath} opener={opener} replacementOpener={replacementOpener} fallbackFocus={fallbackFocus} onClose={onClose} />,
+    document.body,
+  );
+}
+
+function MobilePlaceDetailDialog({ requestPath, opener, replacementOpener, fallbackFocus, onClose }: {
+  requestPath: string;
+  opener: HTMLElement | null;
+  replacementOpener?: string;
+  fallbackFocus: string;
   onClose: () => void;
 }) {
   const [attempt, setAttempt] = useState(0);
-  const requestPath = detailPath === undefined
-    ? safePlaceDetailRequestPath(slug ? `/places/${slug}` : null)
-    : safePlaceDetailRequestPath(detailPath);
-  if (!requestPath) return null;
-  // Each request owns its fetchers and receipt. Closing or selecting another
-  // place cannot carry an earlier response, save state or failure into it.
-  return <PlaceDetailRequest key={`${requestPath}:${attempt}`} requestPath={requestPath} onClose={onClose} onRetry={() => setAttempt((value) => value + 1)} />;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const initialFocus = useRef({ opener, replacementOpener, fallbackFocus });
+  const restoreAfterMapUpdate = useRef<(() => void) | null>(null);
+  const startedOutside = useRef(false);
+  const labelId = useId();
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const pathname = window.location.pathname;
+    const bodyStyle = document.body.style;
+    const overflow = ["overflow-x", "overflow-y"].map((property) => ({
+      property,
+      value: bodyStyle.getPropertyValue(property),
+      priority: bodyStyle.getPropertyPriority(property),
+    }));
+    dialog.showModal();
+    bodyStyle.setProperty("overflow", "hidden", "important");
+    closeRef.current?.focus({ preventScroll: true });
+
+    return () => {
+      dialog.close();
+      bodyStyle.removeProperty("overflow");
+      for (const { property, value, priority } of overflow) bodyStyle.setProperty(property, value, priority);
+      // The destination has its own focus when closing also leaves the browse route.
+      if (window.location.pathname !== pathname || !window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches) return;
+      const { opener, replacementOpener, fallbackFocus } = initialFocus.current;
+      const restoreFocus = () => {
+        if (restoreVisibleFocus(opener)) return;
+        if (replacementOpener && restoreVisibleFocus(document.querySelector(replacementOpener))) return;
+        document.querySelector<HTMLElement>(fallbackFocus)?.focus({ preventScroll: true });
+      };
+      if (!replacementOpener) {
+        restoreFocus();
+        return;
+      }
+
+      const closedUrl = window.location.href;
+      const focusAtClose = document.activeElement;
+      restoreAfterMapUpdate.current = () => {
+        if (window.location.href !== closedUrl || !window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches
+          || document.querySelector("dialog:modal")) return;
+        if (document.activeElement === focusAtClose || document.activeElement === document.body) restoreFocus();
+      };
+    };
+  }, []);
+
+  useEffect(() => () => {
+    const restore = restoreAfterMapUpdate.current;
+    restoreAfterMapUpdate.current = null;
+    // Marker setup runs in a passive effect after the map receives new results.
+    if (restore) queueMicrotask(restore);
+  }, []);
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog?.open && !dialog.contains(document.activeElement)) closeRef.current?.focus({ preventScroll: true });
+  }, [requestPath, attempt]);
+
+  const retry = () => {
+    closeRef.current?.focus({ preventScroll: true });
+    setAttempt((value) => value + 1);
+  };
+
+  return <dialog ref={dialogRef} className="place-detail-sheet" aria-modal="true" aria-labelledby={labelId}
+    onCancel={(event) => { event.preventDefault(); onClose(); }}
+    onKeyDown={(event) => {
+      if (event.defaultPrevented || event.key !== "Tab") return;
+      const target = tabWrapTarget(visibleFocusableElements(event.currentTarget), document.activeElement, event.shiftKey);
+      if (target) { event.preventDefault(); target.focus(); }
+    }}
+    onPointerDown={(event) => {
+      startedOutside.current = event.button === 0 && event.target === event.currentTarget
+        && outsideDialog(event.currentTarget, event.clientX, event.clientY);
+    }}
+    onPointerCancel={() => { startedOutside.current = false; }}
+    onClick={(event) => {
+      const backdropClick = startedOutside.current && event.target === event.currentTarget
+        && outsideDialog(event.currentTarget, event.clientX, event.clientY);
+      startedOutside.current = false;
+      if (backdropClick) onClose();
+    }}>
+    <div className="place-detail-sheet__handle" aria-hidden="true" />
+    <button ref={closeRef} type="button" className="place-detail-sheet__close" aria-label="상세 정보 닫기" onClick={onClose}>×</button>
+    <PlaceDetailRequest key={`${requestPath}:${attempt}`} requestPath={requestPath} labelId={labelId} onClose={onClose} onRetry={retry} />
+  </dialog>;
 }
 
-function PlaceDetailRequest({ requestPath, onClose, onRetry }: { requestPath: string; onClose: () => void; onRetry: () => void }) {
+function outsideDialog(dialog: HTMLDialogElement, x: number, y: number) {
+  const rect = dialog.getBoundingClientRect();
+  return x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom;
+}
+
+function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
+  requestPath: string;
+  labelId: string;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  // Each request owns its fetchers and receipt. Closing or selecting another
+  // place cannot carry an earlier response, save state or failure into it.
   const detail = useFetcher<DetailData>();
   const save = useFetcher<MutationData>();
-  const sheetRef = useRef<HTMLElement>(null);
   const submissionLock = useRef(false);
   const submissionStarted = useRef(false);
   const [waiting, setWaiting] = useState(false);
   const [readFailure, setReadFailure] = useState<PlaceDetailLoadFailure | null>(null);
   const [submission, setSubmission] = useState<{ intent: string; saved: boolean } | null>(null);
   useEffect(() => { void detail.load(requestPath); }, [requestPath, detail.load]);
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, [requestPath]);
   useEffect(() => {
     if (save.state !== "idle") submissionStarted.current = true;
     else if (submissionStarted.current) {
@@ -52,7 +171,6 @@ function PlaceDetailRequest({ requestPath, onClose, onRetry }: { requestPath: st
       setWaiting(false);
     }
   }, [save.state]);
-  useDialogFocusTrap(sheetRef, { active: true, onClose });
   useEffect(() => {
     if (detail.data && "detailError" in detail.data) setReadFailure(detail.data);
   }, [detail.data]);
@@ -75,10 +193,8 @@ function PlaceDetailRequest({ requestPath, onClose, onRetry }: { requestPath: st
     setWaiting(true);
     setSubmission({ intent: String(form.get("intent")), saved: form.get("saved") === "true" });
   };
-  return <div className="place-detail-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside ref={sheetRef} className="place-detail-sheet" role="dialog" aria-modal="true" aria-busy={loading || busy} tabIndex={-1} aria-label={data ? `${data.place.name} 상세 정보` : loading ? "장소 상세 불러오는 중" : "장소 상세 오류"}>
-      <div className="place-detail-sheet__handle" aria-hidden="true" />
-      <button type="button" className="place-detail-sheet__close" aria-label="상세 정보 닫기" onClick={onClose}>×</button>
+  return <>
+      <span id={labelId} className="sr-only">{data ? `${data.place.name} 상세 정보` : "장소 상세 정보"}</span>
       {loading ? <p className="place-detail-sheet__loading" role="status">장소 정보를 불러오는 중…</p> : !data ? <div className="place-detail-sheet__body">
         <h2>{failure?.status === 404 ? "이 장소를 찾을 수 없어요." : failure?.status === 403 ? "이 장소를 볼 수 없어요." : "장소 정보를 불러오지 못했어요."}</h2>
         <p role="status">{unavailable ? "공개된 다른 장소를 찾아보세요." : "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p>
@@ -109,6 +225,5 @@ function PlaceDetailRequest({ requestPath, onClose, onRetry }: { requestPath: st
           </div>
         </div>
       </>}
-    </aside>
-  </div>;
+  </>;
 }

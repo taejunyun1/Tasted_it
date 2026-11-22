@@ -19,6 +19,7 @@ import { mapViewerKey } from "../features/maps/map-viewer-key.server";
 import { MapPlaceDetail } from "../components/map/MapPlaceDetail";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
+import { safePlaceDetailSearchPath, type OpenPlaceDetail } from "../components/places/PlaceCard";
 import { PlaceSearchError } from "../components/places/PlaceSearchError";
 import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
@@ -291,7 +292,8 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
   const selectedId = requestedSelectedId ?? (isCurated ? activeCuration?.places[0]?.id ?? null : null);
   const selectedPlace = findSelectedPlace(activePlaces, selectedId);
   const selectedPlaceId = selectedPlace?.id;
-  const detailSlug = params.get("place");
+  const detailPath = safePlaceDetailSearchPath(params.get("place"));
+  const detailOpener = useRef<HTMLAnchorElement>(null);
   const clusterLevel = getRegionClusterLevel(mapZoom);
   const clusters = useMemo(() => isCurated ? [] : buildRegionClusters(activePlaces, mapZoom), [activePlaces, isCurated, mapZoom]);
   const regionGroups = useMemo(() => isCurated ? [] : buildRegionGroups(activePlaces, mapZoom), [activePlaces, isCurated, mapZoom]);
@@ -423,8 +425,8 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     startedRequestKeyRef.current = lifecycle.startedRequestKey;
     void recommendationFetcher.load(requestUrl);
   };
-  const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => {
-    setParams((current) => (isCurated ? updateMapSearch : updatePublicPlaceBrowseSearch)(current, change), { replace: true });
+  const setSearch = (change: Parameters<typeof updateMapSearch>[1], preventScrollReset = false) => {
+    setParams((current) => (isCurated ? updateMapSearch : updatePublicPlaceBrowseSearch)(current, change), { replace: true, preventScrollReset });
   };
   const selectPlace = (id: string) => {
     setMobileBrowseView("map");
@@ -508,16 +510,19 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     setFocusCluster(cluster);
     setMapZoom(cluster.level === "DISTRICT" ? 13 : 15);
   };
-  const openDetail = (slug: string) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    next.set("place", slug);
-    return next;
-  });
+  const openDetail: OpenPlaceDetail = (path, opener) => {
+    detailOpener.current = opener;
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("place", path.slice("/places/".length));
+      return next;
+    }, { preventScrollReset: true });
+  };
   const closeDetail = () => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete("place");
     return next;
-  }, { replace: true });
+  }, { replace: true, preventScrollReset: true });
   const presentationProps = activeCuration ? {
     page: activeCuration,
     selectedPlaceId: selectedPlace?.id ?? null,
@@ -582,13 +587,14 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
       />}
       <button
         type="button"
+        id="map-browse-toggle"
         className="home-curation-view-toggle"
         onClick={isCurated ? browseAll : returnToCuration}
       >
         {isCurated ? "전체 지도" : "추천 지도"}
       </button>
-      {!isCurated && mobileBrowseView === "map" && selectedPlace && !detailSlug && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} onOpenDetail={openDetail} />}
-      {!isCurated && <PlaceDetailSheet slug={detailSlug} onClose={closeDetail} />}
+      {!isCurated && mobileBrowseView === "map" && selectedPlace && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null }, true)} onOpenDetail={openDetail} />}
+      <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} fallbackFocus={isCurated ? "#map-browse-toggle" : mobileBrowseView === "list" ? "#map-search" : ".map-mobile-tabs button[aria-pressed=true]"} onClose={closeDetail} />
     </section>
   </main>;
 }

@@ -15,7 +15,8 @@ describe("contrast, reduced motion, and home h1", () => {
   });
 
   it("disables the place-detail sheet animation when motion is reduced", () => {
-    expect(css).toContain("@media(prefers-reduced-motion:reduce){.map-place-sheet{animation:none}.map-rating-bar>span{transition:none}.place-detail-sheet{animation:none}");
+    expect(css).toContain("@media(max-width:760px) and (prefers-reduced-motion:no-preference){.place-detail-sheet[open]{animation:map-sheet-rise");
+    expect(css).toContain("@media(prefers-reduced-motion:reduce){.map-place-sheet{animation:none}.map-rating-bar>span{transition:none}");
   });
 
   it("renders one home h1 for 지금 갈 만한 5곳", () => {

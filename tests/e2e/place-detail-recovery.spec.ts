@@ -51,11 +51,17 @@ test("sheet read failure stays local and a user retry loads the place", async ({
   await links.first().click();
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByRole("heading", { name: "장소 정보를 불러오지 못했어요." })).toBeVisible();
+  const originalSheet = await sheet.elementHandle();
+  expect(originalSheet).not.toBeNull();
   await expect(page.locator("section.discovery-all")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("sheet-read-error-mobile.png"), animations: "disabled" });
   const beforeRetry = requests;
   await sheet.getByRole("button", { name: "다시 불러오기" }).click();
   await expect(page.getByRole("dialog").getByRole("heading", { name, exact: true })).toBeVisible();
+  await expect.poll(() => originalSheet!.evaluate((dialog) => dialog.matches("dialog:modal")
+    && dialog.contains(document.activeElement))).toBe(true);
+  await sheet.getByRole("button", { name: "상세 정보 닫기" }).click();
+  await expect(links.first()).toBeFocused();
   // The router may also revalidate the same read when its parent URL settles.
   expect(requests).toBeGreaterThan(beforeRetry);
 });
