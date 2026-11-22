@@ -140,6 +140,16 @@ body{background:var(--atlas-paper)}
   .map-explorer{height:calc(100dvh - 64px);min-height:540px}
   .map-explorer-panel{left:8px;right:8px;bottom:8px;max-height:64%;border-color:var(--atlas-ink);background:var(--atlas-paper);box-shadow:5px 5px 0 rgba(23,34,28,.18)}
   .map-explorer-panel[data-mobile-view=map]:not(.is-detail){max-height:48px}
+  .map-explorer-panel[data-mobile-view=map]:not(.is-detail) .map-atlas-head h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    visibility: visible;
+  }
   .map-mobile-tabs{height:47px;border-bottom-color:var(--atlas-line);background:var(--atlas-paper)}
   .map-mobile-tabs button{background:transparent;color:var(--atlas-ink);font-weight:800}
   .map-mobile-tabs button[aria-pressed=true]{background:var(--atlas-ink)}
