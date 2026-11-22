@@ -1,0 +1,35 @@
+{
+  "sourceSha": "ae9dd178e23cdacc9ef6a5d70f1eaec299043fd8",
+  "appTree": "316cae08dcd6d17c8873087a425598d0fe71314d",
+  "baselineSha": "1860860e95797b691b808d279e0db5b09ae602ca",
+  "curationHeadingBaselineSha": "ed5d23d36a2f9693eaa24e97fdc0399233c93d30",
+  "completedAtKst": "2026-11-22T12:56:18+09:00",
+  "environment": "Local compiled Worker and synthetic D1, desktop and mobile Chromium, injected location and native browser permissions, external map requests blocked",
+  "results": {
+    "browser": {
+      "passed": 26,
+      "failed": 0
+    },
+    "focusedUnit": 11,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "baselineFailures": [
+    "Four desktop/mobile cases confirmed that delayed location navigated using previous Home search or category view.",
+    "Compiled mobile curated Home exposed zero level-one headings at 320 and 390 CSS px in collapsed, half and full sheets."
+  ],
+  "scope": [
+    "Delayed geolocation cannot replace a new Home search or category view. The location control waits for the active navigation.",
+    "Native permission, public GPS results, Gwangju fallback and recommendation continuity pass. Timeout is visible in the active recommendation panel or sheet and can be retried.",
+    "Desktop and mobile expose one level-one heading, including at 320 CSS px in the half, expanded and selected-place collapsed recommendation sheet."
+  ],
+  "screenshots": [
+    "desktop-curation-timeout.png",
+    "mobile-curation-timeout.png",
+    "mobile-curation-collapsed.png"
+  ],
+  "limits": [
+    "Actual NAVER SDK and physical devices, live deployment and full T01/T07 acceptance require separate verification."
+  ]
+}
