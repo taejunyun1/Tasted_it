@@ -1,0 +1,32 @@
+{
+  "sourceSha": "981f621b02d628228548e48083cbe9afdc27d395",
+  "appTree": "d7e1c4fc84372fb3f0552c942808b20ee9f99d60",
+  "environment": "격리 D1과 로컬 컴파일 Worker, 데스크톱·모바일 Chromium",
+  "startedAt": "2026-11-22T03:25:48.646Z",
+  "checks": {
+    "browserFinal": 2,
+    "priorHomeFallback": 2,
+    "unit": 9,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS",
+    "residualFixturePlaces": 0
+  },
+  "scope": [
+    "군산 합성 GPS에서 홈·분류 지도 검색을 유지하고 현재 범위의 공개 장소만 조회했다.",
+    "서울에서 광주 기본 범위와 결과를 복구하고 홈의 SDK 오류와 위치 안내를 함께 표시했다.",
+    "전주·군산 범위와 서울·제주 복귀를 검증했다. 코스 위치는 기존 광주·전남 기준으로 판정한다."
+  ],
+  "limits": [
+    "탐색용 직사각형 범위다. 실제 단말 GPS, NAVER SDK, 운영 배포와 전체 T01/T07 수용은 별도다."
+  ],
+  "screenshots": [
+    "desktop-gunsan-home.png",
+    "desktop-gunsan-category.png",
+    "desktop-outside-home.png",
+    "mobile-gunsan-home.png",
+    "mobile-gunsan-category.png",
+    "mobile-outside-home.png"
+  ],
+  "boundsSource": "https://www.jeonbuk.go.kr/index.jeonbuk?menuCd=DOM_000000101004000000"
+}
