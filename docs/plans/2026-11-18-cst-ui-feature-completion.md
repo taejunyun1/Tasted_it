@@ -41,7 +41,7 @@
 | UX-9.3e | 사진 없음 설명/높이와 이름 있는 평가 지표. | `VERIFIED_LOCAL_SCOPED` | `e9634b6`/`a5ce06a`: 미제공 설명·Flavor meter 이름/대체값, 모바일 no-photo220px, 점수/메타 줄바꿈·정렬을 실제 화면/경계 값으로 확인했다. |
 | UX-9.4a | 안전한 로그인·이메일 가입·인증 뒤 맥락 복귀. | `VERIFIED_LOCAL_SCOPED` | 가입→합성 메일함→인증→로그인→원래 상세 복귀를 desktop/mobile로 확인. 토큰 fragment와 위험 returnTo 차단 유지. 실제 외부 메일은 호출하지 않았다. |
 | UX-9.4b | 가입 실패에도 이름/이메일·폼 유지, 비밀번호 재직렬화 금지. | `VERIFIED_LOCAL_SCOPED` | 허용된 이름/이메일 보존과 비밀번호 HTML 기본값 비직렬화를 집중 단위로 확인했다. signup의 성공 알림을 status로 통합했다. |
-| UX-9.4c | 로그인/가입/비밀번호 제출 상태·중복 방지·오류 역할/필드 연결/초점. | `VERIFIED_LOCAL_SCOPED` | 인증 폼별 pending/오류/초점과 비밀번호 재설정429 후 재시도 폼을 desktop/mobile4건으로 확인했다. |
+| UX-9.4c | 로그인/가입/비밀번호 제출 상태·중복 방지·오류 역할/필드 연결/초점. | `VERIFIED_LOCAL_SCOPED` | 인증 폼별 pending/오류/초점과 비밀번호 재설정429 후 재시도 폼을 desktop/mobile4건으로 확인했다. Google·NAVER 로그인 실패 후 검증된 목적지와 재시도 링크를 유지한다. [OAuth 복구 검증](../evidence/cst-oauth-recovery-20261122/summary.json) |
 | UX-9.4d | 모바일 보조 링크와 버튼의 44px·오류 후 키보드 이동. | `VERIFIED_LOCAL_SCOPED` | 기존 인증 오류/초점 회귀와 compiled 읽기 점검을 연결한다. 390px 로그인 주요 버튼49.59px·OAuth48px·입력51.59px, 보조 링크44px이며 느린 제출/429 폼 유지·재제출은9.4c 범위다. |
 | UX-9.5a | 정정 메일 설정 사전 검사·메일 rate limit·안전한 오류. | `VERIFIED_LOCAL_SCOPED` | 메일 미설정/제한 시 새 정정 요청0, 제한된 재입력 필드와 private/no-store를 로컬D1로 확인했다. 실제 메일 전달은 별도다. |
 | UX-9.5b | 로그인 사용자의 확인 이메일 처리, 제출 pending·성공/실패 안내·입력 보존. | `VERIFIED_LOCAL_SCOPED` | 기존 확인 이메일 절차를 유지해 기본 계정 이메일을 수정 가능하게 표시하고,429 실패 후 입력/선택·재시도 폼을 desktop/mobile로 확인했다. |
