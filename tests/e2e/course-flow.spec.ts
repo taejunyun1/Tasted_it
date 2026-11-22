@@ -22,8 +22,8 @@ function sql(command: string) {
   return JSON.parse(output)[0].results as Array<Record<string, unknown>>;
 }
 
-function courseUrl(ev = "none") {
-  return `/courses?${new URLSearchParams({ apply: "1", time: "lunch", mealCategory: "grill", second: "cafe", radiusKm: "3", parkingMode: "shared", ev, weather: "rain", child: "1", lat: "35", lng: "127" })}`;
+function courseUrl(ev = "none", parkingMode: "shared" | "separate" = "shared") {
+  return `/courses?${new URLSearchParams({ apply: "1", time: "lunch", mealCategory: "grill", second: "cafe", radiusKm: "3", parkingMode, ev, weather: "rain", child: "1", lat: "35", lng: "127" })}`;
 }
 
 function parking() {
@@ -120,14 +120,18 @@ test("database-backed parking renders the near facility, distance and fee", asyn
   await page.screenshot({ path: info.outputPath("course-parking-ready.png"), fullPage: true });
 });
 
-test("required EV excludes retired charging evidence and recovers with active evidence", async ({ page }, info) => {
-  parking();
+function parkingEv(status: "ACTIVE" | "RETIRED", latitude = 35.0004) {
   sql(`INSERT INTO parking_data_snapshots(id,source,status,row_count,activated_at,created_at,updated_at)
-    VALUES('${prefix}-ev','EV','RETIRED',1,'${now}','${now}','${now}');
+    VALUES('${prefix}-ev','EV','${status}',1,'${now}','${now}','${now}');
     INSERT INTO ev_charging_stations(id,snapshot_id,source_station_id,name,latitude,longitude,is_deleted,reference_date,raw_payload,created_at,updated_at)
-    VALUES('${prefix}-charger','${prefix}-ev','${prefix}-charger','합성 충전기',35.0004,127,0,'2026-11-17','{}','${now}','${now}');
+    VALUES('${prefix}-charger','${prefix}-ev','${prefix}-charger','합성 충전기',${latitude},127,0,'2026-11-17','{}','${now}','${now}');
     INSERT INTO parking_ev_links(parking_facility_id,ev_station_id,relationship,match_method,confidence,created_at)
     VALUES('${prefix}-near','${prefix}-charger','ONSITE_CONFIRMED','SYNTHETIC',1,'${now}');`);
+}
+
+test("required EV excludes retired charging evidence and recovers with active evidence", async ({ page }, info) => {
+  parking();
+  parkingEv("RETIRED");
   await page.goto(courseUrl("required"));
   await expect(page.getByText("조건에 맞는 주차장 없음", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "합성 코스 식당", exact: true })).toBeVisible();
@@ -135,8 +139,9 @@ test("required EV excludes retired charging evidence and recovers with active ev
   await page.screenshot({ path: info.outputPath("course-required-ev-unavailable.png"), fullPage: true });
   sql(`UPDATE parking_data_snapshots SET status='ACTIVE' WHERE id='${prefix}-ev';`);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "합성 가까운 주차장", exact: true }).first()).toBeVisible();
-  await expect(page.getByText("설치 확인", { exact: true })).toBeVisible();
+  const shared = page.locator(".course-parking-options > article").filter({ hasText: "한 곳 주차" }).first();
+  await expect(shared.getByRole("heading", { name: "합성 가까운 주차장", exact: true })).toBeVisible();
+  await expect(shared.getByText("설치 확인", { exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("ev")).toBe("required");
 });
 
@@ -186,6 +191,40 @@ test.describe("parking-only D1 read failure", () => {
     await expect(page.getByText("주차·충전 정보를 불러오지 못했어요", { exact: true })).toHaveCount(0);
     await page.screenshot({ path: info.outputPath("course-parking-read-recovered.png"), fullPage: true });
   });
+});
+
+test("separate parking shows evidence for each stop when only one has required charging", async ({ page }, info) => {
+  parking();
+  sql(`UPDATE parking_facilities SET latitude=35 WHERE id='${prefix}-near';
+    UPDATE parking_facilities
+    SET latitude=35.0008,name='합성 카페 앞 주차장',ownership_type='UNKNOWN',capacity=NULL,fee_status='UNKNOWN',reliability_grade='B'
+    WHERE id='${prefix}-far';`);
+  parkingEv("ACTIVE", 35);
+  await page.goto(courseUrl("required", "separate"));
+
+  const facilities = page.locator(".course-parking-options > article");
+  const separate = facilities.filter({ hasText: "장소별 주차" }).first();
+  const shared = facilities.filter({ hasText: "한 곳 주차" }).first();
+  await expect(separate).toHaveAttribute("data-recommended", "true");
+  const rows = [
+    { section: "첫 장소 주차장", name: "합성 가까운 주차장", fields: { "예상 도보거리": "0m", "예상 요금": "약 3,000원", "주차 구분": "민영", "주차면": "20면", "전기차": "설치 확인" } },
+    { section: "두 번째 장소 주차장", name: "합성 카페 앞 주차장", fields: { "예상 도보거리": "0m", "예상 요금": "요금 확인 필요", "주차 구분": "확인 필요", "주차면": "확인 필요", "전기차": "정보 없음" } },
+  ];
+  for (const row of rows) {
+    const stop = separate.getByRole("region", { name: row.section, exact: true });
+    await expect(stop.getByRole("heading", { name: row.name, exact: true })).toBeVisible();
+    for (const [label, value] of Object.entries(row.fields)) {
+      const field = stop.locator("dl > div").filter({ has: page.getByText(label, { exact: true }) });
+      await expect(field.locator("dd")).toHaveText(value);
+    }
+  }
+
+  await expect(shared.getByRole("heading", { name: "합성 가까운 주차장", exact: true })).toBeVisible();
+  for (const [label, value] of [["주차 구분", "민영"], ["주차면", "20면"], ["전기차", "설치 확인"]]) {
+    const field = shared.locator("dl > div").filter({ has: page.getByText(label, { exact: true }) });
+    await expect(field.locator("dd")).toHaveText(value);
+  }
+  await page.screenshot({ path: info.outputPath("course-separate-parking-evidence.png"), fullPage: true });
 });
 
 test("server read failure preserves every course condition and offers an explicit retry", async ({ page }, info) => {

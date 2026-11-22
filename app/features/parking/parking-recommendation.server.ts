@@ -46,6 +46,7 @@ function candidate(row: RepositoryParking, stayMinutes: number): ParkingFacility
     latitude: row.latitude,
     longitude: row.longitude,
     isPublic: row.ownershipType === "PUBLIC" || row.ownershipType === "STORE_FREE",
+    ownershipType: row.ownershipType,
     capacity: row.capacity,
     fee: calculateEstimatedFee({
       status: row.feeStatus,

@@ -1,3 +1,5 @@
+import type { parkingFacilities } from "../../db/schema";
+
 export interface Coordinate {
   latitude: number;
   longitude: number;
@@ -26,11 +28,13 @@ export interface ParkingSchedule {
 }
 
 export type EvRequirement = "NONE" | "PREFERRED" | "REQUIRED";
+export type ParkingOwnershipType = (typeof parkingFacilities.$inferSelect)["ownershipType"];
 
 export interface ParkingFacilityCandidate extends Coordinate {
   id: string;
   name: string;
   isPublic: boolean;
+  ownershipType?: ParkingOwnershipType;
   capacity: number | null;
   fee: number | null;
   hasOnsiteEv: boolean;
