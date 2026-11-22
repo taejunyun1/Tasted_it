@@ -60,6 +60,18 @@ test("a category transport failure retains results and the requested search cont
   expect(search.get("view")).toBe("list");
   expect(search.get("selected")).toBe("sample-place-1");
   expect(attemptedRoutes).toEqual(["routes/map-category"]);
+  if (testInfo.project.name === "mobile-chromium") {
+    await detailLink.click();
+    const sheet = page.locator("dialog.place-detail-sheet:modal");
+    await expect(sheet.getByRole("heading", { name: "Re:Taste 샘플 라멘 동명", exact: true })).toBeVisible();
+    const close = sheet.getByRole("button", { name: "상세 정보 닫기" });
+    await expect(close).toBeEnabled();
+    await expect(close).toBeFocused();
+    await close.click();
+    await expect(sheet).toHaveCount(0);
+    await expect(detailLink).toBeFocused();
+    expect(new URL(page.url()).searchParams.get("q")).toBe("동명동");
+  }
   await page.screenshot({ path: testInfo.outputPath("category-failed.png"), fullPage: true });
   await page.unroute("**/maps/ramen-detail.data?*");
   await page.getByRole("status").filter({ hasText: "마지막으로 확인한 결과" }).getByRole("button", { name: "지도 다시 불러오기", exact: true }).click();

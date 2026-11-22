@@ -1,5 +1,5 @@
 import type { DiscoveryPlace } from "../../features/places/place-discovery";
-import { PlaceCard } from "./PlaceCard";
+import { PlaceCard, type OpenPlaceDetail } from "./PlaceCard";
 
 export function PlaceDiscoveryRail({
   title,
@@ -12,7 +12,7 @@ export function PlaceDiscoveryRail({
   description: string;
   places: DiscoveryPlace[];
   kind: "personal" | "trusted" | "golden";
-  onOpenDetail?: (detailPath: string) => void;
+  onOpenDetail?: OpenPlaceDetail;
 }) {
   return <section className="discovery-section" data-kind={kind} aria-labelledby={`discovery-${kind}`}>
     <header className="discovery-heading">

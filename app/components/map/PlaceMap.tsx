@@ -32,6 +32,8 @@ const MAP_UNAVAILABLE_MESSAGE = "지도를 불러오지 못했습니다. 목록�
 const MAX_MAP_RETRIES = 2;
 const MAP_PAN_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 const MAP_CONTROL_SELECTOR = "a[href], button, input, textarea, select, [role=button], [role=link], [role=slider], [role=spinbutton], [role=combobox], [role=textbox]";
+const NO_CLUSTERS: readonly RegionCluster[] = [];
+const NO_MARKER_RANKS: Readonly<Record<string, number>> = {};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -106,17 +108,17 @@ export function isMapKeyboardPan(event: Pick<KeyboardEvent, "key" | "altKey" | "
     && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.isComposing;
 }
 
-export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
+export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = NO_CLUSTERS, focusCluster = null, markerRanks = NO_MARKER_RANKS, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
   qaMode?: boolean;
   zoom?: number;
-  clusters?: RegionCluster[];
+  clusters?: readonly RegionCluster[];
   focusCluster?: RegionCluster | null;
-  markerRanks?: Record<string, number>;
+  markerRanks?: Readonly<Record<string, number>>;
   deferBounds?: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, opener: HTMLButtonElement) => void;
   onBounds: (bbox: [number, number, number, number]) => void;
   onPendingBounds?: (bbox: [number, number, number, number]) => void;
   onZoom?: (zoom: number) => void;
@@ -285,7 +287,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       if (markerRank) button.dataset.rank = String(markerRank);
       button.textContent = markerRank ? String(markerRank) : place.primaryCategory.emoji;
       button.onclick = () => {
-        selectRef.current(place.id);
+        selectRef.current(place.id, button);
       };
       return new maps.Marker({
         map,
@@ -405,12 +407,12 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     ><span>{cluster.label}</span><strong>{cluster.count}</strong></button>) : places.map((place) => {
       const influence = getMarkerInfluence(place.ratingSampleCount ?? 0, 0);
       const markerRank = markerRanks[place.id];
-      return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-place-id={place.id} data-influence={influence} data-rank={markerRank} onClick={() => onSelect(place.id)}>{markerRank ?? place.primaryCategory.emoji}</button>;
+      return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-place-id={place.id} data-influence={influence} data-rank={markerRank} onClick={(event) => onSelect(place.id, event.currentTarget)}>{markerRank ?? place.primaryCategory.emoji}</button>;
     })}
   </div>;
 
   return <div className="map-canvas" aria-label="장소 지도" aria-busy={mapLoading} data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent} onKeyDownCapture={handleMapKeyDown}>
-    <div className="map-canvas__host" ref={host} aria-hidden="true" />
+    <div className="map-canvas__host" ref={host} />
     {(error || locationNotice) && <div className="map-error" role="status" aria-live="polite">
       <span>{error || locationNotice}</span>
       {error && initialClientId.current && (retryAttempt < MAX_MAP_RETRIES

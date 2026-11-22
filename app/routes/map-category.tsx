@@ -7,7 +7,9 @@ import { parseMapState } from "../features/maps/map-state";
 import { resolveLocationViewport } from "../features/maps/location-policy";
 import { getPublicPlaceCounts, listPlaces } from "../features/places/place.server";
 import { PlaceMap } from "../components/map/PlaceMap";
-import { PlaceCard } from "../components/places/PlaceCard";
+import { PlaceCard, safePlaceDetailSearchPath } from "../components/places/PlaceCard";
+import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
+import { PLACE_DETAIL_MOBILE_QUERY } from "../features/places/place-detail-sheet";
 import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 import { categories } from "../db/schema";
 import { eq } from "drizzle-orm";
@@ -49,6 +51,7 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
   const [locating, setLocating] = useState(false);
   const locationRequest = useRef(0);
   const locatingRef = useRef(false);
+  const detailOpener = useRef<HTMLElement>(null);
   useEffect(() => () => { locationRequest.current += 1; }, []);
   const setState = (key: string, value: string) => setParams((current) => { current.set(key, value); return current; }, { replace: true });
   const viewSearch = (view: "map" | "list") => {
@@ -57,6 +60,35 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
     return `?${next}`;
   };
   const selected = loaderData.state.selected;
+  const detailPath = safePlaceDetailSearchPath(params.get("place"));
+  const openerPlaceId = detailOpener.current?.dataset.placeId;
+  const replacementOpener = openerPlaceId ? `.map-panel button.map-pin[data-place-id="${CSS.escape(openerPlaceId)}"]` : undefined;
+  const openDetail = (id: string, path: string, opener: HTMLElement) => {
+    detailOpener.current = opener;
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("selected", id);
+      next.set("place", path);
+      return next;
+    }, { preventScrollReset: true });
+  };
+  const closeDetail = () => setParams((current) => {
+    const next = new URLSearchParams(current);
+    next.delete("place");
+    return next;
+  }, { replace: true, preventScrollReset: true });
+  const selectPin = (id: string, opener: HTMLButtonElement) => {
+    if (window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches) {
+      const place = loaderData.places.find((candidate) => candidate.id === id);
+      const path = safePlaceDetailSearchPath(place?.slug ?? null);
+      if (path) {
+        openDetail(id, path, opener);
+        return;
+      }
+    }
+    setState("selected", id);
+    document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" });
+  };
   const locate = () => {
     if (locatingRef.current) return;
     if (typeof navigator.geolocation?.getCurrentPosition !== "function") {
@@ -97,15 +129,16 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
       {locationNotice && <p className="shell" role="status" aria-live="polite">{locationNotice}</p>}
       <div className="explore-split" data-view={loaderData.state.view}>
         <section className="map-panel" aria-label="지도 보기">
-          <PlaceMap places={loaderData.places} selected={selected} clientId={loaderData.clientId} initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined} locationBounds={locationBounds} onViewportIntent={() => setLocationNotice(null)} onSelect={(id) => { setState("selected", id); document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" }); }} onBounds={(bbox) => setState("bbox", bbox.map((n) => n.toFixed(5)).join(","))} />
+          <PlaceMap places={loaderData.places} selected={selected} clientId={loaderData.clientId} initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined} locationBounds={locationBounds} onViewportIntent={() => setLocationNotice(null)} onSelect={selectPin} onBounds={(bbox) => setState("bbox", bbox.map((n) => n.toFixed(5)).join(","))} />
         </section>
         <section className="result-panel" aria-label="장소 목록">
           <p className="result-count" aria-live="polite">{loaderData.counts.count} PLACES</p>
           {loaderData.counts.count > loaderData.places.length && <p role="status">전체 {loaderData.counts.count}곳 중 이름순 첫 {loaderData.places.length}곳을 표시합니다. 검색어나 지도 범위를 좁혀 주세요.</p>}
-          {loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} />)}
+          {loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} onOpenDetail={(path, opener) => openDetail(place.id, path, opener)} />)}
           {!loaderData.places.length && <div className="empty" role="status"><p>이 범위에서 조건에 맞는 장소를 찾지 못했어요.</p>{loaderData.counts.overallBounds && <button type="button" className="mt-3 min-h-[var(--control-height)] border border-current px-4" onClick={() => { const bounds = loaderData.counts.overallBounds!; setLocationBounds(bounds); setLocationNotice(null); setState("bbox", bounds.join(",")); }}>전체 결과 {loaderData.counts.overallCount}곳 보기</button>}</div>}
         </section>
       </div>
+      <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} replacementOpener={replacementOpener} fallbackFocus="#q" onClose={closeDetail} />
     </main>
   );
 }

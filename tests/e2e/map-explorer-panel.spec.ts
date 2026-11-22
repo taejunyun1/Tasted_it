@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 function qaPath(search = "") {
   const params = new URLSearchParams(search);
@@ -8,6 +8,10 @@ function qaPath(search = "") {
 }
 
 const samplePlaces = new URLSearchParams({ q: "Re:Taste 샘플" }).toString();
+
+async function openMobileList(page: Page, project: string) {
+  if (project === "mobile-chromium") await page.getByRole("button", { name: "목록", exact: true }).click();
+}
 
 test("a map pin opens a quick bottom sheet while preserving the explorer list", async ({ page }, testInfo) => {
   await page.goto(qaPath(samplePlaces));
@@ -34,12 +38,13 @@ test("a map pin opens a quick bottom sheet while preserving the explorer list", 
   await expect(dialog.getByText("공개 장소", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "빠른 정보 닫기" })).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(dialog.getByRole("link", { name: "상세 보기" })).toBeFocused();
+  await expect.poll(() => dialog.evaluate((panel) => panel.contains(document.activeElement))).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("place-sheet-focus.png"), fullPage: true });
 });
 
-test("the explorer presents the local food atlas identity and public places", async ({ page }) => {
+test("the explorer presents the local food atlas identity and public places", async ({ page }, testInfo) => {
   await page.goto(qaPath());
+  await openMobileList(page, testInfo.project.name);
 
   const explorer = page.getByRole("complementary", { name: "장소 탐색" });
   await expect(explorer.getByText("광주 · 전남 · 전북", { exact: true })).toBeVisible();
@@ -47,8 +52,9 @@ test("the explorer presents the local food atlas identity and public places", as
   await expect(explorer.getByText("공개 장소", { exact: true }).first()).toBeVisible();
 });
 
-test("tags and status badges use a friendly rounded shape", async ({ page }) => {
+test("tags and status badges use a friendly rounded shape", async ({ page }, testInfo) => {
   await page.goto(qaPath());
+  await openMobileList(page, testInfo.project.name);
 
   const categoryRadius = await page.getByRole("complementary", { name: "장소 탐색" })
     .getByRole("button", { name: "전체", exact: true })
@@ -74,8 +80,9 @@ test("desktop keeps the explorer beside the map and gives the map priority", asy
   expect(mapBox!.width).toBeGreaterThan(explorerBox!.width);
 });
 
-test("a list item opens the same detail and returning preserves filters", async ({ page }) => {
+test("a list item opens the same detail and returning preserves filters", async ({ page }, testInfo) => {
   await page.goto(qaPath(samplePlaces));
+  await openMobileList(page, testInfo.project.name);
   const result = page.getByRole("button", { name: /선택$/ }).first();
   await expect(result).toBeVisible();
 
@@ -90,6 +97,7 @@ test("a list item opens the same detail and returning preserves filters", async 
 
   await expect(page).toHaveURL(url => url.searchParams.has("qa")
     && url.searchParams.get("q") === "Re:Taste 샘플" && !url.searchParams.has("selected"));
+  await openMobileList(page, testInfo.project.name);
   await expect(result).toBeVisible();
 });
 
@@ -100,8 +108,9 @@ test("an unavailable selected place returns to the list", async ({ page }) => {
   await expect(page.getByRole("complementary", { name: "장소 탐색" })).toBeVisible();
 });
 
-test("search input follows URL history", async ({ page }) => {
+test("search input follows URL history", async ({ page }, testInfo) => {
   await page.goto(qaPath("q=국밥"));
+  await openMobileList(page, testInfo.project.name);
   const search = page.getByLabel("장소 검색");
   await expect(search).toHaveValue("국밥");
 
@@ -118,8 +127,9 @@ test("search input follows URL history", async ({ page }) => {
   await expect(search).toHaveValue("국밥");
 });
 
-test("region groups keep the explorer list and map focus in sync", async ({ page }) => {
+test("region groups keep the explorer list and map focus in sync", async ({ page }, testInfo) => {
   await page.goto(qaPath());
+  await openMobileList(page, testInfo.project.name);
 
   const districtGroup = page.getByRole("button", { name: /.+(?:구|시|군) \d+곳, 지도에서 보기$/ }).first();
   await expect(districtGroup).toBeVisible();
@@ -132,10 +142,11 @@ test("region groups keep the explorer list and map focus in sync", async ({ page
   await expect(page.getByRole("button", { name: /.+(?:동|읍|면|리|지구) \d+곳, 지도에서 보기$/ }).first()).toBeVisible();
 });
 
-test("an outside current location falls back to the default Gwangju area", async ({ page, context }) => {
+test("an outside current location falls back to the default Gwangju area", async ({ page, context }, testInfo) => {
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 37.5665, longitude: 126.978, accuracy: 20 });
   await page.goto(qaPath());
+  await openMobileList(page, testInfo.project.name);
 
   await page.getByRole("button", { name: /내 주변/ }).click();
 
@@ -152,6 +163,7 @@ test("mobile starts with the map panel collapsed", async ({ page }, testInfo) =>
 
   await expect(page.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "목록", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("textbox", { name: "장소 검색" })).toHaveCount(0);
 });
 
 test("mobile overlays the explorer control on the full map", async ({ page }, testInfo) => {

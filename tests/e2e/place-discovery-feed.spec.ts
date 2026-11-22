@@ -81,14 +81,16 @@ test("taste badges rerank in place and stop at two selections", async ({ page })
   await expect(page.getByRole("button", { name: "냉면" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "노포" })).toHaveAttribute("aria-pressed", "true");
 
-  await page.getByRole("button", { name: "매운맛" }).click();
+  await page.getByRole("button", { name: "새로운 맛", exact: true }).click();
   await expect(page.getByText("최대 2개까지 선택할 수 있어요")).toBeVisible();
-  await expect(page.getByRole("button", { name: "매운맛" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "새로운 맛", exact: true })).toHaveAttribute("aria-pressed", "false");
 });
 
-test("rating cards explain the eight-vote visibility boundary", async ({ page }) => {
+test("a card without enough votes shows the public sample status", async ({ page }) => {
   await openPlaceList(page);
-  await expect(page.getByText(/평가 \d\/8|추천 \d+% · \d+명 평가/).first()).toBeVisible();
+  const card = page.locator(".discovery-grid").getByRole("link", { name: "Re:Taste 샘플 라멘 동명 상세 보기", exact: true });
+  await expect(card.getByText("표본 수집 중", { exact: true })).toBeVisible();
+  await expect(card.getByText(/추천 \d+%/)).toHaveCount(0);
 });
 
 test("mobile recommendation card preserves provenance through sheet detail and save events", async ({ context, page }, testInfo) => {

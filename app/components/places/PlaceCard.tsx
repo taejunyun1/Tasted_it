@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { formatDistance, formatPublicRatingSummary, type DiscoveryPlace } from "../../features/places/place-discovery";
-import { shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
+import { PLACE_DETAIL_MOBILE_QUERY, shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
 import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 
 export const RECOMMENDATION_SOURCE_RAILS = ["PERSONAL", "TRUSTED", "GOLDEN"] as const;
@@ -16,6 +16,7 @@ export const RECOMMENDATION_DISCOVERY_MODES = [
 export type RecommendationSourceRail = (typeof RECOMMENDATION_SOURCE_RAILS)[number];
 export type RecommendationDiscoveryMode = (typeof RECOMMENDATION_DISCOVERY_MODES)[number];
 export type PlaceCardVariant = "default" | "featured" | "personal" | "trusted" | "golden";
+export type OpenPlaceDetail = (detailPath: string, opener: HTMLAnchorElement) => void;
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -65,6 +66,15 @@ export function safePlaceDetailRequestPath(path: string | null) {
   return parsedPlaceDetailPath(path, "required");
 }
 
+export function safePlaceDetailSearchPath(value: string | null) {
+  if (!value || value.startsWith("/")) return safePlaceDetailRequestPath(value);
+  try {
+    return safePlaceDetailRequestPath(`/places/${encodeURIComponent(decodeURIComponent(value))}`);
+  } catch {
+    return null;
+  }
+}
+
 function recommendationProvenance(input: {
   variant: PlaceCardVariant;
   discoveryMode?: RecommendationDiscoveryMode;
@@ -100,7 +110,7 @@ export function recommendationRequestPath(path: string, requestId: string) {
   return requestPath;
 }
 
-export function PlaceCard({ place, selected = false, listItem = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; listItem?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: (detailPath: string) => void }) {
+export function PlaceCard({ place, selected = false, listItem = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; listItem?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: OpenPlaceDetail }) {
   const ratingSummary = formatPublicRatingSummary(place);
   const detailPath = recommendationPlacePath(place.slug, {
     variant,
@@ -116,11 +126,11 @@ export function PlaceCard({ place, selected = false, listItem = false, distanceM
           requestPath = recommendationRequestPath(detailPath, crypto.randomUUID());
           event.currentTarget.href = new URL(requestPath, window.location.origin).href;
         }
-        if (onOpenDetail && shouldOpenPlaceDetailSheet({ mobile: window.matchMedia("(max-width: 760px)").matches, button: event.button, metaKey: event.metaKey, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey })) {
+        if (onOpenDetail && shouldOpenPlaceDetailSheet({ ...event, mobile: window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches })) {
           const safeRequestPath = safePlaceDetailRequestPath(requestPath);
           if (!safeRequestPath) return;
           event.preventDefault();
-          onOpenDetail(safeRequestPath);
+          onOpenDetail(safeRequestPath, event.currentTarget);
         }
       }}>
         <div className="place-image">

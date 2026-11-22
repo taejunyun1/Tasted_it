@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { Link, isRouteErrorResponse, useFetcher, useLocation, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/place-list";
 import type { loader as recommendationLoader } from "./place-recommendations-resource";
-import { PlaceCard, safePlaceDetailRequestPath } from "../components/places/PlaceCard";
+import { PlaceCard, safePlaceDetailRequestPath, safePlaceDetailSearchPath } from "../components/places/PlaceCard";
 import { PlaceDiscoveryRail } from "../components/places/PlaceDiscoveryRail";
 import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
 import { PlaceRecommendationControls } from "../components/places/PlaceRecommendationControls";
@@ -85,19 +85,21 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
   useEffect(() => {
     if (recommendationFetcher.data?.ok) setRecommendations(recommendationFetcher.data.recommendations);
   }, [recommendationFetcher.data]);
-  const detailPath = safePlaceDetailRequestPath(params.get("place"));
+  const detailPath = safePlaceDetailSearchPath(params.get("place"));
+  const detailOpener = useRef<HTMLAnchorElement>(null);
   const selected = loaderData.places.find((place) => place.id === loaderData.state.selected)?.id;
-  const openDetail = (requestPath: string, placeId?: string) => {
+  const openDetail = (requestPath: string, opener: HTMLAnchorElement, placeId?: string) => {
     const safeRequestPath = safePlaceDetailRequestPath(requestPath);
     if (!safeRequestPath) return;
+    detailOpener.current = opener;
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("place", safeRequestPath);
       if (placeId) next.set("selected", placeId);
       return next;
-    });
+    }, { preventScrollReset: true });
   };
-  const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
+  const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true, preventScrollReset: true });
   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
   const searchIsFiltered = selectedBadges.length > 0 || ["q", "category", "bbox", "badge", "page", "selected"].some((key) => params.has(key));
   const resetSearch = new URLSearchParams();
@@ -151,7 +153,7 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
       <PlaceSearchForm context={{ query: loaderData.state.query, categorySlug: loaderData.category?.slug ?? "", bbox: loaderData.state.bbox, tempOnly: loaderData.tempOnly, badges: selectedBadges }} pending={searchPending} />
       {searchIsFiltered && <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlaceBrowseHref("list", resetSearch.toString())}#all-places`}>검색 조건 초기화</Link>}
       <p id="place-search-status" className="discovery-count" role="status" aria-live="polite" aria-atomic="true">{searchPending ? "장소를 찾고 있어요. 검색이 끝날 때까지 기존 결과를 표시합니다." : `전체 ${loaderData.pagination.total}곳${loaderData.pagination.start ? ` · ${loaderData.pagination.start}–${loaderData.pagination.end}번째 표시` : ""} · ${categoryName}`}</p>
-      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} selected={selected === place.id} onOpenDetail={(path) => openDetail(path, place.id)} />)}</div>
+      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} selected={selected === place.id} onOpenDetail={(path, opener) => openDetail(path, opener, place.id)} />)}</div>
       {!loaderData.places.length && (loaderData.pagination.outOfRange
         ? <p className="discovery-empty">이 페이지에 표시할 장소가 없습니다. <Link className="underline!" to={`${publicPlacePageHref(loaderData.search, 1)}#all-places`}>같은 조건의 첫 페이지로 돌아가기</Link></p>
         : <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>)}
@@ -161,6 +163,6 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
         {loaderData.pagination.page < loaderData.pagination.totalPages ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(loaderData.search, loaderData.pagination.page + 1)}#all-places`}>다음 페이지</Link> : <span aria-disabled="true">다음 페이지</span>}
       </nav>}
     </section>
-    <PlaceDetailSheet detailPath={detailPath} onClose={closeDetail} />
+    <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} fallbackFocus="#all-places" onClose={closeDetail} />
   </main>;
 }
