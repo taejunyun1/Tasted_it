@@ -4,7 +4,7 @@
   "environment": "로컬 컴파일 Worker와 합성 D1, 데스크톱 및 모바일 Chromium, 로컬 지도 SDK 모의 응답",
   "checks": {
     "unit": 41,
-    "browserBeforeFinalFocusFix": {"passed": 66, "deviceSkips": 12},
+    "browserBeforeFinalFocusFix": {"passed": 66, "deviceSkips": 9, "localFixtureSkips": 3},
     "browserFinalFocusAndMapRecovery": {"passed": 9, "deviceSkips": 1},
     "typecheck": "PASS",
     "build": "PASS",
