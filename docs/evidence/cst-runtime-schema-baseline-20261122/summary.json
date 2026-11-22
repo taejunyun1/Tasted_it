@@ -23,7 +23,16 @@
       "0059",
       "0060"
     ],
-    "liveMigrationLedgerObservation": "NOT_RUN"
+    "liveMigrationLedgerObservation": "READ_ONLY",
+    "liveMigrationLedgerCount": 56,
+    "liveMigrationLedgerNamesFrom0050": [
+      "0050_admin_rating_job_control.sql",
+      "0051_admin_public_sync.sql",
+      "0052_admin_parking_job_control.sql",
+      "0061_private_place_intake.sql",
+      "0062_place_intake_review_links.sql"
+    ],
+    "liveMigrationLedgerReadAtKst": "2026-11-22T13:19:10+09:00"
   },
   "cases": [
     {
