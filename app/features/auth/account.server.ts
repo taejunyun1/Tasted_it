@@ -1,6 +1,6 @@
 import { buildReviewerPhotoDeletionPlan, deleteReviewerPhotoObjectsForUser } from "../ratings/reviewer-photo-deletion.server";
 import type { PhotoObjectStore } from "../ratings/reviewer-photo.server";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, notExists, sql } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { memberSaveChoices, accountTokens, authIdentities, oauthRequests, reviewerApplications, reviewerProfiles, reviewerVisitReviews, savedPlaces, sessions, users } from "../../db/schema";
 import { DUMMY_PASSWORD_HASH, DUMMY_PASSWORD_SALT, hashPassword, verifyPassword } from "./password.server";
@@ -47,11 +47,15 @@ export async function registerAccount(db: AppDb, input: { email: string; display
   return { userId, email, ...(await issueToken(db, userId, "VERIFY_EMAIL", input.now)) };
 }
 
-async function consumeToken(db: AppDb, token: string, purpose: "VERIFY_EMAIL" | "RESET_PASSWORD", now: Date) {
-  const row = await db.query.accountTokens.findFirst({
-    where: and(eq(accountTokens.tokenHash, await tokenHash(token)), eq(accountTokens.purpose, purpose), isNull(accountTokens.consumedAt), gt(accountTokens.expiresAt, now.toISOString())),
-  });
+async function readPendingToken(db: AppDb, token: string, purpose: "VERIFY_EMAIL" | "RESET_PASSWORD", now: Date) {
+  const pending = and(eq(accountTokens.tokenHash, await tokenHash(token)), eq(accountTokens.purpose, purpose), isNull(accountTokens.consumedAt), gt(accountTokens.expiresAt, now.toISOString()));
+  const row = await db.query.accountTokens.findFirst({ columns: { id: true, userId: true }, where: pending });
   if (!row) throw new Error("TOKEN_INVALID");
+  return { ...row, pending };
+}
+
+async function consumeToken(db: AppDb, token: string, purpose: "VERIFY_EMAIL" | "RESET_PASSWORD", now: Date) {
+  const row = await readPendingToken(db, token, purpose, now);
   const consumed = await db.update(accountTokens).set({ consumedAt: now.toISOString() }).where(and(eq(accountTokens.id, row.id), isNull(accountTokens.consumedAt))).returning({ id: accountTokens.id });
   if (consumed.length === 0) throw new Error("TOKEN_INVALID");
   return row.userId;
@@ -84,10 +88,30 @@ export async function requestPasswordReset(db: AppDb, input: { email: string; no
 
 export async function resetPassword(db: AppDb, input: { token: string; password: string; now: Date }) {
   if (input.password.length < 10) throw new Error("PASSWORD_TOO_SHORT");
-  const userId = await consumeToken(db, input.token, "RESET_PASSWORD", input.now);
+  const { id, userId, pending } = await readPendingToken(db, input.token, "RESET_PASSWORD", input.now);
   const password = await hashPassword(input.password);
-  await db.update(users).set({ passwordHash: password.hash, passwordSalt: password.salt, updatedAt: input.now.toISOString() }).where(eq(users.id, userId));
-  await db.delete(sessions).where(eq(sessions.userId, userId));
+  const now = input.now.toISOString();
+  const requireOneChanged = () => db.run(sql`SELECT json(CASE WHEN changes() = 1 THEN 'true' ELSE 'RESET_CAS_CONFLICT' END)`);
+  const remainingSessions = db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId));
+  try {
+    // A failed CAS or incomplete reset aborts the whole D1 transaction.
+    await db.batch([
+      db.update(accountTokens).set({ consumedAt: now }).where(and(eq(accountTokens.id, id), eq(accountTokens.userId, userId), pending)),
+      requireOneChanged(),
+      db.update(users).set({ passwordHash: password.hash, passwordSalt: password.salt, updatedAt: now }).where(eq(users.id, userId)),
+      requireOneChanged(),
+      db.delete(sessions).where(eq(sessions.userId, userId)),
+      db.select({ guard: sql`json(CASE WHEN ${notExists(remainingSessions)} THEN 'true' ELSE 'RESET_CAS_CONFLICT' END)` })
+        .from(users).where(eq(users.id, userId)),
+    ]);
+  } catch (error) {
+    let cause: unknown = error;
+    for (let depth = 0; depth < 4 && cause instanceof Error; depth++) {
+      if (cause.message.includes("malformed JSON")) throw new Error("TOKEN_INVALID");
+      cause = cause.cause;
+    }
+    throw error;
+  }
   return { userId };
 }
 
