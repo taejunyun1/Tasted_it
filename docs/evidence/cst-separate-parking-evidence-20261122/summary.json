@@ -1,0 +1,32 @@
+{
+  "sourceSha": "9e2220abc2f5a7ae9e6d63979f0bfb786492472e",
+  "appTree": "85e2d1817f694bdbbe05dcdb3978795aaa0d04c3",
+  "environment": "로컬 컴파일 Worker, 격리 D1, 데스크톱·모바일 Chromium",
+  "startedAt": "2026-11-22T03:30:37.426Z",
+  "checks": {
+    "browser": 6,
+    "unit": 13,
+    "integration": 7,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "한 곳 주차와 장소별 주차에 실제 소유 유형·예상 요금·도보거리·면수·충전기 설치 정보를 표시한다.",
+    "장소별 주차의 첫 민영 시설과 나머지 확인 필요 정보를 따로 대조했다. 스냅샷 기준일과 공유 주차 회귀를 확인했다.",
+    "합성 장소·스냅샷·연결은 정리했다."
+  ],
+  "screenshots": [
+    "desktop-per-stop.png",
+    "mobile-per-stop.png"
+  ],
+  "limits": [
+    "설치 정보는 스냅샷 기반이며 실시간 빈자리나 충전기 가동 여부를 뜻하지 않는다. 전체 T08 운영 수용은 별도다."
+  ],
+  "combinedWithParkingRecovery": {
+    "sourceSha": "47d3bd719aedd1729e6b17ad1e20841da8e34f06",
+    "appTree": "2cf35f1b14e2f3cd67a47fb322caadf056e97697",
+    "browser": 4,
+    "startedAt": "2026-11-22T03:35:41.432Z"
+  }
+}

@@ -7,6 +7,7 @@ import { toggleMealCategorySelection } from "../features/courses/course-filter-s
 import { courseLocationMessage, resolveCourseDeviceLocation, type CourseLocationStatus } from "../features/courses/course-location-feedback";
 import { parseCourseOptions, toCourseSearchParams } from "../features/courses/course-options";
 import { recommendCourses } from "../features/courses/course-recommendation.server";
+import type { ParkingFacilityCandidate, ParkingOwnershipType } from "../features/parking/parking-types";
 import { listPublicCategoryGroups } from "../features/places/place.server";
 import { tabWrapTarget, visibleFocusableElements } from "../features/a11y/dialog-focus";
 
@@ -120,6 +121,31 @@ function PlaceStop({ index, place, role, score, availability }: { index: number;
   </article>;
 }
 
+const parkingOwnershipLabels: Record<ParkingOwnershipType, string> = {
+  PUBLIC: "공영",
+  PRIVATE: "민영",
+  STORE_FREE: "매장 무료 주차",
+  UNKNOWN: "확인 필요",
+};
+
+function ParkingFacilityDetails({ facility, walkingMeters }: { facility: ParkingFacilityCandidate; walkingMeters: number }) {
+  return <dl>
+    <div><dt>예상 도보거리</dt><dd>{distance(walkingMeters)}</dd></div>
+    <div><dt>예상 요금</dt><dd>{fee(facility.fee)}</dd></div>
+    <div><dt>주차 구분</dt><dd>{parkingOwnershipLabels[facility.ownershipType ?? "UNKNOWN"]}</dd></div>
+    <div><dt>주차면</dt><dd>{facility.capacity == null ? "확인 필요" : `${facility.capacity}면`}</dd></div>
+    <div><dt>전기차</dt><dd>{facility.hasOnsiteEv ? "설치 확인" : "정보 없음"}</dd></div>
+  </dl>;
+}
+
+function SeparateParkingStop({ label, facility }: { label: string; facility: ParkingFacilityCandidate & { placeMeters: number } }) {
+  return <section className="mt-4 border-t border-neutral-200 pt-3" aria-label={label}>
+    <p className="text-xs font-semibold">{label}</p>
+    <h4 className="my-2!">{facility.name}</h4>
+    <ParkingFacilityDetails facility={facility} walkingMeters={facility.placeMeters} />
+  </section>;
+}
+
 function ParkingResult({ parking, retryHref }: {
   parking: Route.ComponentProps["loaderData"]["courses"][number]["parking"];
   retryHref: string;
@@ -130,9 +156,22 @@ function ParkingResult({ parking, retryHref }: {
   </div>;
   if (parking.status === "PARKING_DATA_UNAVAILABLE") return <div className="course-parking-empty"><strong>주차 정보 준비 중</strong><p>음식 코스는 먼저 볼 수 있어요. 공공 주차장 스냅샷이 준비되면 자동으로 비교합니다.</p></div>;
   if (parking.status === "NO_ELIGIBLE_PARKING") return <div className="course-parking-empty"><strong>조건에 맞는 주차장 없음</strong><p>검색 반경이나 전기차 조건을 바꿔보세요.</p></div>;
-  return <div className="course-parking-options">
-    {parking.shared && <article data-recommended={parking.recommendedMode === "SHARED" || parking.recommendedMode === "BOTH_SIMILAR" || undefined}><header><span>한 곳 주차</span>{(parking.recommendedMode === "SHARED" || parking.recommendedMode === "BOTH_SIMILAR") && <b>추천</b>}</header><h4>{parking.shared.parking.name}</h4><dl><div><dt>예상 도보거리</dt><dd>{distance(parking.shared.totalWalkingMeters)}</dd></div><div><dt>예상 요금</dt><dd>{fee(parking.shared.totalFee)}</dd></div><div><dt>주차면</dt><dd>{parking.shared.parking.capacity == null ? "확인 필요" : `${parking.shared.parking.capacity}면`}</dd></div><div><dt>전기차</dt><dd>{parking.shared.parking.hasOnsiteEv ? "설치 확인" : "정보 없음"}</dd></div></dl></article>}
-    {parking.separate && <article data-recommended={parking.recommendedMode === "SEPARATE" || parking.recommendedMode === "BOTH_SIMILAR" || undefined}><header><span>장소별 주차</span>{(parking.recommendedMode === "SEPARATE" || parking.recommendedMode === "BOTH_SIMILAR") && <b>추천</b>}</header><h4>{parking.separate.first.name}<br /><small>+ {parking.separate.second.name}</small></h4><dl><div><dt>예상 도보거리</dt><dd>{distance(parking.separate.totalWalkingMeters)}</dd></div><div><dt>예상 요금</dt><dd>{fee(parking.separate.totalFee)}</dd></div><div><dt>추가 처리</dt><dd>약 7분</dd></div><div><dt>방식</dt><dd>두 번 주차</dd></div></dl></article>}
+  return <div className="course-parking-options items-start">
+    {parking.shared && <article data-recommended={parking.recommendedMode === "SHARED" || parking.recommendedMode === "BOTH_SIMILAR" || undefined}>
+      <header><span>한 곳 주차</span>{(parking.recommendedMode === "SHARED" || parking.recommendedMode === "BOTH_SIMILAR") && <b>추천</b>}</header>
+      <h4>{parking.shared.parking.name}</h4>
+      <ParkingFacilityDetails facility={parking.shared.parking} walkingMeters={parking.shared.totalWalkingMeters} />
+    </article>}
+    {parking.separate && <article data-recommended={parking.recommendedMode === "SEPARATE" || parking.recommendedMode === "BOTH_SIMILAR" || undefined}>
+      <header><span>장소별 주차</span>{(parking.recommendedMode === "SEPARATE" || parking.recommendedMode === "BOTH_SIMILAR") && <b>추천</b>}</header>
+      <dl className="mt-3!">
+        <div><dt>총 예상 도보거리</dt><dd>{distance(parking.separate.totalWalkingMeters)}</dd></div>
+        <div><dt>총 예상 요금</dt><dd>{fee(parking.separate.totalFee)}</dd></div>
+        <div><dt>추가 처리</dt><dd>약 {parking.separate.parkingOverheadMinutes}분</dd></div>
+      </dl>
+      <SeparateParkingStop label="첫 장소 주차장" facility={parking.separate.first} />
+      <SeparateParkingStop label="두 번째 장소 주차장" facility={parking.separate.second} />
+    </article>}
   </div>;
 }
 
