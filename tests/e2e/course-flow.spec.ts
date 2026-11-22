@@ -1,12 +1,21 @@
 import { execFileSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { isControlledLocalBaseUrl } from "./local-test-target";
 
 test.skip(!isControlledLocalBaseUrl(), "Course flow fixtures are local only");
 
 let prefix = "";
-const statePath = process.env.CST_COURSE_FLOW_DB_PATH ?? ".wrangler/e2e-state";
+const defaultStatePath = ".wrangler/e2e-state";
+const statePath = process.env.CST_COURSE_FLOW_DB_PATH ?? defaultStatePath;
 const now = "2026-11-18T00:00:00.000Z";
+
+function hasDedicatedD1State() {
+  if (!process.env.BASE_URL || !isControlledLocalBaseUrl() || !process.env.CST_COURSE_FLOW_DB_PATH || !existsSync(statePath)) return false;
+  const shared = existsSync(defaultStatePath) ? realpathSync(defaultStatePath) : resolve(defaultStatePath);
+  return realpathSync(statePath) !== shared;
+}
 
 function sql(command: string) {
   const output = execFileSync(process.execPath, ["node_modules/wrangler/bin/wrangler.js", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", statePath, "--command", command, "--json"], { encoding: "utf8" });
@@ -129,6 +138,54 @@ test("required EV excludes retired charging evidence and recovers with active ev
   await expect(page.getByRole("heading", { name: "합성 가까운 주차장", exact: true }).first()).toBeVisible();
   await expect(page.getByText("설치 확인", { exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.get("ev")).toBe("required");
+});
+
+test.describe("parking-only D1 read failure", () => {
+  test.skip(!hasDedicatedD1State(), "Requires a loopback Worker with explicit disposable CST_COURSE_FLOW_DB_PATH");
+
+  test("keeps the food course and recovers parking through a GET with the same conditions", async ({ page }, info) => {
+    parking();
+    const expected = new URL(courseUrl(), "https://fixture.invalid");
+    expected.searchParams.sort();
+    const parkingName = page.getByRole("heading", { name: "합성 가까운 주차장", exact: true }).first();
+    await page.goto(courseUrl());
+    await expect(parkingName).toBeVisible();
+
+    let renamed = false;
+    try {
+      sql("ALTER TABLE parking_ev_links RENAME TO parking_ev_links_u08_test_failure;");
+      renamed = true;
+      await page.goto(`${courseUrl()}&mealCategory=grill&utm_source=fixture`);
+      const course = page.locator(".course-result-card").filter({ has: page.getByRole("link", { name: "합성 코스 식당", exact: true }) }).first();
+      await expect(course.getByRole("link", { name: "합성 코스 식당", exact: true })).toBeVisible();
+      await expect(course.getByRole("link", { name: "합성 코스 카페", exact: true })).toBeVisible();
+      await expect(course.getByText("주차·충전 정보를 불러오지 못했어요", { exact: true })).toBeVisible();
+      await expect(course.getByText("조건에 맞는 주차장 없음", { exact: true })).toHaveCount(0);
+      await expect(parkingName).toHaveCount(0);
+      const retry = course.getByRole("link", { name: "같은 조건으로 다시 조회", exact: true });
+      await expect(retry).toBeVisible();
+      await expect(retry).toHaveCSS("text-decoration-line", "underline");
+      const target = new URL((await retry.getAttribute("href"))!, page.url());
+      expect(target.origin).toBe(new URL(page.url()).origin);
+      target.searchParams.sort();
+      expect(target.pathname + target.search).toBe(expected.pathname + expected.search);
+      await page.screenshot({ path: info.outputPath("course-parking-read-failed.png"), fullPage: true });
+    } finally {
+      if (renamed) sql("ALTER TABLE parking_ev_links_u08_test_failure RENAME TO parking_ev_links;");
+    }
+
+    const retry = page.getByRole("link", { name: "같은 조건으로 다시 조회", exact: true }).first();
+    const request = page.waitForRequest(candidate => candidate.isNavigationRequest() && new URL(candidate.url()).pathname === "/courses");
+    await retry.click();
+    const retryRequest = await request;
+    expect(retryRequest.method()).toBe("GET");
+    const retried = new URL(retryRequest.url());
+    retried.searchParams.sort();
+    expect(retried.pathname + retried.search).toBe(expected.pathname + expected.search);
+    await expect(parkingName).toBeVisible();
+    await expect(page.getByText("주차·충전 정보를 불러오지 못했어요", { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("course-parking-read-recovered.png"), fullPage: true });
+  });
 });
 
 test("server read failure preserves every course condition and offers an explicit retry", async ({ page }, info) => {

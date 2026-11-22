@@ -5,7 +5,7 @@ import type { Route } from "./+types/course-recommendation";
 import { createDb } from "../db/client.server";
 import { toggleMealCategorySelection } from "../features/courses/course-filter-selection";
 import { courseLocationMessage, resolveCourseDeviceLocation, type CourseLocationStatus } from "../features/courses/course-location-feedback";
-import { parseCourseOptions } from "../features/courses/course-options";
+import { parseCourseOptions, toCourseSearchParams } from "../features/courses/course-options";
 import { recommendCourses } from "../features/courses/course-recommendation.server";
 import { listPublicCategoryGroups } from "../features/places/place.server";
 import { tabWrapTarget, visibleFocusableElements } from "../features/a11y/dialog-focus";
@@ -120,7 +120,14 @@ function PlaceStop({ index, place, role, score, availability }: { index: number;
   </article>;
 }
 
-function ParkingResult({ parking }: { parking: Route.ComponentProps["loaderData"]["courses"][number]["parking"] }) {
+function ParkingResult({ parking, retryHref }: {
+  parking: Route.ComponentProps["loaderData"]["courses"][number]["parking"];
+  retryHref: string;
+}) {
+  if (parking.status === "PARKING_READ_FAILED") return <div className="course-parking-empty">
+    <div role="status"><strong>주차·충전 정보를 불러오지 못했어요</strong><p>음식 코스는 계속 볼 수 있어요.</p></div>
+    <Link className="inline-flex min-h-11 items-center underline!" to={retryHref} reloadDocument>같은 조건으로 다시 조회</Link>
+  </div>;
   if (parking.status === "PARKING_DATA_UNAVAILABLE") return <div className="course-parking-empty"><strong>주차 정보 준비 중</strong><p>음식 코스는 먼저 볼 수 있어요. 공공 주차장 스냅샷이 준비되면 자동으로 비교합니다.</p></div>;
   if (parking.status === "NO_ELIGIBLE_PARKING") return <div className="course-parking-empty"><strong>조건에 맞는 주차장 없음</strong><p>검색 반경이나 전기차 조건을 바꿔보세요.</p></div>;
   return <div className="course-parking-options">
@@ -134,7 +141,7 @@ function availabilityFor(course: Route.ComponentProps["loaderData"]["courses"][n
   return availability === "OPEN" || availability === "UNKNOWN" ? availability : undefined;
 }
 
-function CourseCard({ course, index }: { course: Route.ComponentProps["loaderData"]["courses"][number]; index: number }) {
+function CourseCard({ course, index, retryHref }: { course: Route.ComponentProps["loaderData"]["courses"][number]; index: number; retryHref: string }) {
   return <section className="course-result-card">
     <header className="course-result-head"><div><span>COURSE {String(index + 1).padStart(2, "0")}</span><h2>두 곳을 이렇게 이어요</h2></div><strong>{course.score}<small>/100</small></strong></header>
     <div className="course-value-badges">{course.badges.map((badge, badgeIndex) => <span key={badge} data-primary={badgeIndex === 0 || undefined}>{badge}</span>)}</div>
@@ -143,7 +150,7 @@ function CourseCard({ course, index }: { course: Route.ComponentProps["loaderDat
       <div className="course-leg"><i /><span>예상 이동 {distance(course.betweenPlacesMeters)}</span><i /></div>
       <PlaceStop index={2} place={course.second} role="카페·디저트" availability={availabilityFor(course, "second")} />
     </div>
-    <section className="course-parking"><header><div><span>PARKING / COMPARE</span><h3>어디에 주차할까요?</h3></div><small>거리 우선 · 공공데이터 기준</small></header><ParkingResult parking={course.parking} />{course.parking.snapshot?.referenceDate && <p className="course-data-date">주차장 데이터 기준일 {course.parking.snapshot.referenceDate}</p>}</section>
+    <section className="course-parking"><header><div><span>PARKING / COMPARE</span><h3>어디에 주차할까요?</h3></div><small>거리 우선 · 공공데이터 기준</small></header><ParkingResult parking={course.parking} retryHref={retryHref} />{course.parking.snapshot?.referenceDate && <p className="course-data-date">주차장 데이터 기준일 {course.parking.snapshot.referenceDate}</p>}</section>
   </section>;
 }
 
@@ -189,6 +196,12 @@ export default function CourseRecommendation({ loaderData }: Route.ComponentProp
     ? loaderData.options.mealCategories.map((slug) => loaderData.categories.find((item) => item.slug === slug)?.name ?? "한 끼").join("·")
     : "모든 한 끼";
   const summary = `${timeLabels[loaderData.options.time]} · ${mealSummary} · ${loaderData.options.second === "cafe" ? "카페" : "디저트"} · ${loaderData.options.radiusKm}km`;
+  const retryParams = toCourseSearchParams(loaderData.options);
+  if (loaderData.context.locationSource === "USER") {
+    retryParams.set("lat", String(loaderData.context.latitude));
+    retryParams.set("lng", String(loaderData.context.longitude));
+  }
+  const parkingRetryHref = `/courses?${retryParams}`;
   return <main id="main" className="course-page">
     <header className="course-hero"><div><p>COURSE / FOR YOU</p><h1>오늘의 두 곳,<br />주차까지 이어봤어요.</h1><span>한 끼부터 다음 장소까지. 거리와 이동 부담을 먼저 계산합니다.</span></div><div className="course-context"><small>AUTO CONTEXT</small><strong>{loaderData.context.resolvedTime === "afternoon" ? "오후" : timeLabels[loaderData.context.resolvedTime]} · {loaderData.context.locationSource === "USER" ? "현재 위치" : "광주시청 기준"} · 반경 {loaderData.options.radiusKm}km</strong></div></header>
     <button ref={filterTriggerRef} aria-controls="course-filter-sheet" aria-expanded={isCompact ? filtersOpen : undefined} className="course-filter-trigger" type="button" onClick={() => setFiltersOpen(true)}><span>선택 조건</span><strong>{summary}</strong><b>조건 변경</b></button>
@@ -198,7 +211,7 @@ export default function CourseRecommendation({ loaderData }: Route.ComponentProp
       <div className="course-results">
         {!loaderData.hasSelection && <section className="course-empty"><span>START HERE</span><h2>먼저 오늘의 조건을 골라주세요.</h2><p>위치, 한 끼, 다음 장소와 주차 조건을 고르면 이동 부담이 적은 순서로 코스를 만듭니다.</p><button type="button" onClick={() => setFiltersOpen(true)}>조건 고르기</button></section>}
         {loaderData.hasSelection && !loaderData.courses.length && <section className="course-empty"><span>NO COURSE</span><h2>이 조건에서는 두 곳을 잇기 어려워요.</h2><p>검색 반경을 넓히거나 한 끼 카테고리를 전체로 바꿔보세요.</p><button type="button" onClick={() => setFiltersOpen(true)}>조건 다시 고르기</button></section>}
-        {loaderData.courses.map((course, index) => <CourseCard course={course} index={index} key={`${course.first.id}-${course.second.id}`} />)}
+        {loaderData.courses.map((course, index) => <CourseCard course={course} index={index} retryHref={parkingRetryHref} key={`${course.first.id}-${course.second.id}`} />)}
       </div>
     </div>
   </main>;
