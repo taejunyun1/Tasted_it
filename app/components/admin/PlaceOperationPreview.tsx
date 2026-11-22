@@ -1,6 +1,7 @@
 import { Form, Link, useNavigation } from "react-router";
 
 import { PLACE_ADMIN_CHANGE_LABELS, PLACE_ADMIN_IMPACT_LABELS, type PlaceAdminView } from "../../features/places/place-admin";
+import { correctionOperationsHref } from "../../features/places/place-operations-io";
 
 const statusLabels: Record<string, string> = { DRAFT: "비공개 초안", PUBLISHED: "공개", HIDDEN: "숨김" };
 const roleLabels = { TARGET: "남길 장소", SOURCE: "흡수할 장소", PLACE: "대상 장소" };
@@ -20,12 +21,13 @@ function kst(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
-export function PlaceOperationPreview({ view }: { view?: PlaceAdminView | null }) {
+export function PlaceOperationPreview({ view, correctionPage }: { view?: PlaceAdminView | null; correctionPage?: number }) {
   const pending = useNavigation().state !== "idle";
   if (!view) return null;
   const committed = view.status === "COMMITTED";
   const stale = !committed && view.stale === true;
-  const operationUrl = `/admin/place-operations?${new URLSearchParams({ operation: view.operationId })}`;
+  const operationUrl = correctionPage === undefined ? `/admin/place-operations?${new URLSearchParams({ operation: view.operationId })}`
+    : correctionOperationsHref(correctionPage, view.operationId);
   const impactKeys = (Object.keys(PLACE_ADMIN_IMPACT_LABELS) as ImpactKey[]).filter((key) => typeof view.impact[key] === "number" && Number.isFinite(view.impact[key]));
   const conditions = impactKeys.filter(isCondition);
   const visibleCounts = impactKeys.filter(isVisibleCount);
@@ -36,6 +38,10 @@ export function PlaceOperationPreview({ view }: { view?: PlaceAdminView | null }
     <p><strong>{PLACE_ADMIN_CHANGE_LABELS[view.change]}</strong></p>
     {view.change === "MERGE" && <p>흡수할 장소의 연결 원천이 남길 장소로 옮겨지며, 남길 장소의 노출·추천 자격도 달라질 수 있습니다. 사진 파일과 리뷰 원문은 보존합니다. 병합을 자동으로 되돌리는 기능은 제공하지 않습니다.</p>}
     {(view.change === "RECALL" || view.change === "RESTORE_RECALL") && <p>공개 상태를 변경하고 사진 파일·리뷰 원문·연결 기록을 보존합니다. 공개 목록·상세와 저장 목록은 서로 다른 표시 기준을 사용합니다.</p>}
+    {view.correctionRequestId && <>
+      <p>{committed ? "이 작업에서 폐업 신고를 적용 완료로 기록했습니다." : "회수가 확정되면 폐업 신고도 적용 완료로 기록합니다."}</p>
+      <p style={{ overflowWrap: "anywhere" }}>폐업 신고 번호 <code>{view.correctionRequestId}</code></p>
+    </>}
     <p className="ops-form-help">추천 후보 자격과 개인별 추천 순위는 별도로 결정됩니다.</p>
     <p style={{ overflowWrap: "anywhere" }}>작업 번호 <code>{view.operationId}</code></p>
     {committed
@@ -76,6 +82,7 @@ export function PlaceOperationPreview({ view }: { view?: PlaceAdminView | null }
         <button disabled={pending}>회수 복원 미리보기</button>
       </Form>
     </>}
-    <p><Link to="/admin/place-operations">장소 검수로 돌아가기</Link> · <Link to="/admin/places">장소 목록</Link></p>
+    <p>{correctionPage === undefined ? <Link to="/admin/place-operations">장소 검수로 돌아가기</Link>
+      : <Link to={correctionOperationsHref(correctionPage)}>정보 정정으로 돌아가기</Link>} · <Link to="/admin/places">장소 목록</Link></p>
   </section>;
 }

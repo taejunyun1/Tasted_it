@@ -19,15 +19,17 @@ import {
   revokeNaverToken,
   verifyNaverIdToken,
 } from "../features/auth/naver-oauth.server";
+import { oauthFailureHref } from "../features/auth/oauth-failure";
 import { consumeOAuthRequest, peekOAuthRequestContext } from "../features/auth/oauth-request.server";
-import { createUserSession } from "../features/auth/session.server";
+import { createUserSession, getOptionalUser } from "../features/auth/session.server";
 import { ACCOUNT_RESTRICTED_MESSAGE, isAccountRestrictedError, assertMemberAccess } from "../features/auth/member-access.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
 
-function errorRedirect(requestUrl: string, target: string, code: NaverFailureCode | "cancelled") {
-  const separator = target.includes("?") ? "&" : "?";
-  return redirect(`${target}${separator}oauthError=${code}&oauthProvider=naver`, {
-    headers: { "Set-Cookie": expireNaverOAuthRequestCookie(requestUrl) },
+async function errorRedirect(request: Request, code: NaverFailureCode | "cancelled", returnTo?: string) {
+  // Without verified login intent, only the current member session selects the account screen.
+  const destination = returnTo === undefined && await getOptionalUser(request) ? "/me" : "/login";
+  return redirect(oauthFailureHref({ provider: "NAVER", code, destination, returnTo }), {
+    headers: { "Set-Cookie": expireNaverOAuthRequestCookie(request.url), "Cache-Control": "private, no-store", Vary: "Cookie" },
   });
 }
 
@@ -41,29 +43,34 @@ export async function loader({ request }: Route.LoaderArgs) {
   const context = requestId
     ? await peekOAuthRequestContext(db, { id: requestId, provider: "NAVER" })
     : null;
-  const errorTarget = context?.flow === "LOGIN" ? "/login" : "/me";
-  if (!requestId || !state) return errorRedirect(request.url, errorTarget, "invalid_request");
+  if (!requestId || !state) return errorRedirect(request, "invalid_request");
 
-  const providerError = url.searchParams.get("error");
-  if (providerError) {
-    try {
-      await consumeOAuthRequest(db, { id: requestId, state, provider: "NAVER", now: new Date() });
-      return errorRedirect(request.url, errorTarget, providerError === "access_denied" ? "cancelled" : "temporarily_unavailable");
-    } catch {
-      return errorRedirect(request.url, errorTarget, "invalid_request");
-    }
-  }
-
-  const code = url.searchParams.get("code");
-  if (!code || !env.NAVER_LOGIN_CLIENT_ID || !env.NAVER_LOGIN_CLIENT_SECRET) {
-    return errorRedirect(request.url, errorTarget, "invalid_request");
-  }
+  let returnTo: string | undefined;
+  const consumeRequest = async (input: Parameters<typeof consumeOAuthRequest>[1]) => {
+    const verified = await consumeOAuthRequest(db, input);
+    if (verified.flow === "LOGIN") returnTo = verified.returnTo;
+    return verified;
+  };
   const now = new Date();
+  const providerError = url.searchParams.get("error");
+  const code = url.searchParams.get("code");
+  const clientId = env.NAVER_LOGIN_CLIENT_ID;
+  const clientSecret = env.NAVER_LOGIN_CLIENT_SECRET;
+  if (providerError || !code || !clientId || !clientSecret) {
+    try {
+      await consumeRequest({ id: requestId, state, provider: "NAVER", now });
+    } catch {
+      return errorRedirect(request, "invalid_request");
+    }
+    const providerFailure = providerError === "access_denied" ? "cancelled" : "temporarily_unavailable";
+    return errorRedirect(request, !providerError && !code ? "invalid_request" : providerFailure, returnTo);
+  }
+
   try {
     if (context?.userId) await assertMemberAccess(db, context.userId, now.toISOString());
     const result = await completeNaverFlow(
       {
-        consumeRequest: (input) => consumeOAuthRequest(db, input),
+        consumeRequest,
         exchangeCode: exchangeNaverCode,
         verifyIdToken: verifyNaverIdToken,
         fetchProfile: fetchNaverProfile,
@@ -76,8 +83,8 @@ export async function loader({ request }: Route.LoaderArgs) {
         requestId,
         state,
         code,
-        clientId: env.NAVER_LOGIN_CLIENT_ID,
-        clientSecret: env.NAVER_LOGIN_CLIENT_SECRET,
+        clientId,
+        clientSecret,
         redirectUri: `${url.origin}/auth/naver/callback`,
         adminEmail: env.ADMIN_EMAIL,
         now,
@@ -111,6 +118,6 @@ export async function loader({ request }: Route.LoaderArgs) {
     if (isAccountRestrictedError(error)) return new Response(ACCOUNT_RESTRICTED_MESSAGE, { status: 403, headers: { "Cache-Control": "private, no-store", Vary: "Cookie", "Content-Type": "text/plain; charset=utf-8", "Set-Cookie": expireNaverOAuthRequestCookie(request.url) } });
     const code = naverFailureCode(error);
     console.error("NAVER_OAUTH_FAILED", code);
-    return errorRedirect(request.url, errorTarget, code);
+    return errorRedirect(request, code, returnTo);
   }
 }

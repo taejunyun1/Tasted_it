@@ -9,6 +9,7 @@ async function tokenHash(token: string) { const hash = await crypto.subtle.diges
 
 const correctionTypes = ["INFORMATION", "MOVED", "TEMPORARILY_CLOSED", "CLOSED", "RIGHTS", "OTHER"] as const;
 type CorrectionType = (typeof correctionTypes)[number];
+export const reviewableCorrectionStatuses = ["SUBMITTED", "REVIEWING"] as const;
 
 export async function createPlaceCorrectionRequest(db: AppDb, input: {
   id: string; placeId: string | null; requesterUserId: string | null; requesterEmail: string; requesterRelation: string;
@@ -62,30 +63,34 @@ async function correctionBatch(db: AppDb, statements: Parameters<AppDb["batch"]>
   }
 }
 
-function allowedChanges(raw: unknown) {
+export function readCorrectionChanges(json: string) {
+  const raw: unknown = JSON.parse(json);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("CORRECTION_CHANGES_INVALID");
   const input = raw as Record<string, unknown>; const output: Record<string, string | number | null> = {};
-  for (const key of ["name", "address", "neighborhood", "phone", "parkingSummary"] as const) if (typeof input[key] === "string" || input[key] === null) output[key] = input[key] as string | null;
+  for (const key of ["name", "address", "neighborhood"] as const) if (typeof input[key] === "string" && input[key].trim()) output[key] = input[key];
+  for (const key of ["phone", "parkingSummary"] as const) if (typeof input[key] === "string" || input[key] === null) output[key] = input[key];
   for (const key of ["latitude", "longitude"] as const) if (typeof input[key] === "number" && Number.isFinite(input[key])) output[key] = input[key];
   if (input.status === "HIDDEN" || input.status === "PUBLISHED") output.status = input.status;
   return output;
 }
 
-export async function applyPlaceCorrection(db: AppDb, input: { requestId: string; actorUserId: string; reason: string; now: string; preservePublicationState?: boolean }) {
+export async function applyPlaceCorrection(db: AppDb, input: { requestId: string; actorUserId: string; reason: string; now: string; expectedUpdatedAt?: string; preservePublicationState?: boolean }) {
   const [request, actor] = await Promise.all([
     db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, input.requestId) }),
     db.query.users.findFirst({ where: eq(users.id, input.actorUserId) }),
   ]);
   if (actor?.role !== "ADMIN") throw new Error("ADMIN_REQUIRED");
-  if (!request || !request.placeId || !["SUBMITTED", "REVIEWING"].includes(request.status)) throw new Error("CORRECTION_NOT_APPLICABLE");
+  if (!request || !request.placeId || !reviewableCorrectionStatuses.some((status) => status === request.status)) throw new Error("CORRECTION_NOT_APPLICABLE");
+  if (input.expectedUpdatedAt !== undefined && request.updatedAt !== input.expectedUpdatedAt) throw new Error("CORRECTION_STALE");
   if (!input.reason.trim()) throw new Error("REVIEW_REASON_REQUIRED");
+  if (request.requestType === "CLOSED") throw new Error("PLACE_ADMIN_PREVIEW_REQUIRED");
   const place = await db.query.places.findFirst({ where: eq(places.id, request.placeId) });
   if (!place) throw new Error("PLACE_NOT_FOUND");
-  const changes = allowedChanges(JSON.parse(request.requestedChangesJson));
+  const changes = readCorrectionChanges(request.requestedChangesJson);
   if (input.preservePublicationState && Object.hasOwn(changes, "status")) throw new Error("PLACE_ADMIN_PREVIEW_REQUIRED");
   if (!request.verifiedAt) throw new Error("CORRECTION_NOT_APPLICABLE");
   if (!Object.keys(changes).length) throw new Error("CORRECTION_CHANGES_EMPTY");
-  const after = { ...place, ...changes, closedAt: changes.status === "HIDDEN" && request.requestType === "CLOSED" ? input.now : place.closedAt, updatedAt: input.now };
+  const after = { ...place, ...changes, updatedAt: input.now };
   if (changes.name || changes.address || changes.neighborhood) after.searchText = `${after.name} ${after.address} ${after.neighborhood}`.toLocaleLowerCase("ko-KR");
   const afterEvidence = input.preservePublicationState
     ? { changedFields: { ...changes, searchText: after.searchText, updatedAt: input.now }, publicationState: "PRESERVED" }
@@ -101,14 +106,15 @@ export async function applyPlaceCorrection(db: AppDb, input: { requestId: string
   return after;
 }
 
-export async function transitionPlaceCorrection(db: AppDb, input: { requestId: string; actorUserId: string; status: "REVIEWING" | "REJECTED"; reason: string; now: string }) {
+export async function transitionPlaceCorrection(db: AppDb, input: { requestId: string; actorUserId: string; status: "REVIEWING" | "REJECTED"; reason: string; now: string; expectedUpdatedAt?: string }) {
   const [actor, request] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, input.actorUserId) }),
     db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, input.requestId) }),
   ]);
   if (actor?.role !== "ADMIN") throw new Error("ADMIN_REQUIRED");
   if (!input.reason.trim()) throw new Error("REVIEW_REASON_REQUIRED");
-  if (!request?.verifiedAt || !["SUBMITTED", "REVIEWING"].includes(request.status) || !["REVIEWING", "REJECTED"].includes(input.status)) throw new Error("CORRECTION_NOT_APPLICABLE");
+  if (!request?.verifiedAt || !reviewableCorrectionStatuses.some((status) => status === request.status) || !["REVIEWING", "REJECTED"].includes(input.status)) throw new Error("CORRECTION_NOT_APPLICABLE");
+  if (input.expectedUpdatedAt !== undefined && request.updatedAt !== input.expectedUpdatedAt) throw new Error("CORRECTION_STALE");
   await correctionBatch(db, [
     db.update(placeCorrectionRequests).set({ status: input.status, adminResponse: input.reason.trim(), reviewedBy: input.actorUserId, reviewedAt: input.now, updatedAt: input.now }).where(and(unchanged(getTableColumns(placeCorrectionRequests), request), currentAdmin(input.actorUserId))),
     requireOneChanged(db),

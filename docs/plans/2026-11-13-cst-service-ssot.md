@@ -239,7 +239,7 @@ B09 영수증과 공개 감사, 최종 검수 완료, 실제 공개 상태가 �
 | --- | --- | --- | --- |
 | D01 p3 | admin-import/data-sync, `tests/unit/place-import.test.ts` | 출처·시각·결과·재반입 idempotency, 로컬 fixture와 승인된 원격 증거 분리 | T05, 11/23 |
 | D02 p3 | 분류·dedup·place-review pipeline, #348~351 | 체인·비음식점·폐업/이전·중복의 근거와 보완/제외, #352 실제 처리 집계는 별도 | T05, 11/25 |
-| D03 p3 | #382 CAS/감사 backend·#390 리뷰어/admin 검수 UI 병합, 기존 후보/정정 | 전체 후보/정정 운영 검수·실제 자료 승인 | T04/T05, 11/25 |
+| D03 p3 | #382 CAS/감사 backend·#390 리뷰어/admin 검수 UI 병합. 폐업 신고를 B09 회수와 결속하고 정정 큐를 25건씩 표시한다. [검증 증거](../evidence/cst-correction-recall-20261122/summary.json) | 전체 후보/정정 운영 검수·실제 자료 승인 | T04/T05, 11/25 |
 | D04 p3 | place-operations·admin audit, 공개 적격 판정 | admin만 발행, 비공개 즉시 검색/추천 제외·변경 전후·사유 검증 | T04/T05, 11/25 |
 | D05 p3 | #382 출처/회수 gate, #386 DEC-03 고정 기대값·신뢰/감쇠→점수·외부평점 배제·재계산 반복 검증 | 전체 T06 수용·실제 운영 입력/재계산 영향 확인 | T06, 11/26 |
 | D06 p3 | 기존 운영 런북, #378 합성 local D1 복원69table/157row·schema/data/손상 거절 PASS | 실제 R2/삭제 후 복원·중단/복구·운영 보관/백업 주기/RPO/RTO·전체 T08 | T08, 11/27 |
@@ -253,7 +253,7 @@ B09 영수증과 공개 감사, 최종 검수 완료, 실제 공개 상태가 �
 | S03 | `/places/:placeSlug` | S04/S05/S07·외부링크, 인증 복귀·저장 실패·미확인 정보, 11/23 |
 | S04 | `/reviewers/:slug` | 소개·승인된 방문/평가/사진→S03, 미승인 제외, 11/25 |
 | S05 | `/me`, `/onboarding/taste` | 저장/취향·S03/S06·임시자료 승계 재시도, 11/24 |
-| S06 | `/login`, `/signup`, `/verify-email`, OAuth, `/me` | 인증·오류·탈퇴/삭제·원래 화면 복귀, 11/24 |
+| S06 | `/login`, `/signup`, `/verify-email`, OAuth, `/me` | 인증·오류·탈퇴/삭제·원래 화면 복귀. [OAuth 실패 복구](../evidence/cst-oauth-recovery-20261122/summary.json)에서 검증된 목적지 유지와 계정 경로를 확인했다. 실제 외부 인증 및 모바일 상세의 같은 탐색 화면 복귀는 후속 검증 대상이다. 11/24 |
 | S07 | `/suggestions/new`, `/corrections/new` | 상세 대상 유지→접수→admin 대기열, 접수 즉시 공개수정 금지, 11/23 |
 | S08 | `/admin/*` | 후보/사진/평가/정정 검수·사유·이력·공개 확인, 비인가 차단, 11/25 |
 

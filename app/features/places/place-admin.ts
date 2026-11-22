@@ -7,7 +7,9 @@ export const placeAdminCommandSchema = z.discriminatedUnion("change", [
     intakeUnitCorrection: z.object({ revisionId: z.uuid(), approvedPlanSha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
   }).strict(),
   z.object({ change: z.literal("MERGE"), sourcePlaceId: id, targetPlaceId: id, reason: reason.min(1) }).strict(),
-  z.object({ change: z.literal("RECALL"), placeId: id, reason: reason.min(1) }).strict(),
+  z.object({ change: z.literal("RECALL"), placeId: id, reason: reason.min(1),
+    correction: z.object({ requestId: id, expectedUpdatedAt: z.iso.datetime() }).strict().optional(),
+  }).strict(),
   z.object({ change: z.literal("RESTORE_RECALL"), recallOperationId: z.uuid(), reason: reason.min(1) }).strict(),
 ]).refine((value) => !value.reason.includes("\0") && (value.change !== "MERGE" || value.sourcePlaceId !== value.targetPlaceId)
   && (value.change !== "PUBLISH" || !value.intakeUnitCorrection || value.expectedVersion !== undefined));
@@ -46,8 +48,9 @@ export const placeAdminResultSchema = z.object({ change: z.enum(["PUBLISH", "MER
   requestedCount: z.literal(1), appliedCount: z.literal(1), skippedCount: z.literal(0), targetId: id,
   sourceId: id.optional(), recallOperationId: z.uuid().optional(), reviewWorkItemId: id.optional(),
   afterDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  correctionRequestId: id.optional(),
   impact: z.record(z.string(), z.number().int().min(-1)),
 }).strict();
 export type PlaceAdminResult = z.infer<typeof placeAdminResultSchema>;
 export type PlaceAdminView = { operationId: string; status: "PENDING" | "COMMITTED"; expiresAt: string; change: PlaceAdminChange;
-  targets: PlaceAdminTarget[]; impact: PlaceAdminImpact; stale?: boolean; result?: PlaceAdminResult };
+  targets: PlaceAdminTarget[]; impact: PlaceAdminImpact; stale?: boolean; result?: PlaceAdminResult; correctionRequestId?: string };

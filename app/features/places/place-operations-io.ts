@@ -1,5 +1,8 @@
+import { z } from "zod";
+
 export const operationsIntents = [
   "apply-correction",
+  "prepare-correction-recall",
   "transition-correction",
   "merge",
   "restore",
@@ -26,6 +29,7 @@ export type OperationsErrorCode =
   | "REVISION_HAS_NO_BEFORE_STATE"
   | "PLACE_NOT_FOUND"
   | "CORRECTION_NOT_APPLICABLE"
+  | "CORRECTION_STALE"
   | "CORRECTION_CHANGES_EMPTY"
   | "CORRECTION_CHANGES_INVALID"
   | "REVALIDATION_NOT_REVIEWABLE"
@@ -77,28 +81,41 @@ export function checkRestoreRequest(input: {
 export function checkCorrectionApplyRequest(input: {
   requestId: unknown;
   reason: unknown;
-}): OperationsCheck<{ requestId: string; reason: string }> {
+  expectedUpdatedAt: unknown;
+}): OperationsCheck<{ requestId: string; reason: string; expectedUpdatedAt: string }> {
   const requestId = idValue(input.requestId);
   const reason = reasonValue(input.reason);
   if (!requestId) return { ok: false, code: "CORRECTION_NOT_APPLICABLE" };
   if (!reason) return { ok: false, code: "REVIEW_REASON_REQUIRED" };
-  return { ok: true, value: { requestId, reason } };
+  const revision = z.iso.datetime().safeParse(input.expectedUpdatedAt);
+  if (!revision.success) return { ok: false, code: "CORRECTION_STALE" };
+  return { ok: true, value: { requestId, reason, expectedUpdatedAt: revision.data } };
 }
 
 export function checkCorrectionTransitionRequest(input: {
   requestId: unknown;
   status: unknown;
   reason: unknown;
-}): OperationsCheck<{ requestId: string; status: CorrectionTransitionStatus; reason: string }> {
-  const requestId = idValue(input.requestId);
+  expectedUpdatedAt: unknown;
+}): OperationsCheck<{ requestId: string; status: CorrectionTransitionStatus; reason: string; expectedUpdatedAt: string }> {
   const status = textValue(input.status);
-  const reason = reasonValue(input.reason);
-  if (!requestId) return { ok: false, code: "CORRECTION_NOT_APPLICABLE" };
   if (!correctionTransitionStatuses.includes(status as CorrectionTransitionStatus)) {
     return { ok: false, code: "INVALID_INTENT" };
   }
-  if (!reason) return { ok: false, code: "REVIEW_REASON_REQUIRED" };
-  return { ok: true, value: { requestId, status: status as CorrectionTransitionStatus, reason } };
+  const checked = checkCorrectionApplyRequest(input);
+  if (!checked.ok) return checked;
+  return { ok: true, value: { ...checked.value, status: status as CorrectionTransitionStatus } };
+}
+
+export function parseCorrectionOperationsPage(raw: string | null) {
+  const page = Number(raw);
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+export function correctionOperationsHref(page = 1, operationId?: string) {
+  const params = new URLSearchParams({ tab: "corrections", correctionsPage: String(page) });
+  if (operationId) params.set("operation", operationId);
+  return `/admin/place-operations?${params}`;
 }
 
 export function checkLivenessResolveRequest(input: {
@@ -131,6 +148,7 @@ export function operationsErrorMessage(code: string) {
   if (code === "REVISION_NOT_FOUND" || code === "REVISION_HAS_NO_BEFORE_STATE") return "복원할 이력을 찾을 수 없습니다.";
   if (code === "PLACE_NOT_FOUND") return "대상 장소를 찾을 수 없습니다.";
   if (code === "CORRECTION_NOT_APPLICABLE") return "이미 처리됐거나 적용할 수 없는 정정 요청입니다.";
+  if (code === "CORRECTION_STALE") return "정정 요청이 변경됐습니다. 최신 내용을 다시 확인해 주세요.";
   if (code === "CORRECTION_CHANGES_EMPTY" || code === "CORRECTION_CHANGES_INVALID") return "적용할 정정 항목이 없습니다.";
   if (code === "REVALIDATION_NOT_REVIEWABLE") return "이미 처리됐거나 검수할 수 없는 영업 상태입니다.";
   if (code === "INVALID_LIVENESS_RESOLUTION") return "영업 상태 검수 결과를 다시 선택해 주세요.";

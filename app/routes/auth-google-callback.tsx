@@ -18,6 +18,7 @@ import {
   readOAuthRequestCookie,
   verifyGoogleIdToken,
 } from "../features/auth/google-oauth.server";
+import { oauthFailureHref } from "../features/auth/oauth-failure";
 import { createUserSession } from "../features/auth/session.server";
 import { ACCOUNT_RESTRICTED_MESSAGE, isAccountRestrictedError } from "../features/auth/member-access.server";
 import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
@@ -25,9 +26,10 @@ import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.
 function errorRedirect(
   requestUrl: string,
   code: OAuthFailureCode | "cancelled",
+  returnTo?: string,
 ) {
-  return redirect(`/login?oauthError=${code}`, {
-    headers: { "Set-Cookie": expireOAuthRequestCookie(requestUrl) },
+  return redirect(oauthFailureHref({ provider: "GOOGLE", code, returnTo }), {
+    headers: { "Set-Cookie": expireOAuthRequestCookie(requestUrl), "Cache-Control": "private, no-store" },
   });
 }
 
@@ -43,28 +45,30 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   if (!requestId || !state) return errorRedirect(request.url, "invalid_request");
 
-  if (providerError) {
+  let returnTo: string | undefined;
+  const consumeRequest = async (input: Parameters<typeof consumeGoogleOAuthRequest>[1]) => {
+    const verified = await consumeGoogleOAuthRequest(db, input);
+    returnTo = verified.returnTo;
+    return verified;
+  };
+  const code = url.searchParams.get("code");
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const clientSecret = env.GOOGLE_CLIENT_SECRET;
+  if (providerError || !code || !clientId || !clientSecret) {
     try {
-      await consumeGoogleOAuthRequest(db, { id: requestId, state, now });
-      return errorRedirect(
-        request.url,
-        providerError === "access_denied" ? "cancelled" : "temporarily_unavailable",
-      );
+      await consumeRequest({ id: requestId, state, now });
     } catch {
       return errorRedirect(request.url, "invalid_request");
     }
-  }
-
-  const code = url.searchParams.get("code");
-  if (!code || !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-    return errorRedirect(request.url, "invalid_request");
+    const providerFailure = providerError === "access_denied" ? "cancelled" : "temporarily_unavailable";
+    return errorRedirect(request.url, !providerError && !code ? "invalid_request" : providerFailure, returnTo);
   }
 
   try {
     const redirectUri = `${url.origin}/auth/google/callback`;
     const result = await completeGoogleLogin(
       {
-        consumeRequest: (input) => consumeGoogleOAuthRequest(db, input),
+        consumeRequest,
         exchangeCode: exchangeGoogleCode,
         verifyIdToken: verifyGoogleIdToken,
         resolveAccount: (input) => resolveGoogleAccount(db, input),
@@ -73,8 +77,8 @@ export async function loader({ request }: Route.LoaderArgs) {
         requestId,
         state,
         code,
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        clientId,
+        clientSecret,
         redirectUri,
         adminEmail: env.ADMIN_EMAIL,
         now,
@@ -111,6 +115,6 @@ export async function loader({ request }: Route.LoaderArgs) {
     if (isAccountRestrictedError(error)) return new Response(ACCOUNT_RESTRICTED_MESSAGE, { status: 403, headers: { "Cache-Control": "private, no-store", Vary: "Cookie", "Content-Type": "text/plain; charset=utf-8", "Set-Cookie": expireOAuthRequestCookie(request.url) } });
     const publicCode = oauthFailureCode(error);
     console.error("GOOGLE_OAUTH_FAILED", publicCode);
-    return errorRedirect(request.url, publicCode);
+    return errorRedirect(request.url, publicCode, returnTo);
   }
 }
