@@ -61,6 +61,8 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
   };
   const selected = loaderData.state.selected;
   const detailPath = safePlaceDetailSearchPath(params.get("place"));
+  const openerPlaceId = detailOpener.current?.dataset.placeId;
+  const replacementOpener = openerPlaceId ? `.map-panel button.map-pin[data-place-id="${CSS.escape(openerPlaceId)}"]` : undefined;
   const openDetail = (id: string, path: string, opener: HTMLElement) => {
     detailOpener.current = opener;
     setParams((current) => {
@@ -136,7 +138,7 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
           {!loaderData.places.length && <div className="empty" role="status"><p>이 범위에서 조건에 맞는 장소를 찾지 못했어요.</p>{loaderData.counts.overallBounds && <button type="button" className="mt-3 min-h-[var(--control-height)] border border-current px-4" onClick={() => { const bounds = loaderData.counts.overallBounds!; setLocationBounds(bounds); setLocationNotice(null); setState("bbox", bounds.join(",")); }}>전체 결과 {loaderData.counts.overallCount}곳 보기</button>}</div>}
         </section>
       </div>
-      <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} fallbackFocus="#q" onClose={closeDetail} />
+      <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} replacementOpener={replacementOpener} fallbackFocus="#q" onClose={closeDetail} />
     </main>
   );
 }

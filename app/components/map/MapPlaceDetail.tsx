@@ -28,9 +28,10 @@ export function MapPlaceDetail({ place, onBack, onOpenDetail }: { place: PlaceSu
     return () => {
       if (window.location.pathname !== pathname || !sheet?.contains(document.activeElement)) return;
       if (restoreVisibleFocus(opener)) return;
-      const fallback = window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches
-        ? ".map-mobile-tabs button[aria-pressed=true]" : "#map-search";
-      restoreVisibleFocus(document.querySelector(fallback));
+      const mobile = window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches;
+      const fallback = document.querySelector<HTMLElement>(mobile ? ".map-mobile-tabs button[aria-pressed=true]" : "#map-search");
+      if (mobile) fallback?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+      restoreVisibleFocus(fallback);
     };
   }, []);
 

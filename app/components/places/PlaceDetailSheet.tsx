@@ -17,9 +17,10 @@ import { PlaceInformation } from "./PlaceInformation";
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
 type MutationData = { ok: boolean; error?: string; resultUnknown?: boolean; status?: number };
 
-export function PlaceDetailSheet({ detailPath, opener, fallbackFocus, onClose }: {
+export function PlaceDetailSheet({ detailPath, opener, replacementOpener, fallbackFocus, onClose }: {
   detailPath: string | null;
   opener: HTMLElement | null;
+  replacementOpener?: string;
   fallbackFocus: string;
   onClose: () => void;
 }) {
@@ -39,21 +40,23 @@ export function PlaceDetailSheet({ detailPath, opener, fallbackFocus, onClose }:
   if (!detailPath || !mobile) return null;
   // A failed map read disables its controls, but the independently loaded detail stays usable.
   return createPortal(
-    <MobilePlaceDetailDialog requestPath={detailPath} opener={opener} fallbackFocus={fallbackFocus} onClose={onClose} />,
+    <MobilePlaceDetailDialog requestPath={detailPath} opener={opener} replacementOpener={replacementOpener} fallbackFocus={fallbackFocus} onClose={onClose} />,
     document.body,
   );
 }
 
-function MobilePlaceDetailDialog({ requestPath, opener, fallbackFocus, onClose }: {
+function MobilePlaceDetailDialog({ requestPath, opener, replacementOpener, fallbackFocus, onClose }: {
   requestPath: string;
   opener: HTMLElement | null;
+  replacementOpener?: string;
   fallbackFocus: string;
   onClose: () => void;
 }) {
   const [attempt, setAttempt] = useState(0);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const initialFocus = useRef({ opener, fallbackFocus });
+  const initialFocus = useRef({ opener, replacementOpener, fallbackFocus });
+  const restoreAfterMapUpdate = useRef<(() => void) | null>(null);
   const startedOutside = useRef(false);
   const labelId = useId();
 
@@ -77,10 +80,32 @@ function MobilePlaceDetailDialog({ requestPath, opener, fallbackFocus, onClose }
       for (const { property, value, priority } of overflow) bodyStyle.setProperty(property, value, priority);
       // The destination has its own focus when closing also leaves the browse route.
       if (window.location.pathname !== pathname || !window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches) return;
-      const { opener, fallbackFocus } = initialFocus.current;
-      if (restoreVisibleFocus(opener)) return;
-      document.querySelector<HTMLElement>(fallbackFocus)?.focus({ preventScroll: true });
+      const { opener, replacementOpener, fallbackFocus } = initialFocus.current;
+      const restoreFocus = () => {
+        if (restoreVisibleFocus(opener)) return;
+        if (replacementOpener && restoreVisibleFocus(document.querySelector(replacementOpener))) return;
+        document.querySelector<HTMLElement>(fallbackFocus)?.focus({ preventScroll: true });
+      };
+      if (!replacementOpener) {
+        restoreFocus();
+        return;
+      }
+
+      const closedUrl = window.location.href;
+      const focusAtClose = document.activeElement;
+      restoreAfterMapUpdate.current = () => {
+        if (window.location.href !== closedUrl || !window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches
+          || document.querySelector("dialog:modal")) return;
+        if (document.activeElement === focusAtClose || document.activeElement === document.body) restoreFocus();
+      };
     };
+  }, []);
+
+  useEffect(() => () => {
+    const restore = restoreAfterMapUpdate.current;
+    restoreAfterMapUpdate.current = null;
+    // Marker setup runs in a passive effect after the map receives new results.
+    if (restore) queueMicrotask(restore);
   }, []);
 
   useLayoutEffect(() => {

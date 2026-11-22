@@ -157,7 +157,8 @@ test("category map pins and list cards retain the current category and filters",
     await expect(sheet.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0);
-    await expect.poll(() => page.evaluate(() => document.activeElement?.matches("#q, .map-pin[data-place-id='sample-place-1']"))).toBe(true);
+    await expect(pin).toBeFocused();
+    await expect(pin).toBeInViewport();
   } else {
     await expect(sheet).toHaveCount(0);
   }

@@ -425,8 +425,8 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     startedRequestKeyRef.current = lifecycle.startedRequestKey;
     void recommendationFetcher.load(requestUrl);
   };
-  const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => {
-    setParams((current) => (isCurated ? updateMapSearch : updatePublicPlaceBrowseSearch)(current, change), { replace: true });
+  const setSearch = (change: Parameters<typeof updateMapSearch>[1], preventScrollReset = false) => {
+    setParams((current) => (isCurated ? updateMapSearch : updatePublicPlaceBrowseSearch)(current, change), { replace: true, preventScrollReset });
   };
   const selectPlace = (id: string) => {
     setMobileBrowseView("map");
@@ -593,7 +593,7 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
       >
         {isCurated ? "전체 지도" : "추천 지도"}
       </button>
-      {!isCurated && mobileBrowseView === "map" && selectedPlace && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} onOpenDetail={openDetail} />}
+      {!isCurated && mobileBrowseView === "map" && selectedPlace && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null }, true)} onOpenDetail={openDetail} />}
       <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} fallbackFocus={isCurated ? "#map-browse-toggle" : mobileBrowseView === "list" ? "#map-search" : ".map-mobile-tabs button[aria-pressed=true]"} onClose={closeDetail} />
     </section>
   </main>;

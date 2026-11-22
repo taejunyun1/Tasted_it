@@ -32,6 +32,8 @@ const MAP_UNAVAILABLE_MESSAGE = "지도를 불러오지 못했습니다. 목록�
 const MAX_MAP_RETRIES = 2;
 const MAP_PAN_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 const MAP_CONTROL_SELECTOR = "a[href], button, input, textarea, select, [role=button], [role=link], [role=slider], [role=spinbutton], [role=combobox], [role=textbox]";
+const NO_CLUSTERS: readonly RegionCluster[] = [];
+const NO_MARKER_RANKS: Readonly<Record<string, number>> = {};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -106,15 +108,15 @@ export function isMapKeyboardPan(event: Pick<KeyboardEvent, "key" | "altKey" | "
     && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.isComposing;
 }
 
-export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
+export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = NO_CLUSTERS, focusCluster = null, markerRanks = NO_MARKER_RANKS, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
   places: PlaceSummary[];
   selected: string | null;
   clientId: string;
   qaMode?: boolean;
   zoom?: number;
-  clusters?: RegionCluster[];
+  clusters?: readonly RegionCluster[];
   focusCluster?: RegionCluster | null;
-  markerRanks?: Record<string, number>;
+  markerRanks?: Readonly<Record<string, number>>;
   deferBounds?: boolean;
   onSelect: (id: string, opener: HTMLButtonElement) => void;
   onBounds: (bbox: [number, number, number, number]) => void;
