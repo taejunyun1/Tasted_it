@@ -1,0 +1,29 @@
+{
+  "sourceSha": "9624cf44b648efd210d0a7aac74de16cbe891835",
+  "appTree": "c7ebb890ba14c0f5eff2bd01bf1496b73f4ce418",
+  "baselineSha": "1860860e95797b691b808d279e0db5b09ae602ca",
+  "completedAtKst": "2026-11-22T12:50:00+09:00",
+  "environment": "Local compiled Worker and synthetic D1, desktop and mobile Chromium, external map requests blocked",
+  "results": {
+    "browser": {
+      "passed": 4,
+      "failed": 0
+    },
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "baselineFailure": "In 320px category map mode, the result region was exposed in the accessibility tree and the next Tab after map retry focused an offscreen result link.",
+  "scope": [
+    "The inactive result region is outside the accessibility tree and sequential focus in the 320px map view.",
+    "Keyboard navigation opens the list and activates visible results in the mobile detail dialog.",
+    "Desktop split view retains the list and keyboard path, and blocked-SDK detail fallback passes in both projects."
+  ],
+  "screenshots": [
+    "desktop-category-split.png",
+    "mobile-category-map.png",
+    "mobile-category-list.png"
+  ],
+  "limits": [
+    "Actual Naver SDK, assistive technology on physical devices, live deployment and full T07 are separate."
+  ]
+}

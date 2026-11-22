@@ -142,6 +142,50 @@ test("a synthetic initialized category map retains its normal viewport area", as
   await page.screenshot({ path: testInfo.outputPath("map-ready-synthetic.png"), fullPage: true });
 });
 
+test("only visible category results join keyboard and accessibility navigation", async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === "mobile-chromium";
+  if (mobile) await page.setViewportSize({ width: 320, height: 700 });
+  await blockNaverRequests(page);
+  await page.goto(categoryPath());
+
+  const main = page.getByRole("main");
+  const map = page.getByLabel("장소 지도", { exact: true });
+  const retry = map.getByRole("button", { name: "지도 다시 불러오기", exact: true });
+  await expect(map).toHaveAttribute("data-map-unavailable", "true");
+  await retry.focus();
+  await expect(retry).toBeFocused();
+  await page.keyboard.press("Tab");
+
+  const result = main.getByRole("region", { name: "장소 목록", exact: true });
+  const card = result.getByRole("link", { name: /상세 보기$/ }).first();
+  if (!mobile) {
+    await expect(result).toBeVisible();
+    expect(await main.ariaSnapshot()).toContain('region "장소 목록"');
+    await expect(card).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath("desktop-category-split.png"), fullPage: true });
+    return;
+  }
+
+  expect.soft(await main.ariaSnapshot()).not.toContain('region "장소 목록"');
+  expect.soft(await page.evaluate(() => document.activeElement?.closest(".result-panel") === null)).toBe(true);
+  const list = main.getByRole("navigation", { name: "보기 방식" }).getByRole("link", { name: "목록", exact: true });
+  await list.focus();
+  await page.screenshot({ path: testInfo.outputPath("mobile-category-map.png"), fullPage: true });
+  await page.keyboard.press("Enter");
+  await expect(result).toBeVisible();
+  expect(await main.ariaSnapshot()).toContain('region "장소 목록"');
+
+  for (let stop = 0; stop < 5; stop++) {
+    if (await card.evaluate((element) => element === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(card).toBeFocused();
+  await expect(card).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("mobile-category-list.png"), fullPage: true });
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
 test("category map pins and list cards retain the current category and filters", async ({ page }, testInfo) => {
   await blockNaverRequests(page);
   await installReadyMap(page);
