@@ -4,6 +4,7 @@ import { redirect } from "react-router";
 import type { Route } from "./+types/auth-naver";
 import { createDb } from "../db/client.server";
 import { safeReturnTo } from "../features/auth/login";
+import { oauthFailureHref } from "../features/auth/oauth-failure";
 import { issueOAuthRequest, type OAuthFlow } from "../features/auth/oauth-request.server";
 import {
   buildNaverAuthorizationUrl,
@@ -26,7 +27,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect(`/login?returnTo=${encodeURIComponent("/me")}`);
   }
   if (!env.NAVER_LOGIN_CLIENT_ID || !env.NAVER_LOGIN_CLIENT_SECRET) {
-    return redirect(`${flow === "LOGIN" ? "/login" : "/me"}?oauthError=temporarily_unavailable`);
+    const destination = flow === "LOGIN" ? "/login" : "/me";
+    return redirect(oauthFailureHref({ provider: "NAVER", code: "temporarily_unavailable", destination, returnTo }));
   }
 
   const pkce = await newPkcePair();
