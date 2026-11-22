@@ -131,3 +131,15 @@ test("shared place parameters open mobile detail and reach the desktop canonical
   expect(new URL(page.url()).pathname).toBe("/places");
   await expect(detail(page)).toHaveCount(0);
 });
+
+test("mobile detail respects the reduced motion preference", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium");
+  await page.setViewportSize(mobile);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/?place=${placeSlug}`);
+  const sheet = detail(page);
+  await expect(sheet.getByRole("heading", { name: placeName, exact: true })).toBeVisible();
+  await expect(sheet).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(sheet).toHaveCSS("animation-name", "map-sheet-rise");
+});
