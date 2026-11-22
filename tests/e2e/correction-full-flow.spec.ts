@@ -31,7 +31,11 @@ test("S07 follows public correction through mock email, internal review and publ
 
     await adminPage.goto("/admin/place-operations?tab=corrections");
     await expect(adminPage.locator(".ops-card").filter({ hasText: f.originalName })).toHaveCount(0);
-    const unverified = await admin.request.post("/admin/place-operations?tab=corrections", { headers: { Origin: new URL(baseURL!).origin }, form: { intent: "transition-correction", requestId: f.request()!.id, status: "REVIEWING", reason: "확인 전 직접 전이는 거절되어야 합니다." } });
+    const pending = f.request()!;
+    const unverified = await admin.request.post("/admin/place-operations?tab=corrections", {
+      headers: { Origin: new URL(baseURL!).origin },
+      form: { intent: "transition-correction", requestId: pending.id, expectedUpdatedAt: pending.updated_at, status: "REVIEWING", reason: "확인 전 직접 전이는 거절되어야 합니다." },
+    });
     expect(unverified.status()).toBe(400);
     expect(f.request()).toMatchObject({ status: "PENDING_VERIFICATION", verified_at: null });
     const delivery = await page.request.get(`/__e2e/email?email=${encodeURIComponent(f.email)}`);

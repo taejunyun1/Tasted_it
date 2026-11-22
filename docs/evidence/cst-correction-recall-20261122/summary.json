@@ -1,0 +1,22 @@
+{
+  "sourceSha": "1a8b566e2e50168ab59654b44b4584ac01b63680",
+  "appTree": "be258335dcaf190a96318b51e7cf725c269ff572",
+  "environment": "로컬 컴파일 Worker, 합성 D1과 모의 메일, 데스크톱 및 모바일 Chromium",
+  "checks": {
+    "unit": 13,
+    "integration": 38,
+    "browserClosureFinal": 2,
+    "browserOrdinaryCorrectionBeforeReceiptLabel": 2,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "폐업 신고 확인, B09 영향 미리보기, 관리자 비밀번호 재인증, 신고 번호가 있는 확정 영수증, 비로그인 상세 404",
+    "대상 장소 숨김과 신고 적용 완료, 장소 상태 변경 이력 1건과 연결 감사의 원자적 확정",
+    "검수 상태·대상·근거 경합, 확정 재시도, 이력 및 감사 실패 시 롤백, 기존 공개 회수 복원",
+    "25건 단위 정정 큐의 우선순위와 201번째 이후 접근"
+  ],
+  "screenshots": ["desktop-preview.png", "mobile-receipt.png"],
+  "limits": ["실제 외부 메일 전달과 운영 회수·전체 T05 수용은 별도 확인이 필요하다."]
+}

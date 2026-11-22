@@ -20,8 +20,12 @@ type PublishCommand = Extract<PlaceAdminCommand, { change: "PUBLISH" }>;
 const payloadSchema = z.object({ command: placeAdminCommandSchema, digest: z.string().regex(/^[a-f0-9]{64}$/),
   scope: z.object({ workItemId: z.string().optional(), sourcePlaceId: z.string().optional(), targetPlaceId: z.string().optional(), intakeUnitRevisionId: z.uuid().optional() }).strict(),
   targetId: z.string(), slug: z.string().optional(), newWorkItemId: z.string().optional(),
+  correctionDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   impact: z.record(z.string(), z.number().int().min(-1)),
-}).strict().refine(({ command, scope }) => {
+}).strict().refine(({ command, scope, targetId, correctionDigest }) => {
+  const bindsCorrection = command.change === "RECALL" && Boolean(command.correction);
+  if (bindsCorrection !== Boolean(correctionDigest) || (bindsCorrection
+    && (command.placeId !== targetId || scope.targetPlaceId !== targetId || scope.sourcePlaceId || scope.workItemId))) return false;
   const revisionId = command.change === "PUBLISH" ? command.intakeUnitCorrection?.revisionId : undefined;
   return scope.intakeUnitRevisionId === revisionId && (revisionId === undefined
     || (command.change === "PUBLISH" && scope.workItemId === command.workItemId && !scope.sourcePlaceId && !scope.targetPlaceId));
@@ -135,6 +139,30 @@ function recallEligible(rows: PlaceSnapshot, targetId: string) {
   const place = first(rows, "places", targetId);
   if (!place || place.status !== "PUBLISHED" || rows.workItems.some((item) => item.status === "ACTIVE" || item.status === "ON_HOLD")) fail();
 }
+function closureCorrectionSnapshot(db: D1Database, command: PlaceAdminCommand) {
+  if (command.change !== "RECALL" || !command.correction) return null;
+  const where = "id=? AND place_id=? AND updated_at=? AND request_type='CLOSED' AND verified_at IS NOT NULL AND verified_at<>'' AND status IN ('SUBMITTED','REVIEWING')";
+  const sql = `SELECT json_object('status',status,'verifiedAt',verified_at,'requesterRelation',requester_relation,
+    'requestedChanges',requested_changes_json,'evidence',evidence_note,'adminResponse',admin_response,'reviewedBy',reviewed_by,'reviewedAt',reviewed_at) AS snapshot
+    FROM place_correction_requests WHERE ${where}`;
+  const values = [command.correction.requestId, command.placeId, command.correction.expectedUpdatedAt];
+  return {
+    requestId: command.correction.requestId,
+    read: () => db.prepare(sql).bind(...values).first<string>("snapshot"),
+    guard: (operationId: string, snapshot: string) => db.prepare(`INSERT INTO admin_operation_checks(operation_id,check_name,passed)
+      SELECT ?,'closure-correction-footprint',CASE WHEN (${sql})=? THEN 1 ELSE 0 END`).bind(operationId, ...values, snapshot),
+    settle: (caller: Caller) => db.prepare(`UPDATE place_correction_requests SET status='APPLIED',admin_response=?,reviewed_by=?,reviewed_at=?,updated_at=? WHERE ${where}`)
+      .bind(command.reason, caller.actorUserId, caller.now, caller.now, ...values),
+  };
+}
+async function correctionFingerprint(snapshot: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(snapshot));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+function checkChangedOne(db: D1Database, operationId: string, name: string) {
+  return db.prepare(`INSERT INTO admin_operation_checks(operation_id,check_name,passed)
+    SELECT ?,?,CASE WHEN changes()=1 THEN 1 ELSE 0 END`).bind(operationId, name);
+}
 function mergeEligible(rows: PlaceSnapshot, command: Extract<PlaceAdminCommand, { change: "MERGE" }>, now: string) {
   const source = first(rows, "places", command.sourcePlaceId), target = first(rows, "places", command.targetPlaceId);
   if (!source || !target || rows.redirects.some((row) => row.oldSlug === source.slug || row.oldSlug === target.slug)) fail();
@@ -174,7 +202,12 @@ export async function preparePlaceAdminOperation(db: D1Database, input: Caller &
   } else if (command.change === "MERGE") mergeEligible(snapshot.rows, command, input.now);
   else if (command.change === "RECALL") recallEligible(snapshot.rows, targetId);
   else if ((await originalRecall(db, input, command.recallOperationId)).afterDigest !== digest) fail("ADMIN_OPERATION_CONFLICT");
-  const payload: Payload = { command, digest, scope, targetId, impact: await impact(snapshot.rows, command, targetId, input), ...(slug ? { slug } : {}), ...(command.change === "RECALL" ? { newWorkItemId: crypto.randomUUID() } : {}) };
+  const correction = closureCorrectionSnapshot(db, command);
+  const correctionRaw = correction ? await correction.read() : null;
+  if (correction && (!correctionRaw || !first(snapshot.rows, "corrections", correction.requestId))) fail("CORRECTION_NOT_APPLICABLE");
+  const payload: Payload = { command, digest, scope, targetId, impact: await impact(snapshot.rows, command, targetId, input), ...(slug ? { slug } : {}),
+    ...(command.change === "RECALL" ? { newWorkItemId: crypto.randomUUID() } : {}),
+    ...(correctionRaw ? { correctionDigest: await correctionFingerprint(correctionRaw) } : {}) };
   return prepareAdminOperation(db, { ...input, kind: "PLACE_ADMIN_CHANGE", payload,
     summary: { title: PLACE_ADMIN_CHANGE_LABELS[command.change], count: 1 }, pruneExpired: scope.intakeUnitRevisionId === undefined });
 }
@@ -206,15 +239,30 @@ export async function getPlaceAdminOperation(db: D1Database, input: Caller & { o
   if (operation.status === "PENDING") {
     const payload = payloadSchema.parse(operation.payload);
     const snapshot = await placeSnapshotStatement(db, payload.scope, payload.command.change === "PUBLISH").read();
+    const correction = closureCorrectionSnapshot(db, payload.command);
+    const correctionRaw = correction ? await correction.read() : null;
+    const correctionStale = correction && (!correctionRaw || await correctionFingerprint(correctionRaw) !== payload.correctionDigest);
     return { operationId: operation.id, status: operation.status, expiresAt: operation.expiresAt, change: payload.command.change,
-      targets: targets(snapshot.rows, payload), impact: payload.impact as PlaceAdminImpact, stale: await placeSnapshotDigest(snapshot.raw) !== payload.digest };
+      targets: targets(snapshot.rows, payload), impact: payload.impact as PlaceAdminImpact,
+      stale: Boolean(correctionStale) || await placeSnapshotDigest(snapshot.raw) !== payload.digest,
+      correctionRequestId: correction?.requestId };
   }
   const result = placeAdminResultSchema.parse(operation.result);
+  if (result.correctionRequestId) {
+    const correctionAudit = await db.prepare(`SELECT count(*) AS n FROM (SELECT 1 FROM admin_audit_logs a
+      JOIN admin_operation_commits c ON c.operation_id=? AND c.actor_user_id=a.actor_user_id AND c.committed_at=a.created_at
+      WHERE a.action='APPLY_CLOSURE_CORRECTION' AND a.target_type='CORRECTION_REQUEST' AND a.target_id=?
+      AND json_extract(a.after_state,'$.operationId')=c.operation_id AND json_extract(a.after_state,'$.status')='APPLIED'
+      AND json_extract(a.after_state,'$.placeId')=? LIMIT 2)`)
+      .bind(operation.id, result.correctionRequestId, result.targetId).first<number>("n");
+    if (result.change !== "RECALL" || result.recallOperationId !== operation.id || correctionAudit !== 1) fail("ADMIN_OPERATION_RECEIPT_UNAVAILABLE");
+  }
   const current = await db.prepare("SELECT id,name,address,status FROM places WHERE id IN (?,?) LIMIT 2").bind(result.targetId, result.sourceId ?? result.targetId).all<Record<string, unknown>>();
   const command = (result.change === "MERGE" ? { change: "MERGE", sourcePlaceId: result.sourceId, targetPlaceId: result.targetId, reason: "" }
     : { change: result.change, reason: "" }) as PlaceAdminCommand;
   return { operationId: operation.id, status: operation.status, expiresAt: operation.expiresAt, change: result.change,
-    targets: targets({ places: current.results, licenses: [] }, { command, targetId: result.targetId }), impact: result.impact as PlaceAdminImpact, result };
+    targets: targets({ places: current.results, licenses: [] }, { command, targetId: result.targetId }), impact: result.impact as PlaceAdminImpact,
+    correctionRequestId: result.correctionRequestId, result };
 }
 export async function commitPlaceAdminOperation(db: D1Database, input: Caller & { operationId: string }) {
   await getVerifiedAdminOperation(db, { ...input, kind: "PLACE_ADMIN_CHANGE" });
@@ -259,11 +307,41 @@ export async function commitPlaceAdminOperation(db: D1Database, input: Caller & 
     } else if (command.change === "RECALL") {
       recallEligible(rows, payload.targetId);
       const workItem = nextRecallItem(payload, input.now);
-      statements.push(db.prepare("UPDATE places SET status='HIDDEN',updated_at=? WHERE id=?").bind(input.now, payload.targetId),
-        insert(db, schema.placeReviewWorkItems, workItem), audit(db, input, "PLACE_ADMIN_RECALL", payload.targetId, "PUBLISHED", "HIDDEN"));
+      statements.push(db.prepare("UPDATE places SET status='HIDDEN',updated_at=? WHERE id=?").bind(input.now, payload.targetId));
+      const correction = closureCorrectionSnapshot(db, command);
+      if (correction) statements.push(checkChangedOne(db, operation.id, "closure-place-recalled"));
+      statements.push(insert(db, schema.placeReviewWorkItems, workItem));
+      if (correction) statements.push(checkChangedOne(db, operation.id, "closure-review-item-created"));
+      statements.push(audit(db, input, "PLACE_ADMIN_RECALL", payload.targetId, "PUBLISHED", "HIDDEN"));
+      if (correction) statements.push(checkChangedOne(db, operation.id, "closure-place-recall-audited"));
       const after = structuredClone(rows), changed = first(after, "places", payload.targetId)!;
       changed.status = "HIDDEN"; changed.updatedAt = input.now;
       after.workItems.push(workItem); after.workItems.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      if (correction) {
+        const current = first(after, "corrections", correction.requestId);
+        const correctionRaw = await correction.read();
+        if (!current || !correctionRaw || await correctionFingerprint(correctionRaw) !== payload.correctionDigest) fail("ADMIN_OPERATION_CONFLICT");
+        const { adminResponse } = JSON.parse(correctionRaw) as { adminResponse: string | null };
+        const beforePlace = first(rows, "places", payload.targetId)!;
+        const state = { closedAt: beforePlace.closedAt, updatedAt: beforePlace.updatedAt };
+        additionalChecks.push(correction.guard(operation.id, correctionRaw));
+        statements.push(correction.settle(input), checkChangedOne(db, operation.id, "closure-correction-applied"),
+          insert(db, schema.placeRevisions, { id: crypto.randomUUID(), placeId: payload.targetId, actorUserId: input.actorUserId,
+            action: "STATUS_CHANGE", reason: command.reason,
+            beforeJson: JSON.stringify({ status: beforePlace.status, ...state }),
+            afterJson: JSON.stringify({ status: changed.status, ...state, updatedAt: input.now, operationId: operation.id }),
+            sourceType: "CORRECTION_REQUEST", sourceId: correction.requestId, createdAt: input.now }),
+          checkChangedOne(db, operation.id, "closure-place-revision-recorded"),
+          insert(db, schema.adminAuditLogs, { id: crypto.randomUUID(), actorUserId: input.actorUserId,
+            action: "APPLY_CLOSURE_CORRECTION", targetType: "CORRECTION_REQUEST", targetId: correction.requestId,
+            beforeState: JSON.stringify({ status: current.status, adminResponse }),
+            afterState: JSON.stringify({ status: "APPLIED", adminResponse: command.reason, operationId: operation.id, placeId: payload.targetId }),
+            createdAt: input.now }),
+          checkChangedOne(db, operation.id, "closure-correction-audited"));
+        current.status = "APPLIED";
+        current.updatedAt = input.now;
+        result.correctionRequestId = correction.requestId;
+      }
       result.afterDigest = await placeSnapshotDigest(JSON.stringify(after)); result.reviewWorkItemId = payload.newWorkItemId;
       result.recallOperationId = operation.id;
     } else {

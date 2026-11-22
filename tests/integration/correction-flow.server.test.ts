@@ -29,16 +29,47 @@ describe("S07 correction boundaries", () => {
     const closure = await fixture(true, { requestType: "CLOSED", now: new Date("2026-11-18T01:01:00.000Z") });
     const rights = await fixture(true, { requestType: "RIGHTS", now: new Date("2026-11-18T01:02:00.000Z") });
     const ids = new Set([normal.id, closure.id, rights.id]);
-    expect((await listCorrectionOperations(normal.db)).filter(row => ids.has(row.id)).map(row => row.id)).toEqual([closure.id, rights.id, normal.id]);
+    expect((await listCorrectionOperations(normal.db)).rows.filter(row => ids.has(row.id)).map(row => row.id)).toEqual([closure.id, rights.id, normal.id]);
   });
 
   it("does not expose or transition an unverified request through an admin ID", async () => {
     const f = await fixture();
-    expect((await listCorrectionOperations(f.db)).map(row => row.id)).not.toContain(f.id);
+    expect((await listCorrectionOperations(f.db)).rows.map(row => row.id)).not.toContain(f.id);
     await expect(transitionPlaceCorrection(f.db, { requestId: f.id, actorUserId: f.actorUserId, status: "REVIEWING", reason, now: f.now.toISOString() })).rejects.toThrow("CORRECTION_NOT_APPLICABLE");
     await expect(applyPlaceCorrection(f.db, { requestId: f.id, actorUserId: f.actorUserId, reason, now: f.now.toISOString(), preservePublicationState: true })).rejects.toThrow("CORRECTION_NOT_APPLICABLE");
     expect((await f.db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, f.id) }))?.status).toBe("PENDING_VERIFICATION");
     expect((await f.db.query.places.findFirst({ where: eq(places.id, f.placeId) }))?.name).toBe("기존 합성 식당");
+  });
+
+  it("reaches verified row 201 with deterministic pagination and hides inapplicable field changes", async () => {
+    const f = await fixture(true, { requestType: "CLOSED" });
+    const baseline = (await listCorrectionOperations(f.db)).pagination.total;
+    const sharedTimestamp = f.now.toISOString();
+    const rows = Array.from({ length: 201 }, (_, index) => ({
+      id: `page-${String(index).padStart(3, "0")}`, placeId: f.placeId,
+      requesterEmail: "synthetic@example.test", requesterRelation: "방문자",
+      requestType: "INFORMATION" as const, status: "SUBMITTED" as const,
+      requestedChangesJson: index < 2 ? "{}" : '{"status":"PUBLISHED"}',
+      verifiedAt: sharedTimestamp, createdAt: sharedTimestamp, updatedAt: sharedTimestamp,
+    }));
+    for (let start = 0; start < rows.length; start += 8) await f.db.insert(placeCorrectionRequests).values(rows.slice(start, start + 8));
+    const first = await listCorrectionOperations(f.db);
+    expect(first.pagination).toEqual({ page: 1, pageSize: 25, total: baseline + 201, totalPages: Math.ceil((baseline + 201) / 25) });
+    expect(first.rows.find((item) => item.id === f.id)).toMatchObject({ canRecall: true, canApply: false });
+    const pages = await Promise.all(Array.from({ length: first.pagination.totalPages }, (_, index) => listCorrectionOperations(f.db, index + 1)));
+    const queued = pages.flatMap((page) => page.rows.filter((item) => item.id.startsWith("page-")));
+    expect(queued.every((item) => !item.canApply && !item.canRecall)).toBe(true);
+    expect(queued.map((item) => item.id)).toEqual(rows.map((item) => item.id));
+    expect(pages.at(-1)?.rows.some((item) => item.id === "page-200")).toBe(true);
+    expect((await listCorrectionOperations(f.db, 999)).pagination.page).toBe(first.pagination.totalPages);
+  });
+
+  it("requires a fresh card after another operator's review", async () => {
+    const f = await fixture(true), expectedUpdatedAt = f.now.toISOString(), now = new Date(f.now.getTime() + 1000).toISOString();
+    await transitionPlaceCorrection(f.db, { requestId: f.id, actorUserId: f.actorUserId, status: "REVIEWING", reason, now, expectedUpdatedAt });
+    await expect(transitionPlaceCorrection(f.db, { requestId: f.id, actorUserId: f.actorUserId, status: "REJECTED", reason, now, expectedUpdatedAt })).rejects.toThrow("CORRECTION_STALE");
+    await expect(applyPlaceCorrection(f.db, { requestId: f.id, actorUserId: f.actorUserId, reason, now, expectedUpdatedAt, preservePublicationState: true })).rejects.toThrow("CORRECTION_STALE");
+    expect((await f.db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, f.id) }))?.status).toBe("REVIEWING");
   });
 
   it("verifies a token atomically once, including concurrent and expired use", async () => {
