@@ -1,7 +1,9 @@
 import { env } from "cloudflare:workers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  isRouteErrorResponse,
   useFetcher,
+  useLocation,
   useSearchParams,
   type ShouldRevalidateFunction,
 } from "react-router";
@@ -10,13 +12,14 @@ import type { Route } from "./+types/home";
 import type { loader as homeRecommendationLoader } from "./home-recommendations-resource";
 import { HomeCurationPanel } from "../components/map/HomeCurationPanel";
 import { HomeCurationSheet, type HomeSheetSnap } from "../components/map/HomeCurationSheet";
-import { MapExplorerPanel } from "../components/map/MapExplorerPanel";
+import { MapExplorerPanel, type BrowseMobileView } from "../components/map/MapExplorerPanel";
 import { MapReadBoundary, MapReadError, useMapViewerKey } from "../components/map/MapReadBoundary";
 import { isMapReadFailure, keepMapShell, readMapData } from "../features/maps/map-read-recovery";
 import { mapViewerKey } from "../features/maps/map-viewer-key.server";
 import { MapPlaceDetail } from "../components/map/MapPlaceDetail";
 import { PlaceMap } from "../components/map/PlaceMap";
 import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
+import { PlaceSearchError } from "../components/places/PlaceSearchError";
 import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
 import {
@@ -42,7 +45,8 @@ import {
   recordHomeRecommendation,
 } from "../features/places/home-curation-history.client";
 import { getHomeCurationPage } from "../features/places/home-curation.server";
-import { getPublicPlaceCounts, listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
+import { getPublicPlaceCounts, getPublicPlacePage, listPublicCategoryGroups } from "../features/places/place.server";
+import { publicPlaceBrowseHref, readPublicPlaceBrowse, updatePublicPlaceBrowseSearch } from "../features/places/public-place-browse";
 import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
 type RecommendationFetcherState = "idle" | "loading" | "submitting";
@@ -170,7 +174,12 @@ export async function clientLoader({ request, serverLoader }: Route.ClientLoader
   return readMapData(request, serverLoader);
 }
 
-export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) { return <MapReadError error={error} />; }
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const location = useLocation();
+  return isRouteErrorResponse(error) && error.status === 400 && error.statusText === "INVALID_PAGE"
+    ? <PlaceSearchError search={location.search} status={400} />
+    : <MapReadError error={error} />;
+}
 
 export const shouldRevalidate: ShouldRevalidateFunction = (input) => {
   const { currentUrl, nextUrl, defaultShouldRevalidate } = input;
@@ -182,9 +191,8 @@ export const shouldRevalidate: ShouldRevalidateFunction = (input) => {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
-  const state = parseMapState(url.search);
+  const { state, filters, page } = readPublicPlaceBrowse(url.search);
   const homeState = parseHomeCurationState(url.search);
-  const category = url.searchParams.get("category") || undefined;
   const qaMode = url.searchParams.has("qa");
   const db = createDb(env.DB);
   const user = await getOptionalUser(request);
@@ -192,7 +200,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     state,
     mapViewerKey: await mapViewerKey(request, user),
     publicOrigin: resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL),
-    category: category ?? null,
+    category: filters.categorySlug ?? null,
+    search: url.search,
     // QA is deliberately self-contained: it must not call the external map SDK
     // just because an operator's local `.dev.vars` has a real Client ID.
     clientId: qaMode ? "" : env.NAVER_MAPS_CLIENT_ID ?? "",
@@ -200,12 +209,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 
   if (homeState.view === "browse") {
-    const [places, groups, placeCounts] = await Promise.all([
-      listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
-      listPublicCategoryGroups(db, { query: state.query, bbox: state.bbox }),
-      getPublicPlaceCounts(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
+    if (page === null) throw new Response("검색 페이지 번호를 확인해 주세요.", { status: 400, statusText: "INVALID_PAGE" });
+    const [{ places, ...pagination }, groups, placeCounts] = await Promise.all([
+      getPublicPlacePage(db, filters, page),
+      listPublicCategoryGroups(db, { query: filters.query, bbox: filters.bbox, tempOnly: filters.tempOnly }),
+      filters.tempOnly ? null : getPublicPlaceCounts(db, filters),
     ]);
-    return { ...common, view: "browse" as const, places, groups, placeCounts, curation: null };
+    return { ...common, view: "browse" as const, places, groups, placeCounts, pagination, tempOnly: filters.tempOnly, curation: null };
   }
 
   const now = new Date().toISOString();
@@ -230,6 +240,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     places: curation.places,
     groups: [],
     placeCounts: null,
+    pagination: null,
+    tempOnly: false,
     curation,
   };
 }
@@ -249,6 +261,7 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
   const recommendationFetcher = useFetcher<typeof homeRecommendationLoader>();
   const [curation, setCuration] = useState(loaderData.curation);
   const [homeSheetSnap, setHomeSheetSnap] = useState<HomeSheetSnap>("half");
+  const [mobileBrowseView, setMobileBrowseView] = useState<BrowseMobileView>("map");
   const [mapZoom, setMapZoom] = useState(12);
   const [focusCluster, setFocusCluster] = useState<RegionCluster | null>(null);
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
@@ -271,11 +284,13 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     locationSource: liveHomeState.locationSource,
   });
   const isCurated = readFailed ? loaderData.view === "curated" : liveHomeState.view === "curated";
+  const browseSearch = readFailed ? loaderData.search : liveSearch;
   const activeCuration = curation ?? loaderData.curation;
   const activePlaces = isCurated && activeCuration ? activeCuration.places : loaderData.places;
-  const requestedSelectedId = params.get("selected");
+  const requestedSelectedId = readFailed && !isCurated ? loaderData.state.selected : params.get("selected");
   const selectedId = requestedSelectedId ?? (isCurated ? activeCuration?.places[0]?.id ?? null : null);
   const selectedPlace = findSelectedPlace(activePlaces, selectedId);
+  const selectedPlaceId = selectedPlace?.id;
   const detailSlug = params.get("place");
   const clusterLevel = getRegionClusterLevel(mapZoom);
   const clusters = useMemo(() => isCurated ? [] : buildRegionClusters(activePlaces, mapZoom), [activePlaces, isCurated, mapZoom]);
@@ -372,10 +387,23 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
 
   useEffect(() => {
     const curationMatchesUrl = !isCurated || activeCuration?.mode === liveHomeState.mode;
-    if (requestedSelectedId && !selectedPlace && curationMatchesUrl) {
+    if (!readFailed && requestedSelectedId && !selectedPlace && curationMatchesUrl) {
       setParams((current) => updateMapSearch(current, { selected: null }), { replace: true });
     }
-  }, [activeCuration?.mode, isCurated, liveHomeState.mode, requestedSelectedId, selectedPlace, setParams]);
+  }, [activeCuration?.mode, isCurated, liveHomeState.mode, readFailed, requestedSelectedId, selectedPlace, setParams]);
+
+  useEffect(() => {
+    if (selectedPlaceId) setMobileBrowseView("map");
+  }, [selectedPlaceId]);
+
+  useEffect(() => {
+    if (mobileBrowseView !== "list") return;
+    const viewport = window.matchMedia("(max-width: 760px)");
+    const restoreDesktop = () => { if (!viewport.matches) setMobileBrowseView("map"); };
+    restoreDesktop();
+    viewport.addEventListener("change", restoreDesktop);
+    return () => viewport.removeEventListener("change", restoreDesktop);
+  }, [mobileBrowseView]);
 
   const loadRecommendations = (
     mode: HomeCurationMode,
@@ -396,7 +424,11 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     void recommendationFetcher.load(requestUrl);
   };
   const setSearch = (change: Parameters<typeof updateMapSearch>[1]) => {
-    setParams((current) => updateMapSearch(current, change), { replace: true });
+    setParams((current) => (isCurated ? updateMapSearch : updatePublicPlaceBrowseSearch)(current, change), { replace: true });
+  };
+  const selectPlace = (id: string) => {
+    setMobileBrowseView("map");
+    setSearch({ selected: id });
   };
   const setBounds = (bbox: [number, number, number, number]) => {
     setSearch({
@@ -419,13 +451,7 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     const result = resolveLocationViewport(coords);
     setLocationBounds(result.bbox);
     setLocationNotice(result.notice);
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      next.set("bbox", result.bbox.map((value) => value.toFixed(5)).join(","));
-      next.set("locationSource", "gps");
-      next.delete("selected");
-      return next;
-    }, { replace: true });
+    setSearch({ bbox: result.bbox.map((value) => value.toFixed(5)).join(","), locationSource: "gps", selected: null });
     if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
   }, () => {
     setLocationNotice("위치 권한을 확인한 뒤 다시 시도해주세요.");
@@ -470,6 +496,9 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
       next.delete("q");
       next.delete("selected");
       next.delete("place");
+      next.delete("page");
+      next.delete("temp");
+      next.delete("badge");
       next.set("mode", "now");
       return next;
     });
@@ -509,11 +538,16 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
       groups={loaderData.groups}
       regionGroups={regionGroups}
       clusterLevel={clusterLevel}
-      query={liveMapState.query}
+      query={readFailed ? loaderData.state.query : liveMapState.query}
       category={loaderData.category}
       counts={loaderData.placeCounts}
-      hasSelectedPlace={Boolean(selectedPlace)}
-      onSelect={(id) => setSearch({ selected: id })}
+      pagination={loaderData.pagination}
+      tempOnly={loaderData.tempOnly}
+      browseSearch={browseSearch}
+      listHref={publicPlaceBrowseHref("list", browseSearch, { selected: selectedPlace?.id })}
+      mobileView={mobileBrowseView}
+      onMobileViewChange={setMobileBrowseView}
+      onSelect={selectPlace}
       onSearch={(q) => setSearch({ q, selected: null })}
       onCategory={(category) => setSearch({ category, selected: null })}
       onLocate={locate}
@@ -530,13 +564,13 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
         clusters={clusters}
         focusCluster={isCurated ? null : focusCluster}
         markerRanks={markerRanks}
-        deferBounds={isCurated}
-        initialBounds={isCurated || params.has("bbox") ? liveMapState.bbox : undefined}
+        deferBounds
+        initialBounds={liveMapState.bbox}
         locationBounds={locationBounds}
         locationNotice={locationNotice}
-        onSelect={(id) => setSearch({ selected: id })}
+        onSelect={selectPlace}
         onBounds={isCurated ? () => undefined : setBounds}
-        onPendingBounds={setPendingBounds}
+        onPendingBounds={isCurated ? setPendingBounds : setBounds}
         onZoom={setMapZoom}
         onClusterSelect={focusRegion}
       />
@@ -553,7 +587,7 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
       >
         {isCurated ? "전체 지도" : "추천 지도"}
       </button>
-      {!isCurated && selectedPlace && !detailSlug && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} onOpenDetail={openDetail} />}
+      {!isCurated && mobileBrowseView === "map" && selectedPlace && !detailSlug && <MapPlaceDetail key={selectedPlace.id} place={selectedPlace} onBack={() => setSearch({ selected: null })} onOpenDetail={openDetail} />}
       {!isCurated && <PlaceDetailSheet slug={detailSlug} onClose={closeDetail} />}
     </section>
   </main>;

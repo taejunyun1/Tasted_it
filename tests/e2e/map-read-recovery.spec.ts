@@ -69,7 +69,8 @@ test("a category transport failure retains results and the requested search cont
 });
 
 test("a browse transport failure keeps the last map without automatically retrying", async ({ page }, testInfo) => {
-  await page.goto("/?qa=1&view=browse&q=라멘&bbox=126.90,35.14,126.93,35.16");
+  await page.goto("/?qa=1&view=browse&q=라멘&bbox=126.90,35.14,126.93,35.16&selected=sample-place-1");
+  await expect(page.getByRole("dialog", { name: /동명 빠른 정보/ })).toBeVisible();
   if (testInfo.project.name === "mobile-chromium") await page.getByRole("button", { name: "목록", exact: true }).click();
   const map = page.getByRole("region", { name: "지도 영역" });
   await expect(page.getByRole("textbox", { name: "장소 검색" })).toBeVisible();
@@ -80,6 +81,10 @@ test("a browse transport failure keeps the last map without automatically retryi
   const error = page.getByRole("status").filter({ hasText: "마지막으로 확인한 결과" });
   await expect(error).toBeVisible();
   await expect(map).toHaveCount(1);
+  const lastResultsLink = page.getByRole("link", { name: "목록에서 보기", exact: true });
+  const lastSearch = new URL(await lastResultsLink.getAttribute("href") ?? "", page.url()).searchParams;
+  expect(lastSearch.get("q")).toBe("라멘");
+  expect(lastSearch.get("selected")).toBe("sample-place-1");
   expect(new URL(page.url()).searchParams.get("q")).toBe("동명동");
   expect(requests).toBe(1);
   await page.unroute("**/_.data?*");

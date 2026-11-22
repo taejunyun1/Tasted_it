@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   getGwangjuOverviewPoint,
+  isMapKeyboardPan,
   mapBoundsDeliveryTarget,
   PlaceMap,
 } from "../../app/components/map/PlaceMap";
@@ -31,8 +32,9 @@ describe("curated place map", () => {
   it("선택 장소 좌표를 광주시 미니맵 비율로 변환한다", () => {
     expect(getGwangjuOverviewPoint({ latitude: 35.15, longitude: 126.92 }))
       .toEqual({ x: 66.7, y: 45.5 });
-    expect(getGwangjuOverviewPoint({ latitude: 34, longitude: 125 }))
-      .toEqual({ x: 6, y: 94 });
+    expect(getGwangjuOverviewPoint({ latitude: 35.95, longitude: 126.71 })).toBeNull();
+    expect(getGwangjuOverviewPoint({ latitude: 34, longitude: 125 })).toBeNull();
+    expect(getGwangjuOverviewPoint({ latitude: 35.03, longitude: 126.72 })).toEqual({ x: 6, y: 94 });
   });
 
   it("큐레이션 QA 지도는 이모지 대신 추천 순번을 표시한다", () => {
@@ -128,5 +130,19 @@ describe("curated place map", () => {
     expect(mapBoundsDeliveryTarget({ deferBounds: true, viewportDirty: false })).toBe("ignore");
     expect(mapBoundsDeliveryTarget({ deferBounds: true, viewportDirty: true })).toBe("pending");
     expect(mapBoundsDeliveryTarget({ deferBounds: false, viewportDirty: false })).toBe("committed");
+  });
+
+  it("지도 내부의 방향 키만 뷰포트 이동으로 처리한다", () => {
+    const key = { key: "ArrowLeft", altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, isComposing: false };
+    const canvas = { insideMap: true, fromControl: false };
+    for (const direction of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+      expect(isMapKeyboardPan({ ...key, key: direction }, canvas)).toBe(true);
+    }
+    expect(isMapKeyboardPan(key, { ...canvas, insideMap: false })).toBe(false);
+    expect(isMapKeyboardPan(key, { ...canvas, fromControl: true })).toBe(false);
+    for (const modifier of ["altKey", "ctrlKey", "metaKey", "shiftKey", "isComposing"]) {
+      expect(isMapKeyboardPan({ ...key, [modifier]: true }, canvas)).toBe(false);
+    }
+    expect(isMapKeyboardPan({ ...key, key: "Tab" }, canvas)).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { loadNaverMaps, toBoundsTuple } from "../../features/maps/naver-map-sdk";
 import {
   getClusterFocusBounds,
@@ -30,6 +30,8 @@ const MUDEUNGSAN_OVERVIEW_ICON_POINT = { x: 95, y: 63 } as const;
 const YEONGSAN_RIVER_OVERVIEW_LINE = "44,3 35,24 22,41 16,62 12,88";
 const MAP_UNAVAILABLE_MESSAGE = "지도를 불러오지 못했습니다. 목록에서 장소를 계속 확인해 주세요.";
 const MAX_MAP_RETRIES = 2;
+const MAP_PAN_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+const MAP_CONTROL_SELECTOR = "a[href], button, input, textarea, select, [role=button], [role=link], [role=slider], [role=spinbutton], [role=combobox], [role=textbox]";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -44,6 +46,8 @@ export function getGwangjuOverviewPoint({ latitude, longitude }: {
   longitude: number;
 }): { x: number; y: number } | null {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (latitude < GWANGJU_OVERVIEW_BOUNDS.south || latitude > GWANGJU_OVERVIEW_BOUNDS.north
+    || longitude < GWANGJU_OVERVIEW_BOUNDS.west || longitude > GWANGJU_OVERVIEW_BOUNDS.east) return null;
   const x = ((longitude - GWANGJU_OVERVIEW_BOUNDS.west) /
     (GWANGJU_OVERVIEW_BOUNDS.east - GWANGJU_OVERVIEW_BOUNDS.west)) * 100;
   const y = ((GWANGJU_OVERVIEW_BOUNDS.north - latitude) /
@@ -95,6 +99,11 @@ export function mapBoundsDeliveryTarget(input: {
 }): "ignore" | "pending" | "committed" {
   if (!input.deferBounds) return "committed";
   return input.viewportDirty ? "pending" : "ignore";
+}
+
+export function isMapKeyboardPan(event: Pick<KeyboardEvent, "key" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey" | "isComposing">, input: { insideMap: boolean; fromControl: boolean }) {
+  return input.insideMap && !input.fromControl && MAP_PAN_KEYS.has(event.key)
+    && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.isComposing;
 }
 
 export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
@@ -180,6 +189,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
       loadingRef.current = false;
       setMapLoading(false);
 
+      viewportDirtyRef.current = false;
       if (initialBoundsRef.current) {
         const [west, south, east, north] = initialBoundsRef.current;
         created.fitBounds(new maps.LatLngBounds(
@@ -190,8 +200,15 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
 
       idleListener = maps.Event.addListener(created, "idle", () => {
         clearTimeout(timer);
+        const delay = deferBoundsRef.current && viewportDirtyRef.current
+          ? Math.max(400, suppressBoundsUntilRef.current - Date.now()) : 400;
         timer = setTimeout(() => {
           if (Date.now() < suppressBoundsUntilRef.current) return;
+          const target = mapBoundsDeliveryTarget({
+            deferBounds: deferBoundsRef.current,
+            viewportDirty: viewportDirtyRef.current,
+          });
+          if (target === "ignore") return;
           const bounds = created.getBounds();
           const southwest = bounds.getSW();
           const northeast = bounds.getNE();
@@ -199,18 +216,13 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
             { lat: southwest.lat(), lng: southwest.lng() },
             { lat: northeast.lat(), lng: northeast.lng() },
           );
-          const target = mapBoundsDeliveryTarget({
-            deferBounds: deferBoundsRef.current,
-            viewportDirty: viewportDirtyRef.current,
-          });
-          if (target === "ignore") return;
           if (target === "pending") {
             viewportDirtyRef.current = false;
             pendingBoundsRef.current(nextBounds);
           } else {
             boundsRef.current(nextBounds);
           }
-        }, 400);
+        }, delay);
       });
       zoomListener = maps.Event.addListener(created, "zoom_changed", () => {
         zoomRef.current(created.getZoom());
@@ -294,6 +306,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     const targetZoom = getClusterFocusZoom(focusCluster.level);
     const position = new window.naver.maps.LatLng(focusCluster.latitude, focusCluster.longitude);
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    viewportDirtyRef.current = false;
     suppressBoundsUntilRef.current = Date.now() + 1_500;
     if (reduceMotion) {
       map.setCenter(position);
@@ -307,6 +320,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   useEffect(() => {
     if (!map || !window.naver?.maps || !locationBounds) return;
     const [west, south, east, north] = locationBounds;
+    viewportDirtyRef.current = false;
     suppressBoundsUntilRef.current = Date.now() + 1_500;
     map.fitBounds(new window.naver.maps.LatLngBounds(
       new window.naver.maps.LatLng(south, west),
@@ -319,6 +333,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     const position = new window.naver.maps.LatLng(selectedLatitude, selectedLongitude);
     const focusZoom = getMarkerFocusZoom(map.getZoom()) ?? map.getZoom();
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    viewportDirtyRef.current = false;
     suppressBoundsUntilRef.current = Date.now() + 1_500;
     if (reduceMotion) {
       map.setCenter(position);
@@ -329,8 +344,17 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
   }, [map, selected, selectedLatitude, selectedLongitude]);
 
   const handleViewportIntent = () => {
+    if (!map && !qaFallback) return;
     viewportDirtyRef.current = true;
     onViewportIntent?.();
+  };
+  const handleMapKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!map || !(target instanceof Element)) return;
+    if (isMapKeyboardPan(event.nativeEvent, {
+      insideMap: target === event.currentTarget || host.current?.contains(target) === true,
+      fromControl: Boolean(target.closest(MAP_CONTROL_SELECTOR)) || (target instanceof HTMLElement && target.isContentEditable),
+    })) handleViewportIntent();
   };
   const retryMap = () => {
     if (loadingRef.current || !error || retryAttempt >= MAX_MAP_RETRIES) return;
@@ -385,7 +409,7 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
     })}
   </div>;
 
-  return <div className="map-canvas" aria-label="장소 지도" aria-busy={mapLoading} data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
+  return <div className="map-canvas" aria-label="장소 지도" aria-busy={mapLoading} data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent} onKeyDownCapture={handleMapKeyDown}>
     <div className="map-canvas__host" ref={host} aria-hidden="true" />
     {(error || locationNotice) && <div className="map-error" role="status" aria-live="polite">
       <span>{error || locationNotice}</span>

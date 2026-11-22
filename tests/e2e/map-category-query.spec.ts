@@ -11,6 +11,7 @@ test("category view switches retain search, bounds and selected place", async ({
     view: "map",
   });
   await page.goto(`/maps/ramen-detail?${query}`);
+  await expect(page.locator("form.search-form")).toHaveAttribute("action", "/maps/ramen-detail");
   const cards = page.locator(".result-panel .place-card");
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toHaveAttribute("data-selected", "true");

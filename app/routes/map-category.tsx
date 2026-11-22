@@ -91,7 +91,7 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
     <main id="main" className="explore-page">
       <header className="explore-head shell">
         <div><p className="eyebrow">CATEGORY / {loaderData.categorySlug.toUpperCase()}</p><h1>{loaderData.places[0]?.primaryCategory.emoji} {loaderData.places[0]?.primaryCategory.name ?? "맛집"} 지도</h1></div>
-        <Form className="search-form"><label htmlFor="q">동네 또는 가게</label><input id="q" name="q" defaultValue={loaderData.state.query} placeholder="동명동, 라멘…" /><input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} /><input type="hidden" name="view" value={loaderData.state.view} />{selected && <input type="hidden" name="selected" value={selected} />}<button>찾기</button></Form>
+        <Form action={`/maps/${encodeURIComponent(loaderData.categorySlug)}`} className="search-form"><label htmlFor="q">동네 또는 가게</label><input key={loaderData.state.query} id="q" name="q" defaultValue={loaderData.state.query} placeholder="동명동, 라멘…" /><input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} /><input type="hidden" name="view" value={loaderData.state.view} />{selected && <input type="hidden" name="selected" value={selected} />}<button>찾기</button></Form>
       </header>
       <nav className="view-tabs shell" aria-label="보기 방식"><Link to={{ search: viewSearch("map") }}>지도</Link><Link to={{ search: viewSearch("list") }}>목록</Link><button type="button" disabled={locating} aria-busy={locating} onClick={locate}>{locating ? "위치 확인 중…" : "내 주변"}</button></nav>
       {locationNotice && <p className="shell" role="status" aria-live="polite">{locationNotice}</p>}

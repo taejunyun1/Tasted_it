@@ -71,3 +71,35 @@ test("invalid and no-longer-available pages retain filters and offer a working f
   await expect(page.locator("#place-search-status")).toContainText("전체 125곳 · 1–100번째 표시");
   expect(new URL(page.url()).searchParams.getAll("badge")).toEqual(["food-ramen", "style-market"]);
 });
+
+test("the selected second-page results stay together in the list and browse map", async ({ page }, info) => {
+  await page.route(/https:\/\/[^/]*(?:naver\.com|naver\.net|pstatic\.net)\//, route => route.abort());
+  const searchParams = new URLSearchParams(search());
+  const selected = `${key}-100`;
+  searchParams.set("page", "2");
+  searchParams.set("selected", selected);
+  const hasSameConditions = (url: URL) => [...new Set(searchParams.keys())].every(name =>
+    JSON.stringify(url.searchParams.getAll(name)) === JSON.stringify(searchParams.getAll(name)));
+  await page.goto(`/places?${searchParams}`);
+  const list = page.locator(".discovery-grid > .place-card");
+  await expect(list).toHaveCount(25);
+  await expect(page.locator(`#place-${selected}`)).toHaveAttribute("data-selected", "true");
+  const names = await list.locator("h3").allTextContents();
+  await page.getByRole("link", { name: "지도에서 보기", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === "/" && url.searchParams.get("view") === "browse" && hasSameConditions(url));
+  await expect(page.getByRole("dialog", { name: `${names[0]} 빠른 정보` })).toBeVisible();
+  const panel = page.getByRole("complementary", { name: "장소 탐색", exact: true });
+  const found = panel.locator(".map-place-summary strong");
+  await expect(found).toHaveCount(25);
+  expect((await found.allTextContents()).sort()).toEqual(names.slice().sort());
+  await expect(panel.locator(".map-result-head strong")).toHaveText("125");
+  if (info.project.name === "mobile-chromium") {
+    await panel.getByRole("button", { name: "목록", exact: true }).click();
+  }
+  await panel.getByRole("link", { name: "목록에서 보기", exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === "/places" && hasSameConditions(url));
+  await expect(page.locator(`#place-${selected}`)).toHaveAttribute("data-selected", "true");
+  await expect(list).toHaveCount(25);
+  await page.reload();
+  await expect(page.locator(`#place-${selected}`)).toHaveAttribute("data-selected", "true");
+});

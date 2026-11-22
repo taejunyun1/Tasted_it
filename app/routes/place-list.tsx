@@ -9,12 +9,12 @@ import { PlaceRecommendationControls } from "../components/places/PlaceRecommend
 import { PlaceSearchError, PlaceSearchForm } from "../components/places/PlaceSearchError";
 import { createDb } from "../db/client.server";
 import { getOptionalUser } from "../features/auth/session.server";
-import { parseMapState } from "../features/maps/map-state";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
 import { getPlaceRecommendationPage } from "../features/places/place-recommendation.server";
 import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
 import { getPublicPlacePage, listPublicCategoryGroups } from "../features/places/place.server";
-import { parsePublicPlacePage, publicPlacePageHref } from "../features/places/public-place-pagination";
+import { publicPlacePageHref } from "../features/places/public-place-pagination";
+import { publicPlaceBrowseHref, readPublicPlaceBrowse } from "../features/places/public-place-browse";
 import { useEffect, useRef, useState } from "react";
 import { publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
 
@@ -23,15 +23,13 @@ export function meta({ loaderData }: Route.MetaArgs) {
   const outOfRange = Boolean(loaderData?.pagination?.outOfRange);
   const search = new URLSearchParams(loaderData?.search ?? "");
   const filtered = ["q", "category", "badge", "bbox", "temp"].some(key => search.getAll(key).some(Boolean));
-  return publicPageMeta({ title: `맛집 리스트${page > 1 ? ` · ${page}페이지` : ""} — Re:Taste`, description: "광주·전남의 장소를 취향과 평가 근거로 찾아보세요.", path: "/places", origin: loaderData?.publicOrigin, noindex: Boolean(loaderData?.tempOnly || filtered || outOfRange), page: outOfRange ? 1 : page });
+  return publicPageMeta({ title: `맛집 리스트${page > 1 ? ` · ${page}페이지` : ""} — Re:Taste`, description: "광주·전남·전북의 장소를 취향과 평가 근거로 찾아보세요.", path: "/places", origin: loaderData?.publicOrigin, noindex: Boolean(loaderData?.tempOnly || filtered || outOfRange), page: outOfRange ? 1 : page });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
-  const state = parseMapState(url.search);
-  const categorySlug = url.searchParams.get("category") || undefined;
-  const tempOnly = url.searchParams.get("temp") === "1";
-  const page = parsePublicPlacePage(url.search);
+  const { state, filters, page } = readPublicPlaceBrowse(url.search);
+  const { categorySlug, tempOnly } = filters;
   if (page === null) throw new Response("검색 페이지 번호를 확인해 주세요.", { status: 400, statusText: "INVALID_PAGE" });
   const [west, south, east, north] = state.bbox;
   const center = { latitude: (south + north) / 2, longitude: (west + east) / 2 };
@@ -43,7 +41,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     : null;
   const selectedBadges = url.searchParams.getAll("badge");
   const [pagination, groups, recommendations] = await Promise.all([
-    getPublicPlacePage(db, { categorySlug, query: state.query, bbox: tempOnly ? undefined : state.bbox, tempOnly }, page),
+    getPublicPlacePage(db, filters, page),
     listPublicCategoryGroups(db),
     getPlaceRecommendationPage(db, {
       userId: user?.id,
@@ -88,13 +86,23 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
     if (recommendationFetcher.data?.ok) setRecommendations(recommendationFetcher.data.recommendations);
   }, [recommendationFetcher.data]);
   const detailPath = safePlaceDetailRequestPath(params.get("place"));
-  const openDetail = (requestPath: string) => {
+  const selected = loaderData.places.find((place) => place.id === loaderData.state.selected)?.id;
+  const openDetail = (requestPath: string, placeId?: string) => {
     const safeRequestPath = safePlaceDetailRequestPath(requestPath);
     if (!safeRequestPath) return;
-    setParams((current) => { const next = new URLSearchParams(current); next.set("place", safeRequestPath); return next; });
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("place", safeRequestPath);
+      if (placeId) next.set("selected", placeId);
+      return next;
+    });
   };
   const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
+  const searchIsFiltered = selectedBadges.length > 0 || ["q", "category", "bbox", "badge", "page", "selected"].some((key) => params.has(key));
+  const resetSearch = new URLSearchParams();
+  if (loaderData.tempOnly) resetSearch.set("temp", "1");
+  if (params.has("qa")) resetSearch.set("qa", "1");
   const recommendationError = recommendationFetcher.data && !recommendationFetcher.data.ok
     ? recommendationFetcher.data.message : null;
   const toggleBadge = (id: string) => {
@@ -113,10 +121,10 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
       <div>
         <p className="eyebrow">PLACES / DISCOVERY</p>
         <h1>좋아하는 맛과<br />낯선 한 끼 사이.</h1>
-        <p>광주·전남의 장소를 취향, 평가 신뢰도, 리뷰어 선택으로 다시 엮었습니다. 임시 정보는 TEMP로 표시합니다.</p>
+        <p>광주·전남·전북의 장소를 취향, 평가 신뢰도, 리뷰어 선택으로 찾아볼 수 있습니다. 임시 정보는 TEMP로 표시합니다.</p>
         <Link to={loaderData.tempOnly ? "/places" : "/places?temp=1"}>{loaderData.tempOnly ? "전체 장소 보기" : "TEMP 100 베타 목록"}</Link>
       </div>
-      <Link className="discovery-map-link" to={`/${loaderData.search}`}>지도에서 보기</Link>
+      <Link className="discovery-map-link" to={publicPlaceBrowseHref("map", loaderData.search, { selected, badges: selectedBadges })}>지도에서 보기</Link>
     </header>
 
     <PlaceRecommendationControls
@@ -141,8 +149,9 @@ export default function PlaceList({ loaderData }: Route.ComponentProps) {
         <p>공식 출처 기반 임시 정보는 TEMP로 구분하며 현재 영업 여부는 확인 중입니다.</p>
       </header>
       <PlaceSearchForm context={{ query: loaderData.state.query, categorySlug: loaderData.category?.slug ?? "", bbox: loaderData.state.bbox, tempOnly: loaderData.tempOnly, badges: selectedBadges }} pending={searchPending} />
+      {searchIsFiltered && <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlaceBrowseHref("list", resetSearch.toString())}#all-places`}>검색 조건 초기화</Link>}
       <p id="place-search-status" className="discovery-count" role="status" aria-live="polite" aria-atomic="true">{searchPending ? "장소를 찾고 있어요. 검색이 끝날 때까지 기존 결과를 표시합니다." : `전체 ${loaderData.pagination.total}곳${loaderData.pagination.start ? ` · ${loaderData.pagination.start}–${loaderData.pagination.end}번째 표시` : ""} · ${categoryName}`}</p>
-      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
+      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} selected={selected === place.id} onOpenDetail={(path) => openDetail(path, place.id)} />)}</div>
       {!loaderData.places.length && (loaderData.pagination.outOfRange
         ? <p className="discovery-empty">이 페이지에 표시할 장소가 없습니다. <Link className="underline!" to={`${publicPlacePageHref(loaderData.search, 1)}#all-places`}>같은 조건의 첫 페이지로 돌아가기</Link></p>
         : <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>)}
