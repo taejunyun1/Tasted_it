@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 import { isControlledLocalBaseUrl } from "./local-test-target";
 
@@ -180,4 +181,96 @@ test("category map pins and list cards retain the current category and filters",
   await expect(card).toBeFocused();
   await expect(page).toHaveURL((url) => url.pathname === opening.pathname && url.searchParams.get("view") === "list"
     && !url.searchParams.has("place") && ["q", "bbox", "selected"].every((key) => url.searchParams.get(key) === opening.searchParams.get(key)));
+});
+
+test("the category map and list show the same second page and recover invalid or changed filters", async ({ page, context, baseURL }, testInfo) => {
+  const fixture = `category-page-${crypto.randomUUID().slice(0, 8)}`;
+  const names = Array.from({ length: 125 }, (_, index) => String(index).padStart(3, "0"));
+  const ids = names.map((name) => `${fixture}-${name}`);
+  const localSql = (command: string) => execFileSync(process.execPath, [
+    "node_modules/wrangler/bin/wrangler.js", "d1", "execute", "DB",
+    "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", command,
+  ], { stdio: "pipe" });
+  const bbox = "126.8,35.1,127,35.2";
+  const path = "/maps/ramen-detail";
+  const filters = new URLSearchParams({ q: fixture, bbox, view: "map" });
+  try {
+    const rows = ids.map((id, index) => `('${id}','${id}','합성 라멘 ${names[index]}','PUBLISHED','광주광역시 합성 주소','합성',35.15,126.9,'${fixture}','2026-11-22','2026-11-22')`);
+    localSql(`INSERT INTO places(id,slug,name,status,address,neighborhood,latitude,longitude,search_text,created_at,updated_at) VALUES ${rows.join(",")};
+      INSERT INTO place_categories(place_id,category_id,is_primary) VALUES ${ids.map((id) => `('${id}','cat-ramen',1)`).join(",")};`);
+    await blockNaverRequests(page);
+    await installReadyMap(page);
+    await page.goto(`${path}?${filters}`);
+    const tabs = page.getByRole("navigation", { name: "보기 방식" });
+    const pagination = page.getByRole("navigation", { name: "장소 목록 페이지" });
+    const pins = page.locator(".map-panel .map-pin");
+    const cards = page.locator(".result-panel .place-card");
+    const secondPageIds = ids.slice(100);
+    await expect(pins).toHaveCount(100);
+    const list = tabs.getByRole("link", { name: "목록", exact: true });
+    const map = tabs.getByRole("link", { name: "지도", exact: true });
+    const isNextMapPage = (url: URL) => url.pathname === `${path}.data`
+      && url.searchParams.get("view") === "map" && url.searchParams.get("page") === "2";
+    let releasePage = () => {};
+    const holdPage = new Promise<void>((release) => { releasePage = release; });
+    await page.route(isNextMapPage, async (route) => {
+      await holdPage;
+      await route.continue().catch(() => {});
+    }, { times: 1 });
+    try {
+      const pendingPage = page.waitForRequest((request) => isNextMapPage(new URL(request.url())));
+      await pagination.getByRole("link", { name: "다음 페이지" }).click();
+      await pendingPage;
+      await list.click();
+      await expect(page).toHaveURL((url) => url.searchParams.get("view") === "list" && url.searchParams.get("page") === "2");
+    } finally {
+      releasePage();
+    }
+    await expect(page.getByRole("status").filter({ hasText: "125 PLACES" })).toContainText("101–125번째 표시");
+    await expect.poll(() => cards.evaluateAll((nodes) => nodes.map((node) => node.id.slice("place-".length)))).toEqual(secondPageIds);
+    await page.screenshot({ path: testInfo.outputPath("category-page-two-list.png"), fullPage: true });
+
+    await map.click();
+    await expect(page).toHaveURL((url) => url.searchParams.get("view") === "map" && url.searchParams.get("page") === "2");
+    await expect.poll(() => pins.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-place-id")))).toEqual(secondPageIds);
+    await page.screenshot({ path: testInfo.outputPath("category-page-two-map.png"), fullPage: true });
+
+    await list.click();
+    await expect(page).toHaveURL((url) => url.pathname === path && url.searchParams.get("view") === "list"
+      && url.searchParams.get("page") === "2" && url.searchParams.get("q") === fixture && url.searchParams.get("bbox") === bbox);
+    await expect.poll(() => cards.evaluateAll((nodes) => nodes.map((node) => node.id.slice("place-".length)))).toEqual(secondPageIds);
+    await cards.first().getByRole("link").click();
+    await expect(page.getByRole("heading", { name: "합성 라멘 100", exact: true })).toBeVisible();
+    if (testInfo.project.name === "mobile-chromium") expect(new URL(page.url()).searchParams.get("page")).toBe("2");
+    await page.goBack();
+    await expect(page).toHaveURL((url) => url.pathname === path && url.searchParams.get("page") === "2" && !url.searchParams.has("place"));
+
+    await context.grantPermissions(["geolocation"], { origin: new URL(baseURL!).origin });
+    await context.setGeolocation({ latitude: 35.15, longitude: 126.9 });
+    await tabs.getByRole("button", { name: "내 주변" }).click();
+    await expect(page).toHaveURL((url) => !url.searchParams.has("page") && url.searchParams.get("bbox") === "126.87500,35.13200,126.92500,35.16800");
+    await expect(cards).toHaveCount(100);
+
+    const listFilters = new URLSearchParams({ q: fixture, bbox, view: "list" });
+    const firstPage = page.getByRole("link", { name: "같은 조건의 첫 페이지로 돌아가기" });
+    const invalid = await page.goto(`${path}?${listFilters}&page=1&page=2`);
+    expect(invalid?.status()).toBe(400);
+    await firstPage.click();
+    await expect(page).toHaveURL(`${path}?${listFilters}`);
+    await expect(cards).toHaveCount(100);
+    await page.goto(`${path}?${listFilters}&page=3`);
+    await expect(cards).toHaveCount(0);
+    await expect(firstPage).toBeVisible();
+    await firstPage.click();
+    await expect(cards).toHaveCount(100);
+
+    await pagination.getByRole("link", { name: "다음 페이지" }).click();
+    await page.getByLabel("동네 또는 가게").fill(`${fixture}-없는검색`);
+    await page.getByRole("button", { name: "찾기", exact: true }).click();
+    await expect(page.locator(".result-count")).toHaveText("0 PLACES");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("라멘 지도");
+    expect(new URL(page.url()).searchParams.has("page")).toBe(false);
+  } finally {
+    localSql(`DELETE FROM places WHERE substr(id,1,${fixture.length})='${fixture}';`);
+  }
 });
