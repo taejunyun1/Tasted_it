@@ -16,6 +16,9 @@ export type HomeCurationPresentationProps = {
   error: string | null;
   onModeChange: (mode: HomeCurationMode) => void;
   onSelect: (placeId: string) => void;
+  locating?: boolean;
+  locationBlocked?: boolean;
+  locationNotice?: string | null;
   onLocate: () => void;
   onRetry: () => void;
 };

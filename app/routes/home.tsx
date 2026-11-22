@@ -4,6 +4,7 @@ import {
   isRouteErrorResponse,
   useFetcher,
   useLocation,
+  useNavigation,
   useSearchParams,
   type ShouldRevalidateFunction,
 } from "react-router";
@@ -29,7 +30,7 @@ import {
   type HomeLocationSource,
   type HomeMapView,
 } from "../features/maps/home-curation-options";
-import { resolveLocationViewport } from "../features/maps/location-policy";
+import { useMapLocationRequest } from "../features/maps/use-map-location-request";
 import { parseMapState } from "../features/maps/map-state";
 import { findSelectedPlace, updateMapSearch } from "../features/maps/map-selection";
 import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
@@ -266,7 +267,12 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
   const [mapZoom, setMapZoom] = useState(12);
   const [focusCluster, setFocusCluster] = useState<RegionCluster | null>(null);
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
-  const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const location = useLocation();
+  const pendingLocation = useNavigation().location;
+  const locationRequest = useMapLocationRequest(
+    `${location.key}:${pendingLocation?.key ?? ""}:${mobileBrowseView}`,
+    "위치 권한을 확인한 뒤 다시 시도해주세요.",
+  );
   const [pendingBounds, setPendingBounds] = useState<[number, number, number, number] | null>(null);
   const requestSequenceRef = useRef(0);
   const pendingRequestKeyRef = useRef<string | null>(null);
@@ -449,15 +455,15 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     }
     loadRecommendations(mode, liveMapState.bbox, liveHomeState.locationSource);
   };
-  const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
-    const result = resolveLocationViewport(coords);
-    setLocationBounds(result.bbox);
-    setLocationNotice(result.notice);
-    setSearch({ bbox: result.bbox.map((value) => value.toFixed(5)).join(","), locationSource: "gps", selected: null });
-    if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
-  }, () => {
-    setLocationNotice("위치 권한을 확인한 뒤 다시 시도해주세요.");
-  }, { enableHighAccuracy: true, timeout: 8_000 });
+  const locate = () => {
+    if (pendingLocation) return;
+    locationRequest.locate((result) => {
+      setLocationBounds(result.bbox);
+      setSearch({ bbox: result.bbox.map((value) => value.toFixed(5)).join(","), locationSource: "gps", selected: null });
+      if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
+      return result.notice ?? "현재 위치 주변으로 지도를 이동했습니다.";
+    });
+  };
   const recommendPendingArea = () => {
     if (!pendingBounds) return;
     setParams((current) => {
@@ -531,6 +537,9 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
     error: recommendationError,
     onModeChange: setMode,
     onSelect: (id: string) => setSearch({ selected: id }),
+    locating: locationRequest.locating,
+    locationBlocked: Boolean(pendingLocation),
+    locationNotice: locationRequest.notice,
     onLocate: locate,
     onRetry: () => loadRecommendations(liveHomeState.mode, liveMapState.bbox, liveHomeState.locationSource),
   } : null;
@@ -555,8 +564,10 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
       onSelect={selectPlace}
       onSearch={(q) => setSearch({ q, selected: null })}
       onCategory={(category) => setSearch({ category, selected: null })}
+      locating={locationRequest.locating}
+      locationBlocked={Boolean(pendingLocation)}
       onLocate={locate}
-      onExpandBounds={(bounds) => { setLocationBounds(bounds); setBounds(bounds); }}
+      onExpandBounds={(bounds) => { locationRequest.clearLocation(); setLocationBounds(bounds); setBounds(bounds); }}
       onGroupSelect={focusRegion}
     />}
     <section className="map-explorer-map" aria-label="지도 영역">
@@ -572,7 +583,8 @@ function HomeView({ loaderData, readFailed, viewerKey, onViewerChange }: { loade
         deferBounds
         initialBounds={liveMapState.bbox}
         locationBounds={locationBounds}
-        locationNotice={locationNotice}
+        locationNotice={isCurated ? null : locationRequest.notice}
+        onViewportIntent={locationRequest.clearLocation}
         onSelect={selectPlace}
         onBounds={isCurated ? () => undefined : setBounds}
         onPendingBounds={isCurated ? setPendingBounds : setBounds}

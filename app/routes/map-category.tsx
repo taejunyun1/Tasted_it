@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import { Form, isRouteErrorResponse, Link, useLocation, useNavigation, useSearchParams } from "react-router";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import type { Route } from "./+types/map-category";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
-import { resolveLocationViewport } from "../features/maps/location-policy";
+import { useMapLocationRequest } from "../features/maps/use-map-location-request";
 import { getPublicPlaceCounts, getPublicPlacePage } from "../features/places/place.server";
 import { parsePublicPlacePage } from "../features/places/public-place-pagination";
 import { PlaceMap } from "../components/map/PlaceMap";
@@ -86,12 +86,8 @@ function CategoryMapView({ loaderData, detailOpener }: {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const pendingLocation = useNavigation().location;
-  const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const { locating, notice: locationNotice, clearLocation, locate: requestLocation } = useMapLocationRequest(`${location.key}:${pendingLocation?.key ?? ""}`);
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
-  const [locating, setLocating] = useState(false);
-  const locationRequest = useRef(0);
-  const locatingRef = useRef(false);
-  useEffect(() => () => { locationRequest.current += 1; }, []);
   const setState = (key: string, value: string) => setParams((current) => { current.set(key, value); return current; }, { replace: true });
   const setBounds = (bbox: [number, number, number, number]) => setParams((current) => {
     const next = new URLSearchParams(current);
@@ -145,34 +141,14 @@ function CategoryMapView({ loaderData, detailOpener }: {
     document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" });
   };
   const locate = () => {
-    if (locatingRef.current) return;
-    if (typeof navigator.geolocation?.getCurrentPosition !== "function") {
-      setLocationNotice("이 브라우저는 현재 위치를 지원하지 않습니다. 지도를 직접 움직이거나 장소를 검색해 주세요.");
-      return;
-    }
-    const requestId = ++locationRequest.current;
-    locatingRef.current = true;
-    setLocating(true);
-    setLocationNotice("현재 위치를 확인하고 있습니다.");
-    const finish = () => { locatingRef.current = false; setLocating(false); };
-    navigator.geolocation.getCurrentPosition(({ coords }) => {
-      if (requestId !== locationRequest.current) return;
-      finish();
-      const result = resolveLocationViewport(coords);
+    if (pendingLocation) return;
+    requestLocation((result) => {
       setLocationBounds(result.bbox);
-      setLocationNotice(result.notice
-        ? `${result.notice} 광주 기본 지도로 이동했습니다.`
-        : "현재 위치 주변으로 지도를 이동했습니다.");
       void setBounds(result.bbox);
-    }, (error) => {
-      if (requestId !== locationRequest.current) return;
-      finish();
-      setLocationNotice(error.code === 1
-        ? "위치 권한이 꺼져 있습니다. 브라우저 설정에서 허용하거나 장소를 검색해 주세요."
-        : error.code === 3
-          ? "현재 위치 확인 시간이 초과됐습니다. 다시 시도하거나 장소를 검색해 주세요."
-          : "현재 위치를 확인할 수 없습니다. 다시 시도하거나 지도를 직접 움직여 주세요.");
-    }, { enableHighAccuracy: true, timeout: 8_000 });
+      return result.notice
+        ? `${result.notice} 광주 기본 지도로 이동했습니다.`
+        : "현재 위치 주변으로 지도를 이동했습니다.";
+    });
   };
   return (
     <main id="main" className="explore-page">
@@ -180,7 +156,7 @@ function CategoryMapView({ loaderData, detailOpener }: {
         <div><p className="eyebrow">CATEGORY / {loaderData.categorySlug.toUpperCase()}</p><h1>{category?.emoji} {category?.name ?? "맛집"} 지도</h1></div>
         <Form action={`/maps/${encodeURIComponent(loaderData.categorySlug)}`} className="search-form"><label htmlFor="q">동네 또는 가게</label><input key={loaderData.state.query} id="q" name="q" defaultValue={loaderData.state.query} placeholder="동명동, 라멘…" /><input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} /><input type="hidden" name="view" value={loaderData.state.view} />{selected && <input type="hidden" name="selected" value={selected} />}<button>찾기</button></Form>
       </header>
-      <nav className="view-tabs shell" aria-label="보기 방식"><Link to={{ search: viewSearch("map") }}>지도</Link><Link to={{ search: viewSearch("list") }}>목록</Link><button type="button" disabled={locating} aria-busy={locating} onClick={locate}>{locating ? "위치 확인 중…" : "내 주변"}</button></nav>
+      <nav className="view-tabs shell" aria-label="보기 방식"><Link to={{ search: viewSearch("map") }}>지도</Link><Link to={{ search: viewSearch("list") }}>목록</Link><button type="button" disabled={locating || Boolean(pendingLocation)} aria-busy={locating} onClick={locate}>{locating ? "위치 확인 중…" : "내 주변"}</button></nav>
       {locationNotice && <p className="shell" role="status" aria-live="polite">{locationNotice}</p>}
       <div className="shell mb-3 flex flex-wrap items-center gap-x-4">
         <p role="status" aria-live="polite" aria-atomic="true"><span className="result-count">{total} PLACES</span>{totalPages > 1 && start > 0 && ` · ${start}–${end}번째 표시`}</p>
@@ -193,11 +169,11 @@ function CategoryMapView({ loaderData, detailOpener }: {
       </div>
       <div className="explore-split" data-view={loaderData.state.view}>
         <section className="map-panel" aria-label="지도 보기">
-          <PlaceMap places={places} selected={selected} clientId={loaderData.clientId} deferBounds initialBounds={loaderData.state.bbox} locationBounds={locationBounds} onViewportIntent={() => setLocationNotice(null)} onSelect={selectPin} onBounds={setBounds} onPendingBounds={setBounds} />
+          <PlaceMap places={places} selected={selected} clientId={loaderData.clientId} deferBounds initialBounds={loaderData.state.bbox} locationBounds={locationBounds} onViewportIntent={clearLocation} onSelect={selectPin} onBounds={setBounds} onPendingBounds={setBounds} />
         </section>
         <section className="result-panel" aria-label="장소 목록">
           {places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} onOpenDetail={(path, opener) => openDetail(place.id, path, opener)} />)}
-          {!places.length && !outOfRange && <div className="empty" role="status"><p>이 범위에서 조건에 맞는 장소를 찾지 못했어요.</p>{outsideBounds && <button type="button" className="mt-3 min-h-[var(--control-height)] border border-current px-4" onClick={() => { setLocationBounds(outsideBounds); setLocationNotice(null); void setBounds(outsideBounds); }}>전체 결과 {outsideResults.overallCount}곳 보기</button>}</div>}
+          {!places.length && !outOfRange && <div className="empty" role="status"><p>이 범위에서 조건에 맞는 장소를 찾지 못했어요.</p>{outsideBounds && <button type="button" className="mt-3 min-h-[var(--control-height)] border border-current px-4" onClick={() => { clearLocation(); setLocationBounds(outsideBounds); void setBounds(outsideBounds); }}>전체 결과 {outsideResults.overallCount}곳 보기</button>}</div>}
         </section>
       </div>
       <PlaceDetailSheet detailPath={detailPath} opener={currentOpener?.element ?? null} replacementOpener={currentOpener?.replacement} fallbackFocus="#q" onClose={closeDetail} />
