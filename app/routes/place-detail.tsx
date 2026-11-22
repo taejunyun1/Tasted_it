@@ -9,11 +9,13 @@ import { formatPublicRatingSummary } from "../features/places/place-discovery";
 import { PublicRatingMeta } from "../components/ratings/PublicRatingMeta";
 import { FlavorMeter } from "../components/ratings/FlavorMeter";
 import { PlaceInformation } from "../components/places/PlaceInformation";
+import { PlaceCorrectionLink, PlaceRatingBadges, PlaceReviewPhotos } from "../components/places/PlacePublicEvidence";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
 import { castVote, getCurrentVoteState, withdrawVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
+import { readPlaceMutationBrowseReturn } from "../features/auth/place-detail-return";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
 import { refreshInferredTasteSignals } from "../features/members/taste-learning.server";
@@ -123,7 +125,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export async function action({ request, params }: Route.ActionArgs) {
   if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
-  const user = await requireUser(request);
+  const user = await requireUser(request).catch(async (error: unknown) => {
+    if (error instanceof Response && error.status === 302 && error.headers.get("Location")?.startsWith("/login?returnTo=")) {
+      const continuation = await readPlaceMutationBrowseReturn(request, params.placeSlug);
+      if (continuation) throw redirect(`/login?returnTo=${encodeURIComponent(continuation)}`);
+    }
+    throw error;
+  });
   const parsed = actionSchema.safeParse(Object.fromEntries(await request.formData()));
   if (!parsed.success) throw new Response("Invalid reaction", { status: 400, statusText: "INVALID_REACTION" });
   const db = createDb(env.DB);
@@ -203,7 +211,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
     : publicPageMeta({ title: "장소 상세 — Re:Taste", description: "광주·전남 맛 지도", path: "/places", noindex: true });
 }
 
-export default function PlaceDetail({ loaderData, actionData }: Route.ComponentProps) {
+export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
   if ("detailError" in loaderData) {
     const unavailable = loaderData.status === 404 || loaderData.status === 403;
     return <main id="main" className="error-page">
@@ -215,8 +223,6 @@ export default function PlaceDetail({ loaderData, actionData }: Route.ComponentP
     </main>;
   }
   const { place, rating, flavorPrint, reviewPhotos } = loaderData;
-  const mutationFailed = actionData && typeof actionData === "object" && "ok" in actionData && actionData.ok === false;
-  const mutationUnknown = Boolean(mutationFailed && "resultUnknown" in actionData && actionData.resultUnknown);
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
@@ -226,22 +232,15 @@ export default function PlaceDetail({ loaderData, actionData }: Route.ComponentP
         <article className="detail-copy">
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
           {place.tempCatalog && <TempCatalogNotice info={place.tempCatalog} />}
-          {loaderData.hasGoldenPick && <span className="rating-badge">GOLDEN PICK · 90일</span>}
-          {loaderData.hiddenGem.eligible && <span className="rating-badge rating-badge-hidden">HIDDEN GEM · 노출 대비 높은 평가</span>}
+          <PlaceRatingBadges goldenPick={loaderData.hasGoldenPick} hiddenGem={loaderData.hiddenGem.eligible} />
           <div className="score"><div><strong>{rating.overallScore !== null ? `${rating.overallScore}%` : rating.overallSampleCount < 8 ? `${rating.overallSampleCount}/8` : `${rating.overallSampleCount}명`}</strong><p className="public-rating-summary">{formatPublicRatingSummary(place)}</p></div><PublicRatingMeta place={place} /></div>
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{formatRatingGroup(rating.userScore, rating.userSampleCount)}</strong></div><div><span>리뷰어</span><strong>{formatRatingGroup(rating.reviewerScore, rating.reviewerSampleCount)}</strong></div><small>{reviewerWeightExplanation(rating.userSampleCount)}</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <PlaceInformation place={place} />
-          {mutationFailed && <div role="alert"><p>{mutationUnknown ? "처리 결과를 확인하지 못했어요. 다시 반응하기 전에 현재 상태를 확인해 주세요." : "요청을 처리하지 못했어요. 현재 상태를 확인한 뒤 다시 시도해 주세요."}</p><button type="button" onClick={() => window.location.reload()}>현재 상태 다시 확인</button></div>}
-          <fieldset disabled={mutationUnknown} className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>
-          <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
+          <fieldset className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl key={place.id} placeId={place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>
+          <PlaceCorrectionLink placeId={place.id} />
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
-          {reviewPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="review-photo-gallery-title">
-            <div><p className="eyebrow">REVIEWER / PHOTO</p><h2 id="review-photo-gallery-title">리뷰어가 남긴 사진</h2></div>
-            <div>
-              {reviewPhotos.map((photo) => <img key={photo.id} src={photo.url} alt={`${place.name} 리뷰 사진`} loading="lazy" />)}
-            </div>
-          </section>}
+          <PlaceReviewPhotos placeName={place.name} photos={reviewPhotos} />
         </article>
       </div>
     </main>

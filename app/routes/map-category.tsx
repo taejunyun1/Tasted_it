@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { Form, Link, useSearchParams } from "react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Route } from "./+types/map-category";
 import { createDb } from "../db/client.server";
 import { parseMapState } from "../features/maps/map-state";
@@ -37,21 +37,27 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return { places, counts, state, categorySlug: params.categorySlug, categoryName: category?.name ?? null, clientId, publicOrigin: resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL) };
 }
 
+type DetailOpener = { element: HTMLElement; requestPath: string; replacement?: string };
+
 export default function CategoryMap({ loaderData }: Route.ComponentProps) {
   const viewer = useMapViewerKey();
+  // The first guest save can replace the viewer's map while the same detail stays open.
+  const detailOpener = useRef<DetailOpener | null>(null);
   return <MapReadBoundary<Awaited<ReturnType<typeof loader>>> incoming={loaderData} scope={`category:${viewer ?? "guest"}`}>
-    {(data) => <CategoryMapView key={viewer ?? "guest"} loaderData={data} />}
+    {(data) => <CategoryMapView key={viewer ?? "guest"} loaderData={data} detailOpener={detailOpener} />}
   </MapReadBoundary>;
 }
 
-function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof loader>> }) {
+function CategoryMapView({ loaderData, detailOpener }: {
+  loaderData: Awaited<ReturnType<typeof loader>>;
+  detailOpener: RefObject<DetailOpener | null>;
+}) {
   const [params, setParams] = useSearchParams();
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
   const [locating, setLocating] = useState(false);
   const locationRequest = useRef(0);
   const locatingRef = useRef(false);
-  const detailOpener = useRef<HTMLElement>(null);
   useEffect(() => () => { locationRequest.current += 1; }, []);
   const setState = (key: string, value: string) => setParams((current) => { current.set(key, value); return current; }, { replace: true });
   const viewSearch = (view: "map" | "list") => {
@@ -61,10 +67,13 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
   };
   const selected = loaderData.state.selected;
   const detailPath = safePlaceDetailSearchPath(params.get("place"));
-  const openerPlaceId = detailOpener.current?.dataset.placeId;
-  const replacementOpener = openerPlaceId ? `.map-panel button.map-pin[data-place-id="${CSS.escape(openerPlaceId)}"]` : undefined;
+  const currentOpener = detailOpener.current?.requestPath === detailPath ? detailOpener.current : null;
   const openDetail = (id: string, path: string, opener: HTMLElement) => {
-    detailOpener.current = opener;
+    const placeId = CSS.escape(id);
+    const replacement = opener.matches("button.map-pin")
+      ? `.map-panel button.map-pin[data-place-id="${placeId}"]`
+      : `.result-panel #place-${placeId} > a`;
+    detailOpener.current = { element: opener, requestPath: path, replacement };
     setParams((current) => {
       const next = new URLSearchParams(current);
       next.set("selected", id);
@@ -138,7 +147,7 @@ function CategoryMapView({ loaderData }: { loaderData: Awaited<ReturnType<typeof
           {!loaderData.places.length && <div className="empty" role="status"><p>이 범위에서 조건에 맞는 장소를 찾지 못했어요.</p>{loaderData.counts.overallBounds && <button type="button" className="mt-3 min-h-[var(--control-height)] border border-current px-4" onClick={() => { const bounds = loaderData.counts.overallBounds!; setLocationBounds(bounds); setLocationNotice(null); setState("bbox", bounds.join(",")); }}>전체 결과 {loaderData.counts.overallCount}곳 보기</button>}</div>}
         </section>
       </div>
-      <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} replacementOpener={replacementOpener} fallbackFocus="#q" onClose={closeDetail} />
+      <PlaceDetailSheet detailPath={detailPath} opener={currentOpener?.element ?? null} replacementOpener={currentOpener?.replacement} fallbackFocus="#q" onClose={closeDetail} />
     </main>
   );
 }
