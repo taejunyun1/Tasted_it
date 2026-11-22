@@ -147,7 +147,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const [page, counts, naverRegionUsage, categoryRows, suggestions] = await Promise.all([
     listPlaceReviewWorkItems(db, query),
     getPlaceReviewStageCounts(db),
-    listNaverRegionDailyUsage(db, now),
+    listNaverRegionDailyUsage(db, now).catch(() => null),
     db.select({ id: categories.id, name: categories.name, parentId: categories.parentId }).from(categories).where(eq(categories.isActive, true)),
     query.step === 1 ? listReviewablePlaceSuggestions(db, Number(url.searchParams.get("suggestionPage")))
       : Promise.resolve({ rows: [], pagination: { page: 1, pageSize: 25, total: 0, totalPages: 1 } }),
