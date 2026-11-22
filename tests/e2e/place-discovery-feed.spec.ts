@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { isControlledLocalBaseUrl } from "./local-test-target";
 
 function localD1(sql: string) {
-  const output = execFileSync("pnpm", ["exec", "wrangler", "d1", "execute", "DB", "--local", "--command", sql, "--json"], {
+  const output = execFileSync(process.execPath, ["node_modules/wrangler/bin/wrangler.js", "d1", "execute", "DB",
+    "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", sql, "--json"], {
     cwd: process.cwd(),
     encoding: "utf8",
   });
@@ -93,12 +95,12 @@ test("a card without enough votes shows the public sample status", async ({ page
   await expect(card.getByText(/추천 \d+%/)).toHaveCount(0);
 });
 
-test("mobile recommendation card preserves provenance through sheet detail and save events", async ({ context, page }, testInfo) => {
+test("mobile recommendation card preserves provenance through sheet detail and save events", async ({ context, page, baseURL }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium");
-  test.skip(Boolean(process.env.BASE_URL), "Persisted event assertions require the isolated local D1 test database.");
+  test.skip(!isControlledLocalBaseUrl(), "Persisted event assertions require the isolated local D1 test database.");
   const member = createEventTestMember("e2e-recommendation");
   try {
-    await context.addCookies([{ name: "retaste_session", value: member.sessionId, url: "http://127.0.0.1:5173" }]);
+    await context.addCookies([{ name: "retaste_session", value: member.sessionId, url: baseURL! }]);
     await page.goto("/places?bbox=126.80,35.10,127.00,35.25");
 
     const rail = page.locator("section[data-kind=personal]");
@@ -108,7 +110,7 @@ test("mobile recommendation card preserves provenance through sheet detail and s
 
     const detailPath = new URL(page.url()).searchParams.get("place");
     expect(detailPath).toMatch(/^\/places\/[^?]+\?sourceRail=PERSONAL&discoveryMode=(?:FAMILIAR|ADJACENT|EXPLORATION|ONBOARDING)&recommendationRequestId=[0-9a-f-]{36}$/i);
-    const provenance = new URL(detailPath!, "http://127.0.0.1:5173").searchParams;
+    const provenance = new URL(detailPath!, baseURL).searchParams;
     const metadataJson = JSON.stringify({ sourceRail: provenance.get("sourceRail"), discoveryMode: provenance.get("discoveryMode") });
     await expect(sheet.locator("form")).toHaveAttribute("action", detailPath!);
     const postPromise = page.waitForRequest((request) => request.method() === "POST" && new URL(request.url()).pathname.startsWith("/places/"));
@@ -126,12 +128,12 @@ test("mobile recommendation card preserves provenance through sheet detail and s
   }
 });
 
-test("mobile direct list and map details stay queryless and emit no recommendation events", async ({ context, page }, testInfo) => {
+test("mobile direct list and map details stay queryless and emit no recommendation events", async ({ context, page, baseURL }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium");
-  test.skip(Boolean(process.env.BASE_URL), "Persisted event assertions require the isolated local D1 test database.");
+  test.skip(!isControlledLocalBaseUrl(), "Persisted event assertions require the isolated local D1 test database.");
   const member = createEventTestMember("e2e-direct");
   try {
-    await context.addCookies([{ name: "retaste_session", value: member.sessionId, url: "http://127.0.0.1:5173" }]);
+    await context.addCookies([{ name: "retaste_session", value: member.sessionId, url: baseURL! }]);
 
     await page.goto("/places?bbox=126.80,35.10,127.00,35.25");
     await page.locator("section.discovery-all").getByRole("link", { name: /상세 보기$/ }).first().click();
@@ -161,20 +163,21 @@ test("mobile direct list and map details stay queryless and emit no recommendati
   }
 });
 
-test("mobile guest login keeps the exact validated recommendation return path", async ({ context, page }, testInfo) => {
+test("mobile guest login keeps the exact list and nested recommendation return path", async ({ context, page, baseURL }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium");
-  test.skip(Boolean(process.env.BASE_URL), "The isolated completed-guest fixture requires the local D1 test database.");
+  test.skip(!isControlledLocalBaseUrl(), "The isolated completed-guest fixture requires the local D1 test database.");
   const guestId = createCompletedGuest();
   try {
-    await context.addCookies([{ name: "retaste_guest", value: guestId, url: "http://127.0.0.1:5173" }]);
+    await context.addCookies([{ name: "retaste_guest", value: guestId, url: baseURL! }]);
     await page.goto("/places?bbox=126.80,35.10,127.00,35.25");
     await page.locator("section[data-kind=personal]").getByRole("link", { name: /상세 보기$/ }).first().click();
     await expect(page.getByRole("dialog", { name: /상세 정보$/ })).toBeVisible();
 
-    const detailPath = new URL(page.url()).searchParams.get("place");
+    const browsing = new URL(page.url());
+    const detailPath = browsing.searchParams.get("place");
     expect(detailPath).toMatch(/recommendationRequestId=/);
     await expect(page.getByRole("link", { name: "로그인하고 맛집지도에 추가" }))
-      .toHaveAttribute("href", `/login?returnTo=${encodeURIComponent(detailPath!)}`);
+      .toHaveAttribute("href", `/login?returnTo=${encodeURIComponent(`${browsing.pathname}${browsing.search}`)}`);
   } finally {
     deleteCompletedGuest(guestId);
   }
