@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { businessLicenses, categories, placeReviewWorkItems, placeRevisions, places } from "../../app/db/schema";
+import { businessLicenses, categories, placeCorrectionRequests, placeReviewWorkItems, placeRevisions, places } from "../../app/db/schema";
 import { prepareAdminOperation } from "../../app/features/operations/admin-operation.server";
 import { confirmLocalDiningReview } from "../../app/features/places/local-dining-review.server";
 import { commitPlaceAdminOperation, getPlaceAdminOperation, preparePlaceAdminOperation } from "../../app/features/places/place-admin.server";
@@ -47,6 +47,17 @@ async function place(status: "PUBLISHED" | "HIDDEN" = "PUBLISHED") {
   await db.insert(places).values({ id, slug: id, name, status, address: "광주광역시 동구 동명로 10 (동명동)",
     neighborhood: "동명동", latitude: 35.15, longitude: 126.92, searchText: name, createdAt: now, updatedAt: now });
   return id;
+}
+
+async function closureRequest(placeId: string, options: { verified?: boolean; type?: "CLOSED" | "RIGHTS" } = {}) {
+  const requestId = crypto.randomUUID();
+  await db.insert(placeCorrectionRequests).values({
+    id: requestId, placeId, requesterEmail: "correction-requester@example.test", requesterRelation: "방문자",
+    requestType: options.type ?? "CLOSED", status: options.verified === false ? "PENDING_VERIFICATION" : "SUBMITTED",
+    verifiedAt: options.verified === false ? null : now, requestedChangesJson: '{"status":"HIDDEN"}',
+    evidenceNote: "합성 폐업 확인 근거", createdAt: now, updatedAt: now,
+  });
+  return { requestId, expectedUpdatedAt: now };
 }
 
 async function publication(actorUserId: string, kind: "PLACE" | "LICENSE" = "PLACE") {
@@ -445,6 +456,103 @@ describe("single-place administrative operations", () => {
     await expect(commitPlaceAdminOperation(env.DB, { ...actor, operationId: prepared.operationId })).rejects.toThrow("ADMIN_REQUIRED");
     expect(await placeRow(placeId)).toMatchObject({ status: "PUBLISHED" });
     await expectPending(prepared.operationId);
+  });
+
+  it("settles only the explicitly bound verified closure in an audited B09 recall and supports ordinary restore", async () => {
+    const actor = await admin(false), other = await admin(), placeId = await place();
+    const correction = await closureRequest(placeId), sibling = await closureRequest(placeId);
+    const priorNote = "별도 운영자가 남긴 폐업 검토 메모";
+    await db.update(placeCorrectionRequests).set({ status: "REVIEWING", adminResponse: priorNote })
+      .where(eq(placeCorrectionRequests.id, correction.requestId));
+    const operation = await preparePlaceAdminOperation(env.DB, { ...actor, command: { change: "RECALL", placeId, reason, correction } });
+    const input = { ...actor, operationId: operation.operationId };
+    expect(await getPlaceAdminOperation(env.DB, input)).toMatchObject({ correctionRequestId: correction.requestId, status: "PENDING", stale: false });
+    expect(await placeRow(placeId)).toMatchObject({ status: "PUBLISHED" });
+    await expect(commitPlaceAdminOperation(env.DB, input)).rejects.toThrow("ADMIN_RECENT_AUTH_REQUIRED");
+    await expect(commitPlaceAdminOperation(env.DB, { ...other, operationId: input.operationId })).rejects.toThrow();
+    await env.DB.prepare("INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at) VALUES(?,?,'PASSWORD',?,?)")
+      .bind(actor.sessionId, actor.actorUserId, now, "2026-11-14T09:10:00.000Z").run();
+    const outcomes = await Promise.allSettled([commitPlaceAdminOperation(env.DB, input), commitPlaceAdminOperation(env.DB, input)]);
+    expect(outcomes.some((outcome) => outcome.status === "fulfilled" && !outcome.value.replayed)).toBe(true);
+    expect(await commitPlaceAdminOperation(env.DB, input)).toMatchObject({ replayed: true, result: { correctionRequestId: correction.requestId } });
+    expect(await getPlaceAdminOperation(env.DB, input)).toMatchObject({ status: "COMMITTED", correctionRequestId: correction.requestId });
+    expect(await placeRow(placeId)).toMatchObject({ status: "HIDDEN", closed_at: null });
+    expect(await db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, correction.requestId) }))
+      .toMatchObject({ status: "APPLIED", adminResponse: reason, reviewedBy: actor.actorUserId });
+    expect(await db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, sibling.requestId) })).toMatchObject({ status: "SUBMITTED" });
+    const audits = await env.DB.prepare("SELECT action,target_type,before_state,after_state FROM admin_audit_logs WHERE target_id=?").bind(correction.requestId)
+      .all<{ action: string; target_type: string; before_state: string; after_state: string }>();
+    expect(audits.results).toHaveLength(1);
+    expect(audits.results[0]).toMatchObject({ action: "APPLY_CLOSURE_CORRECTION", target_type: "CORRECTION_REQUEST" });
+    expect(JSON.parse(audits.results[0].before_state)).toEqual({ status: "REVIEWING", adminResponse: priorNote });
+    expect(JSON.parse(audits.results[0].after_state)).toEqual({ status: "APPLIED", adminResponse: reason, operationId: operation.operationId, placeId });
+    expect(audits.results[0].after_state).not.toContain("correction-requester");
+    const revisions = await db.query.placeRevisions.findMany({ where: eq(placeRevisions.placeId, placeId) });
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]).toMatchObject({ actorUserId: actor.actorUserId, action: "STATUS_CHANGE", reason, sourceType: "CORRECTION_REQUEST", sourceId: correction.requestId });
+    expect(JSON.parse(revisions[0].beforeJson!)).toEqual({ status: "PUBLISHED", closedAt: null, updatedAt: now });
+    expect(JSON.parse(revisions[0].afterJson)).toEqual({ status: "HIDDEN", closedAt: null, updatedAt: now, operationId: operation.operationId });
+    const restored = await preparePlaceAdminOperation(env.DB, { ...other, command: { change: "RESTORE_RECALL", recallOperationId: operation.operationId, reason } });
+    await commitPlaceAdminOperation(env.DB, { ...other, operationId: restored.operationId });
+    expect(await placeRow(placeId)).toMatchObject({ status: "PUBLISHED" });
+    expect(await db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, correction.requestId) })).toMatchObject({ status: "APPLIED" });
+  });
+
+  it("refuses mismatched targets, unverified reports, and wrong types without settling unrelated recalls", async () => {
+    const actor = await admin(), placeId = await place(), otherPlace = await place();
+    const correction = await closureRequest(placeId);
+    for (const [target, evidence] of [
+      [otherPlace, correction],
+      [placeId, { ...correction, expectedUpdatedAt: "2026-11-14T08:00:00.000Z" }],
+      [placeId, await closureRequest(placeId, { verified: false })],
+      [placeId, await closureRequest(placeId, { type: "RIGHTS" })],
+    ] as const) {
+      await expect(preparePlaceAdminOperation(env.DB, { ...actor, command: { change: "RECALL", placeId: target, reason, correction: evidence } }))
+        .rejects.toThrow("CORRECTION_NOT_APPLICABLE");
+    }
+    await expect(applyPlaceCorrection(db, { ...actor, requestId: correction.requestId, reason })).rejects.toThrow("PLACE_ADMIN_PREVIEW_REQUIRED");
+    const recall = await preparePlaceAdminOperation(env.DB, { ...actor, command: { change: "RECALL", placeId, reason } });
+    await commitPlaceAdminOperation(env.DB, { ...actor, operationId: recall.operationId });
+    await expect(preparePlaceAdminOperation(env.DB, { ...actor, command: { change: "RECALL", placeId, reason, correction } })).rejects.toThrow();
+    expect(await db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, correction.requestId) })).toMatchObject({ status: "SUBMITTED" });
+  });
+
+  it("rejects changed closure evidence at the write boundary and rolls back if revision or audit is skipped", async () => {
+    const actor = await admin(), placeId = await place(), correction = await closureRequest(placeId);
+    const command = { change: "RECALL" as const, placeId, reason, correction };
+    const raced = await preparePlaceAdminOperation(env.DB, { ...actor, command });
+    const boundaryDb = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "batch") return async (statements: D1PreparedStatement[]) => {
+          await env.DB.prepare("UPDATE place_correction_requests SET evidence_note=? WHERE id=?").bind("같은 시각에 바뀐 폐업 근거", correction.requestId).run();
+          return target.batch(statements);
+        };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(commitPlaceAdminOperation(boundaryDb, { ...actor, operationId: raced.operationId })).rejects.toThrow("ADMIN_OPERATION_CONFLICT");
+    expect(await getPlaceAdminOperation(env.DB, { ...actor, operationId: raced.operationId })).toMatchObject({ stale: true });
+    await expectPending(raced.operationId);
+
+    for (const target of [
+      "place_revisions WHEN NEW.action='STATUS_CHANGE' AND NEW.source_type='CORRECTION_REQUEST'",
+      "admin_audit_logs WHEN NEW.action='APPLY_CLOSURE_CORRECTION'",
+    ]) {
+      const next = await preparePlaceAdminOperation(env.DB, { ...actor, command });
+      await env.DB.exec(`CREATE TRIGGER test_skip_correction_record BEFORE INSERT ON ${target} BEGIN SELECT RAISE(IGNORE); END;`);
+      try {
+        await expect(commitPlaceAdminOperation(env.DB, { ...actor, operationId: next.operationId })).rejects.toThrow("ADMIN_OPERATION_CONFLICT");
+      } finally {
+        await env.DB.exec("DROP TRIGGER test_skip_correction_record");
+      }
+      await expectPending(next.operationId);
+    }
+    expect(await placeRow(placeId)).toMatchObject({ status: "PUBLISHED" });
+    expect(await db.query.placeCorrectionRequests.findFirst({ where: eq(placeCorrectionRequests.id, correction.requestId) })).toMatchObject({ status: "SUBMITTED" });
+    expect(await db.query.placeReviewWorkItems.findMany({ where: eq(placeReviewWorkItems.placeId, placeId) })).toHaveLength(0);
+    expect(await db.query.placeRevisions.findMany({ where: eq(placeRevisions.placeId, placeId) })).toHaveLength(0);
+    expect(await env.DB.prepare("SELECT count(*) n FROM admin_audit_logs WHERE target_id IN (?,?)").bind(placeId, correction.requestId).first("n")).toBe(0);
   });
 
   it("rejects a merge that would create participation for an actively restricted voter or save-choice author", async () => {

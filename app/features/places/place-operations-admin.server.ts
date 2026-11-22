@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
-import { placeCorrectionRequests, placeLivenessStates, placeRevalidationCases, placeRevisions, places } from "../../db/schema";
+import { placeCorrectionRequests, placeLivenessStates, placeRevalidationCases, placeRevisions, placeReviewWorkItems, places } from "../../db/schema";
+import { readCorrectionChanges, reviewableCorrectionStatuses } from "./place-correction.server";
 import { buildSafeSameNameMergeGroups } from "./place-same-name-merge.server";
 import {
   buildLivenessRow,
@@ -112,7 +113,12 @@ export async function listDuplicateOperations(db: AppDb) {
   };
 }
 
-export async function listCorrectionOperations(db: AppDb) {
+export async function listCorrectionOperations(db: AppDb, requestedPage = 1) {
+  const pageSize = 25;
+  const where = and(inArray(placeCorrectionRequests.status, reviewableCorrectionStatuses), gt(placeCorrectionRequests.verifiedAt, ""));
+  const total = await db.$count(placeCorrectionRequests, where);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(totalPages, Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1);
   const rows = await db.select({
     id: placeCorrectionRequests.id,
     placeId: placeCorrectionRequests.placeId,
@@ -122,21 +128,32 @@ export async function listCorrectionOperations(db: AppDb) {
     requestedChangesJson: placeCorrectionRequests.requestedChangesJson,
     evidenceNote: placeCorrectionRequests.evidenceNote,
     adminResponse: placeCorrectionRequests.adminResponse,
+    updatedAt: placeCorrectionRequests.updatedAt,
     placeName: places.name,
+    placeStatus: places.status,
+    hasOpenReview: sql<boolean>`exists (select 1 from ${placeReviewWorkItems} where ${placeReviewWorkItems.placeId}=${places.id}
+      and ${placeReviewWorkItems.status} in ('ACTIVE', 'ON_HOLD'))`.mapWith(Boolean),
   }).from(placeCorrectionRequests)
     .leftJoin(places, eq(places.id, placeCorrectionRequests.placeId))
-    .where(and(inArray(placeCorrectionRequests.status, ["SUBMITTED", "REVIEWING"]), isNotNull(placeCorrectionRequests.verifiedAt)))
+    .where(where)
     .orderBy(sql`case when ${placeCorrectionRequests.requestType} in ('CLOSED','RIGHTS') then 0 else 1 end`, asc(placeCorrectionRequests.createdAt), asc(placeCorrectionRequests.id))
-    .limit(200);
-  return rows.map((item) => ({
-    id: item.id,
-    placeId: item.placeId,
-    placeName: item.placeName,
-    status: item.status,
-    requestType: item.requestType,
-    requesterRelation: item.requesterRelation,
-    changes: parseCorrectionChanges(item.requestedChangesJson),
-    evidenceNote: item.evidenceNote,
-    adminResponse: item.adminResponse,
-  }));
+    .limit(pageSize).offset((page - 1) * pageSize);
+  return {
+    rows: rows.map(({ requestedChangesJson, placeStatus, hasOpenReview, ...item }) => {
+      let canApply = false;
+      if (placeStatus && item.requestType !== "CLOSED") {
+        try {
+          const changes = readCorrectionChanges(requestedChangesJson);
+          canApply = Object.keys(changes).length > 0 && !Object.hasOwn(changes, "status");
+        } catch { /* Invalid or legacy data is review-only. */ }
+      }
+      return {
+        ...item,
+        changes: parseCorrectionChanges(requestedChangesJson),
+        canApply,
+        canRecall: item.requestType === "CLOSED" && placeStatus === "PUBLISHED" && !hasOpenReview,
+      };
+    }),
+    pagination: { page, pageSize, total, totalPages },
+  };
 }

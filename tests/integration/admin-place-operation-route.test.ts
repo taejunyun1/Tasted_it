@@ -59,7 +59,7 @@ describe("B09 place operation HTTP boundaries",()=>{
     const correction=vi.spyOn(corrections,"applyPlaceCorrection").mockRejectedValue(new Error("PLACE_ADMIN_PREVIEW_REQUIRED"));
     const revalidation=vi.spyOn(liveness,"resolvePlaceLivenessCase").mockRejectedValue(new Error("PLACE_ADMIN_PREVIEW_REQUIRED"));
     try {
-      for(const fields of [{intent:"apply-correction",requestId:"synthetic-correction",reason:"합성 확인"},{intent:"resolve-liveness",caseId:"synthetic-case",resolution:"OPEN",reason:"합성 확인"}]) {
+      for(const fields of [{intent:"apply-correction",requestId:"synthetic-correction",reason:"합성 확인",expectedUpdatedAt:admin.now},{intent:"resolve-liveness",caseId:"synthetic-case",resolution:"OPEN",reason:"합성 확인"}]) {
         const result=await action({request:request(admin.sessionId,new URLSearchParams(fields).toString())} as never);
         expect(status(result)).toBe(400);expect((result as {data:{error:string}}).data.error).toContain("공개·회수 미리보기");
       }
