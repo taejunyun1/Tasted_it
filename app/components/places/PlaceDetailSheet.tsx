@@ -1,9 +1,10 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Link, useFetcher, useNavigate } from "react-router";
+import { Link, useFetcher, useLocation, useNavigate } from "react-router";
 import type { clientLoader as placeDetailLoader } from "../../routes/place-detail";
 import { tabWrapTarget, visibleFocusableElements } from "../../features/a11y/dialog-focus";
 import { restoreVisibleFocus } from "../../features/a11y/focus-return";
+import { authEntryHref } from "../../features/auth/login";
 import { PLACE_DETAIL_MOBILE_QUERY } from "../../features/places/place-detail-sheet";
 import { GuestSaveControl } from "../onboarding/GuestSaveControl";
 import { TempCatalogNotice } from "../../features/temp-catalog/TempCatalogNotice";
@@ -155,6 +156,8 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
 }) {
   // Each request owns its fetchers and receipt. Closing or selecting another
   // place cannot carry an earlier response, save state or failure into it.
+  const location = useLocation();
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const detail = useFetcher<DetailData>();
   const save = useFetcher<MutationData>();
   const submissionLock = useRef(false);
@@ -219,7 +222,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
             <p>{resultUnknown ? "처리 결과를 확인하지 못했어요. 다시 요청하기 전에 현재 상태를 확인해 주세요." : save.data.error === "VOTE_VERSION_CONFLICT" ? "평가가 변경되었어요. 현재 상태를 다시 확인해 주세요." : "요청을 처리하지 못했어요. 현재 상태를 확인한 뒤 다시 시도해 주세요."}</p>
           </div>}
           <div className="place-detail-sheet__actions">
-            {data.user ? needsRead ? <button type="button" className="place-detail-sheet__save" onClick={onRetry}>현재 상태 다시 확인</button> : <save.Form method="post" action={requestPath} onSubmit={submit}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save" disabled={busy || detail.state !== "idle"} aria-pressed={data.saved}>{busy && submission?.intent === "save" ? "저장 중…" : data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></save.Form> : <div><Link className="place-detail-sheet__save" to={`/login?returnTo=${encodeURIComponent(requestPath)}`}>로그인하고 맛집지도에 추가</Link><GuestSaveControl placeId={data.place.id} returnTo={requestPath} showLogin={false}/></div>}
+            {data.user ? needsRead ? <button type="button" className="place-detail-sheet__save" onClick={onRetry}>현재 상태 다시 확인</button> : <save.Form method="post" action={requestPath} onSubmit={submit}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save" disabled={busy || detail.state !== "idle"} aria-pressed={data.saved}>{busy && submission?.intent === "save" ? "저장 중…" : data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></save.Form> : <div><Link className="place-detail-sheet__save" to={authEntryHref("/login", returnTo)}>로그인하고 맛집지도에 추가</Link><GuestSaveControl placeId={data.place.id} returnTo={returnTo} showLogin={false}/></div>}
             {data.user && data.voteEventId && <save.Form method="post" action={requestPath} onSubmit={submit}><input type="hidden" name="intent" value="withdraw"/><input type="hidden" name="expectedEventId" value={data.voteEventId}/><button disabled={busy || needsRead || detail.state !== "idle"}>{busy && submission?.intent === "withdraw" ? "취소 중…" : "평가 취소"}</button></save.Form>}
             <a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
           </div>

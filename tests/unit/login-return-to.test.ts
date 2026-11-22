@@ -26,6 +26,34 @@ describe("safeReturnTo", () => {
     expect(safeReturnTo("//evil.example/path")).toBe("/");
     expect(safeReturnTo("https://evil.example/path")).toBe("/");
   });
+
+  it("preserves home exploration with a single valid place and its nested provenance", () => {
+    const place = "/places/sample?sourceRail=TRUSTED&discoveryMode=QUALITY&recommendationRequestId=7b3c9a17-8064-4d2e-8cf7-857dfc78b86f";
+    const search = new URLSearchParams({ view: "browse", q: "동명 10% + ...", selected: "sample-id", bbox: "126.80,35.10,127.00,35.25", place });
+    expect(safeReturnTo("/?" + search)).toBe("/?" + search);
+    expect(safeReturnTo("/?place=sample")).toBe("/?place=sample");
+    expect(safeReturnTo("/_root.data?" + search + "&_routes=routes%2Fhome")).toBe("/?" + search);
+    expect(safeReturnTo("/places?" + search + "&_routes=routes%2Fplace-list")).toBe("/places?" + search);
+    expect(safeReturnTo("/maps/ramen?" + search)).toBe("/maps/ramen?" + search);
+    for (const entry of ["/login", "/signup"] as const) {
+      const href = new URL(authEntryHref(entry, "/", "?" + search), "https://retaste.test");
+      const destination = new URL(href.searchParams.get("returnTo")!, href);
+      expect(destination.pathname).toBe("/");
+      expect([...destination.searchParams]).toEqual([...search]);
+    }
+  });
+
+  it("limits home continuation to the app's accepted detail values", () => {
+    for (const search of [
+      "view=browse",
+      "place=sample&place=other",
+      "place=.%2Fsample",
+      "place=https%3A%2F%2Fexample.invalid%2Fplaces%2Fsample",
+      "place=%2Fplaces%2Fsample%3FsourceRail%3DTRUSTED%26discoveryMode%3DQUALITY",
+    ]) {
+      expect(safeReturnTo("/?" + search)).toBe("/");
+    }
+  });
 });
 
 describe("auth entry href and field retention", () => {
