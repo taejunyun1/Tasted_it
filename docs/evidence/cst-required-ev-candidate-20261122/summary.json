@@ -1,0 +1,32 @@
+{
+  "sourceSha": "e42a56e28444b75f85aa43503e6b0756bd054d73",
+  "appTree": "d4c7cfefe63206c96a931758bbc55b54f0b0e170",
+  "baseSha": "ed5d23d36a2f9693eaa24e97fdc0399233c93d30",
+  "verifiedAt": "2026-11-22T03:55:40Z",
+  "environment": "로컬 순위 계산과 격리 Workers D1",
+  "checks": {
+    "unitRed": { "passed": 7, "failed": 3 },
+    "unitGreen": { "passed": 10, "failed": 0 },
+    "integration": { "passed": 5, "failed": 0 },
+    "typecheck": "PASS",
+    "productionDependencyAudit": { "exitCode": 0, "findings": 0 },
+    "fullDependencyAudit": { "exitCode": 1, "low": 4, "moderate": 26, "high": 15, "critical": 1 }
+  },
+  "commands": [
+    "pnpm exec vitest run tests/unit/parking-score.test.ts",
+    "pnpm run test:integration tests/integration/parking-recommendation.server.test.ts tests/integration/course-recommendation.server.test.ts",
+    "pnpm run typecheck",
+    "pnpm audit --prod --json",
+    "pnpm audit --json"
+  ],
+  "case": {
+    "scenario": "비·아이 동반 조건의 식당과 카페에서 10개 비충전 주차장보다 뒤에 있는 첫 장소의 현장 충전 확인 주차장을 포함한다.",
+    "before": { "sharedPlanCount": 0, "separatePlanCount": 0 },
+    "after": { "sharedPlanCount": 0, "separatePlanCount": 1, "totalWalkingMeters": 420 }
+  },
+  "limits": [
+    "장소별 후보는 최대 10곳이며 거리 자격과 조합 동률 기준을 적용한다.",
+    "의존성 선언과 잠금 파일은 변경되지 않았다. 전체 의존성 감사 결과는 기존 개발 의존성 범위를 포함한다.",
+    "운영 배포와 실시간 충전 가동 여부, 전체 T08 수용은 확인하지 않았다."
+  ]
+}

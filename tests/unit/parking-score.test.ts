@@ -72,6 +72,30 @@ describe("parking ranking", () => {
     expect(plans).toHaveLength(1);
   });
 
+  it.each(["first", "second"] as const)("keeps the only eligible charger when it is ranked eleventh at the %s stop", (stop) => {
+    const plain = Array.from({ length: 10 }, (_, index) => ({ ...base, id: `plain-${index}`, placeMeters: (index + 1) * 10 }));
+    const ev = { ...base, id: "onsite-ev", hasOnsiteEv: true, placeMeters: 210 };
+    const other = { ...base, id: "other-stop", placeMeters: 0 };
+    const [firstCandidates, secondCandidates] = stop === "first" ? [[...plain, ev], [other]] : [[other], [...plain, ev]];
+    const plans = rankSeparateParking({ firstCandidates, secondCandidates, evRequirement: "REQUIRED", weather: "RAIN", childAccompanied: true });
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({ [stop]: { id: "onsite-ev" }, totalWalkingMeters: 420 });
+  });
+
+  it("preserves the shortlist size, deterministic ties and no-eligible-charger behavior", () => {
+    const plain = Array.from({ length: 11 }, (_, index) => ({ ...base, id: `plain-${index}`, placeMeters: 50 }));
+    const onsite = { ...base, hasOnsiteEv: true, placeMeters: 210 };
+    const input = { secondCandidates: plain, weather: "RAIN", childAccompanied: true } as const;
+    const firstCandidates = [...plain, { ...onsite, id: "ev-b" }, { ...onsite, id: "ev-a" }];
+    const required = rankSeparateParking({ ...input, firstCandidates, evRequirement: "REQUIRED" });
+    expect(required).toHaveLength(10);
+    expect(required[0]).toMatchObject({ first: { id: "ev-a" }, second: { id: "plain-0" } });
+    expect(rankSeparateParking({ ...input, firstCandidates, evRequirement: "NONE" })).toHaveLength(100);
+    expect(rankSeparateParking({ ...input, firstCandidates: plain, evRequirement: "REQUIRED" })).toEqual([]);
+    const outside = { ...onsite, id: "too-far", placeMeters: 1_210 };
+    expect(rankSeparateParking({ ...input, firstCandidates: [...plain, outside], evRequirement: "REQUIRED" })).toEqual([]);
+  });
+
   it("tightens separate-parking access for rain and children before using fallback", () => {
     const plans = rankSeparateParking({
       firstCandidates: [{ ...base, id: "near", placeMeters: 480 }, { ...base, id: "far", placeMeters: 760 }],
