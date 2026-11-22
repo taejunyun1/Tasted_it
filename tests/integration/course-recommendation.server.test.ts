@@ -4,7 +4,7 @@ import { createDb } from "../../app/db/client.server";
 import { recommendCourses } from "../../app/features/courses/course-recommendation.server";
 
 describe("course recommendation service", () => {
-  it("keeps a published meal and cafe course when parking data is unavailable", async () => {
+  it("keeps a published meal and cafe course across missing, failed, and recovered parking reads", async () => {
     const key = crypto.randomUUID();
     const mealId = `course-meal-${key}`;
     const cafeId = `course-cafe-${key}`;
@@ -21,16 +21,52 @@ describe("course recommendation service", () => {
       "INSERT INTO place_liveness_states (place_id, status, recommendation_excluded, updated_at) VALUES (?, 'SUSPECTED', 1, ?)",
     ).bind(excludedCafeId, now).run();
 
-    const result = await recommendCourses(createDb(env.DB), {
+    const db = createDb(env.DB);
+    const input = {
       options: { time: "auto", mealCategories: ["grill"], second: "cafe", radiusKm: 3, parkingMode: "auto", ev: "none", weather: "normal", child: false },
       context: { latitude: 35.15, longitude: 126.85, locationSource: "USER", resolvedTime: "afternoon" },
       now: new Date(now),
-    });
+    } satisfies Parameters<typeof recommendCourses>[1];
+    const result = await recommendCourses(db, input);
     expect(result.courses[0]?.first.id).toBe(mealId);
     expect(result.courses[0]?.second.id).toBe(cafeId);
     expect(result.courses[0]?.parking.status).toBe("PARKING_DATA_UNAVAILABLE");
     expect(result.courses.some((course) => course.first.id === excludedCafeId || course.second.id === excludedCafeId)).toBe(false);
     expect(result.courses.some((course) => course.second.id === hiddenId)).toBe(false);
+
+    const snapshotId = `course-parking-${key}`;
+    const facilityId = `course-lot-${key}`;
+    await env.DB.prepare(`INSERT INTO parking_data_snapshots (id, source, status, row_count, activated_at, created_at, updated_at)
+      VALUES (?, 'PARKING', 'ACTIVE', 1, ?, ?, ?)`).bind(snapshotId, now, now, now).run();
+    await env.DB.prepare(`INSERT INTO parking_facilities
+      (id, snapshot_id, source_management_no, name, ownership_type, facility_type, region_code, latitude, longitude,
+       weekday_open, weekday_close, saturday_open, saturday_close, holiday_open, holiday_close,
+       fee_status, public_access_status, reliability_grade, reference_date, raw_payload, created_at, updated_at)
+      VALUES (?, ?, ?, '합성 주차장', 'PUBLIC', 'OFF_STREET', 'GWANGJU', 35.15, 126.85,
+       '00:00', '23:59', '00:00', '23:59', '00:00', '23:59',
+       'FREE', 'PUBLIC', 'A', '2026-08-08', '{}', ?, ?)`).bind(facilityId, snapshotId, facilityId, now, now).run();
+
+    // The worker pool supplies a disposable local D1. Fail the real EV join,
+    // leaving the primary place rows and the active parking snapshot readable.
+    await env.DB.prepare("ALTER TABLE parking_ev_links RENAME TO parking_ev_links_unavailable").run();
+    try {
+      const failed = await recommendCourses(db, input);
+      expect(failed.courses.map(({ first, second, score }) => [first.id, second.id, score])).toEqual(
+        result.courses.map(({ first, second, score }) => [first.id, second.id, score]),
+      );
+      expect(failed.courses[0]?.parking).toMatchObject({
+        status: "PARKING_READ_FAILED", shared: null, separate: null, recommendedMode: null,
+      });
+    } finally {
+      await env.DB.prepare("ALTER TABLE parking_ev_links_unavailable RENAME TO parking_ev_links").run();
+    }
+
+    const recovered = await recommendCourses(db, input);
+    expect(recovered.courses[0]?.parking).toMatchObject({
+      status: "READY", shared: { parking: { id: facilityId } },
+    });
+    const noEligible = await recommendCourses(db, { ...input, options: { ...input.options, ev: "required" } });
+    expect(noEligible.courses[0]?.parking.status).toBe("NO_ELIGIBLE_PARKING");
   });
 
   it("uses contextual v2 safely when no verified hours exist", async () => {

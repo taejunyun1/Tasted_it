@@ -61,21 +61,33 @@ function candidate(row: RepositoryParking, stayMinutes: number): ParkingFacility
   };
 }
 
-export async function recommendParkingForCourse(db: AppDb, input: ParkingCourseInput) {
+async function readCourseParking(db: AppDb, input: ParkingCourseInput) {
   const [snapshot, evSnapshot] = await Promise.all([getActiveParkingSnapshot(db, "PARKING"), getActiveParkingSnapshot(db, "EV")]);
+  const rows = snapshot ? await listEligibleParking(db, bounds(input.first, input.second)) : [];
+  return { snapshot, evSnapshot, rows };
+}
+
+export async function recommendParkingForCourse(db: AppDb, input: ParkingCourseInput) {
+  const data = await readCourseParking(db, input).catch(() => {
+    console.warn("COURSE_PARKING_READ_FAILED");
+    return null;
+  });
+  const snapshot = data?.snapshot;
+  const evSnapshot = data?.evSnapshot;
   const base = {
     algorithmVersion: "parking-course-v1" as const,
     snapshot: snapshot ? { id: snapshot.id, referenceDate: snapshot.sourceReferenceDateMax } : null,
     evSnapshot: evSnapshot ? { id: evSnapshot.id, referenceDate: evSnapshot.sourceReferenceDateMax } : null,
   };
-  if (!snapshot) return { ...base, status: "PARKING_DATA_UNAVAILABLE" as const, shared: null, separate: null, recommendedMode: null, warnings: ["주차 데이터가 아직 준비되지 않았습니다."] };
+  const empty = { ...base, shared: null, separate: null, recommendedMode: null };
+  if (!data) return { ...empty, status: "PARKING_READ_FAILED" as const, warnings: ["주차·충전 정보를 읽을 수 없습니다."] };
+  if (!snapshot) return { ...empty, status: "PARKING_DATA_UNAVAILABLE" as const, warnings: ["주차 데이터가 아직 준비되지 않았습니다."] };
 
-  const rows = await listEligibleParking(db, bounds(input.first, input.second));
   const startsAt = new Date(input.startsAt);
   const betweenMeters = estimateWalkingMeters(input.first, input.second);
   const baseMinutes = input.firstStayMinutes + input.secondStayMinutes + Math.ceil(betweenMeters / 80);
   const endsAt = new Date(startsAt.getTime() + (baseMinutes + 60) * 60_000);
-  const openRows = rows.filter((row) => isParkingOpenForWindow(schedule(row), startsAt, endsAt, 30));
+  const openRows = data.rows.filter((row) => isParkingOpenForWindow(schedule(row), startsAt, endsAt, 30));
   const sharedCandidates = openRows.map((row) => ({
     ...candidate(row, baseMinutes),
     firstMeters: estimateWalkingMeters(row, input.first),
@@ -85,7 +97,7 @@ export async function recommendParkingForCourse(db: AppDb, input: ParkingCourseI
   const firstCandidates = openRows.map((row) => ({ ...candidate(row, input.firstStayMinutes), placeMeters: estimateWalkingMeters(row, input.first) }));
   const secondCandidates = openRows.map((row) => ({ ...candidate(row, input.secondStayMinutes), placeMeters: estimateWalkingMeters(row, input.second) }));
   const separate = rankSeparateParking({ firstCandidates, secondCandidates, evRequirement: input.evRequirement, weather: input.weather, childAccompanied: input.childAccompanied })[0] ?? null;
-  if (!shared && !separate) return { ...base, status: "NO_ELIGIBLE_PARKING" as const, shared: null, separate: null, recommendedMode: null, warnings: ["조건에 맞는 주차장을 찾지 못했습니다."] };
+  if (!shared && !separate) return { ...empty, status: "NO_ELIGIBLE_PARKING" as const, warnings: ["조건에 맞는 주차장을 찾지 못했습니다."] };
 
   const sharedResult = shared ? {
     parking: shared,
