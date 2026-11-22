@@ -79,9 +79,16 @@ for (const source of sources) {
   test("mobile " + source.kind + " detail resumes after email login and transfers both guest choices once", async ({ page, context, baseURL }, info) => {
     test.skip(info.project.name !== "mobile-chromium", "Tests the mobile detail sheet");
     const origin = new URL(baseURL!).origin;
-    await page.route(url => ["http:", "https:"].includes(url.protocol) && url.origin !== origin, route => route.abort());
     const email = "sheet-auth-" + crypto.randomUUID() + "@example.test";
     const password = "synthetic-" + crypto.randomUUID();
+    const ipSuffix = crypto.randomUUID().slice(0, 8);
+    const clientIp = `2001:db8:${ipSuffix.slice(0, 4)}:${ipSuffix.slice(4)}::1`;
+    await page.route((url) => ["http:", "https:"].includes(url.protocol), (route) => {
+      const request = route.request();
+      if (new URL(request.url()).origin !== origin) return route.abort();
+      if (request.method() === "POST") return route.continue({ headers: { ...request.headers(), "cf-connecting-ip": clientIp } });
+      return route.continue();
+    });
     let guestId: string | undefined;
     let recommendationId: string | undefined;
     try {
@@ -137,12 +144,13 @@ for (const source of sources) {
       expect(payload).toEqual([{ saves: 1, badges: 1, converted: 1, remaining_saves: 0, remaining_badges: 0 }]);
     } finally {
       const guest = quote(guestId ?? ""), proof = quote(recommendationId ?? ""), address = quote(email);
-      const signupBucket = createHash("sha256").update("mail-rate-limit:email:SIGNUP:" + email).digest("hex");
-      const loginBucket = createHash("sha256").update("auth-rate-limit:email:LOGIN:" + email).digest("hex");
+      const buckets = [`mail-rate-limit:email:SIGNUP:${email}`, `auth-rate-limit:email:LOGIN:${email}`,
+        `mail-rate-limit:ip:SIGNUP:${clientIp}`, `auth-rate-limit:ip:LOGIN:${clientIp}`]
+        .map((key) => quote(createHash("sha256").update(key).digest("hex")));
       localD1(`DELETE FROM product_events WHERE guest_session_id=${guest} OR id=${proof} OR user_id IN (SELECT id FROM users WHERE email=${address});
         DELETE FROM users WHERE email=${address};
         DELETE FROM guest_taste_sessions WHERE id=${guest};
-        DELETE FROM rate_limit_windows WHERE bucket_hash IN (${quote(signupBucket)},${quote(loginBucket)});`);
+        DELETE FROM rate_limit_windows WHERE bucket_hash IN (${buckets.join(",")});`);
     }
   });
 }
