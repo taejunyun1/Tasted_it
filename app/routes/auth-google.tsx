@@ -9,14 +9,15 @@ import {
   oauthRequestCookie,
 } from "../features/auth/google-oauth.server";
 import { safeReturnTo } from "../features/auth/login";
+import { oauthFailureHref } from "../features/auth/oauth-failure";
 import { getOptionalUser } from "../features/auth/session.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const returnTo = safeReturnTo(url.searchParams.get("returnTo"));
   if (await getOptionalUser(request)) return redirect(returnTo);
-  if (!env.GOOGLE_CLIENT_ID) {
-    return redirect("/login?oauthError=temporarily_unavailable");
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    return redirect(oauthFailureHref({ provider: "GOOGLE", code: "temporarily_unavailable", returnTo }));
   }
 
   const issued = await issueGoogleOAuthRequest(createDb(env.DB), {

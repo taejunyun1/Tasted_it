@@ -1,0 +1,14 @@
+{
+  "sourceSha": "27efc429622f712572b4f3cc256b18f0591a693e",
+  "appTree": "70d57cf8f65339008d2b656253fccb2111d7fd65",
+  "environment": "로컬 컴파일 Worker와 합성 D1, 데스크톱 Chrome 및 Pixel 7 에뮬레이션",
+  "checks": {"unit": 43, "integration": 46, "browser": 3, "typecheck": "PASS", "build": "PASS", "productionDependencyAudit": "PASS"},
+  "scope": [
+    "Google 및 NAVER 시작 실패와 검증된 일회용 콜백 오류에서 원래 목적지 보존",
+    "상태 불일치, 만료, 재생과 다른 제공자 요청은 복귀 주소 없이 실패",
+    "NAVER의 회원 계정 복귀와 세션 보존, 취소 후 비회원 취향과 저장 유지",
+    "오류 화면의 제공자 문구, 비밀번호 로그인·가입·재시도 링크의 경로 유지"
+  ],
+  "screenshots": ["desktop-google-recovery.png", "mobile-naver-recovery.png"],
+  "limits": ["실제 외부 OAuth 성공·동의, 모바일 지도·목록에서 인증 후 동일 상세 시트 복귀, 전체 T03 수용은 추가 검증이 필요하다."]
+}
