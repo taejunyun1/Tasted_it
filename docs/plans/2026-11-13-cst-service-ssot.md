@@ -232,7 +232,7 @@ B09에서 정정 주소를 대조하고 델깜포 1곳을 공개했다. 확정 �
 | U05 p2 | #369 기본 취소, #382 event pointer·피드백/추론 무효화 원자성·출처/집계 gate 병합 | 전체 T02/T06·운영 반영 재확인 | T02/T06, 11/20 |
 | U06 p2 | #372 guest 저장·원자 승계/회원 명시 선택 우선·실패 유지/재시도 병합 | 외부 인증 조합·만료/탈퇴/권한 통합 및 운영 상태 재확인, #377 수집 설명 정합 | T02/T03, 11/24 |
 | U07 p2 | #382 공개 gate·#390 본인/관리자 UI와 승인 프로필→장소 연결 병합 | 실제 자료 권리/운영 적용·전체 T04/T06. standalone Flavor는 근거 결속 전 LEARNING/0 보류 | T04/T06, 11/25 |
-| U08 p2 | `app/routes/course-recommendation.tsx`, course/parking 서비스·시험 | 영업시간/거리·주차/충전 제공/미제공. v2 false와 사진 업로드 false는 활성 증거 아님. DEC-05 결정 후 한정 검증 | T08, 11/26 |
+| U08 p2 | 주차·충전 조회 실패에서도 음식 코스와 조건을 유지한다. [부분 실패·복구 검증](../evidence/cst-course-parking-partial-20261122/summary.json) | 영업시간/거리·주차/충전 제공/미제공. v2 false와 사진 업로드 false는 활성 증거 아님. DEC-05 결정 후 한정 검증 | T08, 11/26 |
 | U09 p2 | login/signup/verify-email/Google/NAVER route, auth guards | 역할별 서버권한·복귀·만료·탈퇴/삭제, 소셜 개발제한 실제 확인 | T03/T04, 11/24 |
 
 ### 데이터·관리자 요구사항 추적
