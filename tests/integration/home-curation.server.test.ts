@@ -20,7 +20,11 @@ import {
   type HomeCurationRequest,
 } from "../../app/features/places/home-curation.server";
 import type { HomeCurationPage as HomeCurationPageContract } from "../../app/features/places/home-curation";
+import { formatPublicRatingSummary } from "../../app/features/places/place-discovery";
+import { getPlaceRecommendationPage } from "../../app/features/places/place-recommendation.server";
 import { loadRecommendationCandidateContext } from "../../app/features/places/recommendation-candidates.server";
+import { recomputePlaceRating } from "../../app/features/ratings/recompute.server";
+import { moderateReviewerVisit } from "../../app/features/ratings/reviewer-moderation.server";
 
 import { publicationSnapshotStamp, seedApprovedReviewerVote } from "./reviewer-public-fixtures";
 import { getPublicationEpoch } from "../../app/features/ratings/reviewer-publication.server";
@@ -525,6 +529,119 @@ it("품질 하한과 실제 8km 거리를 적용하되 소표본 후보는 유�
   expect(page.candidateCount).toBe(7);
   expect(page.places.some((place) => place.id.endsWith("-mature-low"))).toBe(false);
   expect(page.places.some((place) => place.id.endsWith("-outside-eight"))).toBe(false);
+});
+
+it("집계 무효화 중에도 홈 품질 하한과 신뢰 추천은 승인 리뷰어 평가를 30%까지 반영한다", async () => {
+  const db = createDb(env.DB);
+  const now = "2026-11-22T03:00:00.000Z";
+  const prefix = `neutral-ranking-${crypto.randomUUID()}`;
+  const categoryId = `${prefix}-category`;
+  const preferGeneral = `${prefix}-general-positive`;
+  const preferReviewers = `${prefix}-reviewer-positive`;
+  const recallPlace = `${prefix}-recall`;
+  const center = { latitude: 35.15, longitude: 126.92 };
+
+  await db.insert(categories).values({
+    id: categoryId, slug: categoryId, name: "합성 식당", emoji: "🍽️",
+    isActive: true, sortOrder: 0, createdAt: now, updatedAt: now,
+  });
+  for (const id of [preferGeneral, preferReviewers, recallPlace]) {
+    await db.insert(places).values({
+      id, slug: id, name: id, status: "PUBLISHED", address: "광주 동구", neighborhood: "동명동",
+      latitude: id === recallPlace ? center.latitude - .3 : center.latitude,
+      longitude: center.longitude, searchText: "백반", createdAt: now, updatedAt: now,
+    });
+    await db.insert(placeCategories).values({ placeId: id, categoryId, isPrimary: true });
+  }
+
+  async function voter(index: number, role: "USER" | "REVIEWER") {
+    const id = `${prefix}-${role}-${index}`;
+    await db.insert(users).values({
+      id, role, email: `${id}@example.test`, displayName: "합성 평가자", createdAt: now, updatedAt: now,
+    });
+    return id;
+  }
+
+  for (let index = 0; index < 5; index += 1) {
+    const userId = await voter(index, "USER");
+    for (const [placeId, value] of [[preferGeneral, 1], [preferReviewers, -1]] as const) {
+      const eventId = `${userId}-${placeId}`;
+      await db.insert(voteEvents).values({
+        id: eventId, placeId, userId, value, eventType: "CREATE", source: "GENERAL", createdAt: now,
+      });
+      await db.insert(currentVotes).values({ placeId, userId, eventId, value, updatedAt: now });
+    }
+  }
+  for (let index = 0; index < 9; index += 1) {
+    const reviewerId = await voter(index, "REVIEWER");
+    for (const [placeId, value] of [[preferGeneral, -1], [preferReviewers, 1]] as const) {
+      await seedApprovedReviewerVote(db, { reviewerId, placeId, eventId: `${reviewerId}-${placeId}`, value, now });
+    }
+  }
+  const extraReviewerId = await voter(9, "REVIEWER");
+  const legacyEventId = `${prefix}-legacy`;
+  await db.insert(voteEvents).values({
+    id: legacyEventId, placeId: preferGeneral, userId: extraReviewerId,
+    value: -1, eventType: "CREATE", source: "LEGACY_REVIEWER", createdAt: now,
+  });
+  await db.insert(currentVotes).values({
+    placeId: preferGeneral, userId: extraReviewerId, eventId: legacyEventId, value: -1, updatedAt: now,
+  });
+  const { reviewId } = await seedApprovedReviewerVote(db, {
+    placeId: recallPlace, reviewerId: extraReviewerId, eventId: `${prefix}-recall-vote`, value: 1, now,
+  });
+
+  const bbox: HomeCurationRequest["bbox"] = [126.9, 35.13, 126.94, 35.17];
+  const getHome = () => getHomeCurationPage(db, {
+    bbox, center, categorySlug: categoryId, mode: "now", locationSource: "map_center", now,
+  });
+  const getRecommendations = () => getPlaceRecommendationPage(db, {
+    bbox, center, categorySlug: categoryId, selectedBadges: [], now,
+  });
+  async function expectRecomputedScores() {
+    for (const [placeId, overallScore] of [[preferGeneral, 63], [preferReviewers, 37]] as const) {
+      const snapshot = await recomputePlaceRating(db, { placeId, now });
+      expect(snapshot).toMatchObject({ overallScore, overallSampleCount: 14, userSampleCount: 5, reviewerSampleCount: 9 });
+      expect(snapshot.reviewerWeightShare).toBeCloseTo(.3);
+    }
+  }
+
+  await expectRecomputedScores();
+  const before = await getHome();
+  expect(before.places.map((place) => place.id)).toEqual([preferGeneral]);
+  expect(before.places[0]?.ratingScore).toBe(63);
+  const beforeRecommendations = await getRecommendations();
+  expect(beforeRecommendations.trusted.map((place) => place.id)).toEqual([preferGeneral, preferReviewers]);
+  expect(beforeRecommendations.personal.map((place) => place.id)).toEqual([preferGeneral, preferReviewers]);
+
+  await moderateReviewerVisit(db, {
+    reviewId, actorUserId: "public-fixture-admin", expectedVersion: 2,
+    status: "WITHDRAWN", reason: "합성 검수 회수",
+    checks: { visitVerified: true, rightsVerified: true, privacyVerified: true, placeVerified: true }, now,
+  });
+
+  const pending = await getHome();
+  expect(pending.places.map((place) => place.id)).toEqual([preferGeneral]);
+  expect(pending.places[0]).toMatchObject({ ratingIsStale: true, ratingScore: null, userPositive: 5, reviewerNegative: 9 });
+  expect(formatPublicRatingSummary(pending.places[0]!)).toBe("추천 지표 계산 대기 · 14명 평가");
+  const pendingRecommendations = await getRecommendations();
+  expect(pendingRecommendations.trusted.map((place) => [place.id, place.ratingScore])).toEqual([
+    [preferGeneral, null], [preferReviewers, null],
+  ]);
+  expect(pendingRecommendations.personal.map((place) => [place.id, place.ratingScore])).toEqual([
+    [preferGeneral, null], [preferReviewers, null],
+  ]);
+
+  await expectRecomputedScores();
+  const after = await getHome();
+  expect(after.places.map((place) => [place.id, place.ratingScore])).toEqual([[preferGeneral, 63]]);
+  const afterRecommendations = await getRecommendations();
+  expect(afterRecommendations.trusted.map((place) => [place.id, place.ratingScore])).toEqual([
+    [preferGeneral, 63], [preferReviewers, 37],
+  ]);
+  expect(afterRecommendations.personal.map((place) => [place.id, place.ratingScore])).toEqual([
+    [preferGeneral, 63], [preferReviewers, 37],
+  ]);
 });
 
 it("v2 메타데이터와 Golden fallback notice를 반환한다", async () => {

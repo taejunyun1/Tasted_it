@@ -1,5 +1,4 @@
 import type { HomeCurationMode, HomeTimeSlot } from "../maps/home-curation-options";
-import { calculateRating } from "../ratings/rating-v1";
 import {
   distanceInMeters,
   normalizedTasteSignalStrength,
@@ -10,6 +9,7 @@ import {
 import type { HomeRecommendationHistory } from "./home-curation-history.client";
 import { TASTE_ADJACENCY, termsForBadge } from "./place-recommendation-options";
 import type { RecommendationMatchKind } from "./recommendation-action-values";
+import { recommendationRatingScore } from "./recommendation-rating";
 
 export type TasteMatch = {
   badgeId: string;
@@ -83,10 +83,6 @@ function includesAny(text: string, terms: string[]) {
 
 function sampleCount(place: DiscoveryPlace) {
   return place.ratingSampleCount ?? place.positive + place.negative;
-}
-
-function ratingScore(place: DiscoveryPlace) {
-  return place.ratingScore ?? calculateRating(place).displayScore;
 }
 
 function strongestTasteStrength(matches: TasteMatch[], match: TasteMatch["match"]) {
@@ -234,7 +230,7 @@ export function buildHomeCandidateFeatures(input: {
   return {
     distanceMeters,
     distance: distanceBandScore(distanceMeters),
-    confidence: confidenceScore(ratingScore(input.place), sampleCount(input.place)),
+    confidence: confidenceScore(recommendationRatingScore(input.place), sampleCount(input.place)),
     taste: aggregateTasteScore(tasteMatches),
     time: timeCompatibilityScore(timeCompatibility),
     discovery: discoveryScore({ directTaste, adjacentTaste, explicitNew }),
