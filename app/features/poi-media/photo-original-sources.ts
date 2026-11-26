@@ -8,6 +8,9 @@ export type PlacePhotoOriginalSource = {
   embed?: { provider: "threads" | "youtube"; url: string };
 };
 export type PlaceVisualFlags = { threads?: string; youtube?: string };
+type ReviewedSource = PlaceIdentity & PlacePhotoOriginalSource & {
+  fallback?: Omit<PlacePhotoOriginalSource, "embed">;
+};
 
 // The official embed script produces this narrowly scoped frame for the selected post.
 export const THREADS_PHOTO_FRAME_SOURCE = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
@@ -16,7 +19,7 @@ export function allowsPlaceVisualFrames(pathname: string) {
   return pathname === "/" || /^\/(?:places|maps)(?:\/|$)/u.test(pathname);
 }
 
-const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = [
+const REVIEWED_SOURCES: readonly ReviewedSource[] = [
   {
     id: "place-intake-684ed24c5417c7ec77450dac",
     name: "복순이네",
@@ -57,8 +60,14 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     id: "place-intake-e724797f168726b01426c9cc",
     name: "그랑깨",
     address: "전북 남원시 광한서로 52 (금동)",
-    publisher: "남원시 사진기록관",
-    url: "https://photo.namwon.go.kr/index.namwon?menuCd=DOM_000000201002002000&pageType=VIEW&category_code=001002002000&dataId=922811&returnList=Y",
+    publisher: "YouTube · 맛사장",
+    url: "https://www.youtube.com/watch?v=ZnbtJLRHUzM&t=80s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/ZnbtJLRHUzM?start=80" },
+    fallback: {
+      publisher: "남원시 사진기록관",
+      url: "https://photo.namwon.go.kr/index.namwon?menuCd=DOM_000000201002002000&pageType=VIEW&category_code=001002002000&dataId=922811&returnList=Y",
+    },
   },
   {
     id: "place-intake-4c5afcf5031e6bfbf8d3484e",
@@ -71,8 +80,14 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     id: "0bf5c86b-5043-4d3f-98ce-5949f2db2800",
     name: "전라도미가",
     address: "전남광주통합특별시 동구 필문대로191번길 19, 1층 (산수동)",
-    publisher: "네이버 플레이스 · 업체 사진",
-    url: "https://m.place.naver.com/restaurant/37505718/photo?filterType=%EC%97%85%EC%B2%B4",
+    publisher: "YouTube · ON리 마을방송국",
+    url: "https://www.youtube.com/watch?v=VfODxqfwx9w&t=66s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/VfODxqfwx9w?start=66" },
+    fallback: {
+      publisher: "네이버 플레이스 · 업체 사진",
+      url: "https://m.place.naver.com/restaurant/37505718/photo?filterType=%EC%97%85%EC%B2%B4",
+    },
   },
   {
     id: "place-intake-afcab0afe63e6705a527d23f",
@@ -157,8 +172,22 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     id: "place-intake-02c40d8d0a6e5409b7425fda",
     name: "담양현재국수",
     address: "전남광주 담양군 객사3길 24 (객사리)",
-    publisher: "네이버 플레이스 · 업체 사진",
-    url: "https://m.place.naver.com/restaurant/1870179264/photo?filterType=%EC%97%85%EC%B2%B4",
+    publisher: "YouTube · 오자링",
+    url: "https://www.youtube.com/watch?v=glRm4NcRhac&t=273s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/glRm4NcRhac?start=273&end=298" },
+    fallback: {
+      publisher: "네이버 플레이스 · 업체 사진",
+      url: "https://m.place.naver.com/restaurant/1870179264/photo?filterType=%EC%97%85%EC%B2%B4",
+    },
+  },
+  {
+    id: "place-intake-296fe52a6f1a1f39f8a2a9f6",
+    name: "오비수산",
+    address: "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
+    publisher: "오비수산 · 네이버 플레이스 소식",
+    url: "https://m.place.naver.com/restaurant/2004979994/feed",
+    mediaKind: "video",
   },
   {
     id: "place-intake-7a534081f2e2fca2ce7b27c8",
@@ -176,6 +205,6 @@ export const YOUTUBE_VIDEO_FRAME_SOURCES = REVIEWED_SOURCES.flatMap(({ embed }) 
 export function reviewedPlacePhotoOriginal(place: PlaceIdentity, flags: PlaceVisualFlags = {}): PlacePhotoOriginalSource | null {
   const source = REVIEWED_SOURCES.find(({ id, name, address }) => id === place.id && name === place.name && address === place.address);
   if (!source) return null;
-  const { id, name, address, embed, ...original } = source;
-  return embed && flags[embed.provider] === "true" ? { ...original, embed } : original;
+  const { id, name, address, embed, fallback, ...original } = source;
+  return embed && flags[embed.provider] === "true" ? { ...original, embed } : fallback ?? original;
 }

@@ -1,0 +1,80 @@
+{
+  "localMigrations": 59,
+  "results": [
+    {
+      "name": "담양현재국수",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 273.256284,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1,
+      "exactGalleryFallback": true
+    },
+    {
+      "name": "전라도미가",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 66.086205,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1,
+      "exactGalleryFallback": true
+    },
+    {
+      "name": "오비수산",
+      "width": 1280,
+      "playerStarted": false,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "그랑깨",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 80.015479,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1,
+      "exactGalleryFallback": true
+    },
+    {
+      "name": "담양현재국수",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 273.114041,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1,
+      "exactGalleryFallback": true
+    },
+    {
+      "name": "전라도미가",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 66.018658,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1,
+      "exactGalleryFallback": true
+    },
+    {
+      "name": "오비수산",
+      "width": 320,
+      "playerStarted": false,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "그랑깨",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 80.563955,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1,
+      "exactGalleryFallback": true
+    }
+  ],
+  "productionChanged": false,
+  "explicitVideoAction": true,
+  "refererOriginOnly": true
+}
