@@ -1,0 +1,56 @@
+{
+  "revision": "2911bd498a1f6f4aa9d07db359665048d6c09cd8",
+  "buildSha256": "958db244bc9b75b66c30192d85eff86438b1eb47d7d7c1b1a34d98e1d15a036b",
+  "migrations": 59,
+  "workerOutbound": 0,
+  "totalBytes": 739585,
+  "reauthForAttachmentAndSeparatePublicationVerified": true,
+  "withdrawn": "오얏리 돌솥밥",
+  "representativePublicAndPrivate404AfterWithdraw": true,
+  "otherPublishedPhotosUnaffected": true,
+  "results": [
+    {
+      "name": "부산집",
+      "bytes": 125128,
+      "sha256": "9acaad36fd50aedab977b0976edc4ed40618528db93f57b371c705adefc1fe34",
+      "dimensions": {
+        "width": 940,
+        "height": 627
+      },
+      "hiddenBeforeAndAfterAttachment": true,
+      "privateAndPublishedExactBytes": true,
+      "attributionAndSourceMatch": true,
+      "contain": true,
+      "attachmentAuditCount": 1
+    },
+    {
+      "name": "오얏리 돌솥밥",
+      "bytes": 528529,
+      "sha256": "94e70266349dc9f9dbd057f1e52d9ced3192affc6b69ffb5102ffe29fc5d093c",
+      "dimensions": {
+        "width": 940,
+        "height": 627
+      },
+      "hiddenBeforeAndAfterAttachment": true,
+      "privateAndPublishedExactBytes": true,
+      "attributionAndSourceMatch": true,
+      "contain": true,
+      "attachmentAuditCount": 1
+    },
+    {
+      "name": "새집추어탕",
+      "bytes": 85928,
+      "sha256": "efcac73b3a2eb9ecf7fa021095bf23d0d3eda5283f14bf9623805dc3ee0cc71f",
+      "dimensions": {
+        "width": 940,
+        "height": 625
+      },
+      "hiddenBeforeAndAfterAttachment": true,
+      "privateAndPublishedExactBytes": true,
+      "attributionAndSourceMatch": true,
+      "contain": true,
+      "attachmentAuditCount": 1
+    }
+  ],
+  "productionChanged": false
+}

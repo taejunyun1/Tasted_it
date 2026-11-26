@@ -34,7 +34,9 @@
 
 공공누리 제3유형으로 확인한 대표 사진은 `OPEN_LICENSE`로 준비하고 이용 근거와 원문을 항목별로 남긴다. 원본 JPEG를 그대로 보관하고 상세와 모바일 시트에 전체 프레임을 표시한다. 사진 밖 캡션에 제공자와 원문 링크를 둔다. 사진 속 저작권 표시가 원천 메타데이터와 다르면 제공 권한과 정확한 작성자를 대조할 때까지 공개를 보류한다. [한국관광공사 관광정보 API](https://www.data.go.kr/data/15101578/openapi.do) · [공공누리 제3유형](https://www.kogl.or.kr/info/licenseType3.do)
 
-남원 육모정의 TourAPI 대표 사진은 공개 장소 주소와 일치하고 제3유형으로 확인했다. JPEG 원본 1개를 로컬 반입 계획으로 준비했다. 부산집과 오얏리 돌솥밥은 원본 안에 별도 출처 표시가 있어 해당 제공 권한을 확인 중이다. 운영 반입과 공개는 대기다. [육모정 원본 사진](https://tong.visitkorea.or.kr/cms/resource/60/2899760_image2_1.jpg) · [전체 프레임 표시 검증](../evidence/cst-poi-original-frame-20261126/summary.json)
+남원 육모정의 TourAPI 대표 사진은 공개 장소 주소와 일치하고 제3유형으로 확인했다. JPEG 원본 한 장을 로컬 반입 계획으로 준비했다. 운영 반입과 공개는 #556의 조건을 따른다. [육모정 원본 사진](https://tong.visitkorea.or.kr/cms/resource/60/2899760_image2_1.jpg) · [전체 프레임 표시 검증](../evidence/cst-poi-original-frame-20261126/summary.json) · [#556 통합 운영안](2026-11-26-cst-integrated-direct-poi-rollout.md)
+
+한국관광콘텐츠랩의 개별 원본 창에서 부산집 외관 4163517과 오얏리 돌솥밥 상차림 2873883은 제3유형, 새집추어탕 외관 4060030은 제1유형으로 확인했다. 부산집과 오얏리 돌솥밥은 사진 안의 원출처 표기를 보존하고 제공자와 원출처를 캡션에 함께 표시한다. 새집추어탕은 관광정보에 천거길 9가 적혀 있지만 사진 속 외관은 요천로 1397 별관을 명시한 춘향제 사진과 일치한다. `2911bd4`의 격리 Worker에서 원본 세 장을 각각 첨부·공개하고 바이트와 출처·원본 링크를 대조했다. 오얏리 한 장을 회수해 해당 사진의 404와 나머지 두 장의 공개 유지를 확인했다. 세 장의 운영 반입은 별도 실행 범위다. [한국관광콘텐츠랩](https://api.visitkorea.or.kr/#/hubTourSearch) · [제공자 정책](https://knto.or.kr/helpdeskCopyrightguide) · [춘향제 주소와 외관](https://chunhyang.org/bbs/board.php?bo_table=store&wr_id=53) · [격리 검증](../evidence/cst-poi-three-licensed-originals-20261126/summary.json)
 
 1. 공개 적격 일반 장소의 canonical ID·상호·도로명주소가 확인된 스냅샷과 개별 사진의 원문·작성자/제공자·이용 범위·확인일을 확보한다. 사진과 점포 주소가 정확히 일치해야 한다. 공공누리 1유형이나 별도 이용허락 등 외부 원본의 재사용 근거와 필요한 표기 문구를 확인한다. 플랫폼의 원문 URL은 이용 권리 확인 자료와 함께 기록한다. [공공누리 1유형](https://www.kogl.or.kr/info/licenseType1.do) · [NAVER 접근 정책](https://policy.naver.com/policy/disclaimer.html)
 2. 저장할 JPEG 바이트의 SHA-256을 고정한다. 위치·개인정보와 EXIF를 점검한다. 이용 조건에서 허용하는 범위로만 변환한다. 준비 CLI는 이미 검토한 로컬 JPEG를 대상으로 SHA-256·크기·파일 형식·EXIF와 대상의 상호·주소를 대조한다. 원본 URL을 브라우저에서 열 수 있으나 준비 CLI와 공개 Worker는 해당 외부 URL에서 이미지를 가져오지 않는다.

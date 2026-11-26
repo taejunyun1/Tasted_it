@@ -7,6 +7,7 @@ import {
   applyReviewerDormancy,
   changeReviewerStatus,
   getPublicReviewerProfile,
+  getReviewerDashboard,
   listReviewerAdminRows,
   reviewReviewerApplication,
   submitReviewerApplication,
@@ -32,12 +33,50 @@ beforeEach(async () => {
 });
 
 describe("reviewer management service", () => {
-  it("prevents a duplicate open application but allows applying after rejection", async () => {
+  it("keeps one open application across concurrent submissions and allows applying after rejection", async () => {
     const db = createDb(env.DB);
-    const first = await submitReviewerApplication(db, { userId: "review-user", ...input, now });
-    await expect(submitReviewerApplication(db, { userId: "review-user", ...input, now })).rejects.toThrow("REVIEWER_APPLICATION_IN_PROGRESS");
+    const submit = () => submitReviewerApplication(db, { userId: "review-user", ...input, now });
+    const concurrent = await Promise.allSettled([submit(), submit()]);
+    const accepted = concurrent.filter((result) => result.status === "fulfilled");
+    const refused = concurrent.filter((result) => result.status === "rejected");
+    expect(accepted).toHaveLength(1);
+    expect(refused).toHaveLength(1);
+    expect(refused[0].reason).toEqual(new Error("REVIEWER_APPLICATION_IN_PROGRESS"));
+
+    const first = accepted[0].value;
+    const ownApplications = () => db.query.reviewerApplications.findMany({ where: (table, { eq }) => eq(table.userId, "review-user") });
+    expect(await ownApplications()).toMatchObject([{ id: first.id, status: "APPLIED" }]);
+    await expect(submit()).rejects.toThrow("REVIEWER_APPLICATION_IN_PROGRESS");
+    await reviewReviewerApplication(db, { applicationId: first.id, actorUserId: "review-admin", decision: "START_REVIEW", reason: "", now });
+    await expect(submit()).rejects.toThrow("REVIEWER_APPLICATION_IN_PROGRESS");
     await reviewReviewerApplication(db, { applicationId: first.id, actorUserId: "review-admin", decision: "REJECT", reason: "활동 근거를 더 작성해 주세요.", now });
-    await expect(submitReviewerApplication(db, { userId: "review-user", ...input, now })).resolves.toBeDefined();
+    expect((await getReviewerDashboard(db, "review-user")).latestApplication).toEqual({ status: "REJECTED" });
+    const second = await submit();
+    expect(second.id).not.toBe(first.id);
+    const applications = await ownApplications();
+    expect(applications).toHaveLength(2);
+    expect(applications).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: first.id, status: "REJECTED" }),
+      expect.objectContaining({ id: second.id, status: "APPLIED" }),
+    ]));
+  });
+
+  it("shows an open application before a newer rejected application left by past duplicate submissions", async () => {
+    const db = createDb(env.DB);
+    const older = "2026-08-01T00:00:00.000Z";
+    await db.insert(reviewerApplications).values(([
+      { id: "legacy-open-a", status: "APPLIED", createdAt: older },
+      { id: "legacy-open-b", status: "REVIEWING", createdAt: older },
+      { id: "legacy-rejected", status: "REJECTED", createdAt: now },
+    ] as const).map((application) => ({
+      ...input,
+      ...application,
+      userId: "review-user",
+      specialtySlugs: JSON.stringify(input.specialtySlugs),
+      updatedAt: now,
+    })));
+
+    expect((await getReviewerDashboard(db, "review-user")).latestApplication).toEqual({ status: "REVIEWING" });
   });
 
   it("requires ten approved suggestions unless an override reason is recorded", async () => {

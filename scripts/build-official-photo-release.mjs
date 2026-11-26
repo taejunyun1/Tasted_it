@@ -90,17 +90,17 @@ const publicVoteSupportFiles = [
   "app/features/places/place-detail-path.ts",
 ];
 const directVerificationPatch = "ops/releases/direct-verification-profile-494c07f.patch";
-const directVerificationTargets = [
-  "app/features/reviewers/reviewer.server.ts",
-  "app/routes/reviewer-apply.tsx",
-  "app/routes/reviewer-profile.tsx",
-];
+const directVerificationTargets = ["app/routes/reviewer-profile.tsx"];
 const directVerificationAuthorsPatch = "ops/releases/direct-verification-authors-494c07f.patch";
 const directVerificationAuthorsTargets = [
   "app/components/places/PlaceDetailSheet.tsx",
   "app/features/ratings/reviewer-publication.server.ts",
 ];
 const directVerificationFiles = ["app/features/reviewers/direct-verification.server.ts"];
+const directVerificationReplacementFiles = [
+  "app/features/reviewers/reviewer.server.ts",
+  "app/routes/reviewer-apply.tsx",
+];
 const publicPlaceInformationDataPatch = "ops/releases/public-place-information-data-494c07f.patch";
 const publicPlaceInformationDataTargets = [
   "app/features/places/place.server.ts",
@@ -240,12 +240,13 @@ function applyReleasePatch(file, localName, expectedTargets, flags = []) {
   return digest(patchBytes);
 }
 
-function copyMainFiles(files) {
+function copyMainFiles(files, { replace = false } = {}) {
   return Object.fromEntries(files.map((file) => {
     const bytes = committed(file);
     const target = join(output, file);
+    if (replace && !existsSync(target)) throw new Error(`Missing baseline file for replacement: ${file}`);
     mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, bytes, { flag: "wx" });
+    writeFileSync(target, bytes, { flag: replace ? "w" : "wx" });
     return [file, digest(bytes)];
   }));
 }
@@ -270,7 +271,10 @@ const publicVoteSupportFileSha256 = copyMainFiles(publicVoteSupportFiles);
 const publicVotePatchSha256 = applyReleasePatch(
   publicVotePatch, ".public-place-vote.patch", publicVoteTargets, ["--unidiff-zero"],
 );
-const directVerificationFileSha256 = copyMainFiles(directVerificationFiles);
+const directVerificationFileSha256 = {
+  ...copyMainFiles(directVerificationFiles),
+  ...copyMainFiles(directVerificationReplacementFiles, { replace: true }),
+};
 const directVerificationPatchSha256 = applyReleasePatch(
   directVerificationPatch, ".direct-verification-profile.patch", directVerificationTargets,
 );

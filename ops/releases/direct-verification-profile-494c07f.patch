@@ -1,48 +1,3 @@
-diff --git a/app/features/reviewers/reviewer.server.ts b/app/features/reviewers/reviewer.server.ts
-index 28da3f4..ed1fd37 100644
---- a/app/features/reviewers/reviewer.server.ts
-+++ b/app/features/reviewers/reviewer.server.ts
-@@ -4,6 +4,7 @@ import type { AppDb } from "../../db/client.server";
- import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
- import { isWithdrawnEmail } from "../auth/withdraw";
- import { slugifyPlaceName } from "../places/place-slug";
-+import { directlyVerifiedAuthorCondition } from "./direct-verification.server";
- import { isDormantAt, type ReviewerApplicationInput, validateReviewerApplication } from "./reviewer-policy";
-
- const OPEN_APPLICATIONS = ["APPLIED", "REVIEWING"] as const;
-@@ -106,19 +107,28 @@ export async function applyReviewerDormancy(db: AppDb, input: { actorUserId: str
- }
-
- export async function getPublicReviewerProfile(db: AppDb, slug: string) {
--  const [row] = await db.select({ profile: reviewerProfiles, displayName: users.displayName, email: users.email }).from(reviewerProfiles)
-+  const [row] = await db.select({
-+    profile: reviewerProfiles,
-+    displayName: users.displayName,
-+    email: users.email,
-+    directlyVerified: directlyVerifiedAuthorCondition(reviewerProfiles.userId),
-+  }).from(reviewerProfiles)
-     .innerJoin(users, eq(users.id, reviewerProfiles.userId))
-     .where(and(eq(reviewerProfiles.slug, slug), eq(reviewerProfiles.status, "ACTIVE"), eq(users.role, "REVIEWER"))).limit(1);
-   if (!row || isWithdrawnEmail(row.email)) return null;
-   const specialtySlugs = parseSlugs(row.profile.specialtySlugs);
-   const specialtyRows = specialtySlugs.length ? await db.select({ slug: categories.slug, name: categories.name, emoji: categories.emoji }).from(categories).where(inArray(categories.slug, specialtySlugs)) : [];
--  return { ...row.profile, displayName: row.displayName, specialties: specialtyRows };
-+  return { ...row.profile, displayName: row.displayName, directlyVerified: row.directlyVerified, specialties: specialtyRows };
- }
-
- export async function getReviewerDashboard(db: AppDb, userId: string) {
-   const [latestApplication, profile, approvedSuggestionCount] = await Promise.all([
--    db.query.reviewerApplications.findFirst({ where: eq(reviewerApplications.userId, userId), orderBy: [desc(reviewerApplications.createdAt)] }),
--    db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, userId) }),
-+    db.query.reviewerApplications.findFirst({
-+      columns: { status: true },
-+      where: eq(reviewerApplications.userId, userId),
-+      orderBy: [desc(reviewerApplications.createdAt)],
-+    }),
-+    db.query.reviewerProfiles.findFirst({ columns: { status: true, slug: true }, where: eq(reviewerProfiles.userId, userId) }),
-     countApprovedPlaceSuggestions(db, userId),
-   ]);
-   return { latestApplication, profile, approvedSuggestionCount };
 diff --git a/app/routes/reviewer-profile.tsx b/app/routes/reviewer-profile.tsx
 index f9d05f7..3ca88c8 100644
 --- a/app/routes/reviewer-profile.tsx
@@ -67,10 +22,3 @@ index f9d05f7..3ca88c8 100644
      <section className="reviewer-public-visits" aria-labelledby="reviewer-public-visits-title">
        <h2 id="reviewer-public-visits-title">승인된 방문과 평가</h2>
        {loaderData.visits.length ? loaderData.visits.map((visit) => <article className="reviewer-public-visit" key={visit.id}>
-diff --git a/app/routes/reviewer-apply.tsx b/app/routes/reviewer-apply.tsx
---- a/app/routes/reviewer-apply.tsx
-+++ b/app/routes/reviewer-apply.tsx
-@@ -57,2 +57,3 @@
-         <div className="grid gap-5 md:grid-cols-2"><Field label="직업 또는 활동 소개" hint="최대 80자"><input name="occupation" maxLength={80} required defaultValue={actionData?.values.occupation ?? ""} /></Field><Field label="활동 지역"><select name="regionCode" required defaultValue={actionData?.values.regionCode ?? "GWANGJU"}><option value="GWANGJU">광주</option><option value="JEONNAM">전남</option></select></Field></div>
-+        <p className="text-sm leading-6 text-neutral-600">직업 또는 활동 소개는 리뷰어 심사에 사용합니다. 직접인증 참여자의 소개는 내부 심사에만 사용합니다. 일반 리뷰어의 소개는 승인 뒤 공개 프로필에 표시됩니다. 보관·삭제 기준은 <Link className="underline" to="/privacy">개인정보 처리방침</Link>에서 확인해 주세요.</p>
-         <Field label="취향 방향" hint="최대 200자"><textarea name="tasteDirection" rows={3} maxLength={200} required defaultValue={actionData?.values.tasteDirection ?? ""} /></Field>
