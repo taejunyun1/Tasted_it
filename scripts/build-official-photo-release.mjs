@@ -101,6 +101,24 @@ const directVerificationAuthorsTargets = [
   "app/features/ratings/reviewer-publication.server.ts",
 ];
 const directVerificationFiles = ["app/features/reviewers/direct-verification.server.ts"];
+const publicPlaceInformationDataPatch = "ops/releases/public-place-information-data-494c07f.patch";
+const publicPlaceInformationDataTargets = [
+  "app/features/places/place.server.ts",
+  "app/features/places/place.types.ts",
+];
+const publicPlaceInformationUiPatch = "ops/releases/public-place-information-ui-494c07f.patch";
+const publicPlaceInformationUiTargets = [
+  "app/app.css",
+  "app/components/map/MapPlaceDetail.tsx",
+  "app/components/map/MapPlaceList.tsx",
+  "app/components/places/PlaceDetailSheet.tsx",
+  "app/routes/place-detail.tsx",
+];
+const publicPlaceInformationFiles = [
+  "app/components/places/PlaceInformation.tsx",
+  "app/features/places/public-information.ts",
+  "app/styles/place-information.css",
+];
 const poiMediaPublicPatch = "ops/releases/poi-media-public-494c07f.patch";
 const poiMediaPublicTargets = [
   "app/components/places/PlaceDetailSheet.tsx",
@@ -221,6 +239,15 @@ const poiMediaProof = poiMedia ? {
 const directVerificationAuthorsPatchSha256 = studentPilot ? applyReleasePatch(
   directVerificationAuthorsPatch, ".direct-verification-authors.patch", directVerificationAuthorsTargets,
 ) : null;
+const publicPlaceInformationProof = {
+  dataPatchSha256: applyReleasePatch(
+    publicPlaceInformationDataPatch, ".public-place-information-data.patch", publicPlaceInformationDataTargets,
+  ),
+  uiPatchSha256: applyReleasePatch(
+    publicPlaceInformationUiPatch, ".public-place-information-ui.patch", publicPlaceInformationUiTargets,
+  ),
+  fileSha256: copyMainFiles(publicPlaceInformationFiles),
+};
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -238,6 +265,7 @@ const attestation = {
   publicVoteSupportFileSha256,
   directVerificationPatchSha256,
   directVerificationFileSha256,
+  publicPlaceInformation: publicPlaceInformationProof,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: buildFingerprint(buildRoot),

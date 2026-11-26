@@ -1,0 +1,73 @@
+diff --git a/app/app.css b/app/app.css
+--- a/app/app.css
++++ b/app/app.css
+@@ -437,2 +437,5 @@
+ .place-review-actions .place-review-publish-confirm{min-width:min(100%,420px);background:#fff;padding:11px 12px;color:#1d3325;line-height:1.45}.place-review-publish-confirm span{display:flex;gap:8px;align-items:flex-start}.place-review-publish-confirm input{min-height:auto;margin-top:2px;accent-color:#22543d}
+ .place-review-card{cursor:pointer}.place-review-card.is-selected{background:#f4f8f2}.place-review-badge{border-color:#c9a227 !important;background:#fff6d6 !important;color:#7a5b00 !important}.place-review-address-edit{display:grid;gap:6px;margin-top:10px;color:#395646;font-size:10px;font-weight:800}.place-review-address-edit input{width:100%;min-height:40px;border:1px solid #9eafa2;background:#fff;padding:8px 10px;color:var(--text);font:inherit}
++
++.map-place-summary .place-verified-badge::before,
++.map-place-sheet .place-verified-badge::before{content:none;}
+diff --git a/app/components/map/MapPlaceDetail.tsx b/app/components/map/MapPlaceDetail.tsx
+--- a/app/components/map/MapPlaceDetail.tsx
++++ b/app/components/map/MapPlaceDetail.tsx
+@@ -23,5 +23,5 @@
+     </div>
+     <div className="map-place-sheet__identity">
+-      <div className="map-place-sheet__meta"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</p><span className="place-verified-badge">검수 완료</span></div>
++      <div className="map-place-sheet__meta"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</p><span className="place-verified-badge">{place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
+       <h2>{place.name}</h2>
+       <address>{place.address || "주소 확인 중"}</address>
+diff --git a/app/components/map/MapPlaceList.tsx b/app/components/map/MapPlaceList.tsx
+--- a/app/components/map/MapPlaceList.tsx
++++ b/app/components/map/MapPlaceList.tsx
+@@ -1,2 +1,3 @@
++import { useId } from "react";
+ import type { RegionCluster, RegionClusterLevel, RegionGroup } from "../../features/maps/region-cluster-policy";
+ import { formatPublicRatingSummary } from "../../features/places/place-discovery";
+@@ -8,13 +9,15 @@
+   startIndex?: number;
+ }) {
++  const statusIdPrefix = useId();
+   return <ol className="map-place-list">
+     {places.map((place, index) => {
++      const statusId = `${statusIdPrefix}-${index}`;
+       return <li key={place.id}>
+-        <button type="button" aria-label={`${place.name} 선택`} onClick={() => onSelect(place.id)}>
++        <button type="button" aria-label={`${place.name} 선택`} aria-describedby={statusId} onClick={() => onSelect(place.id)}>
+           <span className="map-place-index">{String(startIndex + index + 1).padStart(2, "0")}</span>
+           <span className="map-place-summary">
+             <strong>{place.name}</strong>
+             <small>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</small>
+-            <span className="place-verified-badge">검수 완료</span>
++            <span id={statusId} className="place-verified-badge">{place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span>
+           </span>
+           <span className="map-place-rating">{formatPublicRatingSummary(place)}</span>
+diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
+--- a/app/components/places/PlaceDetailSheet.tsx
++++ b/app/components/places/PlaceDetailSheet.tsx
+@@ -4,2 +4,3 @@
+ import type { clientLoader as placeDetailLoader } from "../../routes/place-detail";
++import { PlaceInformation } from "./PlaceInformation";
+ import { tabWrapTarget, visibleFocusableElements } from "../../features/a11y/dialog-focus";
+@@ -199,3 +200,3 @@
+         <div className="place-detail-sheet__body">
+-          <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "검수 완료"}</span></div>
++          <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
+           <h2>{data.place.name}</h2>
+@@ -207,3 +208,3 @@
+           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
+-          <dl><div><dt>주소</dt><dd>{data.place.address}</dd></div><div><dt>주차</dt><dd>{data.place.parkingSummary ?? "정보 확인 중"}</dd></div>{data.place.phone && <div><dt>전화</dt><dd>{data.place.phone}</dd></div>}</dl>
++          <PlaceInformation place={data.place} />
+           <VoteControl
+diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
+--- a/app/routes/place-detail.tsx
++++ b/app/routes/place-detail.tsx
+@@ -4,2 +4,3 @@
+ import type { Route } from "./+types/place-detail";
++import { PlaceInformation } from "../components/places/PlaceInformation";
+ import { createDb } from "../db/client.server";
+@@ -255,3 +256,3 @@
+           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
+-          <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
++          <PlaceInformation place={place} />
+           <VoteControl key={place.id} placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />

@@ -13,9 +13,9 @@ diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/
            <button type="button" onClick={onClose}>목록으로 돌아가기</button>
          </div>
        </div> : <>
--        {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
+-        {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span className="px-5 text-center text-base tracking-normal">{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
 +        {data.poiPhoto ? <PlacePoiPhoto photo={data.poiPhoto} placeName={data.place.name} heroClassName="place-detail-sheet__hero" /> :
-+          !data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
++          !data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span className="px-5 text-center text-base tracking-normal">{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
          <div className="place-detail-sheet__body">
            <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "검수 완료"}</span></div>
            <h2>{data.place.name}</h2>
@@ -95,5 +95,5 @@ diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
 +        {poiPhoto ? <PlacePoiPhoto photo={poiPhoto} placeName={place.name} heroClassName="detail-hero" /> :
 +          instagramPhoto ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
            <PlaceInstagramPhoto photo={instagramPhoto} placeName={place.name} />
-         </div> : <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>}
+         </div> : <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span className="px-5 text-center text-base tracking-normal">{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
          <article className="detail-copy">
