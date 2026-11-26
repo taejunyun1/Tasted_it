@@ -12,7 +12,8 @@
     "REVIEW_AUTO_PIPELINE_ENABLED": "true",
     "NAVER_MAPS_CLIENT_ID": "e2e-naver-map-client",
     "NAVER_PLACE_GEOCODING_ENABLED": "true",
-    "REVIEW_PHOTO_UPLOAD_ENABLED": "true"
+    "REVIEW_PHOTO_UPLOAD_ENABLED": "true",
+    "POI_MEDIA_PUBLIC_ENABLED": "true"
   },
   "d1_databases": [
     {
