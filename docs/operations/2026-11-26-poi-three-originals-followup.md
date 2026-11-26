@@ -10,11 +10,13 @@
 
 | 장소 | JPEG 바이트 | 원본 SHA-256 | 개별 STAGED SQL SHA-256 |
 |---|---:|---|---|
-| 부산집 | 125128 | `9acaad36fd50aedab977b0976edc4ed40618528db93f57b371c705adefc1fe34` | `8f130526811feff925a8fbdb44be04da5e4f8943bdf1e12c0c7f5593a74df308` |
+| 부산집 `4163518` | 56556 | `aaa9c4f2ef5570e769b6ce25aa56487220237333d75bd0fb70a9975e72886ef0` | `3b6ef30f6cca3d349e213c2b586a88d0758e34780c2e643ca292c36fa2c8ae8a` |
 | 오얏리 돌솥밥 | 528529 | `94e70266349dc9f9dbd057f1e52d9ced3192affc6b69ffb5102ffe29fc5d093c` | `edbfff36c2c326561b03c35ddb47054281331473ab1930a034fa882d7acc797c` |
 | 새집추어탕 | 85928 | `efcac73b3a2eb9ecf7fa021095bf23d0d3eda5283f14bf9623805dc3ee0cc71f` | `212b14c2b2077269aed7a747e0187d70201285827c8716fb90b62ef435942b07` |
 
-부산집 외관과 오얏리 돌솥밥 상차림은 공공누리 제3유형이다. 사진 안의 원출처 표시와 전체 프레임을 보존한다. 새집추어탕은 제1유형 원본의 별관 외관을 사용한다. 각 매장의 데스크톱 상세와 모바일 시트에서 검증된 원출처 캡션과 원본 링크를 대조한다. [부산집](https://tong.visitkorea.or.kr/cms/resource/17/4163517_image2_1.jpg) · [오얏리](https://tong.visitkorea.or.kr/cms/resource/83/2873883_image2_1.jpg) · [새집추어탕](https://tong.visitkorea.or.kr/cms/resource/30/4060030_image2_1.jpg)
+부산집 음식 사진과 오얏리 돌솥밥 상차림은 공공누리 제3유형이다. 사진 안의 원출처 표시와 전체 프레임을 보존한다. 새집추어탕은 제1유형 원본의 별관 외관을 사용한다. 각 매장의 데스크톱 상세와 모바일 시트에서 검증된 원출처 캡션과 원본 링크를 대조한다. [부산집](https://tong.visitkorea.or.kr/cms/resource/18/4163518_image2_1.jpg) · [오얏리](https://tong.visitkorea.or.kr/cms/resource/83/2873883_image2_1.jpg) · [새집추어탕](https://tong.visitkorea.or.kr/cms/resource/30/4060030_image2_1.jpg)
+
+11월 26일 한국관광콘텐츠랩에서 부산집 장소 `2899204`의 요천로 1411 기록과 사진 `4163518_3`의 개별 제3유형, 원본 URL을 다시 대조했다. 원본의 남원시 공식블로그 표기를 확인했다. 출처는 **남원시 공식블로그 · 한국관광공사 TourAPI · 공공누리 제3유형**으로 표시한다. 개별 이용 조건을 확정할 수 없는 대표 사진 `4163517`과 해당 SQL은 보류 이력으로 보존한다. 부산집은 위 표의 새 원본과 개별 SQL 한 건만 반입한다. [공식 장소 기록](https://api.visitkorea.or.kr/#/hubTourSearchCatDetail?contentId=2899204&langDiv=KOR) · [제3유형 이용 조건](https://www.kogl.or.kr/info/licenseType3.do)
 
 ## 실행 범위
 
@@ -25,4 +27,4 @@
 
 최대 D1 STAGED 세 행, 조건부 원본 저장 세 건, 공개 승인 세 건, 문제가 있는 정확한 사진의 회수 최대 세 건이다. 요청은 기존 구독·Worker·D1·R2의 사용량만 발생시킨다. 개인정보와 비밀값을 기록하지 않는다. 신규 API·메일·자리 승인·외부 연락은 범위 밖이다. B17과 #397은 보류한다.
 
-같은 #556 Worker 소스 `2911bd4`와 59개 격리 장부에서 세 원본의 정확한 JPEG·바이트·캡션·별도 공개를 확인했다. 대표 한 장의 회수 뒤 해당 사진만 404였다. [격리 결과](../evidence/cst-poi-three-licensed-originals-20261126/summary.json) · [#556 통합 전환](2026-11-26-cst-integrated-direct-poi-rollout.md)
+같은 #556 Worker 소스 `2911bd4`와 59개 격리 장부에서 교체 전 세 원본의 JPEG·바이트·캡션·별도 공개를 확인했다. 대표 한 장의 회수 뒤 해당 사진만 404였다. 새 부산집 원본은 준비 도구로 JPEG와 지문을 검증했고, 격리 D1에서 새 SQL의 `STAGED` 한 행과 같은 출처를 쓰는 별도 행의 중복 검출을 확인했다. [격리 결과](../evidence/cst-poi-three-licensed-originals-20261126/summary.json) · [#556 통합 전환](2026-11-26-cst-integrated-direct-poi-rollout.md)
