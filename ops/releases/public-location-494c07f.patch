@@ -41,7 +41,7 @@ index 865cb63..0e91bbf 100644
 @@ -70,0 +74 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
 +      {locationNotice && <p className="mx-4" role="status">{locationNotice}</p>}
 diff --git a/app/components/map/PlaceMap.tsx b/app/components/map/PlaceMap.tsx
-index 4c8997a..e02995b 100644
+index 4c8997a..2d087bf 100644
 --- a/app/components/map/PlaceMap.tsx
 +++ b/app/components/map/PlaceMap.tsx
 @@ -1 +1 @@
@@ -52,9 +52,23 @@ index 4c8997a..e02995b 100644
 +export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
 @@ -113,0 +114 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
 +  onViewportIntent?: () => void;
-@@ -318,0 +320 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
+@@ -173,0 +175 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++      viewportDirtyRef.current = false;
+@@ -183,0 +186,2 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++        const delay = deferBoundsRef.current && viewportDirtyRef.current
++          ? Math.max(400, suppressBoundsUntilRef.current - Date.now()) : 400;
+@@ -204 +208 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
+-        }, 400);
++        }, delay);
+@@ -283,0 +288 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++    viewportDirtyRef.current = false;
+@@ -296,0 +302 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++    viewportDirtyRef.current = false;
+@@ -308,0 +315 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++    viewportDirtyRef.current = false;
+@@ -318,0 +326 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
 +    if (!map && !qaFallback) return;
-@@ -319,0 +322,8 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
+@@ -319,0 +328,8 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
 +    onViewportIntent?.();
 +  };
 +  const handleMapKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -63,7 +77,7 @@ index 4c8997a..e02995b 100644
 +    if (!event.key.startsWith("Arrow") || !(target instanceof Element) || !host.current?.contains(target)) return;
 +    if (target.closest("button, input, select, textarea, a, [role=button], [contenteditable=true]")) return;
 +    handleViewportIntent();
-@@ -369 +379 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
+@@ -369 +385 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
 -  return <div className="map-canvas" aria-label="장소 지도" data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
 +  return <div className="map-canvas" aria-label="장소 지도" data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent} onKeyDownCapture={handleMapKeyDown}>
 diff --git a/app/features/http/security-headers.ts b/app/features/http/security-headers.ts
@@ -250,7 +264,7 @@ index 338fff4..35d6632 100644
 -        onPendingBounds={setPendingBounds}
 +        onPendingBounds={isCurated ? setPendingBounds : setBounds}
 diff --git a/app/routes/map-category.tsx b/app/routes/map-category.tsx
-index 1f63cc6..8ba9ffd 100644
+index 1f63cc6..de4e4d9 100644
 --- a/app/routes/map-category.tsx
 +++ b/app/routes/map-category.tsx
 @@ -2 +2,2 @@ import { env } from "cloudflare:workers";
@@ -285,6 +299,9 @@ index 1f63cc6..8ba9ffd 100644
 +        : "현재 위치 주변으로 지도를 이동했습니다.";
 +    });
 +  };
+@@ -25 +51 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
+-    const next = new URLSearchParams(params);
++    const next = new URLSearchParams(pendingLocation?.pathname === location.pathname ? pendingLocation.search : params);
 @@ -34 +60,7 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
 -        <Form className="search-form"><label htmlFor="q">동네 또는 가게</label><input id="q" name="q" defaultValue={loaderData.state.query} placeholder="동명동, 라멘…" /><button>찾기</button></Form>
 +        <Form className="search-form" onSubmit={clearLocation}>
