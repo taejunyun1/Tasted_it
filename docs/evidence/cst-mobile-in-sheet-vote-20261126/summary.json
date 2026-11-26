@@ -1,0 +1,53 @@
+{
+  "codeRevision": "14589e473a4cd3acc2e8edb603fb244c25949f07",
+  "patchSha256": "3715aed00c8a11d97eb1ba244392126e8ad8649fd6c443e29b04d125927a56dd",
+  "scope": "격리 Chromium과 합성 D1",
+  "cases": {
+    "actions": "추천·비추천과 이유 변경, 평가 이력 중복 방지 및 저장·취소",
+    "recovery": "쓰기 전후 응답 유실과 재조회 뒤 요청 미재전송",
+    "stale": "다른 탭에서 평가 변경 뒤 취소 충돌과 재조회",
+    "login": "세션 만료와 브라우저의 같은 장소로 재로그인",
+    "selection": "장소 전환 중 이전 응답을 가림",
+    "entries": "홈·분류 지도 모바일 장소 상세 진입과 복귀",
+    "desktop": "목록·분류 지도 데스크톱 정식 상세 진입",
+    "guest": "기존 비회원 세션의 쓰기 응답 유실, 재조회와 결과 확인"
+  },
+  "builds": {
+    "ordinary": {
+      "orderedMigrations": 56,
+      "buildSha256": "4f857c36ec4ee6533543aa043584c942c6fd135f1750ec2948adcae528186633",
+      "passed": [
+        "actions",
+        "recovery",
+        "stale",
+        "login",
+        "selection",
+        "entries",
+        "desktop",
+        "guest"
+      ],
+      "externalWorkerRequests": 0
+    },
+    "pilot": {
+      "orderedMigrations": 57,
+      "buildSha256": "d8135064d584324a4f5eae594b2aab393bf031905fd7864e8153d8c98b84aa0b",
+      "passed": [
+        "actions",
+        "recovery",
+        "stale",
+        "login",
+        "selection",
+        "entries",
+        "desktop",
+        "guest"
+      ],
+      "externalWorkerRequests": 0
+    }
+  },
+  "additionalOrdinaryChecks": [
+    "320px 모의 지도 핀과 카드의 검색 상태 및 초점 보존",
+    "한글 식별자의 일반·추천 카드와 추천 출처",
+    "JavaScript 비활성 320px와 데스크톱 정식 상세"
+  ],
+  "liveChanges": 0
+}
