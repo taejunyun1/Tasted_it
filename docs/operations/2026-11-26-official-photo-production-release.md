@@ -23,6 +23,8 @@ node scripts/build-official-photo-release.mjs "$release_parent/candidate"
 pnpm exec wrangler deploy --dry-run --config "$release_parent/candidate/build/server/wrangler.json" --profile tastedit-production
 ```
 
+로컬 브라우저 화면은 합성 임베드를 사용한다. 모바일 390px 시트를 열면 가게명과 주소가 사진 위에 보인다. [데스크톱](../evidence/cst-official-photo-release-20261126/desktop.png) · [모바일](../evidence/cst-official-photo-release-20261126/mobile.png) · [실행 기록](../evidence/cst-official-photo-release-20261126/summary.json)
+
 ## 운영 확인과 회수
 
 - 승인 PR에 명시된 빌드만 `wrangler deploy --config`로 1회 배포한다. 환경 시작 전후의 이전 버전, 새 버전과 트래픽 비율을 대조한다.

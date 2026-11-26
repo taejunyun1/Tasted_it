@@ -1,0 +1,101 @@
+{
+  "scope": "localhost compiled Workers, exact deployed 56 migration names and known digests, isolated D1 and R2, synthetic places",
+  "ledgerCount": 56,
+  "ledgerDigest": "a9beee8c240ccef6d667125f9968c4d70483c315d1afe458f99b18c582762928",
+  "registryCount": 22,
+  "candidateBundleDigest": "e513ae0d57f840ba6ddf3b4c12c09887afafcb3a2ecb9f4ab83aa63d89fed62c",
+  "externalWorkerRequestAttempts": 0,
+  "addressMismatchDenied": true,
+  "closedFixtureDenied": true,
+  "publishedTempDenied": true,
+  "flagOffDenied": true,
+  "comparisonSchedules": {
+    "baseline": {
+      "maintenanceOutcome": "ok",
+      "localOrphanRemoved": true,
+      "rsiOutcome": "ok",
+      "rsiLoopbackPaths": 6,
+      "rsiAuditRows": 1
+    },
+    "candidate": {
+      "maintenanceOutcome": "ok",
+      "localOrphanRemoved": true,
+      "rsiOutcome": "ok",
+      "rsiLoopbackPaths": 6,
+      "rsiAuditRows": 1
+    }
+  },
+  "http": [
+    {
+      "path": "/",
+      "baseline": 200,
+      "candidate": 200,
+      "embed": false
+    },
+    {
+      "path": "/places?q=%EC%A0%A4%EB%9D%BC%EB%98%90+%EB%85%B8%EB%B2%A0%EC%98%A4&bbox=126.6%2C35.8%2C126.9%2C36.1",
+      "baseline": 200,
+      "candidate": 200,
+      "embed": false
+    },
+    {
+      "path": "/maps/cafe?q=%EC%A0%A4%EB%9D%BC%EB%98%90+%EB%85%B8%EB%B2%A0%EC%98%A4&bbox=126.6%2C35.8%2C126.9%2C36.1",
+      "baseline": 200,
+      "candidate": 200,
+      "embed": false
+    },
+    {
+      "path": "/places/local-photo-release-noveo",
+      "baseline": 200,
+      "candidate": 200,
+      "embed": true
+    },
+    {
+      "path": "/places/local-photo-release-mismatch",
+      "baseline": 200,
+      "candidate": 200,
+      "embed": false
+    },
+    {
+      "path": "/login",
+      "baseline": 200,
+      "candidate": 200,
+      "embed": false
+    },
+    {
+      "path": "/privacy",
+      "baseline": 200,
+      "candidate": 200,
+      "embed": false
+    },
+    {
+      "path": "/admin",
+      "baseline": 302,
+      "candidate": 302,
+      "embed": false
+    },
+    {
+      "path": "/admin/places",
+      "baseline": 302,
+      "candidate": 302,
+      "embed": false
+    },
+    {
+      "path": "/student",
+      "baseline": 302,
+      "candidate": 302,
+      "embed": false
+    },
+    {
+      "path": "/reviewer/ratings",
+      "baseline": 302,
+      "candidate": 302,
+      "embed": false
+    },
+    {
+      "path": "/maps/cafe.data?q=%EC%A0%A4%EB%9D%BC%EB%98%90+%EB%85%B8%EB%B2%A0%EC%98%A4&bbox=126.6%2C35.8%2C126.9%2C36.1",
+      "baseline": 200,
+      "candidate": 200
+    }
+  ]
+}
