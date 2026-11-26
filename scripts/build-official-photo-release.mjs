@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildFingerprint, digest } from "./lib/release-fingerprint.mjs";
 
 const baseline = "494c07f56c174df42a3b027b1639772e2d9796b7";
 const repository = fileURLToPath(new URL("../", import.meta.url));
@@ -87,10 +87,6 @@ function git(args, cwd = repository) {
   return execFileSync("git", args, { cwd, maxBuffer: 128 * 1024 * 1024 });
 }
 
-function digest(bytes) {
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
 const [output, mode, ...extra] = process.argv.slice(2);
 if (!output || !isAbsolute(output) || extra.length || (mode !== undefined && mode !== "--student-pilot")) {
   throw new Error("Usage: node scripts/build-official-photo-release.mjs <new-absolute-output-dir> [--student-pilot]");
@@ -166,9 +162,6 @@ for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "b
 
 const buildRoot = join(output, "build");
 const buildConfig = join(buildRoot, "server/wrangler.json");
-const emittedFiles = readdirSync(buildRoot, { recursive: true }).sort()
-  .filter((file) => lstatSync(join(buildRoot, file)).isFile())
-  .map((file) => [file, digest(readFileSync(join(buildRoot, file)))]);
 const configBytes = readFileSync(buildConfig);
 const attestation = {
   revision,
@@ -181,7 +174,7 @@ const attestation = {
   directVerificationPatchSha256,
   photoAssetSha256,
   configSha256: digest(configBytes),
-  buildSha256: digest(JSON.stringify(emittedFiles)),
+  buildSha256: buildFingerprint(buildRoot),
 };
 if (pilotProof) {
   const config = JSON.parse(configBytes);

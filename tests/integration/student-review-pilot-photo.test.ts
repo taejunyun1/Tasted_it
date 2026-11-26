@@ -36,7 +36,7 @@ function request(path: string, session?: string, body?: FormData | URLSearchPara
   });
 }
 
-it("runs two A/B photos on the exact 56 ledger plus 0065, with private intake, verified public read, withdrawal and late writes", async () => {
+it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with private intake, verified public read, withdrawal and late writes", async () => {
   const database = env.MIGRATION_DB;
   const baseline = env.TEST_MIGRATIONS.filter(({ name }) => {
     const version = name.slice(0, 4);
@@ -142,12 +142,34 @@ it("runs two A/B photos on the exact 56 ledger plus 0065, with private intake, v
     const approvePhoto = (photoId: string) => moderatePhoto({ request: request(photoAdminPath, admin.session, new URLSearchParams({
       photoId, decision: "APPROVE", reason: "합성 사진 공개 검수", ...checks,
     })) } as never);
-    const photoRecords = [];
+
+    const reviews = [];
     for (const reviewer of [a, b, c]) {
       const reviewId = await makeReview(reviewer.session);
-      const availability = await reviewHistory({ request: request("/reviewer/ratings", reviewer.session) } as never);
+      const availability = await readAvailability(reviewer.session);
       expect(availability).toMatchObject({ photoUploadEnabled: false, pilotPhotoReviewIds: reviewer === c ? [] : [reviewId] });
-      const upload = await submitPhoto(reviewId, reviewer.session);
+      reviews.push({ reviewer, reviewId });
+    }
+    const [aReview, bReview] = reviews;
+    const expectNoPhotoWrites = async () => {
+      expect(await database.prepare("SELECT count(*) AS count FROM student_review_pilot_photos").first<number>("count")).toBe(0);
+      expect((await bucket.list()).objects).toHaveLength(0);
+    };
+    await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: undefined }, async () => {
+      for (const { reviewer, reviewId } of [aReview, bReview]) {
+        expect(await submitPhoto(reviewId, reviewer.session)).toMatchObject({ init: { status: 409 } });
+        await expectNoPhotoWrites();
+      }
+    });
+    const aUpload = await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: "A" }, async () => {
+      expect(await submitPhoto(bReview.reviewId, b.session)).toMatchObject({ init: { status: 409 } });
+      await expectNoPhotoWrites();
+      return submitPhoto(aReview.reviewId, a.session);
+    });
+
+    const photoRecords = [];
+    for (const { reviewer, reviewId } of reviews) {
+      const upload = reviewer === a ? aUpload : await submitPhoto(reviewId, reviewer.session);
       if (reviewer === c) {
         expect(upload).toMatchObject({ init: { status: 409 } });
         continue;
@@ -205,6 +227,9 @@ it("runs two A/B photos on the exact 56 ledger plus 0065, with private intake, v
     expect(publicPhotos.every((photo) => photo.directlyVerified)).toBe(true);
     await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: undefined }, async () => {
       for (const { id, reviewId, reviewer } of photoRecords) {
+        const response = await view(id);
+        expect(response.status).toBe(200);
+        expect(new Uint8Array(await response.arrayBuffer())).toEqual(jpeg);
         const path = `/reviewer/pilot-photo/${reviewId}`;
         const form = await photoForm({ request: request(path, reviewer.session), params: { reviewId } } as never);
         expect(form).toMatchObject({ data: { review: { mayUpload: false, photos: [{ id, status: "APPROVED" }] } } });

@@ -15,6 +15,27 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 생성된 후보는 학생 좌석 설정과 실증 버킷 바인딩이 비어 있다. 기존 `REVIEW_PHOTOS`, 전역 리뷰 사진 비활성 설정, 공식 장소 사진 레지스트리를 유지한다. `student-pilot-release.json`에 입력 커밋, 두 패치, 각 소스, 장부 기준과 번들 해시가 들어 있다. 기존 12개 공개·인증 HTTP 응답, 두 예약 작업, 현재 공식 사진 프레임과 모바일 장소 화면을 56개 장부에서 확인한다. 0065만 더한 57개 장부와 합성 비공개 R2에서 학생 작업공간에서 신청·방문 리뷰로 진입하는 경로, 두 좌석의 업로드·승인·철회, 범위 밖 좌석 차단, 데스크톱과 모바일 출처 표시, 지연 쓰기 정리를 확인한다.
 
+## 후속 후보의 접수 설정 준비
+
+후속 호환 후보에서 접수 종료, A만, A·B 순으로 쓸 Wrangler 설정을 로컬에 준비한다. 아래 `expected_revision`은 후보를 빌드한 전체 커밋 SHA다. 준비 도구는 후보 매니페스트와 실제 빌드·설정 해시를 대조하고, 출력마다 새 디렉터리에 전체 빌드를 복사한다. 복사본에 전용 비공개 버킷 바인딩과 해당 좌석 변수만 추가한다. `closed`는 좌석 변수를 생략한다. 입력과 결과의 해시는 각 출력의 `student-pilot-config.json`에 기록한다.
+
+```sh
+(
+  set -eu
+  expected_revision=$(git rev-parse HEAD)
+  for phase in closed a ab; do
+    config=$(node scripts/prepare-student-pilot-release-config.mjs \
+      "$release_dir/candidate" "$release_dir/prepared-$phase" "$expected_revision" "$phase")
+    pnpm exec wrangler deploy --dry-run --config "$config"
+    pnpm exec wrangler versions upload --dry-run --strict --config "$config" --name retaste-beta
+  done
+)
+```
+
+로컬 설정 생성은 운영 자원에 연결하지 않는다. 실행 PR에는 커밋·입력 해시·최종 설정 해시와 배포 순서를 고정한다. #533 1단계의 운영 영수증을 확인한 뒤 후속 후보를 별도 승인하고 접수 종료 구성부터 운영에 대조한다. 이때 기존 라우트와 예약 작업, 0065 장부, 비공개 R2 바인딩, 공식 사진 30→38곳 및 직접인증·위치·모바일 평가 변경을 확인한다. 그 다음 같은 빌드에서 A, A·B 순으로 좌석 설정을 연다.
+
+56개 기준 장부에 0065를 추가한 합성 통합 테스트에서 접수 종료 시 A·B의 실제 다중 부분 폼 POST, A만 접수할 때 B의 POST가 각각 409를 반환했다. 차단 직후 실증 D1 원장·R2 객체는 각각 0개였다. A 접수에서 A, A·B 접수에서 B의 JPEG 저장이 성공했다. 접수 종료 구성에서도 승인된 기존 A 사진이 일치하는 바이트로 반환됐다.
+
 ## 운영 전환 순서
 
 1. 별도 실행 PR에 정확한 운영 Worker와 시작 버전, 운영 자원, 적용할 0065 파일의 SHA-256, 명령과 한도, 담당자 및 회수 절차를 기록한다. 이 준비 문서는 R2 생성·운영 D1 적용·배포·실제 계정 변경을 승인하지 않는다.
