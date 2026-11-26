@@ -1,0 +1,10 @@
+{
+  "venues": 2,
+  "viewportWidths": [1440, 320],
+  "syntheticAppBrowserCases": 4,
+  "sourceLinksPerDetail": 1,
+  "localOriginalNavigationCases": 2,
+  "independentActualProviderPlaybackCases": 4,
+  "capturesUseSyntheticProviderContent": true,
+  "productionChanged": false
+}
