@@ -1,0 +1,18 @@
+{
+  "scope": "local Chromium with synthetic public venue fixtures",
+  "viewportWidths": [1280, 320],
+  "naverMerchantGalleryLinks": 3,
+  "verifiedNaverSourcePhotoRecords": 5,
+  "threadsPosts": 1,
+  "browserCases": 2,
+  "providerRequestsBeforeClick": 0,
+  "providerRefererSent": false,
+  "actualThreadsImagesDecodedPerViewportAtLeast": 3,
+  "compiledCompatibilityMigrations": 59,
+  "compiledBrowserCases": 2,
+  "compiledThreadsFlagInitiallyAbsent": true,
+  "sourceLinkCountPerDetail": 1,
+  "outerHorizontalOverflow": false,
+  "capturesUseSyntheticProviderContent": true,
+  "productionChanged": false
+}

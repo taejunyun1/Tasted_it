@@ -197,7 +197,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
         </div>
       </div> : <>
         {data.poiPhoto ? <PlacePoiPhoto photo={data.poiPhoto} placeName={data.place.name} heroClassName="place-detail-sheet__hero" /> :
-        data.instagramPhoto ? null :
+        data.instagramPhoto || data.photoOriginal?.embedUrl ? null :
         <div className="place-detail-sheet__hero" data-has-photo={Boolean(data.place.heroImageUrl)}>{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
         <div className="place-detail-sheet__body">
           <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
@@ -205,7 +205,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
           {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
           <PlaceRatingBadges goldenPick={data.hasGoldenPick} hiddenGem={data.hiddenGem.eligible} />
           <address>{data.place.address}</address>
-          {data.photoOriginal && <PlacePhotoOriginalLink source={data.photoOriginal} />}
+          {data.photoOriginal && <PlacePhotoOriginalLink key={data.photoOriginal.url} source={data.photoOriginal} />}
           {!data.poiPhoto && data.instagramPhoto && <div className="mt-5">
             <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />
           </div>}

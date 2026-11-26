@@ -1,6 +1,10 @@
 type PlaceIdentity = { id: string; name: string; address: string };
 
-export type PlacePhotoOriginalSource = { url: string; publisher: string };
+export type PlacePhotoOriginalSource = { url: string; publisher: string; embedUrl?: string };
+
+const THREADS_PHOTO_POST_URL = "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W";
+// The official embed script produces this narrowly scoped frame for the selected post.
+export const THREADS_PHOTO_FRAME_SOURCE = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
 
 const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = [
   {
@@ -36,7 +40,7 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     name: "옛날두부",
     address: "전남광주 화순군 시장길 33 (삼천리)",
     publisher: "Threads · @hwasun_dubu",
-    url: "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W",
+    url: THREADS_PHOTO_POST_URL,
   },
   {
     id: "place-intake-e724797f168726b01426c9cc",
@@ -52,9 +56,34 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     publisher: "광주잇(EAT)다 · 지앵",
     url: "https://wisdom-blog.tistory.com/entry/광주-시내-충장로-금남로-술집-사거리통골뱅이-힙한-실내포차-골뱅이탕",
   },
+  {
+    id: "0bf5c86b-5043-4d3f-98ce-5949f2db2800",
+    name: "전라도미가",
+    address: "전남광주통합특별시 동구 필문대로191번길 19, 1층 (산수동)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/37505718/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "place-intake-afcab0afe63e6705a527d23f",
+    name: "한마음포차",
+    address: "전남광주 동구 서석로10번길 10 (불로동)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/38276589/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "bd45a029-bce6-485d-8efc-425dca48f606",
+    name: "조단부부",
+    address: "전남광주통합특별시 구례군 구례읍 봉성로 103-1",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/1619421905/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
 ];
 
-export function reviewedPlacePhotoOriginal(place: PlaceIdentity): PlacePhotoOriginalSource | null {
+export function reviewedPlacePhotoOriginal(place: PlaceIdentity, threadsEnabled?: string): PlacePhotoOriginalSource | null {
   const source = REVIEWED_SOURCES.find(({ id, name, address }) => id === place.id && name === place.name && address === place.address);
-  return source ? { url: source.url, publisher: source.publisher } : null;
+  if (!source) return null;
+  const { url, publisher } = source;
+  return threadsEnabled === "true" && url === THREADS_PHOTO_POST_URL
+    ? { url, publisher, embedUrl: THREADS_PHOTO_FRAME_SOURCE }
+    : { url, publisher };
 }

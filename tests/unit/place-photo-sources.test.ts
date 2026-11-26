@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PlaceInstagramPhoto } from "../../app/components/places/PlaceInstagramPhoto";
 import { PlacePoiPhoto } from "../../app/components/places/PlacePoiPhoto";
+import { PlacePhotoOriginalLink } from "../../app/components/places/PlacePhotoOriginalLink";
+import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
 import { TempCatalogNotice } from "../../app/features/temp-catalog/TempCatalogNotice";
 
 function expectExactPhotoSource(html: string, url: string) {
@@ -54,5 +56,30 @@ describe("place photo source links", () => {
     } }));
     expectExactPhotoSource(html, imageUrl);
     expect(html).toContain("네이버 공개 사진");
+  });
+
+  it.each([
+    ["0bf5c86b-5043-4d3f-98ce-5949f2db2800", "전라도미가", "전남광주통합특별시 동구 필문대로191번길 19, 1층 (산수동)", "37505718"],
+    ["place-intake-afcab0afe63e6705a527d23f", "한마음포차", "전남광주 동구 서석로10번길 10 (불로동)", "38276589"],
+    ["bd45a029-bce6-485d-8efc-425dca48f606", "조단부부", "전남광주통합특별시 구례군 구례읍 봉성로 103-1", "1619421905"],
+  ])("links the owner gallery for %s", (id, name, address, naverId) => {
+    const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
+    const source = reviewedPlacePhotoOriginal({ id, name, address }, "true");
+    expect(source).toEqual({ url, publisher: "네이버 플레이스 · 업체 사진" });
+    expect(reviewedPlacePhotoOriginal({ id, name, address: `${address} 2층` })).toBeNull();
+    expectExactPhotoSource(renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! })), url);
+  });
+
+  it("offers the registered Threads gallery only when enabled and waits for a click", () => {
+    const place = { id: "place-intake-1d21bef4545b2941c0c68f66", name: "옛날두부", address: "전남광주 화순군 시장길 33 (삼천리)" };
+    const disabled = reviewedPlacePhotoOriginal(place);
+    expect(disabled?.embedUrl).toBeUndefined();
+    const source = reviewedPlacePhotoOriginal(place, "true");
+    expect(source?.embedUrl).toBe(THREADS_PHOTO_FRAME_SOURCE);
+    const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
+    expect(html).toContain("Threads에 연결해 사진 보기");
+    expect(html).not.toContain("<iframe");
+    expectExactPhotoSource(html, "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W");
+    expect(reviewedPlacePhotoOriginal({ ...place, name: "다른 업소" }, "true")).toBeNull();
   });
 });

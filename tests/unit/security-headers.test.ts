@@ -49,5 +49,21 @@ describe("applySecurityHeaders", () => {
     expect(withSecurityHeaders(new Response(null, { headers: { "Content-Type": "application/json" } }), request, "true")
       .headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
   });
+
+  it("allows only the selected Threads frame in public HTML when enabled", () => {
+    const frame = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
+    const html = () => new Response(null, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    const publicRequest = new Request("https://example.test/places");
+    const policy = (response: Response) => response.headers.get("Content-Security-Policy");
+    expect(policy(withSecurityHeaders(html(), publicRequest, undefined, "true"))).toBe(
+      CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${frame}`),
+    );
+    expect(policy(withSecurityHeaders(html(), publicRequest, "true", "true"))).toContain(`${frame};`);
+    for (const path of ["/admin/places", "/me/privacy", "/reviewer/pilot-photo/fixture", "/login", "/privacy"]) {
+      expect(policy(withSecurityHeaders(html(), new Request(`https://example.test${path}`), undefined, "true"))).toBe(CONTENT_SECURITY_POLICY);
+    }
+    expect(policy(withSecurityHeaders(new Response(null, { status: 404, headers: { "Content-Type": "text/html" } }), publicRequest, undefined, "true"))).toBe(CONTENT_SECURITY_POLICY);
+    expect(policy(withSecurityHeaders(new Response(null, { headers: { "Content-Type": "application/json" } }), publicRequest, undefined, "true"))).toBe(CONTENT_SECURITY_POLICY);
+  });
 });
 

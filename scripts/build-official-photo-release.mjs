@@ -204,14 +204,19 @@ const goldenKeyboardTargets = [
 ];
 const photoSourceLinksPatch = "ops/releases/photo-source-links-494c07f.patch";
 const photoSourceLinksTargets = [
+  "app/cloudflare-env.d.ts",
   "app/components/places/PlaceDetailSheet.tsx",
   "app/routes/place-detail.tsx",
+  "workers/app.ts",
 ];
 const photoSourceLinksFiles = [
   "app/components/places/PlacePhotoOriginalLink.tsx",
   "app/features/poi-media/photo-original-sources.ts",
 ];
-const photoSourceLinksReplacements = ["app/features/temp-catalog/TempCatalogNotice.tsx"];
+const photoSourceLinksReplacements = [
+  "app/features/http/security-headers.ts",
+  "app/features/temp-catalog/TempCatalogNotice.tsx",
+];
 
 function git(args, cwd = repository) {
   return execFileSync("git", args, { cwd, maxBuffer: 128 * 1024 * 1024 });
@@ -395,6 +400,9 @@ if (pilotProof) {
   }
   if (poiMediaProof && Object.hasOwn(config.vars ?? {}, "POI_MEDIA_PUBLIC_ENABLED")) {
     throw new Error("The POI media compatibility build must leave publication off");
+  }
+  if (photoSourceLinks && Object.hasOwn(config.vars ?? {}, "POI_THREADS_PHOTO_ENABLED")) {
+    throw new Error("The photo source compatibility build must leave Threads display off");
   }
   writeFileSync(join(output, "student-pilot-release.json"), JSON.stringify({
     ...attestation,
