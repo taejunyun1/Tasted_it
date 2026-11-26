@@ -1,6 +1,6 @@
 # 직접인증 실증 뒤 장소 미디어 운영 전환
 
-이 변경의 PR이 병합되고 #583·#587·#589 미디어 후보의 업로드·전환 미실행이 운영 이력에서 확인되면 Jay/Codex가 아래 범위를 실행한다. #583의 전체 실행 한도 안에서 이번 고정 후보를 사용한다. 기존 실행 여부가 확정되지 않으면 영수증과 실제 버전을 대조해 보류한다. 고정 후보는 원문 링크, 공식 Instagram·Threads·YouTube 표시, #590 장소 상세 배치, 직접인증·골든픽 호환을 함께 적용한다. 운영 설정에 맞는 후보 한 개를 골라 업로드·트래픽 전환을 각각 최대 한 번 실행한다.
+이 변경의 PR이 병합되고 #583·#587·#589·#591 미디어 후보의 업로드·전환 미실행이 운영 이력에서 확인되면 Jay/Codex가 아래 범위를 실행한다. #583의 전체 실행 한도 안에서 이번 고정 후보를 사용한다. 기존 실행 여부가 확정되지 않으면 영수증과 실제 버전을 대조해 보류한다. 고정 후보는 원문 링크, 공식 Instagram·Threads·YouTube 표시, #590 장소 상세 배치, #592 직접인증 사진 회수, 골든픽 호환을 적용한다. 운영 설정에 맞는 후보 한 개를 골라 업로드·트래픽 전환을 각각 최대 한 번 실행한다.
 
 ## 실행 전 대조
 
@@ -10,14 +10,14 @@
 
 ## 고정 후보
 
-병합 소스 `1bccb6ef7e7c53fe465b687fc8b5ce006c2501c5`에서 `--student-pilot --poi-media --golden-keyboard --photo-source-links`로 생성했다. 조립된 빌드 SHA-256은 `450f64e6f40cf46d47663d7007023e3459ac67dc68aeda017941765ef40304de`다. 두 설정의 `POI_MEDIA_PUBLIC_ENABLED`, `POI_INSTAGRAM_PHOTO_ENABLED`, `POI_THREADS_PHOTO_ENABLED`, `POI_YOUTUBE_VISUAL_ENABLED`는 `true`, 전역 `REVIEW_PHOTO_UPLOAD_ENABLED`는 `false`다. 생성 경로 메타데이터를 제외한 두 설정 전체가 #589의 각 접수 상태와 일치했다.
+병합 소스 `2b2e828e69cda5f4f4a4b1278f1b545cba42e3fe`에서 `--student-pilot --poi-media --golden-keyboard --photo-source-links`로 생성했다. 조립된 빌드 SHA-256은 `bb91d51e4a189295e5032b275ed05e267be99a5d323905a3c90c2b1d22ca998d`다. 두 설정의 `POI_MEDIA_PUBLIC_ENABLED`, `POI_INSTAGRAM_PHOTO_ENABLED`, `POI_THREADS_PHOTO_ENABLED`, `POI_YOUTUBE_VISUAL_ENABLED`는 `true`, 전역 `REVIEW_PHOTO_UPLOAD_ENABLED`는 `false`다. 생성 경로 메타데이터를 제외한 두 설정 전체와 미디어 조립 입력이 #591과 일치했다.
 
 | 실제 접수 상태 | 후보 | 빌드 SHA-256 | Wrangler JSON SHA-256 |
 |---|---|---|---|
-| 실증 뒤 접수 종료 | `closed` | `7b44292daf01a400239c9000c725c7ccbbcbf5a5a0fea661c2f926fa619ad1ac` | `0e228c2b65d158b70086a5bd7df232699f7035904e7643372e9987f82d002964` |
-| A·B 실증을 검증했고 접수 중 | `ab` | `aae4422959e8ecf6f57865085b6befaffce91a39fb93c2c85bdd8477570dbd71` | `1e4f99e7c849c127d22114ce62c291103650c2a4dbde1dec71bbfc7c8b6b781c` |
+| 실증 뒤 접수 종료 | `closed` | `b10bfc89f3d26ad14cfbb6c118072041fb576a352f55ac3f35c7121764d58dc0` | `83276cf5c571a74f764b1653607e4241bd6c58aa88eefbdd7e9a5fb1eb0e0874` |
+| A·B 실증을 검증했고 접수 중 | `ab` | `706201a7da15e17aa12e8622884f95d50bbe6093f53ebe6bb97cb90beaf4a0d3` | `93876638658794175fc022780bb05d5c2f6ae3bfca5b56fd50a4ecd99ad191c9` |
 
-보존 후보의 `buildFingerprint`와 Wrangler JSON 바이트의 `digest`가 모두 일치해야 한다. 설정의 옵션과 바인딩을 확인한 뒤 아래 명령을 사용한다. `traffic_only_config`에는 해당 Worker 이름만 기록한다. SHA-256은 `5b2f73e17dd59400325ed86397fdeb7c0d7b9c9b2f6ff1154c63d97e488f1ac1`다. 버전·설정·경로의 비공개 실행 값은 운영 영수증에 보존한다. [지문과 모의 업로드](../evidence/cst-postpilot-media-rollout-20261127/inline-original-config-comparison.json) · [#589 이전 후보 대조](../evidence/cst-postpilot-media-rollout-20261127/two-more-venues-config-comparison.json) · [이전 후보의 A·B에서 접수 종료까지 격리 검증](../evidence/cst-postpilot-media-rollout-20261127/phase-compatibility.json)
+보존 후보의 `buildFingerprint`와 Wrangler JSON 바이트의 `digest`가 모두 일치해야 한다. 설정의 옵션과 바인딩을 확인한 뒤 아래 명령을 사용한다. `traffic_only_config`에는 해당 Worker 이름만 기록한다. SHA-256은 `5b2f73e17dd59400325ed86397fdeb7c0d7b9c9b2f6ff1154c63d97e488f1ac1`다. 버전·설정·경로의 비공개 실행 값은 운영 영수증에 보존한다. [지문과 모의 업로드](../evidence/cst-postpilot-media-rollout-20261127/direct-photo-recall-config-comparison.json) · [#591 이전 후보 대조](../evidence/cst-postpilot-media-rollout-20261127/inline-original-config-comparison.json) · [이전 후보의 A·B에서 접수 종료까지 격리 검증](../evidence/cst-postpilot-media-rollout-20261127/phase-compatibility.json)
 
 ## 운영 전환과 확인
 
@@ -32,6 +32,7 @@ pnpm exec wrangler versions deploy "$candidate_version@100" --config "$traffic_o
 ```
 
 2. 새 버전 단독 100%, 두 예약 작업과 접수 상태를 읽는다. 일반 사진 원본의 GET·HEAD 200과 바이트·출처, 보류 사진 GET·HEAD 404와 `no-store`, 직접인증 승인 사진의 장소·공개 프로필과 철회 상태를 대표 표본으로 확인한다. 로그인·관리자 진입, TEMP와 미공개 장소 경계도 대조한다. 모바일 320px에서 동일한 대표 사진과 링크를 확인한다. 골든픽 공개 카드가 두 장 이상이면 Tab·Enter·Escape를 확인하고, 카드가 부족하면 그 시나리오는 미검증으로 기록한다.
+   직접인증 사진 검수 화면의 관리자 접근을 확인한다. 이미 추천 제외된 직접인증 사진이 있으면 미리보기 404와 회수 경로의 표시 여부를 읽기만 한다. 실제 대상이 없으면 그 사실을 기록하고 재인증·감사·회수 유지의 격리 검증을 참조한다. [#592 회수 화면 검증](../evidence/cst-direct-photo-admin-recall-20261127/summary.json)
 3. 전환 직전의 공개 일반·TEMP 목록을 기준으로 장소별 원문 링크와 실제 표시를 기록한다. 일반 장소의 로컬 후보는 상세 표시 68곳과 링크만 7곳이며, 다점포 또는 영업 종료 근거가 있는 3곳은 새 연결 보류다. 각 공개 상세를 비로그인 데스크톱에서 한 번 확인하고 320px에서 Threads·YouTube·일반 JPEG·네이버 링크를 대표 확인한다. 새 Threads 사진과 YouTube는 방문자 클릭 후 원본 표시·재생과 단일 **출처**를 확인한다. 자매통닭&호프의 8초 시작과 고부정의 해당 지점 원문을 이 검증에 포함한다. TEMP는 사진 바이트와 캡션의 링크를 확인한다. 로그인 벽, 외부 응답 제한, 미표시, 출처 불일치는 장소별 미검증으로 남긴다. 원문 링크만 있는 장소의 확인 결과는 인앱 표시 건수와 별도로 기록한다. [78곳 기존 로컬 연결](../evidence/cst-verified-merchant-visuals-20261127/summary.json) · [앞선 네 곳 검증](../evidence/cst-sourced-venue-videos-20261127/summary.json) · [추가 두 곳 검증](../evidence/cst-jamae-original-video-20261127/summary.json)
    자매통닭&호프의 데스크톱 상세에서 제목 아래 열기 버튼과 **출처**가 같은 열에 있는지 확인한다. 클릭 전 원본 프레임 요청이 없고 클릭 뒤 재생과 닫기가 작동하는지 본다. 같은 장소의 320px 상세에서는 해당 버튼과 링크가 화면 안에 있는지 확인한다. 이 확인은 앞 단계의 동일 장소 조회에 포함한다. [#590 배치 화면](../evidence/cst-place-original-inline-20261127/summary.json)
 4. 정확한 새 Worker 버전의 RSI 6경로와 동일 실행의 D1 감사를 확인한다. 승인된 기존 관리자 RSI를 이 전환 전체에서 최대 한 번 실행하거나 해당 버전의 정기 실행을 관측한다. 비용은 기존 Worker·D1·R2 사용량과 공개 확인 요청에 한한다. 신규 리소스·추가 예약 작업·마이그레이션·일반/직접인증 콘텐츠 쓰기·참여자 승인·메일은 각 0건이다. 확정된 결과는 SSOT·위키에 반영한다. B17과 #397은 보류한다.

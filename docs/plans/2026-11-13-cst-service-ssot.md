@@ -84,7 +84,9 @@ A·B 접수 시작 전 #562의 정확한 병합 소스 `8da68cf`로 #559·#561�
 
 대표 사진 없이 외부 원본을 열 수 있는 장소는 상세 제목 아래에 열기 버튼과 **출처**를 표시한다. 별도 미디어 열을 없애고, 버튼을 눌렀을 때 본문 안에서 원본을 연다. 원문 링크만 있는 7곳은 Facebook·TikTok에서도 확인했으며 같은 지점의 추가 공개 게시물은 확인되지 않았다. [1280px 화면](../evidence/cst-place-original-inline-20261127/desktop.png) · [320px 화면](../evidence/cst-place-original-inline-20261127/mobile.png) · [원문 기준](../operations/2026-11-26-poi-photo-intake.md)
 
-실증 뒤 미디어 후보는 #590 병합 소스 `1bccb6e`로 고정한다. 접수 종료·A/B 두 설정이 #589와 일치하며 strict 모의 업로드와 병합본의 격리 상세 검증을 통과했다. #583·#587·#589의 미실행과 기존 선행 증거를 확인한 뒤 당시 접수 단계와 같은 후보 한 개를 사용한다. [고정 설정](../evidence/cst-postpilot-media-rollout-20261127/inline-original-config-comparison.json) · [운영 확인과 복구](../operations/2026-11-27-cst-postpilot-media-rollout.md)
+#591은 #590의 외부 원문 배치를 포함한 실증 뒤 후보를 고정했고, 접수 종료·A/B 설정과 모의 업로드를 검증했다. [#591 설정 대조](../evidence/cst-postpilot-media-rollout-20261127/inline-original-config-comparison.json)
+
+실증 뒤 운영 후보는 #592 병합 소스 `2b2e828`로 교체한다. 두 접수 상태의 설정과 미디어 입력이 #591과 일치했고, 모의 업로드와 병합본의 관리자 회수 화면 검증을 통과했다. #583·#587·#589·#591의 미실행과 기존 선행 증거를 확인한 뒤 실제 접수 상태와 같은 후보 한 개를 사용한다. [고정 설정](../evidence/cst-postpilot-media-rollout-20261127/direct-photo-recall-config-comparison.json) · [운영 확인과 복구](../operations/2026-11-27-cst-postpilot-media-rollout.md)
 
 실증 뒤 운영 미디어를 전환할 후보를 #588 병합 소스 `3823308`로 고정했다. #583과 #587의 후속 미디어 업로드·전환이 미실행인 경우 기존 전체 한도 안에서 교체한다. 새 후보의 두 배포 설정은 이전 승인 버전과 허용된 미디어 플래그를 대조했고 엄격한 모의 업로드를 통과했다. 실제 A·B 방문·사진을 검증한 뒤 당시 접수 단계와 같은 후보 한 개를 사용한다. 이전 #583의 격리 환경에서는 A·B 첫 리뷰와 사진의 독립 승인·철회를 확인했고, 같은 자료를 넣은 접수 종료 후보에서 새 첨부 거절과 기존 공개 사진의 동일 바이트를 확인했다. [운영 전환 및 복구](../operations/2026-11-27-cst-postpilot-media-rollout.md) · [격리 단계 검증](../evidence/cst-postpilot-media-rollout-20261127/phase-compatibility.json)
 
