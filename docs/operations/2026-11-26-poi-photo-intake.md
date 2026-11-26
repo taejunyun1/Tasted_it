@@ -18,7 +18,7 @@
 
 젤라또 노베오의 실제 사진과 원문 링크를 합성 로컬 환경의 데스크톱 상세·모바일 시트에서 확인했다. 운영 D1에서 최종 후보의 ID·상호·주소·공개 상태는 읽기 전용으로 대조했다. [데스크톱](../evidence/cst-instagram-photos-20261126/desktop.png) · [모바일](../evidence/cst-instagram-photos-20261126/mobile.png)
 
-`POI_INSTAGRAM_PHOTO_ENABLED`는 기본 미지정 상태다. 이 경로에는 새 D1 마이그레이션과 R2 파일이 필요 없다. 운영 후보와 공개 전환 범위는 별도 운영 PR을 따른다. 게시물이 삭제되거나 변경되면 등록 항목을 철회한다. 전체 표시를 중단하려면 플래그를 비운다. 네이버 블로그는 현 단계에서 외부 공유 원문 링크의 근거로 사용한다. [네이버 블로그 외부 공유](https://help.naver.com/service/5593/contents/15416) · [네이버 API 약관](https://developers.naver.com/products/terms/)
+일반 빌드 설정의 `POI_INSTAGRAM_PHOTO_ENABLED`는 기본 미지정 상태다. 운영은 #526의 호환 빌드에서 플래그를 활성화했다. 26곳의 상세·출처와 대표 실제 사진의 데스크톱·모바일 표시를 대조했고, 대조 TEMP 장소의 상세에는 공식 임베드가 표시되지 않았다. 이 경로는 기존 D1을 읽으며 사진 파일은 R2에 반입하지 않는다. 게시물이 삭제되거나 변경되면 등록 항목을 철회한다. 전체 회수는 승인된 [운영 배포 절차](2026-11-26-official-photo-production-release.md#운영-확인과-회수)를 따른다. [#526 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/526) 네이버 블로그는 현 단계에서 외부 공유 원문 링크의 근거로 사용한다. [네이버 블로그 외부 공유](https://help.naver.com/service/5593/contents/15416) · [네이버 API 약관](https://developers.naver.com/products/terms/)
 
 ## 반입 준비
 
