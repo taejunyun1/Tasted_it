@@ -1,4 +1,6 @@
+import { getTableColumns } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
+import { reviewerPhotoCleanupGuards, reviewerPhotoCleanupJobs } from "../../db/schema";
 import type { SessionUser } from "../auth/session.server";
 import { getStudentSeat } from "./invitations.server";
 import { seatCodeSchema } from "./policy";
@@ -19,9 +21,17 @@ export async function canUploadReviewerPhotos(db: AppDb, input: {
 
   try {
     const seat = await getStudentSeat(db, { userId: input.user.id, now: input.now });
-    return Boolean(seat && codes.includes(seat.code));
+    if (!seat || !codes.includes(seat.code)) return false;
+
+    // A zero-row select verifies the cleanup schema without reading job data.
+    await db.select({
+      ...getTableColumns(reviewerPhotoCleanupJobs),
+      guardId: reviewerPhotoCleanupGuards.id,
+      guardPassed: reviewerPhotoCleanupGuards.passed,
+    }).from(reviewerPhotoCleanupJobs).crossJoin(reviewerPhotoCleanupGuards).limit(0);
+    return true;
   } catch {
-    // A failed seat lookup must not open uploads or prevent text-only reviews.
+    // An unavailable seat or cleanup schema must not prevent text-only reviews.
     return false;
   }
 }

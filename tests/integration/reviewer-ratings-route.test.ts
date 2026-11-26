@@ -1,4 +1,5 @@
 import { env, withEnv } from "cloudflare:workers";
+import { applyD1Migrations } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
@@ -9,25 +10,25 @@ import { action as submitRating, loader as loadRating } from "../../app/routes/r
 
 const now = "2026-08-13T00:00:00.000Z";
 
-async function seedReviewerRouteData(prefix: string) {
+async function seedReviewerRouteData(prefix: string, database = env.DB) {
   const reviewerId = `${prefix}-reviewer-${crypto.randomUUID()}`;
   const sessionId = `${prefix}-session-${crypto.randomUUID()}`;
   const categoryId = `${prefix}-category-${crypto.randomUUID()}`;
   const placeId = `${prefix}-place-${crypto.randomUUID()}`;
-  await env.DB.batch([
-    env.DB.prepare(
+  await database.batch([
+    database.prepare(
       "INSERT INTO users (id, email, display_name, role, created_at, updated_at) VALUES (?, ?, '리뷰어', 'REVIEWER', ?, ?)",
     ).bind(reviewerId, `${reviewerId}@example.com`, now, now),
-    env.DB.prepare(
+    database.prepare(
       "INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, '2099-01-01T00:00:00.000Z', ?)",
     ).bind(sessionId, reviewerId, now),
-    env.DB.prepare(
+    database.prepare(
       "INSERT INTO reviewer_profiles (user_id, slug, status, occupation, taste_direction, region_code, specialty_slugs, last_activity_at, approved_at, created_at, updated_at) VALUES (?, ?, 'ACTIVE', '테스터', '균형', 'GWANGJU', '[]', ?, ?, ?, ?)",
     ).bind(reviewerId, `${prefix}-${crypto.randomUUID()}`, now, now, now, now),
-    env.DB.prepare(
+    database.prepare(
       "INSERT INTO categories (id, slug, name, emoji, sort_order, is_active, created_at, updated_at) VALUES (?, ?, '라멘', '🍜', 999, 1, ?, ?)",
     ).bind(categoryId, `${prefix}-${crypto.randomUUID()}`, now, now),
-    env.DB.prepare(
+    database.prepare(
       "INSERT INTO places (id, slug, name, status, address, neighborhood, latitude, longitude, search_text, created_at, updated_at) VALUES (?, ?, '발행 경로 라멘', 'PUBLISHED', '광주', '동명동', 35.149, 126.923, '발행 경로 라멘', ?, ?)",
     ).bind(placeId, `${prefix}-${crypto.randomUUID()}`, now, now),
   ]);
@@ -219,17 +220,17 @@ function ratingsRequest(sessionId: string, body?: FormData) {
   });
 }
 
-async function linkPilotSeat(fixture: RouteFixture, code: "A" | "B" | "C") {
-  await env.DB.batch([
-    env.DB.prepare("UPDATE users SET email_verified_at = ? WHERE id = ?").bind(now, fixture.reviewerId),
-    env.DB.prepare("UPDATE student_seats SET user_id = ?, is_active = 1, expires_at = '2099-01-01T00:00:00.000Z' WHERE code = ?")
+async function linkPilotSeat(fixture: RouteFixture, code: "A" | "B" | "C", database = env.DB) {
+  await database.batch([
+    database.prepare("UPDATE users SET email_verified_at = ? WHERE id = ?").bind(now, fixture.reviewerId),
+    database.prepare("UPDATE student_seats SET user_id = ?, is_active = 1, expires_at = '2099-01-01T00:00:00.000Z' WHERE code = ?")
       .bind(fixture.reviewerId, code),
   ]);
 }
 
-function useUploadConfig<T>(input: { seats?: string; global?: string; workspace?: string }, run: () => Promise<T>) {
+function useUploadConfig<T>(input: { seats?: string; global?: string; workspace?: string; database?: D1Database }, run: () => Promise<T>) {
   return withEnv({
-    DB: env.DB,
+    DB: input.database ?? env.DB,
     REVIEW_PHOTOS: env.REVIEW_PHOTOS,
     REVIEW_PHOTO_UPLOAD_ENABLED: input.global ?? "false",
     STUDENT_WORKSPACE_ENABLED: input.workspace ?? "true",
@@ -264,6 +265,48 @@ describe("student reviewer photo pilot", () => {
       const photo = await env.DB.prepare("SELECT id FROM reviewer_visit_photos WHERE review_id = ?").bind(review.id).first<{ id: string }>();
       expect(photo?.id).toBeTruthy();
       await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(review.id, photo!.id))).resolves.toBeTruthy();
+    }
+  });
+
+  it("disables pilot images on the measured production schema and without the cleanup guard", async () => {
+    const database = (env as unknown as { MIGRATION_DB: D1Database }).MIGRATION_DB;
+    const omitted = new Set(["0053", "0054", "0055", "0056", "0059", "0060"]);
+    const baseline = env.TEST_MIGRATIONS.filter(({ name }) => {
+      const version = name.slice(0, 4);
+      return version <= "0062" && !omitted.has(version);
+    });
+    expect(baseline).toHaveLength(56);
+    await applyD1Migrations(database, baseline);
+
+    const author = await seedReviewerRouteData("pilot-cleanup-schema", database);
+    await linkPilotSeat(author, "A", database);
+    const probe = () => useUploadConfig({ seats: "A", database }, async () => {
+      expect(await loadRating({ request: ratingsRequest(author.sessionId) } as never))
+        .toMatchObject({ canSubmit: true, photoUploadEnabled: false });
+      const response = await submitRating({ request: ratingsRequest(author.sessionId, reviewPhotoForm(author)) } as never);
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({ error: "REVIEW_PHOTO_UPLOAD_DISABLED" });
+    });
+
+    const put = vi.spyOn(env.REVIEW_PHOTOS, "put");
+    try {
+      await probe();
+      await applyD1Migrations(database, env.TEST_MIGRATIONS.filter(({ name }) => name.startsWith("0055_")));
+      await database.exec("DROP TABLE reviewer_photo_cleanup_guards");
+      await probe();
+      expect(put).not.toHaveBeenCalled();
+      await expect(database.prepare("SELECT id FROM reviewer_visit_reviews WHERE reviewer_user_id = ?")
+        .bind(author.reviewerId).first()).resolves.toBeNull();
+      await expect(database.prepare("SELECT review_id FROM reviewer_photo_cleanup_jobs").first()).resolves.toBeNull();
+
+      await useUploadConfig({ seats: "A", database }, async () => {
+        const response = await submitRating({ request: ratingsRequest(author.sessionId, reviewPhotoForm(author, false)) } as never);
+        expect(response.status).toBe(303);
+        expect(response.headers.get("location")).toContain("notice=review-submitted");
+      });
+      expect(put).not.toHaveBeenCalled();
+    } finally {
+      put.mockRestore();
     }
   });
 
