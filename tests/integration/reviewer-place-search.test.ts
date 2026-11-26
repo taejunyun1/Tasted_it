@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { createDb } from "../../app/db/client.server";
-import { categories, placeCategories, places, reviewerProfiles, users } from "../../app/db/schema";
+import { categories, placeCategories, places, reviewerProfiles, tempCatalogBatches, tempCatalogEntries, users } from "../../app/db/schema";
 import { loader } from "../../app/routes/reviewer-ratings";
 import { loader as searchLoader } from "../../app/routes/reviewer-places-resource";
 import { listReviewerPlacePage } from "../../app/features/ratings/reviewer-place-search.server";
@@ -32,6 +32,42 @@ it("bounds the initial reviewer place picker instead of loading every eligible p
   const result = await loader({ request: new Request(`https://retaste.test/reviewer/ratings?q=${f.prefix}`, { headers: { Cookie: `retaste_session=${f.sessionId}` } }) } as never);
   expect(result.places.length).toBeLessThanOrEqual(20);
   expect(result.places.length).toBeGreaterThan(0);
+});
+
+it("marks only published TEMP entries in initial, hydrated and restored place results", async () => {
+  const f = await fixture();
+  const [publishedPlaceId, stagedPlaceId, ordinaryPlaceId] = f.ids;
+  const batches = [
+    { id: `${f.prefix}-published`, status: "PUBLISHED" as const, placeId: publishedPlaceId },
+    { id: `${f.prefix}-staged`, status: "STAGED" as const, placeId: stagedPlaceId },
+  ];
+  await f.db.batch([
+    f.db.insert(tempCatalogBatches).values(batches.map(({ id, status }) => ({
+      id, status, sourceHash: id, manifestHash: id, createdAt: now, updatedAt: now,
+    }))),
+    f.db.insert(tempCatalogEntries).values(batches.map(({ id, placeId }) => ({
+      id, batchId: id, sourceId: id, placeId, payloadJson: "{}", createdAt: now, updatedAt: now,
+    }))),
+  ]);
+
+  const headers = { Cookie: `retaste_session=${f.sessionId}` };
+  const query = new URLSearchParams({ q: f.prefix });
+  const initial = await loader({ request: new Request(`https://retaste.test/reviewer/ratings?${query}`, { headers }) } as never);
+  const search = await searchLoader({ request: new Request(`https://retaste.test/resources/reviewer-places?${query}`, { headers }) } as never);
+  if (!search.data.ok) throw new Error("Expected a search page");
+  const expected = [
+    { placeId: publishedPlaceId, isTemporary: true },
+    { placeId: stagedPlaceId, isTemporary: false },
+    { placeId: ordinaryPlaceId, isTemporary: false },
+  ];
+  for (const options of [initial.placePage.places, search.data.page.places]) {
+    expect(options).toEqual(expect.arrayContaining(expected.map((place) => expect.objectContaining(place))));
+  }
+
+  query.set("q", `${f.prefix} 맛집 02`);
+  query.set("selectedId", publishedPlaceId);
+  const restored = await searchLoader({ request: new Request(`https://retaste.test/resources/reviewer-places?${query}`, { headers }) } as never);
+  expect(restored.data).toMatchObject({ ok: true, page: { places: [expected[2]] }, selectedPlace: expected[0] });
 });
 
 it("pages through every matching place once and resolves a saved selection outside the first page", async () => {

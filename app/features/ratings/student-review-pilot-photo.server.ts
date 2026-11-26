@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, inArray, ne, notExists, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, ne, not, notExists, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, places, reviewerProfiles, reviewerVisitReviews, users } from "../../db/schema";
 import { studentReviewPilotPhotos as photos } from "../../db/student-review-pilot-photo";
@@ -82,14 +82,18 @@ export async function canAdmitPilotPhotoAuthor(db: AppDb, input: Omit<ReviewInpu
   return result?.allowed === 1;
 }
 
+export function isPublishedTempPlace(placeId: SQLWrapper | string) {
+  return sql<boolean>`exists (
+    select 1 from temp_catalog_entries e
+    join temp_catalog_batches b on b.id = e.batch_id
+    where e.place_id = ${placeId} and b.status = 'PUBLISHED'
+  )`.mapWith(Boolean);
+}
+
 function reviewCanHavePhoto() {
   return and(
     eligibleReviewPlaceCondition(places.id),
-    sql`not exists (
-      select 1 from temp_catalog_entries e
-      join temp_catalog_batches b on b.id = e.batch_id
-      where e.place_id = ${places.id} and b.status = 'PUBLISHED'
-    )`,
+    not(isPublishedTempPlace(places.id)),
     eq(reviewerVisitReviews.isCurrent, true),
     inArray(reviewerVisitReviews.status, ["PENDING", "APPROVED"]),
     sql`${reviewerVisitReviews.visitedOn} is not null and length(trim(${reviewerVisitReviews.visitNote})) > 0
