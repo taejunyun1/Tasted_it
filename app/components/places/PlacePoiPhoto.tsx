@@ -7,7 +7,7 @@ export function PlacePoiPhoto({ photo, placeName, heroClassName }: {
 }) {
   return <figure className="m-0 min-w-0">
     <div className={heroClassName} data-has-photo="true">
-      <img src={photo.url} alt={`${placeName} 장소 사진`} />
+      <img className="object-contain!" src={photo.url} alt={`${placeName} 장소 사진`} />
     </div>
     <figcaption className="px-4 py-1 text-sm text-[var(--color-ink-muted)] [overflow-wrap:anywhere]">
       <span>장소 사진 제공 · {photo.attribution}</span>
