@@ -1,0 +1,35 @@
+{
+  "revision": "ff23db224de59181996afd418b16c2783830be8b",
+  "sourceBuildSha256": "7a4c8d0aec3b26ccd334f8490b5ee5d6d76e70585bf0f173ddfc2adb1e574da2",
+  "migrations": 59,
+  "variants": {
+    "ab": {
+      "configSha256": "b56c7e2a8508bfbc4e3bbaaf8fdf7b5bd50a6247de237743fd0d542d163178dc",
+      "buildSha256": "28ea0eb398285ace1fbef0099430428d5ed423abcecd641055df9d99fb078b2a"
+    },
+    "closed": {
+      "configSha256": "b62aa069861d157b9e762333a0a5558ce8d59814aefd5ecb845b5d73313d6bd2",
+      "buildSha256": "413893734c10350c0dcce212f27b789fc68134447ac827c3e2a6754b54a48578"
+    }
+  },
+  "ab": {
+    "firstReviewAndPhotoOnEachSeat": true,
+    "separateModeration": true,
+    "previewPrivate": true,
+    "publicAttributionDesktopAndMobile": true,
+    "withdrawalOnOneSeatPreservesOther": true,
+    "legacyPhotoBucketUnchanged": true
+  },
+  "closed": {
+    "closedWithPriorFixtureRowsAndPhotoBytes": true,
+    "exactUploadRouteRefused409": true,
+    "priorApprovedPhotoByteIdentical": true,
+    "priorRetirementStill404": true,
+    "publicAttributionPreserved": true,
+    "priorSourceLinkPreserved": true,
+    "auditAndPhotoRowsPreserved": true
+  },
+  "externalWorkerAttempts": 0,
+  "scope": "localhost only",
+  "productionChanged": false
+}
