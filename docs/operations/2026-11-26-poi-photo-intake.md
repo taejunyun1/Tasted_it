@@ -127,6 +127,12 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 25년 장인아구찜은 나주와 광주 쌍촌점의 업체 소개 문구와 메뉴가 일치해 기존 다점포 검토를 유지한다. 살림프리미엄채식뷔페는 운영자가 두 지점을 안내했고, 올더스캣은 기존 매장 운영 종료 공지를 확인했다. 세 곳의 새 사진 연결은 보류한다. [나주 업체 정보](https://m.place.naver.com/restaurant/1795398348/information) · [쌍촌 업체 정보](https://m.place.naver.com/restaurant/1109865631/information) · [살림프리미엄채식뷔페 업주 안내](https://m.blog.naver.com/salimbuffet) · [올더스캣 B09 기록](2026-11-26-allderscat-b09-recall.md)
 
+### 광성식당·복록수의 공개 영상
+
+광성식당은 영제이의 하루하루 원본 설명의 광한서로 7, 영상 04초의 간판과 15초의 상차림을 확인했다. 원문에 표시된 협찬 문구를 상세에도 표시한다. 복록수는 먹데이비슨 원본 45초의 붉은 간판·메뉴판·입구를 서석로10번길 9의 방문 기록과 대조했다. 상세의 원본 링크와 플레이어는 45초에서 시작한다. [광성식당 원본](https://www.youtube.com/watch?v=oJ7_FxUjR18) · [복록수 원본](https://www.youtube.com/watch?v=Ij9nvE4oGwE&t=45s) · [복록수 주소·외관 대조](https://wisdom-blog.tistory.com/entry/%EA%B4%91%EC%A3%BC-%EA%B5%AC%EC%8B%9C%EC%B2%AD-%EC%96%91%EA%BC%AC%EC%B9%98-%EB%A7%9B%EC%A7%91-%EB%B3%B5%EB%A1%9D%EC%88%98-10%EB%B2%88-%EB%84%98%EA%B2%8C-%EA%B0%84-%EC%A4%91%EA%B5%AD-%ED%98%84%EC%A7%80%EC%89%90%ED%94%84-%EB%A7%9B%EC%A7%91)
+
+두 장소는 방문자가 재생을 선택할 때만 정확한 공급자 프레임을 연다. 화면의 **출처** 한 개는 해당 작성자의 원문을 연다. 영상 옵션이 꺼진 경우 기존 네이버 클립으로 연결한다. 일반 공개 78곳 기준 후보는 상세 표시 64곳, 원문 링크만 11곳, 보류 3곳이다. 운영 적용은 승인된 후속 실행 범위의 정확한 후보에서 확인한다. [브라우저 검증](../evidence/cst-sourced-venue-videos-20261127/summary.json)
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.

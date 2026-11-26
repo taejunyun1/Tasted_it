@@ -114,9 +114,9 @@ describe("place photo source links", () => {
     ["place-intake-7b0c5921a7dd34f9b880ed5e", "팔레스분식", "전남광주 북구 밤실로208번길 20 (두암동)",
       "https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s", "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag?start=320&end=338", "원본 영상에 유료 프로모션 포함"],
     ["place-intake-d9ea0471ad5c4eb487d3dc29", "광성식당", "전북 남원시 광한서로 7 (천거동)",
-      "https://m.blog.naver.com/every100/clip/9398864", undefined, "원본에 협찬 표시"],
+      "https://www.youtube.com/watch?v=oJ7_FxUjR18", "https://www.youtube-nocookie.com/embed/oJ7_FxUjR18", "원본에 협찬 표시"],
     ["place-intake-6ffa8e7ddfaac3f3fb91e854", "복록수", "전남광주 동구 서석로10번길 9 (불로동)",
-      "https://m.blog.naver.com/fmfun/clip/306388", undefined, undefined],
+      "https://www.youtube.com/watch?v=Ij9nvE4oGwE&t=45s", "https://www.youtube-nocookie.com/embed/Ij9nvE4oGwE?start=45", undefined],
     ["place-intake-4c5afcf5031e6bfbf8d3484e", "사거리통골뱅이", "광주 동구 충장로58번길 18-2 (충장동, 충장로4가)",
       "https://www.youtube.com/shorts/edU_JvgAprI", "https://www.youtube-nocookie.com/embed/edU_JvgAprI", "2023년 공개 영상"],
     ["place-intake-c30606b3e3b35b21fcbaf9f5", "원조목살집", "전남광주 목포시 평화로107번길 3 (상동)",
@@ -182,6 +182,22 @@ describe("place photo source links", () => {
     expect(source?.publisher).toBe("남원시 사진기록관");
     expect(source?.url).toContain("dataId=922811");
     expect(source?.embed).toBeUndefined();
+  });
+
+  it.each([
+    ["place-intake-d9ea0471ad5c4eb487d3dc29", "광성식당", "전북 남원시 광한서로 7 (천거동)",
+      "https://m.blog.naver.com/every100/clip/9398864", "네이버 클립 · YoungJ", "원본에 협찬 표시"],
+    ["place-intake-6ffa8e7ddfaac3f3fb91e854", "복록수", "전남광주 동구 서석로10번길 9 (불로동)",
+      "https://m.blog.naver.com/fmfun/clip/306388", "네이버 클립 · 디노라윤", undefined],
+  ])("keeps the exact Naver clip and attribution when the YouTube player is disabled for %s", (id, name, address, url, publisher, disclosure) => {
+    const source = reviewedPlacePhotoOriginal({ id, name, address }, { youtube: "false" });
+    expect(source).toMatchObject({ url, publisher, mediaKind: "video" });
+    expect(source?.embed).toBeUndefined();
+    expect(source?.disclosure).toBe(disclosure);
+    const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
+    expectExactPhotoSource(html, url);
+    if (disclosure) expect(html).toContain(disclosure);
+    expect(html).not.toContain("<iframe");
   });
 
   it.each([
