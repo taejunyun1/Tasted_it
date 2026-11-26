@@ -53,6 +53,8 @@ const pilotMainFiles = [
   "app/routes/reviewer-pilot-photo.tsx",
   "app/routes/student-review-photo.ts",
 ];
+const placeDetailVoteLinkPatch = "ops/releases/place-detail-vote-link-494c07f.patch";
+const placeDetailVoteLinkTargets = ["app/components/places/PlaceDetailSheet.tsx"];
 const pilotMigration = "drizzle/0065_student_review_pilot_photos.sql";
 const orderedBaselineLedgerSha256 = "a9beee8c240ccef6d667125f9968c4d70483c315d1afe458f99b18c582762928";
 
@@ -123,6 +125,9 @@ const pilotProof = studentPilot ? {
   migration: { file: pilotMigration, sha256: digest(committed(pilotMigration)), applied: false },
   orderedBaselineLedgerSha256,
 } : null;
+const placeDetailVoteLinkPatchSha256 = applyReleasePatch(
+  placeDetailVoteLinkPatch, ".place-detail-vote-link.patch", placeDetailVoteLinkTargets,
+);
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -138,6 +143,7 @@ const attestation = {
   baseline,
   patchSha256,
   publicLocationPatchSha256,
+  placeDetailVoteLinkPatchSha256,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: digest(JSON.stringify(emittedFiles)),
