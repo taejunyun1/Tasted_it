@@ -40,6 +40,12 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 56개 기준 장부에 0065를 추가한 합성 통합 테스트에서 접수 종료 시 A·B의 실제 다중 부분 폼 POST, A만 접수할 때 B의 POST가 각각 409를 반환했다. 차단 직후 실증 D1 원장·R2 객체는 각각 0개였다. A 접수에서 A, A·B 접수에서 B의 JPEG 저장이 성공했다. 접수 종료 구성에서도 승인된 기존 A 사진이 일치하는 바이트로 반환됐다.
 
+## 골든픽 호환 후보
+
+[#566](https://github.com/taejunyun1/Tasted_it/pull/566)의 키보드 수정은 빌더에서 `--student-pilot --poi-media --golden-keyboard`를 선택할 때 적용한다. 선택한 빌드에만 패치 지문을 기록한다. 후속 운영 실행서는 병합 소스, 당시 좌석과 사진 설정, 최종 빌드와 배포 설정의 지문을 고정한다.
+
+옵션 미선택 빌드의 기존 입력과 컴파일 파일 115개를 #563과 대조했다. 선택한 A·B 후보는 기존 일반 장소 사진 공개 설정을 반영한 뒤 배포 설정을 대조했다. 격리 D1 장부 59개와 사진 공개 설정을 갖춘 컴파일 Worker에서 320px·390px 골든픽 키보드 이동, 정확한 장소 상세와 닫은 뒤 복귀를 확인했다. Wrangler strict dry-run도 통과했다. [검증 기록](../evidence/cst-golden-compat-20261126/summary.json)
+
 ## 운영 전환 순서
 
 1. 별도 실행 PR에 정확한 운영 Worker와 시작 버전, 운영 자원, 적용할 0065 파일의 SHA-256, 명령과 한도, 담당자 및 회수 절차를 기록한다. 이 준비 문서는 R2 생성·운영 D1 적용·배포·실제 계정 변경을 승인하지 않는다.

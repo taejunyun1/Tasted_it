@@ -1,0 +1,87 @@
+{
+  "sourceSha": "4dca68832b9cb0a5779010e7df0bbb52de66c319",
+  "recordedAtKst": "2026-11-26T23:26:38.743988+09:00",
+  "predecessorPr": 563,
+  "productPr": 566,
+  "commandModes": [
+    "--student-pilot --poi-media",
+    "--student-pilot --poi-media --golden-keyboard"
+  ],
+  "unselected": {
+    "existingArtifactInputsMatch": true,
+    "compiledFilesMatchingExcludingWranglerConfig": 115,
+    "optionalPatchHashPresent": false
+  },
+  "selected": {
+    "patchSha256": "430f1eb01416fb05cb0ffed4a43602f7b14f3d2645687bbcc676925ae5412149",
+    "phase": "ab",
+    "sourceBuildSha256": "8ffb682270e3004e5dd54375bb64f56526739918c46b23427cb07e67640e906b",
+    "verifiedLocalDeploymentBuildSha256": "5a4761c4473584be433d1c1e65feff76dbcf26e8367800603c8cae75dba38462",
+    "verifiedLocalDeploymentConfigSha256": "44082d0a58bf202da2b56ce629c4b4ce2927d4fdc9b5c0d3a5e914264ab064b9",
+    "productionCandidateConfigMatchesPredecessorExceptGeneratedLocalPaths": true,
+    "poiMediaPublicEnabled": true,
+    "strictDryRun": "pass"
+  },
+  "isolatedRuntime": {
+    "migrations": 59,
+    "seededGoldenPlaces": 2,
+    "compiledBrowser": [
+      {
+        "width": 320,
+        "before": {
+          "height": 378,
+          "scrollLeft": 0,
+          "availableWidth": 320,
+          "horizontalOverflow": false,
+          "fullVisibility": false
+        },
+        "focused": {
+          "height": 378,
+          "scrollLeft": 276,
+          "availableWidth": 320,
+          "horizontalOverflow": false,
+          "fullVisibility": true
+        },
+        "restored": {
+          "height": 378,
+          "scrollLeft": 276,
+          "availableWidth": 320,
+          "horizontalOverflow": false,
+          "fullVisibility": true
+        },
+        "result": "PASS"
+      },
+      {
+        "width": 390,
+        "before": {
+          "height": 378,
+          "scrollLeft": 0,
+          "availableWidth": 390,
+          "horizontalOverflow": false,
+          "fullVisibility": false
+        },
+        "focused": {
+          "height": 378,
+          "scrollLeft": 334,
+          "availableWidth": 390,
+          "horizontalOverflow": false,
+          "fullVisibility": true
+        },
+        "restored": {
+          "height": 378,
+          "scrollLeft": 334,
+          "availableWidth": 390,
+          "horizontalOverflow": false,
+          "fullVisibility": true
+        },
+        "result": "PASS"
+      }
+    ],
+    "screenshots": [
+      "mobile-keyboard.png",
+      "../cst-golden-keyboard-20261126/golden-focus-desktop.png"
+    ]
+  },
+  "rejectedInvalidCommandCombinations": 3,
+  "operatingDeployment": "pending"
+}
