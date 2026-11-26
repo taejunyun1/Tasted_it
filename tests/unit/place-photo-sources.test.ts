@@ -105,7 +105,13 @@ describe("place photo source links", () => {
     ["place-intake-7b0c5921a7dd34f9b880ed5e", "팔레스분식", "전남광주 북구 밤실로208번길 20 (두암동)",
       "https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s", "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag?start=320&end=338", "원본 영상에 유료 프로모션 포함"],
     ["place-intake-d9ea0471ad5c4eb487d3dc29", "광성식당", "전북 남원시 광한서로 7 (천거동)",
-      "https://carcam-n-garden.tistory.com/69", undefined, undefined],
+      "https://m.blog.naver.com/every100/clip/9398864", undefined, "원본에 협찬 표시"],
+    ["place-intake-6ffa8e7ddfaac3f3fb91e854", "복록수", "전남광주 동구 서석로10번길 9 (불로동)",
+      "https://m.blog.naver.com/fmfun/clip/306388", undefined, undefined],
+    ["place-intake-4c5afcf5031e6bfbf8d3484e", "사거리통골뱅이", "광주 동구 충장로58번길 18-2 (충장동, 충장로4가)",
+      "https://m.blog.naver.com/loveis7108/clip/7801577", undefined, undefined],
+    ["place-intake-c30606b3e3b35b21fcbaf9f5", "원조목살집", "전남광주 목포시 평화로107번길 3 (상동)",
+      "https://m.blog.naver.com/jiwon4348/clip/5134953", undefined, undefined],
     ["place-intake-14a109105ee648efe481ac85", "착한가리비", "전남광주 북구 대자로 69 (운암동)",
       "https://hwa2ting.tistory.com/429", undefined, undefined],
     ["place-intake-950ba22fa1c3cd0685fbbdde", "목살집", "전남광주 남구 광복마을6길 1 (진월동)",
@@ -114,6 +120,10 @@ describe("place photo source links", () => {
       "https://m.place.naver.com/restaurant/2004979994/feed", undefined, undefined],
     ["place-intake-4413539f62e7921d84f7f1d1", "대나무골", "전남광주 담양군 대전로 182 (태목리)",
       "https://www.youtube.com/watch?v=oZOV6I1EbHg", "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg", "2020년 공개 영상"],
+    ["place-intake-70adfdd5a852000637f61b24", "구수향", "전남광주 동구 예술길 23-6 (궁동)",
+      "https://www.youtube.com/watch?v=aNhumVtW-U4", "https://www.youtube-nocookie.com/embed/aNhumVtW-U4", "2023년 공개 영상"],
+    ["place-intake-f7be1ac1c83b2885dff15c0d", "토방닭매운탕", "전남광주 북구 서방로107번길 13 (두암동)",
+      "https://www.youtube.com/watch?v=osYf3qz36HI&t=735s", "https://www.youtube-nocookie.com/embed/osYf3qz36HI?start=735&end=745", undefined],
   ])("binds the exact reviewed source for %s", (id, name, address, url, embedUrl, disclosure) => {
     const place = { id, name, address };
     expect(reviewedPlacePhotoOriginal(place)?.embed).toBeUndefined();

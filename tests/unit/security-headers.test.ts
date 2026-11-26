@@ -82,6 +82,7 @@ describe("applySecurityHeaders", () => {
     expect(frames?.split(" ").slice(1)).toEqual([
       "https://www.youtube-nocookie.com/embed/XdOXi2ctQQo",
       "https://www.youtube-nocookie.com/embed/g9UdzGNidBA",
+      "https://www.youtube-nocookie.com/embed/aNhumVtW-U4",
       "https://www.youtube-nocookie.com/embed/ZnbtJLRHUzM",
       "https://www.youtube-nocookie.com/embed/VfODxqfwx9w",
       "https://www.youtube-nocookie.com/embed/bLChzMGGUSI",
@@ -92,6 +93,7 @@ describe("applySecurityHeaders", () => {
       "https://www.youtube-nocookie.com/embed/INk0aC5hoK4",
       "https://www.youtube-nocookie.com/embed/glRm4NcRhac",
       "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg",
+      "https://www.youtube-nocookie.com/embed/osYf3qz36HI",
     ]);
     expect(withSecurityHeaders(html(), request("/me"), undefined, youtube).headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
   });

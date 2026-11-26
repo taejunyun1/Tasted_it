@@ -1,0 +1,25 @@
+{
+  "revision": "d08613f5d443894c52a9b37b1063769b7cfd6bcf",
+  "buildSha256": "10a0b32df5da9d5c5a5d3c3c843530d661e17dc94d6bebeefff4b136c68fbfc6",
+  "localMigrations": 59,
+  "generalVenueRows": 78,
+  "cases": 156,
+  "viewports": [
+    1280,
+    320
+  ],
+  "perViewport": {
+    "instagram": 40,
+    "threads": 1,
+    "youtube": 12,
+    "jpeg": 4,
+    "link": 9,
+    "none": 12
+  },
+  "singleOriginalAnchor": true,
+  "mockProviderFrames": true,
+  "syntheticJpegBytes": true,
+  "workerOutboundAttempts": 0,
+  "configurationScope": "LOCAL",
+  "productionChanged": false
+}
