@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 
 import type { Route } from "./+types/student-review-photo";
 import { createDb } from "../db/client.server";
-import { getOptionalUser } from "../features/auth/session.server";
+import { getOptionalUser, readSessionId } from "../features/auth/session.server";
 import { lookupPilotPhoto, matchesPilotPhotoObject } from "../features/ratings/student-review-pilot-photo.server";
 
 const PRIVATE_HEADERS = {
@@ -22,7 +22,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
   const bucket = env.STUDENT_REVIEW_PILOT_PHOTOS;
   const photoId = params.photoId;
-  if (!bucket || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(photoId ?? "")) {
+  if (!bucket || !photoId || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(photoId)) {
     return hidden();
   }
 
@@ -30,9 +30,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const db = createDb(env.DB);
     const preview = new URL(request.url).searchParams.get("preview") === "1";
     const actor = preview ? await getOptionalUser(request) : null;
-    if (preview && !actor) return hidden();
+    const previewSessionId = actor ? readSessionId(request) : null;
+    if (preview && (!actor || !previewSessionId)) return hidden();
 
-    const input = { photoId: photoId!, previewForUserId: actor?.id };
+    const input = actor && previewSessionId
+      ? { photoId, previewForUserId: actor.id, previewSessionId }
+      : { photoId };
     const photo = await lookupPilotPhoto(db, input);
     if (!photo) return hidden();
     const content = request.method === "GET" ? await bucket.get(photo.objectKey) : null;

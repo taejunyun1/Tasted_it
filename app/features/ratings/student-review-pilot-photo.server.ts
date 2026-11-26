@@ -281,14 +281,19 @@ export async function withdrawPilotPhoto(db: AppDb, input: { photoId: string; us
   if (!row) throw new PilotPhotoError(404, "PILOT_PHOTO_NOT_FOUND");
 }
 
-export async function lookupPilotPhoto(db: AppDb, input: { photoId: string; previewForUserId?: string }) {
-  const preview = input.previewForUserId;
+type PilotPhotoReadInput =
+  | { photoId: string; previewForUserId?: never; previewSessionId?: never }
+  | { photoId: string; previewForUserId: string; previewSessionId: string };
+
+export async function lookupPilotPhoto(db: AppDb, input: PilotPhotoReadInput) {
+  const { photoId, previewForUserId: preview, previewSessionId } = input;
   const [row] = await db.select({ objectKey: photos.objectKey, byteSize: photos.byteSize }).from(photos)
     .innerJoin(reviewerVisitReviews, eq(reviewerVisitReviews.id, photos.reviewId))
     .innerJoin(places, eq(places.id, reviewerVisitReviews.placeId))
-    .where(and(eq(photos.id, input.photoId), eq(photos.sealed, true), preview === undefined
+    .where(and(eq(photos.id, photoId), eq(photos.sealed, true), preview === undefined
       ? and(eq(photos.status, "APPROVED"), canPublish())
       : and(inArray(photos.status, ["PENDING", "APPROVED"]), matchesCurrentReview(),
+        currentSession(preview, previewSessionId, databaseNow),
         or(adminActor(preview, databaseNow), and(eq(photos.authorUserId, preview), activeReviewer(preview, databaseNow))))))
     .limit(1);
   return row ?? null;

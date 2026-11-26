@@ -142,6 +142,22 @@ it("runs two A/B photos on the exact 56 ledger plus 0065, with private intake, v
       expect((await view(photoId, c.session)).status).toBe(404);
       expect((await view(photoId, reviewer.session)).status).toBe(200);
       if (reviewer === a) {
+        const previewSession = "revoked-during-preview";
+        await database.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES(?,?,?,?)")
+          .bind(previewSession, a.id, future(10), now).run();
+        const racedBucket = new Proxy(bucket, {
+          get(target, property, receiver) {
+            if (property !== "get") return Reflect.get(target, property, receiver);
+            return async (key: string) => {
+              const asset = await target.get(key);
+              await database.prepare("DELETE FROM sessions WHERE id=?").bind(previewSession).run();
+              return asset;
+            };
+          },
+        });
+        await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_PHOTOS: racedBucket }, async () => {
+          expect((await view(photoId, previewSession)).status).toBe(404);
+        });
         const unverifiedAdmin = await approvePhoto(photoId);
         expect(unverifiedAdmin).toBeInstanceOf(Response);
         expect((unverifiedAdmin as Response).status).toBe(302);

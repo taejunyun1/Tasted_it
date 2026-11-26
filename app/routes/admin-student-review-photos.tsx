@@ -66,7 +66,7 @@ export async function action({ request }: Route.ActionArgs) {
     await requireAdminAssurance(env.DB, { actorUserId: user.id, sessionId, now });
     const db = createDb(env.DB);
     if (input.data.decision === "APPROVE") {
-      const photo = await lookupPilotPhoto(db, { photoId: input.data.photoId, previewForUserId: user.id });
+      const photo = await lookupPilotPhoto(db, { photoId: input.data.photoId, previewForUserId: user.id, previewSessionId: sessionId });
       const object = photo ? await bucket.head(photo.objectKey) : null;
       if (!photo || !matchesPilotPhotoObject(object, { photoId: input.data.photoId, byteSize: photo.byteSize })) {
         return failure("사진 파일을 확인하지 못했습니다. 다시 조회해 주세요.", 409);
