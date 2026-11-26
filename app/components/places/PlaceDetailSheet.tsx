@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFetcher, useLocation, useNavigate } from "react-router";
 import type { clientLoader as placeDetailLoader } from "../../routes/place-detail";
@@ -159,6 +159,20 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const detail = useFetcher<DetailData>();
   const [readFailure, setReadFailure] = useState<PlaceDetailLoadFailure | null>(null);
+  const sheetActionsRef = useCallback((actions: HTMLDivElement | null) => {
+    const dialog = actions?.closest("dialog");
+    if (!actions || !dialog) return;
+    // Leave scrolling room for focus even when enlarged action labels wrap.
+    const updateScrollPadding = () => dialog.style.setProperty("--detail-sheet-actions-height", `${actions.offsetHeight}px`);
+    updateScrollPadding();
+    const observer = new ResizeObserver(updateScrollPadding);
+    observer.observe(actions, { box: "border-box" });
+    return () => {
+      observer.disconnect();
+      dialog.style.removeProperty("--detail-sheet-actions-height");
+    };
+  }, []);
+
   useEffect(() => { void detail.load(requestPath); }, [requestPath, detail.load]);
   useEffect(() => {
     if (detail.data && "detailError" in detail.data) setReadFailure(detail.data);
@@ -174,7 +188,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
       {loading ? <p className="place-detail-sheet__loading" role="status">장소 정보를 불러오는 중…</p> : !data ? <div className="place-detail-sheet__body">
         <h2>{failure?.status === 404 ? "이 장소를 찾을 수 없어요." : failure?.status === 403 ? "이 장소를 볼 수 없어요." : "장소 정보를 불러오지 못했어요."}</h2>
         <p role="status">{unavailable ? "공개된 다른 장소를 찾아보세요." : "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p>
-        <div className="place-detail-sheet__actions">
+        <div ref={sheetActionsRef} className="place-detail-sheet__actions">
           {!unavailable && <button type="button" className="place-detail-sheet__save" onClick={onRetry}>다시 불러오기</button>}
           <button type="button" onClick={onClose}>목록으로 돌아가기</button>
         </div>
@@ -203,6 +217,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
             action={requestPath}
             busyReading={detail.state !== "idle"}
             onRefresh={onRetry}
+            sheetActionsRef={sheetActionsRef}
             directions={<a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>}
           />
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { Link, useActionData, useFetcher, useFormAction } from "react-router";
 import { authEntryHref } from "../../features/auth/login";
 import { GuestSaveControl } from "../onboarding/GuestSaveControl";
@@ -35,7 +35,7 @@ function outcomeMessage(outcome: ReactionOutcome, submitted: ReactionSubmission)
   return "요청을 처리하지 못했어요. 입력을 확인한 뒤 다시 시도해 주세요.";
 }
 
-export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEventId, action, busyReading = false, onRefresh = () => window.location.reload(), directions }: {
+export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEventId, action, busyReading = false, onRefresh = () => window.location.reload(), directions, sheetActionsRef }: {
   placeId: string;
   vote: -1 | 1 | null;
   voteEventId?: string | null;
@@ -46,6 +46,7 @@ export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEven
   busyReading?: boolean;
   onRefresh?: () => void;
   directions?: ReactNode;
+  sheetActionsRef?: Ref<HTMLDivElement>;
 }) {
   const mutation = useFetcher<ReactionOutcome>();
   const actionData = useActionData<ReactionOutcome>();
@@ -95,7 +96,7 @@ export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEven
       <Link className={sheet ? "place-detail-sheet__save" : undefined} to={loginHref}>{sheet ? "로그인하고 맛집지도에 추가" : "로그인하고 취향 남기기"}</Link>
       <GuestSaveControl placeId={placeId} returnTo={returnTo} showLogin={false} />
     </div>;
-    return sheet ? <div className="place-detail-sheet__actions">{signIn}{directions}</div> : signIn;
+    return sheet ? <div ref={sheetActionsRef} className="place-detail-sheet__actions">{signIn}{directions}</div> : signIn;
   }
 
   const saveControl = needsRead && sheet ? null : <mutation.Form method="post" action={action} onSubmit={event => submit(event, "save")}>
@@ -153,6 +154,6 @@ export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEven
       </p>}
       {!sheet && refresh}
     </div>
-    {sheet && <div className="place-detail-sheet__actions">{saveControl}{refresh}{directions}</div>}
+    {sheet && <div ref={sheetActionsRef} className="place-detail-sheet__actions">{saveControl}{refresh}{directions}</div>}
   </>;
 }
