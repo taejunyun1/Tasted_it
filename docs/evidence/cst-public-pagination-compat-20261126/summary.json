@@ -1,0 +1,85 @@
+{
+  "revision": "0d70b2825a16f30ad665cad4eee887c708eac312",
+  "buildSha256": "586c910c8253c3be0f785cf60d44e658d7474701178b5764c3481321279ad7f4",
+  "scope": "Local compiled compatibility Worker, synthetic D1 and map provider. No production writes.",
+  "migrationCount": 59,
+  "workerOutboundAttempts": 0,
+  "homeAndList": [
+    {
+      "layout": "desktop",
+      "firstPage": 100,
+      "secondPage": 25,
+      "filteredTotal": 125,
+      "acrossRange": 127,
+      "matchingSecondPage": true,
+      "pageRoundTrip": true,
+      "badgesPreservedAndReset": true,
+      "invalidAndMissingPageRecovery": true,
+      "filtersResetPagination": true,
+      "noOverflow": true
+    },
+    {
+      "layout": "mobile",
+      "firstPage": 100,
+      "secondPage": 25,
+      "filteredTotal": 125,
+      "acrossRange": 127,
+      "matchingSecondPage": true,
+      "pageRoundTrip": true,
+      "badgesPreservedAndReset": true,
+      "invalidAndMissingPageRecovery": true,
+      "filtersResetPagination": true,
+      "noOverflow": true
+    }
+  ],
+  "categoryMapAndList": [
+    {
+      "layout": "desktop",
+      "viewportWidth": 1366,
+      "fixtureRows": 125,
+      "firstPageRows": 100,
+      "secondPageCards": 25,
+      "secondPagePins": 25,
+      "pendingViewSwitch": true,
+      "selectedCleared": true,
+      "geolocationResetsPage": true,
+      "invalidStatus": 400,
+      "outOfRangeRecovery": true,
+      "zeroHeading": true,
+      "qaRetained": true,
+      "pagerTargetPx": 44
+    },
+    {
+      "layout": "mobile",
+      "viewportWidth": 320,
+      "fixtureRows": 125,
+      "firstPageRows": 100,
+      "secondPageCards": 25,
+      "secondPagePins": 25,
+      "pendingViewSwitch": true,
+      "selectedCleared": true,
+      "geolocationResetsPage": true,
+      "invalidStatus": 400,
+      "outOfRangeRecovery": true,
+      "zeroHeading": true,
+      "qaRetained": true,
+      "pagerTargetPx": 44
+    }
+  ],
+  "placeListBadgeNavigation": [
+    {
+      "layout": "desktop",
+      "selectedNewBadgeSurvivesNext": true,
+      "removesDeselectedBadgeOnPrevious": true,
+      "recoveryKeepsBothBadges": true,
+      "qCategoryBboxQaPreserved": true
+    },
+    {
+      "layout": "mobile",
+      "selectedNewBadgeSurvivesNext": true,
+      "removesDeselectedBadgeOnPrevious": true,
+      "recoveryKeepsBothBadges": true,
+      "qCategoryBboxQaPreserved": true
+    }
+  ]
+}
