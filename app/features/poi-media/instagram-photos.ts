@@ -216,6 +216,12 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전북 군산시 구영6길 111-7 (영화동)",
     shortcode: "DdtapPDvhJX",
   },
+  {
+    id: "place-intake-10ba96383640bd1be893dc04",
+    name: "커피사랑",
+    address: "전북 군산시 신창동 4-6 1층",
+    shortcode: "DXfYgKOEyBR",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
