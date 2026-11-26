@@ -1,0 +1,69 @@
+{
+  "scope": "Existing production Worker deployment metadata, migration ledger totals, and anonymous HTTP GET only",
+  "checkedDateKst": "2026-11-26",
+  "repositoryMain": "96cbbec086bd04a8e0696eaaf097bfaadf46621e",
+  "activeWorker": {
+    "version": "ff51553c-c8fb-462d-a9ae-a72c4f9e1082",
+    "trafficPercent": 100,
+    "deployedAtUtc": "2026-11-21T15:23:21.43346Z",
+    "sourceRecord": "https://github.com/taejunyun1/Tasted_it/pull/475"
+  },
+  "anonymousGet": {
+    "/": 200,
+    "/places": 200,
+    "/login": 200,
+    "/admin": 302,
+    "/robots.txt": 200,
+    "/privacy": 200
+  },
+  "adminRedirect": "/login",
+  "d1MigrationLedger": {
+    "appliedCount": 56,
+    "confirmedBaseline": [
+      "0050",
+      "0051",
+      "0052",
+      "0061",
+      "0062"
+    ],
+    "unappliedB17": [
+      "0053",
+      "0054",
+      "0055",
+      "0056",
+      "0059",
+      "0060"
+    ]
+  },
+  "operationsPerformed": {
+    "deploymentMetadataReads": 1,
+    "migrationLedgerSelects": 1,
+    "anonymousGetRequests": 6,
+    "deployments": 0,
+    "migrationsApplied": 0,
+    "aggregateSelects": 2
+  },
+  "limits": "Existing anonymous reachability and redirect only. No new Worker verification, full technical acceptance, authenticated flow, or production recovery.",
+  "studentReviewerStatus": {
+    "studentWorkspaceEnabled": true,
+    "reviewPhotoUploadEnabled": false,
+    "existingPhotoBucketBinding": true,
+    "activeSeats": 4,
+    "linkedSeats": 2,
+    "unlinkedSeats": 2,
+    "linkedActiveReviewerSeats": 0,
+    "usableInvitations": 0
+  },
+  "poiImageMetadata": {
+    "privateIntakeRows": 856,
+    "eligiblePublicPlaces": 178,
+    "tempPlaces": 100,
+    "tempKoglType1": 23,
+    "tempRightsUnverified": 77,
+    "generalPlaces": 78,
+    "generalWithHeroUrl": 0,
+    "generalWithEligibleReviewPhoto": 0,
+    "generalWithoutPhotoMetadata": 78,
+    "method": "Read-only aggregate using deployed published/primary-category/venue visibility and current reviewer publication predicates. No individual record or asset bytes read."
+  }
+}

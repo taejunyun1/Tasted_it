@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getReviewerPhotoObjectKey } from "../../app/features/ratings/reviewer-photo.server";
 import { createDb } from "../../app/db/client.server";
-import { createUserSession } from "../../app/features/auth/session.server";
+import { createUserSession, getOptionalUser } from "../../app/features/auth/session.server";
+import { requireActiveReviewer } from "../../app/features/ratings/reviewer-moderation.server";
 import { getReviewerPhotoPreview } from "../../app/features/ratings/reviewer-photo-access.server";
 import { loader } from "../../app/routes/reviewer-photo";
 
@@ -126,24 +127,51 @@ describe("reviewer photo resource route", () => {
   });
 
   it("allows private owner/admin previews but rejects other or withdrawn actors", async () => {
+    const peerReviewerId = "preview-peer-reviewer";
+    const previewUrl = "https://retaste.test/review-photos/private-preview?preview=1";
+    const params = { photoId: "private-preview" };
     await seedPublishedPhoto("private-preview");
     await env.DB.prepare("UPDATE reviewer_visit_reviews SET status='PENDING' WHERE id='review-private-preview'").run();
     await env.DB.batch([
       env.DB.prepare("INSERT OR IGNORE INTO users(id,email,display_name,role,created_at,updated_at) VALUES ('preview-admin','preview-admin@example.com','관리자','ADMIN',?,?)").bind(now,now),
       env.DB.prepare("INSERT OR IGNORE INTO users(id,email,display_name,role,created_at,updated_at) VALUES ('preview-other','preview-other@example.com','다른 회원','USER',?,?)").bind(now,now),
+      env.DB.prepare("INSERT INTO users (id, email, display_name, role, created_at, updated_at) VALUES (?, ?, '다른 리뷰어', 'REVIEWER', ?, ?)")
+        .bind(peerReviewerId, `${peerReviewerId}@example.com`, now, now),
+      env.DB.prepare("INSERT INTO reviewer_profiles (user_id, slug, status, occupation, taste_direction, region_code, specialty_slugs, last_activity_at, approved_at, created_at, updated_at) VALUES (?, ?, 'ACTIVE', '테스터', '균형', 'GWANGJU', '[]', ?, ?, ?, ?)")
+        .bind(peerReviewerId, peerReviewerId, now, now, now, now),
     ]);
     const db = createDb(env.DB);
     expect(await getReviewerPhotoPreview(db,{ photoId:'private-preview',actorUserId:reviewerId })).toMatchObject({id:'private-preview'});
-    const cookie = await createUserSession({userId:reviewerId,now:new Date(),requestUrl:'https://retaste.test'});
-    const ownerPreview = await loader({request:new Request('https://retaste.test/review-photos/private-preview?preview=1',{headers:{Cookie:cookie.split(';')[0]}}),params:{photoId:'private-preview'}} as never);
+    const cookie = await createUserSession({ userId: reviewerId, now: new Date(), requestUrl: previewUrl });
+    const ownerPreview = await loader({ request: new Request(previewUrl, { headers: { Cookie: cookie.split(";")[0] } }), params } as never);
     expect(ownerPreview.status).toBe(200);
     expect(ownerPreview.headers.get('cache-control')).toBe('private, no-store');
     expect(await getReviewerPhotoPreview(db,{ photoId:'private-preview',actorUserId:'preview-admin' })).toMatchObject({id:'private-preview'});
     expect(await getReviewerPhotoPreview(db,{ photoId:'private-preview',actorUserId:'preview-other' })).toBeNull();
     expect(await getReviewerPhotoPreview(db,{ photoId:'private-preview',actorUserId:'missing-actor' })).toBeNull();
+    await requireActiveReviewer(db, peerReviewerId);
+    const peerCookie = await createUserSession({ userId: peerReviewerId, now: new Date(), requestUrl: previewUrl });
+    const peerHeaders = { Cookie: peerCookie.split(";")[0] };
+    expect(await getOptionalUser(new Request(previewUrl, { headers: peerHeaders })))
+      .toMatchObject({ id: peerReviewerId, role: "REVIEWER" });
+
+    const get = vi.spyOn(env.REVIEW_PHOTOS, "get");
+    try {
+      for (const method of ["GET", "HEAD"]) {
+        const request = new Request(previewUrl, { method, headers: peerHeaders });
+        const response = await loader({ request, params } as never);
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("private, no-store");
+        expect(response.headers.get("vary")).toBe("Cookie");
+        expect(response.body).toBeNull();
+      }
+      expect(get).not.toHaveBeenCalled();
+    } finally {
+      get.mockRestore();
+    }
     await env.DB.prepare("UPDATE users SET email=? WHERE id=?").bind(`withdrawn.${reviewerId}@invalid.local`,reviewerId).run();
     expect(await getReviewerPhotoPreview(db,{ photoId:'private-preview',actorUserId:reviewerId })).toBeNull();
-    const anonymousPreview = await loader({request:new Request('https://retaste.test/review-photos/private-preview?preview=1'),params:{photoId:'private-preview'}} as never);
+    const anonymousPreview = await loader({ request: new Request(previewUrl), params } as never);
     expect(anonymousPreview.status).toBe(404);
   });
 

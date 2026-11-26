@@ -157,6 +157,92 @@ test("T07 keyboard reads and saves from a failed category map at 320px", async (
   }
 });
 
+test("T07 keyboard recovers, rates, and saves in mobile detail at 200% text size", async ({ page, baseURL }, info) => {
+  test.skip(info.project.name !== "mobile-chromium");
+  const fixture = mobileSheetVoteFixture(baseURL!, "detail-zoom");
+  const origin = new URL(baseURL!).origin;
+  const query = new URLSearchParams({ q: fixture.name, bbox, selected: fixture.id });
+
+  try {
+    fixture.create();
+    await page.setViewportSize({ width: 390, height: 700 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await syntheticContext(page, origin, fixture);
+    await page.route(url => url.origin === origin && url.pathname === `/places/${fixture.id}.data`
+      && url.searchParams.getAll("_routes").some(routes => routes.split(",").includes("routes/place-detail")),
+    route => route.fulfill({ status: 503, contentType: "text/plain", body: "synthetic temporary outage" }), { times: 1 });
+
+    await page.goto(`/places?${query}`);
+    await page.addStyleTag({ content: "html { -webkit-text-size-adjust: 200%; }" });
+    const opener = page.locator(".discovery-grid").getByRole("link", { name: `${fixture.name} 상세 보기`, exact: true });
+    await tabTo(page, opener);
+    await page.keyboard.press("Enter");
+    const sheet = detailSheet(page);
+    const failure = sheet.getByRole("heading", { name: "장소 정보를 불러오지 못했어요." });
+    await expect(failure).toBeVisible();
+    const [normalSize, enlargedSize] = await failure.evaluate((heading: HTMLElement) => {
+      const enlarged = parseFloat(getComputedStyle(heading).fontSize);
+      heading.style.webkitTextSizeAdjust = "100%";
+      const normal = parseFloat(getComputedStyle(heading).fontSize);
+      heading.style.removeProperty("-webkit-text-size-adjust");
+      return [normal, enlarged];
+    });
+    expect(enlargedSize).toBe(normalSize * 2);
+    const originalSheet = await sheet.elementHandle();
+    expect(originalSheet).not.toBeNull();
+
+    const retry = sheet.getByRole("button", { name: "다시 불러오기", exact: true });
+    await tabTo(page, retry);
+    await expectExposedKeyboardTarget(retry);
+    await page.screenshot({ path: info.outputPath("t07-detail-200-retry.png"), animations: "disabled" });
+    await page.keyboard.press("Enter");
+    await expect(sheet.getByRole("heading", { name: fixture.name, exact: true })).toBeVisible();
+    await expect.poll(() => originalSheet!.evaluate(dialog => dialog.matches("dialog:modal")
+      && dialog.contains(document.activeElement))).toBe(true);
+    expect.soft(await sheet.evaluate(dialog => dialog.scrollWidth - dialog.clientWidth)).toBeLessThanOrEqual(1);
+
+    const dislike = sheet.getByRole("button", { name: "비추천", exact: true });
+    await tabTo(page, dislike);
+    await expectExposedKeyboardTarget(dislike);
+    await page.keyboard.press("Enter");
+
+    const reason = sheet.getByRole("radio", { name: "메뉴", exact: true });
+    await tabTo(page, reason);
+    await expectExposedKeyboardTarget(reason);
+    await page.keyboard.press("Space");
+    await expect(reason).toBeChecked();
+
+    const submit = sheet.getByRole("button", { name: "비추천 반영", exact: true });
+    await tabTo(page, submit);
+    await expectExposedKeyboardTarget(submit);
+    await page.screenshot({ path: info.outputPath("t07-detail-200-vote-reason.png"), animations: "disabled" });
+    await page.keyboard.press("Enter");
+    await expect(dislike).toHaveAttribute("aria-pressed", "true");
+
+    const cancel = sheet.getByRole("button", { name: "평가 취소", exact: true });
+    await tabTo(page, cancel);
+    await expectExposedKeyboardTarget(cancel);
+    await page.keyboard.press("Enter");
+    await expect(cancel).toHaveCount(0);
+    await expect(dislike).toHaveAttribute("aria-pressed", "false");
+
+    const save = sheet.getByRole("button", { name: "맛집지도에 추가", exact: true });
+    await tabTo(page, save);
+    await expectExposedKeyboardTarget(save);
+    await page.keyboard.press("Enter");
+    await expect(sheet.getByRole("button", { name: "맛집지도에서 빼기", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(fixture.projection()).toEqual({ vote: null, reason: null, saved: 1 });
+
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expectExposedKeyboardTarget(opener);
+    await expect(page).toHaveURL(url => url.pathname === "/places" && !url.searchParams.has("place")
+      && url.searchParams.get("q") === fixture.name && url.searchParams.get("bbox") === bbox);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
 test("T02 mobile recommendation vote and save changes persist across detail and the member list", async ({ browser, page, baseURL }, info) => {
   test.skip(info.project.name !== "mobile-chromium");
   test.setTimeout(90_000);
