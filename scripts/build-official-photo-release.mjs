@@ -29,6 +29,7 @@ const pilotPatchTargets = [
   "app/routes/admin-reviewer-visits.tsx",
   "app/routes/place-detail.tsx",
   "app/routes/reviewer-ratings.tsx",
+  "app/routes/student-index.tsx",
   "workers/app.ts",
 ];
 const pilotMainFiles = [
