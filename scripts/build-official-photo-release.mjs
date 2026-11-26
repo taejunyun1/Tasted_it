@@ -119,6 +119,16 @@ const publicPlaceInformationFiles = [
   "app/features/places/public-information.ts",
   "app/styles/place-information.css",
 ];
+const publicPlaceMapScopePatch = "ops/releases/public-place-map-scope-494c07f.patch";
+const publicPlaceMapScopeTargets = [
+  "app/components/map/MapExplorerPanel.tsx",
+  "app/features/maps/home-curation-options.ts",
+  "app/features/places/public-place-map-scope.ts",
+  "app/routes/home.tsx",
+  "app/routes/map-category.tsx",
+  "app/routes/place-list.tsx",
+  "app/styles/design-system.css",
+];
 const poiMediaPublicPatch = "ops/releases/poi-media-public-494c07f.patch";
 const poiMediaPublicTargets = [
   "app/components/places/PlaceDetailSheet.tsx",
@@ -248,6 +258,9 @@ const publicPlaceInformationProof = {
   ),
   fileSha256: copyMainFiles(publicPlaceInformationFiles),
 };
+const publicPlaceMapScopePatchSha256 = applyReleasePatch(
+  publicPlaceMapScopePatch, ".public-place-map-scope.patch", publicPlaceMapScopeTargets,
+);
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -266,6 +279,7 @@ const attestation = {
   directVerificationPatchSha256,
   directVerificationFileSha256,
   publicPlaceInformation: publicPlaceInformationProof,
+  publicPlaceMapScopePatchSha256,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: buildFingerprint(buildRoot),
