@@ -94,6 +94,33 @@ const directVerificationTargets = [
   "app/routes/reviewer-apply.tsx",
   "app/routes/reviewer-profile.tsx",
 ];
+const poiMediaPublicPatch = "ops/releases/poi-media-public-494c07f.patch";
+const poiMediaPublicTargets = [
+  "app/components/places/PlaceDetailSheet.tsx",
+  "app/features/places/place.server.ts",
+  "app/routes/place-detail.tsx",
+];
+const poiMediaAdminPatch = "ops/releases/poi-media-admin-494c07f.patch";
+const poiMediaAdminTargets = [
+  "app/cloudflare-env.d.ts",
+  "app/db/schema.ts",
+  "app/features/operations/admin-activity.server.ts",
+  "app/routes.ts",
+  "app/routes/admin-places.tsx",
+];
+const poiMediaFiles = [
+  "app/components/places/PlacePoiPhoto.tsx",
+  "app/features/poi-media/poi-media-admin.server.ts",
+  "app/features/poi-media/poi-media.server.ts",
+  "app/features/poi-media/poi-media.ts",
+  "app/routes/admin-poi-media-preview.ts",
+  "app/routes/admin-poi-media.tsx",
+  "app/routes/poi-media.ts",
+];
+const poiMediaMigrations = [
+  "drizzle/0063_place_poi_media.sql",
+  "drizzle/0064_place_poi_media_identity_guard.sql",
+];
 const pilotMigration = "drizzle/0065_student_review_pilot_photos.sql";
 const orderedBaselineLedgerSha256 = "a9beee8c240ccef6d667125f9968c4d70483c315d1afe458f99b18c582762928";
 
@@ -101,11 +128,13 @@ function git(args, cwd = repository) {
   return execFileSync("git", args, { cwd, maxBuffer: 128 * 1024 * 1024 });
 }
 
-const [output, mode, ...extra] = process.argv.slice(2);
-if (!output || !isAbsolute(output) || extra.length || (mode !== undefined && mode !== "--student-pilot")) {
-  throw new Error("Usage: node scripts/build-official-photo-release.mjs <new-absolute-output-dir> [--student-pilot]");
+const [output, ...modes] = process.argv.slice(2);
+const studentPilot = modes.includes("--student-pilot");
+const poiMedia = modes.includes("--poi-media");
+if (!output || !isAbsolute(output) || modes.length !== Number(studentPilot) + Number(poiMedia) ||
+    (poiMedia && !studentPilot)) {
+  throw new Error("Usage: node scripts/build-official-photo-release.mjs <new-absolute-output-dir> [--student-pilot [--poi-media]]");
 }
-const studentPilot = mode === "--student-pilot";
 const fromRepository = relative(repository, output);
 if (!fromRepository.startsWith("../") || existsSync(output)) {
   throw new Error("Use a new output directory outside the repository");
@@ -174,6 +203,13 @@ const publicVotePatchSha256 = applyReleasePatch(
 const directVerificationPatchSha256 = applyReleasePatch(
   directVerificationPatch, ".direct-verification-profile.patch", directVerificationTargets,
 );
+const poiMediaProof = poiMedia ? {
+  activation: "dark",
+  publicPatchSha256: applyReleasePatch(poiMediaPublicPatch, ".poi-media-public.patch", poiMediaPublicTargets),
+  adminPatchSha256: applyReleasePatch(poiMediaAdminPatch, ".poi-media-admin.patch", poiMediaAdminTargets),
+  fileSha256: copyMainFiles(poiMediaFiles),
+  requiredMigrations: poiMediaMigrations.map((file) => ({ file, sha256: digest(committed(file)), applied: false })),
+} : null;
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -205,9 +241,13 @@ if (pilotProof) {
       photoBucket?.bucket_name !== "retaste-review-photos") {
     throw new Error("The student pilot must build dark and preserve the existing photo storage");
   }
+  if (poiMediaProof && Object.hasOwn(config.vars ?? {}, "POI_MEDIA_PUBLIC_ENABLED")) {
+    throw new Error("The POI media compatibility build must leave publication off");
+  }
   writeFileSync(join(output, "student-pilot-release.json"), JSON.stringify({
     ...attestation,
     ...pilotProof,
+    ...(poiMediaProof ? { poiMedia: poiMediaProof } : {}),
     activation: "dark",
   }, null, 2) + "\n", { mode: 0o600, flag: "wx" });
 } else {

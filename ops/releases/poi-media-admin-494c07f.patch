@@ -1,0 +1,90 @@
+diff --git a/app/cloudflare-env.d.ts b/app/cloudflare-env.d.ts
+--- a/app/cloudflare-env.d.ts
++++ b/app/cloudflare-env.d.ts
+@@ -10,6 +10,7 @@
+     NAVER_LOCAL_SEARCH_ENABLED: string;
+     NAVER_LOCAL_SEARCH_DAILY_LIMIT: string;
+     POI_INSTAGRAM_PHOTO_ENABLED?: string;
++    POI_MEDIA_PUBLIC_ENABLED?: string;
+     DATA_GO_KR_SERVICE_KEY: string;
+     RESEND_API_KEY: string;
+     RESEND_FROM_EMAIL: string;
+diff --git a/app/db/schema.ts b/app/db/schema.ts
+--- a/app/db/schema.ts
++++ b/app/db/schema.ts
+@@ -183,6 +183,28 @@
+   ],
+ );
+
++export const placePoiMedia = sqliteTable(
++  "place_poi_media",
++  {
++    id: text("id").primaryKey().notNull(),
++    placeId: text("place_id")
++      .notNull()
++      .references(() => places.id, { onDelete: "cascade" }),
++    state: text("state", { enum: ["STAGED", "PUBLISHED", "WITHDRAWN"] }).notNull().default("STAGED"),
++    sourceUrl: text("source_url").notNull(),
++    attribution: text("attribution").notNull(),
++    rightsBasis: text("rights_basis", { enum: ["OWN_WORK", "MERCHANT_PERMISSION", "KOGL_1", "OPEN_LICENSE"] }).notNull(),
++    rightsEvidence: text("rights_evidence").notNull(),
++    sha256: text("sha256").notNull(),
++    byteSize: integer("byte_size").notNull(),
++    contentType: text("content_type", { enum: ["image/jpeg"] }).notNull(),
++    reviewedAt: text("reviewed_at").notNull(),
++  },
++  (table) => [
++    index("place_poi_media_public_idx").on(table.placeId, table.state, table.reviewedAt, table.id),
++  ],
++);
++
+ export const placeCategories = sqliteTable(
+   "place_categories",
+   {
+diff --git a/app/features/operations/admin-activity.server.ts b/app/features/operations/admin-activity.server.ts
+--- a/app/features/operations/admin-activity.server.ts
++++ b/app/features/operations/admin-activity.server.ts
+@@ -13,6 +13,9 @@
+   WHERE al.action='ADMIN_OPERATION_COMMITTED' AND al.target_type='ADMIN_OPERATION'
+   AND al.target_id=o.id AND al.actor_user_id=o.actor_user_id LIMIT 2))`;
+ const AUDIT_NAMES: Record<string, string> = {
++  POI_MEDIA_PUBLISH: "장소 사진 공개 승인",
++  POI_MEDIA_WITHDRAW: "장소 사진 회수",
++  POI_MEDIA_IDENTITY_WITHDRAWN: "장소 정보 변경으로 사진 회수",
+   APPROVE_CANDIDATE: "후보 승인", REJECT_CANDIDATE: "후보 반려", PLACE_REVIEW_PUBLISH: "장소 공개",
+   PLACE_REVIEW_HOLD: "장소 검수 보류", PLACE_REVIEW_EXCLUDE: "장소 제외", RSI_SELF_CHECK: "서비스 경로 점검",
+   EMAIL_DOMAIN_REPAIR: "발신 도메인 작업", RESOLVE_OPERATIONAL_ALERT: "운영 경보 처리",
+diff --git a/app/routes.ts b/app/routes.ts
+--- a/app/routes.ts
++++ b/app/routes.ts
+@@ -3,6 +3,7 @@
+ export default [
+   index("routes/home.tsx"),
+   route("temp-photos/:entryId", "routes/temp-photo.ts"),
++  route("poi-media/:mediaId", "routes/poi-media.ts"),
+   route("admin/temp-catalog", "routes/admin-temp-catalog.tsx"),
+   route("resources/guest-saves", "routes/guest-saves-resource.ts"),
+   route("onboarding/taste", "routes/taste-onboarding.tsx"),
+@@ -47,6 +48,8 @@
+   route("admin/members", "routes/admin-members.tsx"),
+   route("admin/students", "routes/admin-students.tsx"),
+   route("admin/places", "routes/admin-places.tsx"),
++  route("admin/poi-media", "routes/admin-poi-media.tsx"),
++  route("admin/poi-media/:mediaId/preview", "routes/admin-poi-media-preview.ts"),
+   route("admin/import", "routes/admin-import.tsx"),
+   route("admin/candidates", "routes/admin-candidates.tsx"),
+   route("admin/candidates/bulk", "routes/admin-candidates-bulk.tsx"),
+diff --git a/app/routes/admin-places.tsx b/app/routes/admin-places.tsx
+--- a/app/routes/admin-places.tsx
++++ b/app/routes/admin-places.tsx
+@@ -23,8 +23,9 @@
+         <div>
+           <h1 className="mt-2 text-[21px] font-semibold">장소 관리</h1>
+         </div>
+-        <nav className="flex gap-3">
++        <nav className="flex flex-wrap gap-3">
+           <Link className="border border-neutral-950 px-4 py-2 font-medium" to="/admin/place-operations?step=1">장소 검수</Link>
+           <Link className="border border-neutral-950 px-4 py-2 font-medium" to="/admin/import">CSV 가져오기</Link>
++          <Link className="border border-neutral-950 px-4 py-2 font-medium" to="/admin/poi-media">장소 사진 관리</Link>
+         </nav>
+       </div>

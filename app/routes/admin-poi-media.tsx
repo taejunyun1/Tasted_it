@@ -125,7 +125,7 @@ export default function AdminPoiMedia({ loaderData, actionData }: Route.Componen
         <p>사진 상태 <strong>{STATE_LABELS[photo.state]}</strong> · 서비스 사진 표시 {publicEnabled ? "켜짐" : "꺼짐"}</p>
       </div>
       {photo.state !== "WITHDRAWN" && <img src={`${PATH}/${photo.id}/preview`} alt="등록 사진 검수 미리보기" className="max-h-80 max-w-full rounded-md border border-neutral-300 object-contain" />}
-      <dl className="grid gap-2 break-words">
+      <dl className="grid min-w-0 gap-2 [overflow-wrap:anywhere]">
         <div><dt className="font-semibold">사진 제공</dt><dd>{photo.attribution}</dd></div>
         <div><dt className="font-semibold">출처</dt><dd>{photo.sourceUrl ? <a className="underline" href={photo.sourceUrl} target="_blank" rel="noopener noreferrer">원본 페이지 보기</a> : "출처 주소 확인 필요"}</dd></div>
         <div><dt className="font-semibold">이용 근거</dt><dd>{RIGHTS_LABELS[photo.rightsBasis]}</dd></div>
