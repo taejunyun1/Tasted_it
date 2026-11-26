@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, expect, request } from "@playwright/test";
 
-const [origin, credentialFile, ...extra] = process.argv.slice(2);
-if (!/^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/.test(origin ?? "") || !credentialFile || extra.length) {
-  console.error("Usage: node scripts/verify-student-pilot.mjs http://127.0.0.1:<port> <private-credentials.json>");
+const [origin, credentialFile, mode, ...extra] = process.argv.slice(2);
+const cloudPilotOrigin = "https://retaste-student-pilot.retaste-beta.workers.dev";
+const permitted = mode === "--cloud" ? origin === cloudPilotOrigin
+  : mode === undefined && /^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/.test(origin ?? "");
+if (!permitted || !credentialFile || extra.length) {
+  console.error("Usage: node scripts/verify-student-pilot.mjs <local-or-exact-pilot-origin> <private-credentials.json> [--cloud]");
   process.exit(1);
 }
 
@@ -93,6 +96,12 @@ async function status(api, path, expectedStatus) {
 }
 
 try {
+  phase = "unauthenticated deployment identity";
+  anonymous = await request.newContext({ baseURL: origin });
+  const challenge = await status(anonymous, "/student", 401);
+  assert.equal(challenge.headers()["x-retaste-environment"], "student-pilot");
+  assert.match(challenge.headers()["www-authenticate"], /^Basic realm=/);
+  phase = "load synthetic credentials";
   const { access, admin, students } = JSON.parse(await readFile(credentialFile, "utf8"));
   assert.equal(access.username, "pilot");
   assert.equal(admin.email, expected.admin);
@@ -113,8 +122,6 @@ try {
   };
 
   phase = "anonymous and scoped route boundaries";
-  anonymous = await request.newContext({ baseURL: origin });
-  await status(anonymous, "/student", 401);
   await status(anonymous, "/assets/not-a-real-file.js", 401);
   assert.match(await (await status(anonymous, "/robots.txt", 200)).text(), /Disallow: \//);
   const adminContext = await newContext({ width: 1366, height: 850 });

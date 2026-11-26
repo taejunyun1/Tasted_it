@@ -6,6 +6,8 @@ import { hashPassword } from "../app/features/auth/password.server.ts";
 
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const drizzle = join(projectRoot, "drizzle");
+const localDatabaseId = "00000000-0000-4000-8000-000000000511";
+const pilotDurationMs = 24 * 60 * 60 * 1000;
 const omitted = new Set(["0053", "0054", "0055", "0056", "0059", "0060"]);
 const baselineDigest = "30244af4d12da57ac28b02710347d85f26f7bb08cbb391c409fc292e2ac361c7";
 const exactMigrations = {
@@ -24,6 +26,7 @@ const digest = (value) => createHash("sha256").update(value).digest("hex");
 const password = () => randomBytes(24).toString("base64url");
 const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
 const writePrivate = (file, body) => writeFile(file, body, { flag: "wx", mode: 0o600 });
+const writePrivateJson = (file, data) => writePrivate(file, JSON.stringify(data, null, 2) + "\n");
 
 async function migrationFiles() {
   const names = (await readdir(drizzle)).filter((name) =>
@@ -48,7 +51,20 @@ async function migrationFiles() {
   return [...baseline, ...poi, ["0065_pilot_reviewer_photo_cleanup.sql", cleanup.join("\n") + "\n"]];
 }
 
-function localConfig(browserPassword) {
+async function candidateDatabaseId(value) {
+  const id = value.toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(id) ||
+    id.startsWith("00000000-0000-")) {
+    throw new Error("Invalid candidate D1 UUID");
+  }
+  const config = await readFile(join(projectRoot, "wrangler.jsonc"), "utf8");
+  const protectedIds = Array.from(config.matchAll(/"database_id"\s*:\s*"([0-9a-f-]{36})"/giu), ([, uuid]) => uuid.toLowerCase());
+  if (protectedIds.length === 0) throw new Error("Cannot verify the protected D1 IDs");
+  if (protectedIds.includes(id)) throw new Error("The candidate D1 must be separate from the primary Worker");
+  return id;
+}
+
+function pilotConfig(databaseId, vars) {
   return {
     name: "retaste-student-pilot",
     main: join(projectRoot, "workers/student-pilot.ts"),
@@ -60,27 +76,25 @@ function localConfig(browserPassword) {
     assets: { binding: "ASSETS", run_worker_first: true },
     vars: {
       CST_STUDENT_PILOT: "true",
-      PILOT_BROWSER_PASSWORD: browserPassword,
-      STUDENT_INVITE_COOKIE_SECRET: randomBytes(32).toString("base64url"),
       STUDENT_WORKSPACE_ENABLED: "true",
       STUDENT_REVIEWER_PHOTO_PILOT_SEATS: "C,D",
       REVIEW_PHOTO_UPLOAD_ENABLED: "false",
       POI_MEDIA_PUBLIC_ENABLED: "true",
+      ...vars,
     },
     d1_databases: [{
       binding: "DB",
       database_name: "retaste-student-pilot",
-      database_id: "00000000-0000-4000-8000-000000000511",
+      database_id: databaseId,
       migrations_dir: "migrations",
     }],
     r2_buckets: [{ binding: "REVIEW_PHOTOS", bucket_name: "retaste-student-pilot-photos" }],
   };
 }
 
-async function localSeed(accounts) {
-  const now = new Date();
+async function localSeed(accounts, now, expiresAt) {
   const at = quote(now.toISOString());
-  const expiry = quote(new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString());
+  const expiry = quote(expiresAt);
   const rows = await Promise.all(accounts.map(async ({ account, role, label }) => {
     const { hash, salt } = await hashPassword(account.password);
     return `(${[account.id, account.email, label, role, hash, salt].map(quote).join(", ")}, ${at}, ${at}, ${at})`;
@@ -99,36 +113,49 @@ INSERT INTO place_categories (place_id, category_id, is_primary) VALUES ('sample
 `;
 }
 
-async function prepare(outputDir) {
+async function prepare(outputDir, cloudDatabaseId) {
+  const databaseId = cloudDatabaseId ? await candidateDatabaseId(cloudDatabaseId) : localDatabaseId;
   const migrations = await migrationFiles();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + pilotDurationMs).toISOString();
   const admin = { id: "pilot-admin", email: "pilot-admin@example.test", password: password() };
   const students = ["C", "D"].map((seat) => {
     const id = `pilot-student-${seat.toLowerCase()}`;
     return { seat, id, email: `${id}@example.test`, password: password() };
   });
   const access = { username: "pilot", password: password() };
+  const secrets = {
+    PILOT_BROWSER_PASSWORD: access.password,
+    STUDENT_INVITE_COOKIE_SECRET: randomBytes(32).toString("base64url"),
+  };
   const seed = await localSeed([
     { account: admin, role: "ADMIN", label: "합성 관리자" },
     ...students.map((account) => ({ account, role: "USER", label: `합성 학생 ${account.seat}` })),
-  ]);
+  ], now, expiresAt);
+  const config = pilotConfig(databaseId, cloudDatabaseId ? { PILOT_EXPIRES_AT: expiresAt } : secrets);
   await mkdir(outputDir, { mode: 0o700 });
   await mkdir(join(outputDir, "migrations"), { mode: 0o700 });
   for (const [name, bytes] of migrations) {
     await writePrivate(join(outputDir, "migrations", name), bytes);
   }
   await writePrivate(join(outputDir, "seed.sql"), seed);
-  await writePrivate(join(outputDir, "credentials.json"), JSON.stringify({ access, admin, students }, null, 2) + "\n");
-  await writePrivate(join(outputDir, "wrangler.json"), JSON.stringify(localConfig(access.password), null, 2) + "\n");
+  await writePrivateJson(join(outputDir, "credentials.json"), { access, admin, students });
+  await writePrivateJson(join(outputDir, "wrangler.json"), config);
+  if (cloudDatabaseId) {
+    await writePrivateJson(join(outputDir, "worker-secrets.json"), secrets);
+    await writePrivateJson(join(outputDir, "wrangler.open.json"), { ...config, workers_dev: true });
+  }
 }
 
-const [outputDir, ...extra] = process.argv.slice(2);
-if (!outputDir || outputDir.startsWith("-") || extra.length) {
-  console.error("Usage: node scripts/prepare-student-pilot.mjs <new-output-dir>");
+const [outputDir, mode, cloudDatabaseId, ...extra] = process.argv.slice(2);
+if (!outputDir || outputDir.startsWith("-") || extra.length ||
+  (mode !== undefined && (mode !== "--cloud" || !cloudDatabaseId))) {
+  console.error("Usage: node scripts/prepare-student-pilot.mjs <new-output-dir> [--cloud <candidate-d1-uuid>]");
   process.exitCode = 1;
 } else {
   try {
-    await prepare(resolve(outputDir));
-    console.log("Prepared a private local student pilot bundle with 59 migrations.");
+    await prepare(resolve(outputDir), cloudDatabaseId);
+    console.log(`Prepared a private ${cloudDatabaseId ? "cloud" : "local"} student pilot bundle with 59 migrations.`);
   } catch (error) {
     console.error(`Student pilot preparation failed (${error?.code ?? error.message})`);
     process.exitCode = 1;
