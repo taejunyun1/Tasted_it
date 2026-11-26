@@ -40,6 +40,10 @@ Re:Taste 자체 방문 콘텐츠의 공개 명칭은 **직접인증**이다. 승
 
 후속 운영 후보의 공개 상세와 모바일 시트에 기존 장소 정보 확인일, 기록된 영업시간·휴무와 미확인 문구를 연결했다. 확인일은 한국 날짜를 사용한다. 현재 영업 여부는 매장에 확인하도록 안내한다. 일반 장소와 TEMP의 지도 목록·빠른 정보 문구도 일치시켰다. 적용 순서 56·57·59개를 재현한 합성 환경의 HTML과 데이터에서 확인자 정보 제외, 숨김 장소 404, 알려진 영업시간과 미확인 표시를 확인했다. 320px에서 날짜 표시의 줄바꿈과 지도 목록의 접근 가능한 설명을 확인했다. 기존 호환 후보의 TEMP 목록→지도 필터와 모바일 지도 장애 안내 겹침은 별도 후속이다. 운영 적용은 대기다. [검증 결과](../evidence/cst-place-information-compat-20261126/summary.json) · [데스크톱 상세](../evidence/cst-place-information-compat-20261126/desktop-place.png) · [모바일 상세](../evidence/cst-place-information-compat-20261126/mobile-place.png)
 
+## 2026-11-26 TEMP 목록과 지도 왕복 호환
+
+후속 운영 후보에서 TEMP 목록과 홈·분류 지도 사이에 검색어·분류·선택 장소를 유지한다. TEMP 목록은 이전 지도 범위에 가려지지 않으며 일반 탐색은 지도 범위를 적용한다. 지도 제공자 응답을 차단한 합성 실증에서 데스크톱과 320px 모바일의 홈·분류 지도 안내와 미니맵 사이가 각각 8px로 유지됐다. 분류 지도 검색과 보기 전환 뒤에도 TEMP 조건을 확인했다. 기존 호환 조회의 100곳 상한과 분류별 전체 집계는 후속이다. 운영 적용은 대기다. [검증 결과](../evidence/cst-temp-map-scope-20261126/summary.json) · [홈 데스크톱](../evidence/cst-temp-map-scope-20261126/desktop-home.png) · [분류 지도 모바일](../evidence/cst-temp-map-scope-20261126/mobile-category.png)
+
 ## 2026-11-26 CI·병합 및 운영 상태
 
 #506–#510은 각 최신 커밋의 필수 CI 4개를 통과해 `96cbbec`까지 main에 병합했다. 자동 검수 중단·재개, 관리자 빈 장소 목록, 모바일 평가·저장, NAVER 사용량 조회 실패 시 B09 검수 큐와 합성 D1 복원 검증을 [기능 완료 원장](2026-11-18-cst-ui-feature-completion.md)과 [검수 실행 원장](../evidence/cst-20261210/execution-log.csv)에 연결했다.

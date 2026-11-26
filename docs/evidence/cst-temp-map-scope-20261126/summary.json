@@ -1,0 +1,38 @@
+{
+  "revision": "d72c44486fa7e7ab34cb118c74a3572d0fdbe5c4",
+  "buildSha256": "038a9a17473bfdb81d5573d19d27c55c790a26efa95614f9982f6f535e50135b",
+  "migrations": 59,
+  "workerOutboundAttempts": 0,
+  "browserExternalRequestsBlocked": 2,
+  "checks": [
+    {
+      "layout": "desktop",
+      "roundtrip": true,
+      "noQueryTemp": true,
+      "ordinaryBbox": true,
+      "categoryFilter": true,
+      "categoryViewSwitchAndForm": true,
+      "categoryModeLabelsOneLine": true,
+      "fallbackGap": 8,
+      "categoryFallbackGap": 8
+    },
+    {
+      "layout": "mobile",
+      "roundtrip": true,
+      "noQueryTemp": true,
+      "ordinaryBbox": true,
+      "categoryFilter": true,
+      "categoryViewSwitchAndForm": true,
+      "categoryModeLabelsOneLine": true,
+      "fallbackGap": 8,
+      "categoryFallbackGap": 8
+    }
+  ],
+  "buildModes": [
+    "official",
+    "student-pilot",
+    "student-pilot+poi-media"
+  ],
+  "strictWranglerDryRuns": 3,
+  "productionChanged": false
+}
