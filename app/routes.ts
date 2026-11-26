@@ -3,6 +3,7 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 export default [
   index("routes/home.tsx"),
   route("temp-photos/:entryId", "routes/temp-photo.ts"),
+  route("poi-media/:mediaId", "routes/poi-media.ts"),
   route("admin/temp-catalog", "routes/admin-temp-catalog.tsx"),
   route("resources/guest-saves", "routes/guest-saves-resource.ts"),
   route("onboarding/taste", "routes/taste-onboarding.tsx"),

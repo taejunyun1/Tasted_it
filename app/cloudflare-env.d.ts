@@ -28,5 +28,6 @@ declare namespace Cloudflare {
     RSI_CLOUDFLARE_ENABLED: string;
     RSI_CHECK_TOKEN: string;
     REVIEW_PHOTOS: R2Bucket;
+    POI_MEDIA_PUBLIC_ENABLED?: string;
   }
 }
