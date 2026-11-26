@@ -1,0 +1,63 @@
+{
+  "revision": "a1f690fb534afb83cca864f911201154584e4b0c",
+  "buildSha256": "22cb1617f9b1778655ac24a802a530837b40dcfdce765ffaf6563eec32e438fa",
+  "defaultPilotRevision": "082f222f3b1e1598dc2b9d68bb57a9f8edc5b0ce",
+  "defaultPilotHasPoiMediaRoutes": false,
+  "publicFlagDefaultAbsent": true,
+  "strictWranglerUploadDryRun": true,
+  "appendOrder": [
+    "drizzle/0065_student_review_pilot_photos.sql",
+    "drizzle/0063_place_poi_media.sql",
+    "drizzle/0064_place_poi_media_identity_guard.sql"
+  ],
+  "mainTargetedBrowserChecks": 2,
+  "migrations": 59,
+  "localhostOnly": true,
+  "workerOutboundAttempts": 0,
+  "browserExternalRequestsBlocked": 3,
+  "defaultOffWithPublishedRow": true,
+  "anonymousAdminDenied": true,
+  "nonAdminDenied": true,
+  "publishedTempPhotoHidden": true,
+  "syntheticPasswordReauth": true,
+  "reviewedJpegSha256": "6b3b5082c263ee6a934b3bfc79b5deebcf64ffc591fe5a4bc02f99b74f3d1035",
+  "publishedJpegByteLength": 3158,
+  "publishedGetAndHeadVerified": true,
+  "adminEvidenceLength": 179,
+  "adminDesktopEvidenceLayout": {
+    "viewportWidth": 1366,
+    "scrollWidth": 1366,
+    "renderedLines": 2
+  },
+  "adminMobileEvidenceLayout": {
+    "viewportWidth": 320,
+    "scrollWidth": 320,
+    "renderedLines": 8
+  },
+  "desktopCredit": {
+    "fontSize": 14,
+    "linkHeight": 44
+  },
+  "mobileCredit": {
+    "fontSize": 14,
+    "linkHeight": 44
+  },
+  "internalRightsEvidenceHidden": true,
+  "instagramFallbackMarkup": true,
+  "coexistingDirectVerifiedJpegAndAttribution": true,
+  "crossNamespaceResource404": true,
+  "withdrawnGetAndHead404NoStore": true,
+  "withdrawnAdminPreview404": true,
+  "auditTransitions": [
+    "POI_MEDIA_PUBLISH",
+    "POI_MEDIA_WITHDRAW"
+  ],
+  "legacyAndPilotObjectsUnchanged": true,
+  "withdrawnOriginalRetained": true,
+  "screenshots": [
+    "admin-preview-desktop.png",
+    "admin-preview-mobile.png",
+    "public-photo-desktop.png",
+    "public-photo-mobile.png"
+  ]
+}

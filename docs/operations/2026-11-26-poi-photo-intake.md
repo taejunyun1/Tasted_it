@@ -55,6 +55,8 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 일반 장소 사진을 준비하는 후속 환경은 운영 장부의 56개 뒤에 0065, 0063, 0064 순서로 적용한 59개 장부를 사용한다. 0065가 적용된 환경에서는 기존 57개 순서를 확인하고 0063·0064만 추가할 후보로 지정한다. 관리자 화면에서는 기존 비공개 사진 바인딩의 `poi-media/` 원본을 대조한다. 공개를 승인한 실행에서는 배포 설정에 `POI_MEDIA_PUBLIC_ENABLED=true`를 지정해 상세와 모바일 시트의 사진·원문 링크를 확인한다. 사진 공개 중지와 개별 회수는 아래 기준을 따른다.
 
+59개 장부의 합성 환경에서 관리자 비밀번호 재인증, 승인과 회수 감사, 공개 GET·HEAD의 JPEG 해시 및 회수 뒤 404를 확인했다. 일반 장소 사진과 별도 직접인증 사진이 데스크톱 상세와 모바일 시트에 같이 표시됐다. 공개 변수를 비운 상태와 TEMP 표본의 사진 미노출, 공식 Instagram 대체 표시, 기존 두 사진 저장 경로의 보존도 확인했다. [실행 기록](../evidence/cst-poi-media-compat-20261126/summary.json) · [320px 관리자](../evidence/cst-poi-media-compat-20261126/admin-preview-mobile.png) · [모바일 공개 상세](../evidence/cst-poi-media-compat-20261126/public-photo-mobile.png)
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.
