@@ -46,7 +46,18 @@ node scripts/verify-student-pilot.mjs http://127.0.0.1:5184 /path/to/candidate/c
 
 별도 로컬 후보를 빌드해 Chromium 데스크톱·모바일에서 관리자 재인증, 초대 2건 발급·수락, 리뷰어 신청 2건 승인, 사진 제출·공개·출처 2건·작성자 철회까지 확인했다. 승인 전 직접 조회와 철회 후 조회는 404였다. Wrangler 배포 사전 점검은 로컬에서 통과했다. [데스크톱](../evidence/cst-student-pilot-worker-20261126/desktop.png) · [모바일](../evidence/cst-student-pilot-worker-20261126/mobile.png)
 
-실제 클라우드 후보에서는 별도 승인된 D1 ID와 비공개 R2를 확인하고 후보 전용 인증을 비밀 바인딩으로 주입한다. 기존 운영 Worker와 운영 자원은 대상에서 제외하며, Cloudflare Access 보호와 후보 주소 회수 범위를 운영 PR에 넣는다. 후보 주소를 열기 전에 승인된 참여자와 검증 상한을 확인한다. [Vite 환경 설정](https://developers.cloudflare.com/workers/vite-plugin/reference/cloudflare-environments/) · [Cloudflare Access](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)
+### 클라우드 합성 실증
+
+승인 범위는 전용 Worker `retaste-student-pilot`, 이름이 같은 전용 D1 하나와 `retaste-student-pilot-photos` 비공개 표준 R2 하나다. 검증 대상은 합성 관리자와 학생 C·D다. 운영 자원과 B17·#397은 보류한다. 합성 검증에는 Worker의 무작위 브라우저 비밀번호와 앱의 별도 계정 인증을 사용한다. 실사용 계정 및 Cloudflare Access 구성을 적용하는 단계는 별도 승인 범위다. [Vite 환경 설정](https://developers.cloudflare.com/workers/vite-plugin/reference/cloudflare-environments/) · [Cloudflare Access](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)
+
+1. 승인 PR 병합 후, 일치하는 `main`의 깨끗한 체크아웃에서 `tastedit-production` 프로필이 기존 Re:Taste 계정인지 대조한다. 운영 배포 버전과 D1 장부 건수를 먼저 읽는다. 이름이 정확히 일치하는 후보 자원이 각각 0건이어야 신규 생성으로 넘어간다. D1과 표준 R2를 각 1개까지 생성하며 기존 자원을 가져오지 않는다.
+2. D1 목록의 후보 이름과 UUID를 함께 대조한다. 비어 있는 후보에만 `node --experimental-strip-types scripts/prepare-student-pilot.mjs <비공개-새-출력경로> --cloud <확정한-후보-D1-UUID>`를 실행한다. 후보 설정을 지정해 `wrangler d1 migrations apply DB --remote`, 이어 `wrangler d1 execute DB --remote --file <seed.sql>`로 실행한다. 장부 59개, 보류 migration 0개, 합성 사용자 3개, 지정 좌석 2개 및 빈 리뷰·사진을 대조한다.
+3. `CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH`로 후보의 `wrangler.json`을 골라 빌드한다. 나온 `build/server/wrangler.json`의 Worker 이름, D1 UUID, R2 이름, 정적 자산의 Worker 우선 처리, 비활성 호스트·버전 URL, 외부 바인딩 부재를 확인한다. 같은 설정과 `--secrets-file <worker-secrets.json>`을 사용해 `wrangler deploy --dry-run`과 닫힌 첫 배포를 실행한다. 비밀 파일은 권한 0600으로 로컬에 보관한다.
+4. 닫힌 배포가 확인되면 같은 커밋으로 `wrangler.open.json`을 지정해 다시 빌드한다. 같은 이름과 바인딩을 확인하고 후보 호스트만 연다. Worker가 요청 당 검증 주소와 만료 시각을 대조한다. 공개 도메인 연결과 별도 버전 URL은 비활성이다. 비밀번호 없는 브라우저가 일반 경로와 정적 자산에서 401을 받는지 먼저 확인한다.
+5. `node scripts/verify-student-pilot.mjs https://retaste-student-pilot.retaste-beta.workers.dev <credentials.json> --cloud`로 검증한다. 공개 효과는 브라우저 입장 인증을 통과한 비로그인 앱 세션을 기준으로 확인한다. 두 학생의 가입·리뷰·사진 승인과 철회를 한 번 수행한다. R2 업로드는 합성 JPEG 각각 1장이다. 철회 후 익명 앱 조회 404, D1 사진·정리 작업 0건을 확인하고 운영 버전과 장부를 다시 읽는다.
+6. 실패하면 전환을 중지하고 기존 후보 상태를 확인한다. 브라우저 호스트를 회수할 때는 3단계 닫힌 설정을 같은 후보에 적용하고 후보 URL 응답과 운영 버전을 대조한다. 설정의 최대 유효 시간 24시간 뒤에는 Worker가 입장을 닫는다. 합성 D1·R2는 검증 기록과 함께 보존하고 실제 사용자·메일 등록은 별도 범위에서 다룬다.
+
+사용량 상한은 후보 3자원, D1 장부 59개와 합성 시드 1회, 합성 브라우저 검증 1회와 확인 요청, 2장 업로드, 비활성·활성 배포 각 1회다. 별도 요금제 변경, 외부 메일, 지도·AI 유료 호출은 없다. 표준 R2와 D1의 사용량은 기존 계정 내 포함량을 따른다. [D1 요금](https://developers.cloudflare.com/d1/platform/pricing/) · [R2 요금](https://developers.cloudflare.com/r2/pricing/) · [첫 Worker 배포](https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/#first-upload) · [Wrangler 비밀 바인딩](https://developers.cloudflare.com/workers/configuration/secrets/)
 
 ## 운영 전 확인
 

@@ -4,7 +4,8 @@ import { requireAdminSession } from "../app/features/auth/session.server";
 import { readBoundedBody } from "../app/features/http/bounded-body";
 import { withSecurityHeaders } from "../app/features/http/security-headers";
 
-type PilotEnv = Env & { PILOT_BROWSER_PASSWORD?: string; ASSETS?: Fetcher };
+type PilotEnv = Env & { PILOT_BROWSER_PASSWORD?: string; PILOT_EXPIRES_AT?: string; ASSETS?: Fetcher };
+const cloudPilotHost = "retaste-student-pilot.retaste-beta.workers.dev";
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
@@ -26,6 +27,7 @@ const task = /^\/student\/tasks\/[^/]+$/;
 const accessHeaders = {
   "Cache-Control": "private, no-store",
   "X-Robots-Tag": "noindex, nofollow, noarchive",
+  "X-Retaste-Environment": "student-pilot",
   "Content-Security-Policy": [
     "default-src 'self'", "base-uri 'self'", "object-src 'none'", "frame-ancestors 'none'",
     "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'",
@@ -88,11 +90,17 @@ function pilotResponse(response: Response, request: Request) {
 
 export default {
   async fetch(request, env) {
-    const { pathname } = new URL(request.url);
+    const { hostname, pathname, protocol } = new URL(request.url);
+    const loopback = hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "localhost";
+    if (!loopback && (hostname !== cloudPilotHost || protocol !== "https:" || !env.PILOT_EXPIRES_AT)) {
+      return new Response(null, { status: 404, headers: accessHeaders });
+    }
     if (pathname === "/robots.txt" && request.method === "GET") {
       return new Response("User-agent: *\nDisallow: /\n", { headers: { ...accessHeaders, "Content-Type": "text/plain" } });
     }
-    if (!env.PILOT_BROWSER_PASSWORD) return new Response(null, { status: 404, headers: accessHeaders });
+    if (!env.PILOT_BROWSER_PASSWORD || (env.PILOT_EXPIRES_AT && !(Date.parse(env.PILOT_EXPIRES_AT) > Date.now()))) {
+      return new Response(null, { status: 404, headers: accessHeaders });
+    }
     if (!await isAuthorized(request, env.PILOT_BROWSER_PASSWORD)) {
       return new Response(null, { status: 401, headers: { ...accessHeaders, "WWW-Authenticate": 'Basic realm="ReTaste student pilot"' } });
     }
