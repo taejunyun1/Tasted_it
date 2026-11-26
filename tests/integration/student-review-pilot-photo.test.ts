@@ -244,6 +244,7 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
     });
     await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: undefined }, async () => {
       for (const { id, reviewId, reviewer } of photoRecords) {
+        expect((await readProfile(reviewer.id)).visits).toMatchObject([{ id: reviewId, photos: [{ id }] }]);
         const response = await view(id);
         expect(response.status).toBe(200);
         expect(new Uint8Array(await response.arrayBuffer())).toEqual(jpeg);
