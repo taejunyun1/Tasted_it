@@ -101,7 +101,9 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 광성식당·복록수·사거리통골뱅이·원조목살집은 상호와 음식을 대조한 개별 네이버 클립에 직접 연결한다. 광성식당 원문의 협찬 표시는 장소 상세에도 명시한다. 네 곳의 영상은 작성자 원문에서 재생을 확인했고 외부 플레이어 지원 범위는 미확정이다. [광성식당](https://m.blog.naver.com/every100/clip/9398864) · [복록수](https://m.blog.naver.com/fmfun/clip/306388) · [사거리통골뱅이](https://m.blog.naver.com/loveis7108/clip/7801577) · [원조목살집](https://m.blog.naver.com/jiwon4348/clip/5134953)
 
-후속 영상 설정은 승인된 실제 운영의 접수 상태에 맞춘다. 접수 종료에는 좌석 변수가 없는 후보를, A·B 접수 중에는 두 좌석만 유지하는 후보를 사용한다. 두 구성 모두 이전 승인 설정과 비교했을 때 영상·Threads 플래그만 추가됐고 엄격한 모의 업로드를 통과했다. 네 가지 일반 장소 JPEG 반입과 실제 방문·사진 확인은 기존 승인 순서를 따른다. 운영 적용은 별도 승인에서 적용 소스와 버전, 지문을 고정한 뒤 진행한다. [설정 대조](../evidence/cst-full-visual-readiness-20261127/config-comparison.json)
+새 영상 두 곳은 1280px과 320px에서 로컬 장소 상세의 재생 버튼으로 실제 원본을 열었다. 토방닭매운탕은 양쪽 화면에서 12:15에 시작해 지정 구간에서 정지했고, 두 곳 모두 **출처** 링크는 하나였다. 운영 원장과 같은 일반 장소 78곳의 로컬 전체 슬롯 대조에는 합성 프레임과 JPEG를 사용했다. [로컬 검증](../evidence/cst-more-original-sources-20261127/summary.json)
+
+후속 영상 설정은 승인된 실제 운영의 접수 상태에 맞춘다. 접수 종료에는 좌석 변수가 없는 후보를, A·B 접수 중에는 두 좌석만 유지하는 후보를 사용한다. 두 구성 모두 이전 승인 설정과 비교했을 때 영상·Threads 플래그만 추가됐고 엄격한 모의 업로드를 통과했다. 네 가지 일반 장소 JPEG 반입과 실제 방문·사진 확인은 기존 승인 순서를 따른다. 운영 적용은 별도 승인에서 적용 소스와 버전, 지문을 고정한 뒤 진행한다. [설정 대조](../evidence/cst-more-original-sources-20261127/config-comparison.json)
 
 ## 적용과 회수 기준
 

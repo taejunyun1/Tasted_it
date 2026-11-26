@@ -1,0 +1,63 @@
+{
+  "revision": "a91ccb7c5e044ce59a76a6a6dc50729969be51a1",
+  "buildSha256": "8798de77433667a77035a81920eb229b1ba392730b25a8036c97e2dd88eada44",
+  "localMigrations": 59,
+  "generalVenueRows": 78,
+  "cases": 156,
+  "viewports": [
+    1280,
+    320
+  ],
+  "perViewport": {
+    "instagram": 40,
+    "threads": 1,
+    "youtube": 14,
+    "jpeg": 4,
+    "link": 9,
+    "none": 10
+  },
+  "singleOriginalAnchor": true,
+  "mockProviderFrames": true,
+  "syntheticJpegBytes": true,
+  "nativeResults": [
+    {
+      "name": "구수향",
+      "width": 1280,
+      "playback": true,
+      "time": 0.327581,
+      "endVerified": false,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    },
+    {
+      "name": "토방닭매운탕",
+      "width": 1280,
+      "playback": true,
+      "time": 735.105312,
+      "endVerified": true,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    },
+    {
+      "name": "구수향",
+      "width": 320,
+      "playback": true,
+      "time": 0.553644,
+      "endVerified": false,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    },
+    {
+      "name": "토방닭매운탕",
+      "width": 320,
+      "playback": true,
+      "time": 735.093432,
+      "endVerified": true,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    }
+  ],
+  "workerOutboundAttempts": 0,
+  "configurationScope": "LOCAL",
+  "productionChanged": false
+}
