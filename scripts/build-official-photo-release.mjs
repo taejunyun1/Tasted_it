@@ -20,6 +20,19 @@ const mainAssets = [
   "app/components/places/PlaceInstagramPhoto.tsx",
   "app/features/poi-media/instagram-photos.ts",
 ];
+const publicLocationPatch = "ops/releases/public-location-494c07f.patch";
+const publicLocationTargets = [
+  "app/components/map/HomeCurationCards.tsx",
+  "app/components/map/HomeCurationPanel.tsx",
+  "app/components/map/HomeCurationSheet.tsx",
+  "app/components/map/MapExplorerPanel.tsx",
+  "app/components/map/PlaceMap.tsx",
+  "app/features/http/security-headers.ts",
+  "app/features/maps/location-policy.ts",
+  "app/features/maps/use-map-location-request.ts",
+  "app/routes/home.tsx",
+  "app/routes/map-category.tsx",
+];
 const pilotPatch = "ops/releases/student-pilot-494c07f.patch";
 const pilotPatchTargets = [
   "app/cloudflare-env.d.ts",
@@ -103,6 +116,7 @@ function copyMainFiles(files) {
 
 const patchSha256 = applyReleasePatch(patch, ".official-photos.patch", patchTargets, ["--unidiff-zero"]);
 const photoAssetSha256 = copyMainFiles(mainAssets);
+const publicLocationPatchSha256 = applyReleasePatch(publicLocationPatch, ".public-location.patch", publicLocationTargets, ["--unidiff-zero"]);
 const pilotProof = studentPilot ? {
   studentPilotPatchSha256: applyReleasePatch(pilotPatch, ".student-pilot.patch", pilotPatchTargets),
   studentPilotFileSha256: copyMainFiles(pilotMainFiles),
@@ -123,6 +137,7 @@ const attestation = {
   revision,
   baseline,
   patchSha256,
+  publicLocationPatchSha256,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: digest(JSON.stringify(emittedFiles)),
