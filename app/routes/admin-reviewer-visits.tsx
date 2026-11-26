@@ -100,7 +100,7 @@ export default function AdminReviewerVisits({ loaderData, actionData }: Route.Co
     <p className="eyebrow">관리자 / 방문 검수</p><h1>방문 리뷰 검수</h1>
     <p className="reviewer-moderation-notice">방문 근거·사진 권리·개인정보·장소 일치를 확인한 현재 버전만 승인하세요. 승인 전 자료와 공개 회수 자료는 공개 평가·사진에 반영되지 않습니다.</p>
     <Link to="/admin/ratings">평가 운영으로</Link>
-    {loaderData.pilotPhotosConfigured && <p><Link to="/admin/student-review-photos">학생 실증 사진 검수</Link></p>}
+    {loaderData.pilotPhotosConfigured && <p><Link to="/admin/student-review-photos">직접인증 사진 검수</Link></p>}
     {nativeError && <p role="alert">{reviewerModerationErrorMessage(nativeError)}</p>}
     {nativeSuccess && <p role="status">검수 결과를 저장했어요.</p>}
     <nav className="reviewer-moderation-filters" aria-label="방문 검수 상태">
