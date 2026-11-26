@@ -4,14 +4,24 @@ import "../styles/reviewer-moderation.css";
 import type { Route } from "./+types/reviewer-profile";
 import { createDb } from "../db/client.server";
 import { getPublicReviewerVisits } from "../features/ratings/reviewer-moderation.server";
+import { listPublicPilotPhotosForVisits } from "../features/ratings/student-review-pilot-photo.server";
 import { getPublicReviewerProfile } from "../features/reviewers/reviewer.server";
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const profile = await getPublicReviewerProfile(createDb(env.DB), params.slug ?? "");
+  const db = createDb(env.DB);
+  const profile = await getPublicReviewerProfile(db, params.slug ?? "");
   if (!profile) throw new Response("Not Found", { status: 404, statusText: "Not Found" });
-  const visits = await getPublicReviewerVisits(createDb(env.DB), profile.userId);
+  const approvedVisits = await getPublicReviewerVisits(db, profile.userId);
+  const directPhotos = env.STUDENT_REVIEW_PILOT_PHOTOS
+    ? await listPublicPilotPhotosForVisits(db, profile.userId, approvedVisits.map(({ id }) => id)).catch(() => [])
+    : [];
+  const directPhotoByVisit = new Map(directPhotos.map(({ reviewId, ...photo }) => [reviewId, photo]));
+  const visits = approvedVisits.map((visit) => {
+    const directPhoto = directPhotoByVisit.get(visit.id);
+    return directPhoto ? { ...visit, photos: [...visit.photos, directPhoto] } : visit;
+  });
   return { profile: {
     displayName: profile.displayName, status: profile.status, regionCode: profile.regionCode,
     directlyVerified: profile.directlyVerified, occupation: profile.directlyVerified ? null : profile.occupation,
@@ -34,7 +44,11 @@ export default function ReviewerProfile({ loaderData }: Route.ComponentProps) {
         <h3><Link to={`/places/${visit.placeSlug}`}>{visit.placeName}</Link></h3>
         <p>{visit.visitedOn ? <time dateTime={visit.visitedOn}>{visit.visitedOn} 방문</time> : "방문일 미확인"} · {visit.evaluation === "RECOMMEND" ? "추천" : visit.evaluation === "HOLD" ? "보류" : "비추천"}</p>
         <p>{publicBadges(visit.badgesJson).join(" · ")}</p>
-        <ul>{visit.photos.map((photo) => <li key={photo.id}><figure><img src={photo.url} alt={photo.caption ?? "승인된 방문 사진"} loading="lazy" width="180" height="140" /><figcaption>{photo.caption}</figcaption></figure></li>)}</ul>
+        <ul>{visit.photos.map((photo) => {
+          const directLabel = "directlyVerified" in photo ? "직접인증 방문 사진" : null;
+          const alt = directLabel ? `${visit.placeName} ${directLabel}` : photo.caption ?? "승인된 방문 사진";
+          return <li key={photo.url}><figure><img src={photo.url} alt={alt} loading="lazy" width="180" height="140" /><figcaption>{directLabel ?? photo.caption}</figcaption></figure></li>;
+        })}</ul>
       </article>) : <p>공개 승인된 방문 자료가 아직 없어요.</p>}
     </section>
   </main>;

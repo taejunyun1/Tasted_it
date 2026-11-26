@@ -91,6 +91,7 @@ const publicVoteSupportFiles = [
 ];
 const directVerificationPatch = "ops/releases/direct-verification-profile-494c07f.patch";
 const directVerificationTargets = ["app/routes/reviewer-profile.tsx"];
+const directVerificationProfilePhotosPatch = "ops/releases/direct-verification-profile-photos-494c07f.patch";
 const directVerificationAuthorsPatch = "ops/releases/direct-verification-authors-494c07f.patch";
 const directVerificationAuthorsTargets = [
   "app/components/places/PlaceDetailSheet.tsx",
@@ -278,6 +279,9 @@ const directVerificationFileSha256 = {
 const directVerificationPatchSha256 = applyReleasePatch(
   directVerificationPatch, ".direct-verification-profile.patch", directVerificationTargets,
 );
+const directVerificationProfilePhotosPatchSha256 = studentPilot ? applyReleasePatch(
+  directVerificationProfilePhotosPatch, ".direct-verification-profile-photos.patch", directVerificationTargets,
+) : null;
 const poiMediaProof = poiMedia ? {
   activation: "dark",
   publicPatchSha256: applyReleasePatch(poiMediaPublicPatch, ".poi-media-public.patch", poiMediaPublicTargets),
@@ -358,6 +362,7 @@ if (pilotProof) {
     ...attestation,
     ...pilotProof,
     directVerificationAuthorsPatchSha256,
+    directVerificationProfilePhotosPatchSha256,
     ...(poiMediaProof ? { poiMedia: poiMediaProof } : {}),
     activation: "dark",
   }, null, 2) + "\n", { mode: 0o600, flag: "wx" });

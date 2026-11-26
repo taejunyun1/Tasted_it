@@ -7,6 +7,7 @@ import { cleanupPilotPhotos, listPublicPilotPhotos, submitPilotPhoto } from "../
 import { action as moderatePhoto } from "../../app/routes/admin-student-review-photos";
 import { action as moderateReview } from "../../app/routes/admin-reviewer-visits";
 import { action as photoAction, loader as photoForm } from "../../app/routes/reviewer-pilot-photo";
+import { loader as readReviewerProfile } from "../../app/routes/reviewer-profile";
 import { action as submitReview, loader as reviewHistory } from "../../app/routes/reviewer-ratings";
 import { loader as readPhoto } from "../../app/routes/student-review-photo";
 
@@ -96,6 +97,9 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
   const readAvailability = (session: string) => reviewHistory({
     request: request("/reviewer/ratings", session),
   } as never);
+  const readProfile = (slug: string) => readReviewerProfile({
+    request: request(`/reviewers/${slug}`), params: { slug },
+  } as never);
   await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: "A" }, async () => {
     expect(await readAvailability(a.session)).toMatchObject({ pilotPhotoAfterSubmission: true, pilotPhotoReviewIds: [] });
     expect(await readAvailability(b.session)).toMatchObject({ pilotPhotoAfterSubmission: false, pilotPhotoReviewIds: [] });
@@ -182,6 +186,7 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
       expect((await view(photoId)).status).toBe(404);
       expect((await view(photoId, c.session)).status).toBe(404);
       expect((await view(photoId, reviewer.session)).status).toBe(200);
+      expect((await readProfile(reviewer.id)).visits).toEqual([]);
       if (reviewer === a) {
         const previewSession = "revoked-during-preview";
         await database.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES(?,?,?,?)")
@@ -210,6 +215,7 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
         reviewId, expectedVersion: "1", status: "APPROVED", reason: "합성 네 항목 검수", ...checks,
       })) } as never);
       expect(approvedReview).toMatchObject({ ok: true });
+      expect((await readProfile(reviewer.id)).visits).toMatchObject([{ id: reviewId, photos: [] }]);
       expect(await approvePhoto(photoId)).toMatchObject({ data: { ok: true } });
       const response = await view(photoId);
       expect(response.status).toBe(200);
@@ -225,6 +231,17 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
     const publicPhotos = await listPublicPilotPhotos(createDb(database), placeId);
     expect(publicPhotos).toHaveLength(2);
     expect(publicPhotos.every((photo) => photo.directlyVerified)).toBe(true);
+    for (const { id, reviewId, reviewer } of photoRecords) {
+      const { visits } = await readProfile(reviewer.id);
+      expect(visits.map(({ id }) => id)).toEqual([reviewId]);
+      expect(visits[0].photos).toEqual([{ id, url: `/student-review-photos/${id}`, directlyVerified: true, caption: null }]);
+    }
+    expect((await readProfile(c.id)).visits).toEqual([]);
+    await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_PHOTOS: undefined }, async () => {
+      for (const { reviewId, reviewer } of photoRecords) {
+        expect((await readProfile(reviewer.id)).visits).toMatchObject([{ id: reviewId, photos: [] }]);
+      }
+    });
     await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: undefined }, async () => {
       for (const { id, reviewId, reviewer } of photoRecords) {
         const response = await view(id);
@@ -236,6 +253,7 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
         const revoked = await photoAction({ request: request(path, reviewer.session, new URLSearchParams({ intent: "withdraw", photoId: id })), params: { reviewId } } as never);
         expect(revoked).toMatchObject({ data: { ok: true } });
         expect((await view(id)).status).toBe(404);
+        expect((await readProfile(reviewer.id)).visits).toMatchObject([{ id: reviewId, photos: [] }]);
       }
     });
     const db = createDb(database);
