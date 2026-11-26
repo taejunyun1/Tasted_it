@@ -129,6 +129,21 @@ const publicPlaceMapScopeTargets = [
   "app/routes/place-list.tsx",
   "app/styles/design-system.css",
 ];
+const publicPlacePaginationDataPatch = "ops/releases/public-place-pagination-data-494c07f.patch";
+const publicPlacePaginationDataTargets = ["app/features/places/place.server.ts"];
+const publicPlacePaginationUiPatch = "ops/releases/public-place-pagination-ui-494c07f.patch";
+const publicPlacePaginationUiTargets = [
+  "app/components/map/MapExplorerPanel.tsx",
+  "app/components/places/PublicPlacePageError.tsx",
+  "app/features/places/public-place-map-scope.ts",
+  "app/routes/home.tsx",
+  "app/routes/map-category.tsx",
+  "app/routes/place-list.tsx",
+];
+const publicPlacePaginationFiles = [
+  "app/features/places/public-metadata.ts",
+  "app/features/places/public-place-pagination.ts",
+];
 const poiMediaPublicPatch = "ops/releases/poi-media-public-494c07f.patch";
 const poiMediaPublicTargets = [
   "app/components/places/PlaceDetailSheet.tsx",
@@ -261,6 +276,15 @@ const publicPlaceInformationProof = {
 const publicPlaceMapScopePatchSha256 = applyReleasePatch(
   publicPlaceMapScopePatch, ".public-place-map-scope.patch", publicPlaceMapScopeTargets,
 );
+const publicPlacePaginationProof = {
+  dataPatchSha256: applyReleasePatch(
+    publicPlacePaginationDataPatch, ".public-place-pagination-data.patch", publicPlacePaginationDataTargets,
+  ),
+  uiPatchSha256: applyReleasePatch(
+    publicPlacePaginationUiPatch, ".public-place-pagination-ui.patch", publicPlacePaginationUiTargets,
+  ),
+  fileSha256: copyMainFiles(publicPlacePaginationFiles),
+};
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -280,6 +304,7 @@ const attestation = {
   directVerificationFileSha256,
   publicPlaceInformation: publicPlaceInformationProof,
   publicPlaceMapScopePatchSha256,
+  publicPlacePagination: publicPlacePaginationProof,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: buildFingerprint(buildRoot),
