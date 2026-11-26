@@ -41,7 +41,7 @@ diff --git a/app/features/places/place.server.ts b/app/features/places/place.ser
 diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
 --- a/app/routes/place-detail.tsx
 +++ b/app/routes/place-detail.tsx
-@@ -26,7 +26,9 @@
+@@ -26,9 +26,11 @@
  import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
  import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
  import { PlaceInstagramPhoto } from "../components/places/PlaceInstagramPhoto";
@@ -49,6 +49,8 @@ diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
  import { curatedInstagramPhoto } from "../features/poi-media/instagram-photos";
 +import { getPublicPoiPhoto } from "../features/poi-media/poi-media.server";
  import { listPublicPilotPhotos } from "../features/ratings/student-review-pilot-photo.server";
+ import { listPublicPlaceReviewers } from "../features/ratings/reviewer-publication.server";
+ import { PlacePublicReviewers } from "../components/places/PlacePublicEvidence";
 
  const actionSchema = z.discriminatedUnion("intent", [
 @@ -88,7 +90,7 @@
