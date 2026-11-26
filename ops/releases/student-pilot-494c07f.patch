@@ -47,17 +47,24 @@
    const fetcher = useFetcher<{ ok: false; error: string }>();
    const [step, setStep] = useState(1);
    const [placeId, setPlaceId] = useState("");
-@@ -321,6 +323,9 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -321,6 +323,16 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
        : step === 3 ? Boolean(selectedCategory)
          : true;
 
++  useEffect(() => {
++    if (!pilotPhotoAfterSubmission || step !== 4) return;
++    const heading = document.getElementById("review-step-photo");
++    heading?.focus({ preventScroll: true });
++    heading?.scrollIntoView({ block: "center" });
++  }, [pilotPhotoAfterSubmission, step]);
++
 +  const canManageReceiptPhoto = publishedReviewId && notice !== "review-withdrawn" && pilotPhotoReviewIds.includes(publishedReviewId);
 +  const photoStepLabel = pilotPhotoAfterSubmission ? "사진" : "사진·Golden";
 +
    return (
      <main id="main" className="reviewer-publish shell">
        <header className="reviewer-publish__hero">
-@@ -329,7 +334,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -329,7 +341,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
            <h1>{canSubmit ? "방문 리뷰 제출" : "내 방문 리뷰"}</h1>
            <p>직접 확인한 방문 근거와 맛의 핵심을 남겨 주세요. 관리자 승인 전에는 공개되지 않아요.</p>
          </div>
@@ -66,7 +73,7 @@
            <span>GOLDEN PICK</span>
            <strong>이번 달 {goldenQuota.used}/{goldenQuota.limit} 사용</strong>
            <small>{goldenQuota.remaining}개 남음</small>
-@@ -340,7 +345,9 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -340,7 +352,9 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
          <section className="reviewer-success" aria-live="polite">
            <span>{notice === "review-withdrawn" ? "철회 완료" : "검수 요청 완료"}</span>
            <strong>{notice === "review-withdrawn" ? "공개 대상에서 제외했어요. 기록은 보존됩니다." : "관리자 검수 후 공개 여부를 안내해요. 아직 추천에 반영되지 않았어요."}</strong>
@@ -77,7 +84,7 @@
          </section>
        )}
        {restored && !publishedReviewId && (
-@@ -354,7 +361,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -354,7 +368,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
        {canSubmit && <>
        {!hydrated && <p className="reviewer-moderation-notice" role="status">화면 준비 중이에요. 준비가 끝나면 장소를 선택해 주세요.</p>}
        <nav className="reviewer-steps" aria-label="리뷰 제출 단계">
@@ -86,21 +93,21 @@
            <button key={label} type="button" aria-current={step === index + 1 ? "step" : undefined} disabled={!hydrated || index + 1 > step || publishing || preparingPhotos} onClick={() => setStep(index + 1)}>
              {label}
            </button>
-@@ -440,7 +447,12 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -440,7 +454,12 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
            </section>
 
            <section className="reviewer-step-card" hidden={step !== 4} aria-labelledby="review-step-photo">
 -            <p className="eyebrow">STEP 04 / PHOTO &amp; GOLDEN</p>
 +            <p className="eyebrow">{pilotPhotoAfterSubmission ? "STEP 04 / PHOTO" : "STEP 04 / PHOTO & GOLDEN"}</p>
 +            {pilotPhotoAfterSubmission ? <>
-+              <h2 id="review-step-photo">사진은 리뷰 제출 후에 첨부해요.</h2>
-+              <p>이해관계가 없는 방문 리뷰의 검수를 요청한 뒤 <strong>실증 사진 관리</strong>에서 직접 촬영한 JPEG·PNG·WebP 사진 한 장을 첨부할 수 있어요.</p>
++              <h2 id="review-step-photo" tabIndex={-1}>사진은 리뷰 제출 후에 첨부해요.</h2>
++              <p>검수를 요청한 뒤 해당 리뷰에 <strong>실증 사진 관리</strong>가 표시되면 직접 촬영한 JPEG·PNG·WebP 사진 한 장을 첨부할 수 있어요.</p>
 +              <p>다른 사람의 얼굴이나 차량 번호, 영수증의 개인정보는 가려 주세요. 리뷰와 사진이 모두 승인되면 장소 상세에 공개돼요.</p>
 +            </> : <>
              <h2 id="review-step-photo">사진은 선택 사항이에요.</h2>
              <p>얼굴·차량 번호·영수증 개인정보는 올리지 마세요. 선택한 사진은 이 기기에서 JPEG로 다시 준비한 뒤, 리뷰를 제출할 때 저장됩니다. 관리자 승인 전에는 공개되지 않아요.</p>
              {photoUploadEnabled ? <>
-@@ -462,6 +474,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -462,6 +481,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
                <button type="button" aria-pressed={golden} disabled={!goldenEligible || publishing} onClick={() => setGolden((current) => !current)}>Golden Pick 선택</button>
                {golden && <label className="reviewer-golden-reason"><span>Golden Pick 이유</span><textarea value={goldenReason} maxLength={100} minLength={15} onChange={(event) => setGoldenReason(event.target.value)} placeholder="다른 사람에게 꼭 권하고 싶은 이유를 15자 이상 남겨주세요." /></label>}
              </div>
@@ -108,7 +115,7 @@
            </section>
 
            <section className="reviewer-step-card reviewer-preview" hidden={step !== 5} aria-labelledby="review-step-preview">
-@@ -470,12 +483,16 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -470,12 +490,16 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
              <dl>
                <div><dt>장소</dt><dd>{selectedPlace?.placeName ?? "선택 전"}</dd></div>
                <div><dt>평가</dt><dd>{evaluation ? evaluationLabels[evaluation] : "선택 전"}</dd></div>
@@ -117,7 +124,7 @@
                <div><dt>카테고리</dt><dd>{selectedCategory ? `${selectedCategory.emoji} ${selectedCategory.name}` : "선택 전"}</dd></div>
                <div><dt>맛 배지</dt><dd>{badges.length ? badges.join(" · ") : "선택 안 함"}</dd></div>
 -              <div><dt>사진</dt><dd>제출 {photos.length}장{photos.length ? " · 관리자 승인 후 공개" : ""}</dd></div>
-+              <div><dt>사진</dt><dd>{pilotPhotoAfterSubmission ? "검수 요청 뒤 실증 사진 관리에서 첨부" : `제출 ${photos.length}장${photos.length ? " · 관리자 승인 후 공개" : ""}`}</dd></div>
++              <div><dt>사진</dt><dd>{pilotPhotoAfterSubmission ? "검수 요청 뒤 첨부 가능 여부 확인" : `제출 ${photos.length}장${photos.length ? " · 관리자 승인 후 공개" : ""}`}</dd></div>
              </dl>
              <VisitEvidenceFields key={draftVersion} />
 -            <p className="reviewer-privacy-note">제출만으로 평가·배지·사진·Golden Pick이 공개되거나 추천에 반영되지 않아요. 관리자 검수 결과를 확인해 주세요.</p>
@@ -127,12 +134,12 @@
            </section>
          </fieldset>
 
-@@ -484,14 +501,14 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -484,14 +508,14 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
            <strong>{selectedPlace?.placeName ?? "장소를 먼저 골라주세요"}</strong>
            <span>{evaluation ? evaluationLabels[evaluation] : "평가 미선택"} · {selectedCategory?.name ?? "카테고리 미선택"}</span>
            <div>{badges.map((badge) => <i key={badge}>{badge}</i>)}</div>
 -          <small>사진은 자동 저장하지 않으며, 제출할 때만 업로드됩니다.</small>
-+          <small>{pilotPhotoAfterSubmission ? "검수 요청 뒤 실증 사진을 첨부할 수 있어요." : "사진은 자동 저장하지 않으며, 제출할 때만 업로드됩니다."}</small>
++          <small>{pilotPhotoAfterSubmission ? "사진 첨부 가능 여부는 제출 기록에서 확인해요." : "사진은 자동 저장하지 않으며, 제출할 때만 업로드됩니다."}</small>
          </aside>
 
          <div className="reviewer-actions">
@@ -144,7 +151,7 @@
              </button>
            ) : (
              <button type="submit" className="reviewer-primary" disabled={!selectedPlace || !selectedCategory || !evaluation || !canPublishGolden || publishing || preparingPhotos}>{publishing ? "제출 중…" : "검수 요청"}</button>
-@@ -509,6 +526,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -509,6 +533,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
          {history.length ? <div className="reviewer-history-list">{history.map((review) => {
            const reviewBadges = parseBadges(review.badgesJson).slice(0, 2);
            const firstPhoto = review.photos[0];
@@ -152,7 +159,7 @@
            return (
              <article className="reviewer-history-row" data-has-photo={firstPhoto ? "true" : undefined} key={review.id} id={`review-${review.id}`}>
                {firstPhoto ? <img className="reviewer-history-thumb" src={firstPhoto.url} alt="" loading="lazy" /> : null}
-@@ -526,7 +544,8 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+@@ -526,7 +551,8 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
                  </div> : null}
                </div>
                <div className="reviewer-history-summary">

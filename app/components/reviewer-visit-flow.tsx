@@ -359,6 +359,13 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
       : step === 3 ? Boolean(selectedCategory)
         : true;
 
+  useEffect(() => {
+    if (!pilotPhotoAfterSubmission || step !== 4) return;
+    const heading = document.getElementById("review-step-photo");
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView({ block: "center" });
+  }, [pilotPhotoAfterSubmission, step]);
+
   const canManageReceiptPhoto = publishedReviewId && notice !== "review-withdrawn" && pilotPhotoReviewIds.includes(publishedReviewId);
   const photoStepLabel = pilotPhotoAfterSubmission ? "사진" : "사진·Golden";
 
@@ -473,8 +480,8 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
           <section className="reviewer-step-card" hidden={step !== 4} aria-labelledby="review-step-photo">
             <p className="eyebrow">{pilotPhotoAfterSubmission ? "STEP 04 / PHOTO" : "STEP 04 / PHOTO & GOLDEN"}</p>
             {pilotPhotoAfterSubmission ? <>
-              <h2 id="review-step-photo">사진은 리뷰 제출 후에 첨부해요.</h2>
-              <p>이해관계가 없는 방문 리뷰의 검수를 요청한 뒤 <strong>실증 사진 관리</strong>에서 직접 촬영한 JPEG·PNG·WebP 사진 한 장을 첨부할 수 있어요.</p>
+              <h2 id="review-step-photo" tabIndex={-1}>사진은 리뷰 제출 후에 첨부해요.</h2>
+              <p>검수를 요청한 뒤 해당 리뷰에 <strong>실증 사진 관리</strong>가 표시되면 직접 촬영한 JPEG·PNG·WebP 사진 한 장을 첨부할 수 있어요.</p>
               <p>다른 사람의 얼굴이나 차량 번호, 영수증의 개인정보는 가려 주세요. 리뷰와 사진이 모두 승인되면 장소 상세에 공개돼요.</p>
             </> : <>
             <h2 id="review-step-photo">사진은 선택 사항이에요.</h2>
@@ -511,7 +518,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
               {!pilotPhotoAfterSubmission && golden && <div><dt>Golden Pick 이유</dt><dd>{goldenReason.trim() || "이유를 입력해 주세요."}</dd></div>}
               <div><dt>카테고리</dt><dd>{selectedCategory ? `${selectedCategory.emoji} ${selectedCategory.name}` : "선택 전"}</dd></div>
               <div><dt>맛 배지</dt><dd>{badges.length ? badges.join(" · ") : "선택 안 함"}</dd></div>
-              <div><dt>사진</dt><dd>{pilotPhotoAfterSubmission ? "검수 요청 뒤 실증 사진 관리에서 첨부" : `제출 ${photos.length}장${photos.length ? " · 관리자 승인 후 공개" : ""}`}</dd></div>
+              <div><dt>사진</dt><dd>{pilotPhotoAfterSubmission ? "검수 요청 뒤 첨부 가능 여부 확인" : `제출 ${photos.length}장${photos.length ? " · 관리자 승인 후 공개" : ""}`}</dd></div>
             </dl>
             <VisitEvidenceFields key={draftVersion} />
             <p className="reviewer-privacy-note">{pilotPhotoAfterSubmission
@@ -525,7 +532,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
           <strong>{selectedPlace?.placeName ?? "장소를 먼저 골라주세요"}</strong>
           <span>{evaluation ? evaluationLabels[evaluation] : "평가 미선택"} · {selectedCategory?.name ?? "카테고리 미선택"}</span>
           <div>{badges.map((badge) => <i key={badge}>{badge}</i>)}</div>
-          <small>{pilotPhotoAfterSubmission ? "검수 요청 뒤 실증 사진을 첨부할 수 있어요." : "사진은 자동 저장하지 않으며, 제출할 때만 업로드됩니다."}</small>
+          <small>{pilotPhotoAfterSubmission ? "사진 첨부 가능 여부는 제출 기록에서 확인해요." : "사진은 자동 저장하지 않으며, 제출할 때만 업로드됩니다."}</small>
         </aside>
 
         <div className="reviewer-actions">
