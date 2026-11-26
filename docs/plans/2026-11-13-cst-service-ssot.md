@@ -42,7 +42,11 @@ Re:Taste 자체 방문 콘텐츠의 공개 명칭은 **직접인증**이다. 승
 
 ## 2026-11-26 TEMP 목록과 지도 왕복 호환
 
-후속 운영 후보에서 TEMP 목록과 홈·분류 지도 사이에 검색어·분류·선택 장소를 유지한다. TEMP 목록은 이전 지도 범위에 가려지지 않으며 일반 탐색은 지도 범위를 적용한다. 지도 제공자 응답을 차단한 합성 실증에서 데스크톱과 320px 모바일의 홈·분류 지도 안내와 미니맵 사이가 각각 8px로 유지됐다. 분류 지도 검색과 보기 전환 뒤에도 TEMP 조건을 확인했다. 기존 호환 조회의 100곳 상한과 분류별 전체 집계는 후속이다. 운영 적용은 대기다. [검증 결과](../evidence/cst-temp-map-scope-20261126/summary.json) · [홈 데스크톱](../evidence/cst-temp-map-scope-20261126/desktop-home.png) · [분류 지도 모바일](../evidence/cst-temp-map-scope-20261126/mobile-category.png)
+후속 운영 후보에서 TEMP 목록과 홈·분류 지도 사이에 검색어·분류·선택 장소를 유지한다. TEMP 목록은 이전 지도 범위에 가려지지 않으며 일반 탐색은 지도 범위를 적용한다. 지도 제공자 응답을 차단한 합성 실증에서 데스크톱과 320px 모바일의 홈·분류 지도 안내와 미니맵 사이가 각각 8px로 유지됐다. 분류 지도 검색과 보기 전환 뒤에도 TEMP 조건을 확인했다. 운영 적용은 대기다. [검증 결과](../evidence/cst-temp-map-scope-20261126/summary.json) · [홈 데스크톱](../evidence/cst-temp-map-scope-20261126/desktop-home.png) · [분류 지도 모바일](../evidence/cst-temp-map-scope-20261126/mobile-category.png)
+
+## 2026-11-26 공개 장소 페이지 이동과 분류 집계 호환
+
+후속 운영 후보의 목록·홈 지도·분류 지도에서 한 페이지 최대 100곳을 조회하며 다음 페이지에서 나머지 결과를 볼 수 있다. 현재 필터와 지도 범위로 전체 건수와 분류별 건수를 계산한다. TEMP와 일반 탐색은 앞서 검증한 범위 기준을 적용한다. 페이지 이동과 첫 페이지 복구에서 검색어·분류·선택한 배지를 유지한다. 데스크톱과 320px 모바일의 격리 Worker에서 합성 장소 125곳을 100곳과 25곳으로 나누고 두 번째 페이지의 카드와 핀을 대조했다. 운영 적용은 대기다. [검증 결과](../evidence/cst-public-pagination-compat-20261126/summary.json) · [데스크톱 장소 목록](../evidence/cst-public-pagination-compat-20261126/desktop-list.png) · [모바일 페이지 이동](../evidence/cst-public-pagination-compat-20261126/mobile-list.png)
 
 ## 2026-11-26 CI·병합 및 운영 상태
 
