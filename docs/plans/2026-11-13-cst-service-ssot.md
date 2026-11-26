@@ -12,6 +12,8 @@ Re:Taste 자체 방문 콘텐츠의 공개 명칭은 **직접인증**이다. 승
 
 직접인증 작성자 공개는 방문 리뷰 승인으로 결정한다. 사진이 검수 중이거나 사진만 철회된 뒤에도 승인된 작성자와 프로필 링크를 유지한다. 데스크톱 장소 상세와 모바일 시트에 같은 기준을 적용했다. 참여 전용 로그인에 **직접인증 로그인**, 방문 리뷰 영수증과 내 제출 기록에 **직접인증 사진 관리**를 적용했다. 운영 반영은 대기다. [검증 결과](../evidence/cst-direct-verification-authors-20261126/summary.json) · [데스크톱 장소](../evidence/cst-direct-verification-authors-20261126/desktop-place.png) · [모바일 장소 시트](../evidence/cst-direct-verification-authors-20261126/mobile-place.png)
 
+승인된 직접인증 사진을 공개 작성자 프로필의 해당 방문에도 연결한다. 방문과 사진이 모두 승인된 상태에서만 표시하고, 사진을 철회하면 방문 기록을 유지한 채 사진만 내린다. 59개 장부의 격리 Worker에서 비로그인 데스크톱과 320px 모바일의 JPEG 표시, 미승인·철회 사진의 조회 차단과 내부 사진 설명의 비노출을 확인했다. 운영 적용은 별도 전환 범위로 기록한다. [검증 결과](../evidence/cst-direct-profile-photo-20261126/summary.json) · [데스크톱](../evidence/cst-direct-profile-photo-20261126/desktop.png) · [모바일](../evidence/cst-direct-profile-photo-20261126/mobile-320.png)
+
 자체 방문 콘텐츠의 공개 표기로 **직접인증**을 적용한 후보에서 A·B 접수를 연다. 준비 도구는 공개 프로필·장소 작성자 표기 증거가 빠진 후보의 접수 설정 생성을 차단한다. 직접인증 빌드의 운영 반영과 참여자 직업 정보 비노출을 확인한 뒤 A·B의 활동 승인 절차를 시작한다. [후속 접수 설정 절차](../operations/2026-11-26-cst-student-production-compat.md#후속-후보의-접수-설정-준비)
 
 리뷰어 신청 화면에서 반려 결과와 재신청을 안내한다. 진행 중인 신청이 함께 있는 이전 기록은 그 상태를 우선 표시한다. 동시 신청은 같은 계정에 진행 중인 한 건만 저장한다. 합성 계정의 실제 신청·관리자 반려·재신청을 데스크톱과 320px 모바일에서 확인했고 관리자 메모는 신청자 HTML에 포함되지 않았다. #533·#556 운영 확인 뒤 `e021071`의 접수 종료·A·A/B 후보를 순서대로 적용한다. 실제 계정의 본인 신청과 B08 승인, 좌석별 첫 방문·사진·공개 증거를 남긴다. 안내 메일은 문안·수신자 확인 뒤 별도 승인 범위에서 발송한다. [화면과 D1 검증](../evidence/cst-reviewer-application-outcome-20261126/summary.json) · [A·B 운영 접수](../operations/2026-11-26-cst-direct-verification-ab-activation.md)

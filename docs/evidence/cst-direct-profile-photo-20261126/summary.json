@@ -1,0 +1,62 @@
+{
+  "revision": "b2bb11d5740e1ce6dc4d930cd8ece3fa0b59bb8a",
+  "buildSha256": "c894ff61f98e75d8f5e2da950909cc176905128126952fa0130cf340588c181a",
+  "configSha256": "7ff0aba9966d5fe1d636dc4fbb8f9b3467bfce4a8b8c43b256db01c3f921512b",
+  "migrations": 59,
+  "renderings": [
+    {
+      "label": "desktop",
+      "imageWidth": 480,
+      "imageHeight": 310,
+      "viewportWidth": 1366,
+      "scrollWidth": 1366,
+      "imageHttp": 200
+    },
+    {
+      "label": "mobile-320",
+      "imageWidth": 480,
+      "imageHeight": 310,
+      "viewportWidth": 320,
+      "scrollWidth": 320,
+      "imageHttp": 200
+    }
+  ],
+  "publishedPhotoHash": "06f917451c0e860b7130d903f752fba4098b3bd72a23630c61972cec1ce3a8d2",
+  "publishedPhotoBytes": 7061,
+  "publicGetAndHead": [
+    200,
+    200
+  ],
+  "pendingGetAndHead": [
+    404,
+    404
+  ],
+  "retiredGetAndHead": [
+    404,
+    404
+  ],
+  "withdrawalGetAndHead": [
+    404,
+    404
+  ],
+  "approvedVisitRemainsAfterPhotoWithdrawal": true,
+  "pilotSeatsConfigured": false,
+  "syntheticProfileOnly": true,
+  "privateCaptionAndOccupationAbsent": true,
+  "workerExternalRequests": 0,
+  "productionChanged": false,
+  "legacyCompatibility": {
+    "revision": "b2bb11d5740e1ce6dc4d930cd8ece3fa0b59bb8a",
+    "buildSha256": "65d92770952b1f2e5a92b761bba190b1d3597315c172a8237e057a6f62c7b2d9",
+    "configSha256": "a9061d4cda3e6d07b271b19d7cb4a6d32218cfc9e43804c00ae5f229f1a574ba",
+    "migrations": 56,
+    "pilotBucketBound": false,
+    "profileHttp": 200,
+    "legacyPhotoHttp": 200,
+    "legacyPhotoExactBytes": true,
+    "legacyPhotoRendered": true,
+    "directPhotoPathAbsent": true,
+    "workerExternalRequests": 0,
+    "productionChanged": false
+  }
+}

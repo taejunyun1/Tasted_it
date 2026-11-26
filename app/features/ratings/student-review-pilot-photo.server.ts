@@ -305,8 +305,8 @@ export async function lookupPilotPhoto(db: AppDb, input: PilotPhotoReadInput) {
   return row ?? null;
 }
 
-export async function listPublicPilotPhotos(db: AppDb, placeId: string) {
-  const rows = await db.select({
+function publicPilotPhotoQuery(db: AppDb, ...scope: SQL[]) {
+  return db.select({
     id: photos.id, reviewId: photos.reviewId, position: sql<number>`0`,
     publishedAt: reviewerVisitReviews.publishedAt, reviewerSlug: reviewerProfiles.slug, reviewerDisplayName: users.displayName,
   }).from(photos)
@@ -314,9 +314,19 @@ export async function listPublicPilotPhotos(db: AppDb, placeId: string) {
     .innerJoin(places, eq(places.id, reviewerVisitReviews.placeId))
     .innerJoin(reviewerProfiles, eq(reviewerProfiles.userId, photos.authorUserId))
     .innerJoin(users, eq(users.id, photos.authorUserId))
-    .where(and(eq(photos.placeId, placeId), eq(photos.status, "APPROVED"), eq(photos.sealed, true), canPublish()))
+    .where(and(...scope, eq(photos.status, "APPROVED"), eq(photos.sealed, true), canPublish()));
+}
+
+export async function listPublicPilotPhotos(db: AppDb, placeId: string) {
+  const rows = await publicPilotPhotoQuery(db, eq(photos.placeId, placeId))
     .orderBy(desc(reviewerVisitReviews.publishedAt), desc(photos.id)).limit(12);
   return rows.map((photo) => ({ ...photo, directlyVerified: true as const, url: `/student-review-photos/${photo.id}` }));
+}
+
+export async function listPublicPilotPhotosForVisits(db: AppDb, reviewerUserId: string, reviewIds: string[]) {
+  if (reviewIds.length === 0) return [];
+  const rows = await publicPilotPhotoQuery(db, eq(photos.authorUserId, reviewerUserId), inArray(photos.reviewId, reviewIds));
+  return rows.map(({ id, reviewId }) => ({ id, reviewId, caption: null, directlyVerified: true as const, url: `/student-review-photos/${id}` }));
 }
 
 export async function cleanupPilotPhotos(db: AppDb, bucket: Pick<PilotBucket, "head" | "delete">, now: string) {
