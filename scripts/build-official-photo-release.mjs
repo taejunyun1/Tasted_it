@@ -42,7 +42,13 @@ if (git(["status", "--porcelain"]).length > 0) throw new Error("Build from a cle
 const revision = git(["rev-parse", "HEAD"]).toString().trim();
 const committed = (file) => git(["show", `${revision}:${file}`]);
 const baselineFiles = git(["archive", "--format=tar.gz", baseline]);
-const environment = { ...process.env, CI: "1", WRANGLER_SEND_METRICS: "false" };
+const environment = {
+  ...process.env,
+  CI: "1",
+  WRANGLER_SEND_METRICS: "false",
+  CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false",
+  CLOUDFLARE_INCLUDE_PROCESS_ENV: "false",
+};
 delete environment.CLOUDFLARE_ENV;
 delete environment.CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH;
 
@@ -61,7 +67,7 @@ for (const asset of mainAssets) {
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, committed(asset), { flag: "wx" });
 }
-for (const args of [["install", "--frozen-lockfile"], ["run", "build"]]) {
+for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
 
