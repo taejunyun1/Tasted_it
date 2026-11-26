@@ -1,3 +1,12 @@
+diff --git a/app/app.css b/app/app.css
+--- a/app/app.css
++++ b/app/app.css
+@@ -437,2 +437,5 @@
+ .place-review-actions .place-review-publish-confirm{min-width:min(100%,420px);background:#fff;padding:11px 12px;color:#1d3325;line-height:1.45}.place-review-publish-confirm span{display:flex;gap:8px;align-items:flex-start}.place-review-publish-confirm input{min-height:auto;margin-top:2px;accent-color:#22543d}
+ .place-review-card{cursor:pointer}.place-review-card.is-selected{background:#f4f8f2}.place-review-badge{border-color:#c9a227 !important;background:#fff6d6 !important;color:#7a5b00 !important}.place-review-address-edit{display:grid;gap:6px;margin-top:10px;color:#395646;font-size:10px;font-weight:800}.place-review-address-edit input{width:100%;min-height:40px;border:1px solid #9eafa2;background:#fff;padding:8px 10px;color:var(--text);font:inherit}
++
++.map-place-summary .place-verified-badge::before,
++.map-place-sheet .place-verified-badge::before{content:none;}
 diff --git a/app/components/map/MapPlaceDetail.tsx b/app/components/map/MapPlaceDetail.tsx
 --- a/app/components/map/MapPlaceDetail.tsx
 +++ b/app/components/map/MapPlaceDetail.tsx
