@@ -1,8 +1,10 @@
 import { env } from "cloudflare:workers";
+import { and, eq } from "drizzle-orm";
 import { Link, redirect } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/place-detail";
-import { createDb } from "../db/client.server";
+import { createDb, type AppDb } from "../db/client.server";
+import { places } from "../db/schema";
 import { getPlaceBySlug, resolvePlaceSlugRedirect } from "../features/places/place.server";
 import { publicRatingFromPlace, formatRatingGroup, reviewerWeightExplanation } from "../features/ratings/public-rating";
 import { formatPublicRatingSummary } from "../features/places/place-discovery";
@@ -10,11 +12,14 @@ import { PublicRatingMeta } from "../components/ratings/PublicRatingMeta";
 import { FlavorMeter } from "../components/ratings/FlavorMeter";
 import { PlaceInformation } from "../components/places/PlaceInformation";
 import { PlacePoiPhoto } from "../components/places/PlacePoiPhoto";
+import { PlaceInstagramPhoto } from "../components/places/PlaceInstagramPhoto";
 import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "../components/places/PlacePublicEvidence";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
-import { getPublicPoiPhoto } from "../features/poi-media/poi-media.server";
+import { eligiblePoiMediaPlace, getPublicPoiPhoto } from "../features/poi-media/poi-media.server";
+import { curatedInstagramPhoto } from "../features/poi-media/instagram-photos";
+import type { PlaceDetail as PublicPlaceDetail } from "../features/places/place.types";
 import { castVote, getCurrentVoteState, withdrawVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { readPlaceMutationBrowseReturn } from "../features/auth/place-detail-return";
@@ -87,6 +92,23 @@ async function recordPlaceProductEvent(db: ReturnType<typeof createDb>, input: {
   }
 }
 
+async function getPublicInstagramPhoto(db: AppDb, place: PublicPlaceDetail) {
+  const photo = curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED);
+  if (!photo || place.tempCatalog || place.heroImageUrl) return null;
+  try {
+    const [eligible] = await db.select({ id: places.id }).from(places)
+      .where(and(
+        eq(places.id, place.id),
+        eq(places.name, place.name),
+        eq(places.address, place.address),
+        eligiblePoiMediaPlace(db, eq(places.id, place.id)),
+      )).limit(1);
+    return eligible ? photo : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const db = createDb(env.DB);
   const redirectedSlug = await resolvePlaceSlugRedirect(db, params.placeSlug);
@@ -99,13 +121,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos, publicReviewers, poiPhoto] = await Promise.all([
+  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos, publicReviewers, poiPhoto, instagramPhoto] = await Promise.all([
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
     listPublishedPlaceReviewPhotos(db, place.id, 12),
     listPublicPlaceReviewers(db, place.id),
     getPublicPoiPhoto(db, place.id, env.POI_MEDIA_PUBLIC_ENABLED),
+    getPublicInstagramPhoto(db, place),
   ]);
   const rating = publicRatingFromPlace(place);
   if (provenance) {
@@ -125,7 +148,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
   const publicOrigin = resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL);
-  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, publicReviewers, poiPhoto, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, publicReviewers, poiPhoto, instagramPhoto, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -227,13 +250,16 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
       <Link to="/places">맛집 리스트로</Link>
     </main>;
   }
-  const { place, rating, flavorPrint, reviewPhotos, publicReviewers, poiPhoto } = loaderData;
+  const { place, rating, flavorPrint, reviewPhotos, publicReviewers, poiPhoto, instagramPhoto } = loaderData;
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
       <Link className="back-link" to={`/?category=${encodeURIComponent(place.primaryCategory.slug)}`}>← {place.primaryCategory.name} 지도로</Link>
       <div className="detail-grid">
         {poiPhoto ? <PlacePoiPhoto photo={poiPhoto} placeName={place.name} heroClassName="detail-hero" /> :
+        instagramPhoto ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
+          <PlaceInstagramPhoto photo={instagramPhoto} placeName={place.name} />
+        </div> :
         <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
         <article className="detail-copy">
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
