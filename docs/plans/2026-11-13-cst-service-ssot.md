@@ -10,7 +10,7 @@
 
 ## 2026-11-26 Instagram 공식 사진 표시
 
-운영 Worker `1343a5e8` 100%에서 일반 공개 장소 78곳 중 등록된 공식 Instagram 사진 30곳의 실제 이미지와 원문 링크를 비로그인 데스크톱 Chromium으로 대조했다. 젤라또 노베오의 모바일 상세에서도 실제 이미지를 확인했다. 장부 56개와 원장 856건, 검수 연결 83건을 배포 전후에 대조했다. 대접나주배닭강정의 공식 정지 사진을 #537에 추가해 저장소 등록은 37곳이다. 추가 일곱 곳의 운영 반영과 나머지 41곳의 출처 확인은 #515에서 추적한다. 동일 버전의 첫 정기 RSI는 21:47 KST 예정이다. [#529 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/529) · [#537 사진 등록](https://github.com/taejunyun1/Tasted_it/pull/537) · [#515 사진 추적](https://github.com/taejunyun1/Tasted_it/issues/515) · [사진 운영 절차](../operations/2026-11-26-poi-photo-intake.md#공식-instagram-사진-게시물)
+운영 Worker `1343a5e8` 100%에서 일반 공개 장소 78곳 중 등록된 공식 Instagram 사진 30곳의 실제 이미지와 원문 링크를 비로그인 데스크톱 Chromium으로 대조했다. 젤라또 노베오의 모바일 상세에서도 실제 이미지를 확인했다. 장부 56개와 원장 856건, 검수 연결 83건을 배포 전후에 대조했다. 대접나주배닭강정과 렌더링커피의 공식 정지 사진을 포함해 #539 기준 저장소 등록은 38곳이다. 추가 여덟 곳의 운영 반영과 나머지 40곳의 출처 확인은 #515에서 추적한다. 동일 버전의 첫 정기 RSI는 21:47 KST 예정이다. [#529 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/529) · [#537 사진 등록](https://github.com/taejunyun1/Tasted_it/pull/537) · [#539 사진 등록](https://github.com/taejunyun1/Tasted_it/pull/539) · [#515 사진 추적](https://github.com/taejunyun1/Tasted_it/issues/515) · [사진 운영 절차](../operations/2026-11-26-poi-photo-intake.md#공식-instagram-사진-게시물)
 
 ## 2026-11-26 공개 지도 위치 호환
 
@@ -20,9 +20,9 @@
 
 ## 2026-11-26 모바일 장소 상세 평가 경로
 
-호환본의 모바일 장소 상세에서 상호와 주소를 확인한 뒤 정식 상세의 추천·비추천으로 이동할 수 있게 연결했다. 다음 장소를 읽는 동안 이전 장소의 정보와 평가 링크는 사라진다. 검증한 추천 출처와 로그인 복귀 주소를 보존한다. 데스크톱 장소 카드는 정식 상세로 바로 연결된다. 시트 안에서 평가하는 #490의 나머지 호환 범위와 이 변경의 운영 배포는 대기다. [#490 모바일 평가](https://github.com/taejunyun1/Tasted_it/pull/490)
+홈·목록·분류 지도의 모바일 상세에서 추천, 비추천 이유, 평가 취소, 저장을 바로 처리한다. 장소 전환 중에는 이전 응답을 가리고, 분류 지도에서 상세를 닫으면 검색 범위와 보기 설정을 보존하며 초점을 원래 카드나 핀으로 돌린다. 한글 주소 식별자와 추천 출처를 보존하고, 데스크톱과 분류 지도의 JavaScript 비활성 환경은 정식 상세로 연결된다. 공식·학생 사진 표시 경로와 #533의 고정 입력은 그대로 사용한다. 운영 반영은 대기다. [#490 모바일 평가](https://github.com/taejunyun1/Tasted_it/pull/490) · [기존 정식 상세 진입 #538](https://github.com/taejunyun1/Tasted_it/pull/538)
 
-공식 사진 호환 56개 장부와 학생 실증 호환 57개 장부를 각각 적용한 로컬 Worker에서 같은 동작을 확인했다. 320px 비로그인 화면에서 이전 장소 링크와 제목이 사라지고 새 장소와 정확한 복귀 주소가 표시됐다. 합성 회원의 추천은 새로고침 뒤에도 남았고 격리 D1의 현재 평가와 이벤트는 대상 장소에 한 건씩이었다. 외부 Worker 호출은 0회였다. [320px 평가 진입](../evidence/cst-mobile-detail-vote-link-20261126/mobile-sheet-link.png) · [평가 저장](../evidence/cst-mobile-detail-vote-link-20261126/mobile-persisted-vote.png) · [데스크톱 상세](../evidence/cst-mobile-detail-vote-link-20261126/desktop-canonical.png)
+코드 `14589e4`의 일반 56개, 학생 실증 57개 장부를 적용한 격리 Worker에서 각 8개 브라우저 시나리오를 통과했다. 평가와 비추천 이유 변경, 회원·비회원 저장, 응답 유실 뒤 현재 상태 재조회, 다른 탭에서 변경된 평가 경합 복구, 합성 계정 재로그인, 장소 전환과 데스크톱 진입을 확인했다. 결과가 불명확할 때 재조회로 상태를 확인하며 저장 요청을 재전송하지 않았다. 일반 빌드의 모의 지도에서 한글 장소의 일반·추천 카드, 키보드 핀, 초점 복귀를 확인했다. 외부 Worker 호출은 0회였다. [검증 결과](../evidence/cst-mobile-in-sheet-vote-20261126/summary.json) · [320px 평가](../evidence/cst-mobile-in-sheet-vote-20261126/mobile-mutation.png) · [분류 지도](../evidence/cst-mobile-in-sheet-vote-20261126/mobile-category.png) · [데스크톱 상세](../evidence/cst-mobile-in-sheet-vote-20261126/desktop-canonical.png)
 
 ## 2026-11-26 CI·병합 및 운영 상태
 

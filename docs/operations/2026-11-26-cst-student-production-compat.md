@@ -11,7 +11,7 @@ release_dir=$(mktemp -d)
 node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student-pilot
 ```
 
-후속 main의 빌드는 공개 위치와 장소 상세 평가 진입 패치를 적용하고 `publicLocationPatchSha256`과 `placeDetailVoteLinkPatchSha256`을 기록한다. #533 1단계는 승인된 입력 커밋과 두 패치의 해시를 사용한다.
+후속 main의 빌드는 공개 위치와 장소 상세 평가 진입, 모바일 시트 안 평가 패치를 적용한다. `publicLocationPatchSha256`, `placeDetailVoteLinkPatchSha256`, `publicVotePatchSha256` 및 공유 파일 해시를 기록한다. #533 1단계는 승인된 입력 커밋과 두 패치의 해시를 사용한다.
 
 생성된 후보는 학생 좌석 설정과 실증 버킷 바인딩이 비어 있다. 기존 `REVIEW_PHOTOS`, 전역 리뷰 사진 비활성 설정, 공식 장소 사진 레지스트리를 유지한다. `student-pilot-release.json`에 입력 커밋, 두 패치, 각 소스, 장부 기준과 번들 해시가 들어 있다. 기존 12개 공개·인증 HTTP 응답, 두 예약 작업, 현재 공식 사진 프레임과 모바일 장소 화면을 56개 장부에서 확인한다. 0065만 더한 57개 장부와 합성 비공개 R2에서 학생 작업공간에서 신청·방문 리뷰로 진입하는 경로, 두 좌석의 업로드·승인·철회, 범위 밖 좌석 차단, 데스크톱과 모바일 출처 표시, 지연 쓰기 정리를 확인한다.
 
