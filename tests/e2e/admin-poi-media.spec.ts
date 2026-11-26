@@ -10,12 +10,14 @@ const local = (args: string[]) => execFileSync("pnpm", [
 
 test("administrator checks staged bytes, reauthenticates, publishes and withdraws the exact POI photo", async ({ page }, info) => {
   test.skip(Boolean(process.env.BASE_URL), "Requires isolated local D1 and R2 fixtures");
+  if (info.project.name === "mobile-chromium") await page.setViewportSize({ width: 320, height: 844 });
   const suffix = info.project.name === "chromium" ? "01" : "02";
   const photo = `a83f0000-0000-4000-8000-0000000000${suffix}`;
   const now = new Date().toISOString();
   const location = `/admin/poi-media?photo=${photo}`;
   const preview = `/admin/poi-media/${photo}/preview`;
   const site = "http://127.0.0.1:5173";
+  const rightsEvidence = "synthetic-rights-reference-".repeat(7);
   await page.setContent('<main style="position:absolute;inset:0 auto auto 0;display:grid;place-items:center;width:320px;height:125px;background:#e8eada;color:#16291a;font:600 20px sans-serif">합성 장소 사진 · 테스트</main>');
   const jpeg = await page.screenshot({ type: "jpeg", clip: { x: 0, y: 0, width: 320, height: 125 } });
   const sha256 = createHash("sha256").update(jpeg).digest("hex");
@@ -26,7 +28,7 @@ test("administrator checks staged bytes, reauthenticates, publishes and withdraw
   local(["d1", "execute", "DB", "--command", `
     DELETE FROM admin_session_assurances WHERE session_id='qa-admin-session';
     INSERT INTO place_poi_media(id,place_id,state,source_url,attribution,rights_basis,rights_evidence,sha256,byte_size,content_type,reviewed_at)
-    VALUES('${photo}','sample-place-1','STAGED','https://example.test/poi-photo','합성 사진 제공','OWN_WORK','합성 이용 근거','${sha256}',${jpeg.length},'image/jpeg','${now}');
+    VALUES('${photo}','sample-place-1','STAGED','https://example.test/poi-photo','합성 사진 제공','OWN_WORK','${rightsEvidence}','${sha256}',${jpeg.length},'image/jpeg','${now}');
   `]);
 
   await page.context().addCookies([{ name: "retaste_session", value: "qa-reviewer-member-session", domain: "127.0.0.1", path: "/" }]);
@@ -40,6 +42,7 @@ test("administrator checks staged bytes, reauthenticates, publishes and withdraw
   await page.getByRole("button", { name: "사진 조회" }).click();
   await expect(page).toHaveURL(location);
   await expect(page.getByText("검수 대기", { exact: true })).toBeVisible();
+  await expect(page.getByText(rightsEvidence, { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "원본 페이지 보기" })).toHaveAttribute("href", "https://example.test/poi-photo");
   await expect.poll(() => page.getByRole("img", { name: "등록 사진 검수 미리보기" }).evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
