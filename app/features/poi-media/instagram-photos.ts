@@ -120,6 +120,24 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전북 고창군 왕림로 25 (세곡리)",
     shortcode: "DLWKyrfTCKW",
   },
+  {
+    id: "place-intake-007844d6648aa9c5f7d4afcc",
+    name: "코테",
+    address: "전남광주 광산구 첨단월봉로 50 (산월동)",
+    shortcode: "DgFBb3-TraF",
+  },
+  {
+    id: "08bbeadc-9a60-4c5e-a805-09590af3ae34",
+    name: "도리스하우스",
+    address: "전남광주통합특별시 서구 경열로 10, 2층 (농성동)",
+    shortcode: "DfjLdZZOXOG",
+  },
+  {
+    id: "place-intake-c007ad37464fa9249e57e06d",
+    name: "홈댄스",
+    address: "전북 전주시 완산구 풍남문2길 37-2 (전동)",
+    shortcode: "DgL7hQpvLWs",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
