@@ -1,0 +1,37 @@
+{
+  "revision": "f0b6c56381f5dc07bcbf900e0a4d45d07a38ded3",
+  "buildSha256": "653f404f7424c2961e7a8888649711e9b57e50247101fb0f575c620e42eabbb4",
+  "localMigrations": 59,
+  "generalVenueRows": 78,
+  "cases": 156,
+  "viewports": [
+    1280,
+    320
+  ],
+  "perViewport": {
+    "instagram": 40,
+    "threads": 1,
+    "youtube": 16,
+    "jpeg": 4,
+    "link": 10,
+    "none": 7
+  },
+  "singleOriginalAnchor": true,
+  "mockProviderFrames": true,
+  "syntheticJpegBytes": true,
+  "originalLinks": [
+    {
+      "name": "실키밀키",
+      "href": "https://m.place.naver.com/restaurant/1942978740/photo?filterType=%EC%97%85%EC%B2%B4",
+      "kind": "link"
+    },
+    {
+      "name": "자매통닭&호프",
+      "href": "https://m.blog.naver.com/sososo2516/224145188426",
+      "kind": "link"
+    }
+  ],
+  "workerOutboundAttempts": 0,
+  "configurationScope": "LOCAL",
+  "productionChanged": false
+}
