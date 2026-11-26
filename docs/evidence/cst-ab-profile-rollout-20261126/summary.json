@@ -1,0 +1,91 @@
+{
+  "revision": "3afc2258eca341a7f5a94388ac5ed555b278c237",
+  "profilePhotoPatchSha256": "a43ce6ecc6460f8d05d5fd3547897ba43583eb25e37e70046ac87f51881dba90",
+  "normalizedConfigMatchesPr559": true,
+  "variants": {
+    "closed": {
+      "seats": null,
+      "buildSha256": "c40f70d16717ebcaddad30f4f37af409b12c7f29d241a32c9ae807a22bbf0127",
+      "configSha256": "1d63b2a1d34973277c53711886a6de93095bdc89f2c37f556031200f1ec18d9e"
+    },
+    "a": {
+      "seats": "A",
+      "buildSha256": "86e42c53ebdfd32c1be380cda35c2c160192ed9d52615e50df1b9a9821097ee3",
+      "configSha256": "2995e634afc234de1f5b008fbf04ae7fdcd6c5508a3029d636ff19952114964a"
+    },
+    "ab": {
+      "seats": "A,B",
+      "buildSha256": "1244741a33b8279b321bea0f5f06d8591cb8dda2340e46c7bf6556c8e32608d9",
+      "configSha256": "c1414ee43ac456cc0f03b5f28b25c2974f714f5f4ad21ced5926e6f3e79cde8b"
+    }
+  },
+  "unchangedBaselineAndPhotoRules": true,
+  "strictDryRuns": {
+    "closed": true,
+    "a": true,
+    "ab": true
+  },
+  "browser": {
+    "revision": "3afc2258eca341a7f5a94388ac5ed555b278c237",
+    "buildSha256": "d60f2db0f9bac62ecc8c180124c1a2cf02dd0558f0402aaf1b968fc893be915b",
+    "configSha256": "55c83723cc6c19578fb0e6ff25a1bd39c650ea84da5d31c64ee15901e3c71902",
+    "migrations": 59,
+    "placeEvidence": [
+      {
+        "viewportWidth": 1366,
+        "placeHttp": 200,
+        "imageHttp": 200,
+        "sharedPhotoPath": true,
+        "sharedImageHash": "06f917451c0e860b7130d903f752fba4098b3bd72a23630c61972cec1ce3a8d2",
+        "creditedProfileNavigation": true
+      },
+      {
+        "viewportWidth": 320,
+        "placeHttp": 200,
+        "imageHttp": 200,
+        "sharedPhotoPath": true,
+        "sharedImageHash": "06f917451c0e860b7130d903f752fba4098b3bd72a23630c61972cec1ce3a8d2",
+        "creditedProfileNavigation": true
+      }
+    ],
+    "pendingPlace": {
+      "placeHttp": 200,
+      "photoPathAbsent": true,
+      "approvedAuthorCreditPresent": true
+    },
+    "retiredPlace": {
+      "placeHttp": 200,
+      "photoPathAbsent": true,
+      "approvedAuthorCreditPresent": true
+    },
+    "withdrawnPlace": {
+      "placeHttp": 200,
+      "photoPathAbsent": true,
+      "approvedAuthorCreditPresent": true
+    },
+    "publishedPhotoHash": "06f917451c0e860b7130d903f752fba4098b3bd72a23630c61972cec1ce3a8d2",
+    "publishedPhotoBytes": 7061,
+    "publicGetAndHead": [
+      200,
+      200
+    ],
+    "pendingGetAndHead": [
+      404,
+      404
+    ],
+    "retiredGetAndHead": [
+      404,
+      404
+    ],
+    "withdrawalGetAndHead": [
+      404,
+      404
+    ],
+    "approvedVisitRemainsAfterPhotoWithdrawal": true,
+    "pilotSeatsConfigured": false,
+    "syntheticProfileOnly": true,
+    "privateCaptionAndOccupationAbsent": true,
+    "workerExternalRequests": 0,
+    "productionChanged": false
+  }
+}
