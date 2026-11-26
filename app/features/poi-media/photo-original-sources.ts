@@ -3,6 +3,7 @@ type PlaceIdentity = { id: string; name: string; address: string };
 export type PlacePhotoOriginalSource = {
   url: string;
   publisher: string;
+  disclosure?: string;
   mediaKind?: "video";
   embed?: { provider: "threads" | "youtube"; url: string };
 };
@@ -10,7 +11,6 @@ export type PlaceVisualFlags = { threads?: string; youtube?: string };
 
 // The official embed script produces this narrowly scoped frame for the selected post.
 export const THREADS_PHOTO_FRAME_SOURCE = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
-export const YOUTUBE_VIDEO_FRAME_SOURCE = "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ";
 
 export function allowsPlaceVisualFrames(pathname: string) {
   return pathname === "/" || /^\/(?:places|maps)(?:\/|$)/u.test(pathname);
@@ -95,9 +95,39 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     publisher: "YouTube · 해남군",
     url: "https://www.youtube.com/watch?v=XVApkkeXoRQ",
     mediaKind: "video",
-    embed: { provider: "youtube", url: YOUTUBE_VIDEO_FRAME_SOURCE },
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ" },
+  },
+  {
+    id: "place-intake-5510fb20164ca7a5536bcb45",
+    name: "60년전통손두부식당",
+    address: "전남광주 구례군 동해벚꽃로 95 (죽마리)",
+    publisher: "YouTube · KBS LIFE",
+    url: "https://www.youtube.com/watch?v=kTz_GZQEXZ4&t=65s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4?start=65" },
+  },
+  {
+    id: "place-intake-7b0c5921a7dd34f9b880ed5e",
+    name: "팔레스분식",
+    address: "전남광주 북구 밤실로208번길 20 (두암동)",
+    publisher: "YouTube · 채널광주",
+    disclosure: "원본 영상에 유료 프로모션 포함",
+    url: "https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag?start=320&end=338" },
+  },
+  {
+    id: "place-intake-d9ea0471ad5c4eb487d3dc29",
+    name: "광성식당",
+    address: "전북 남원시 광한서로 7 (천거동)",
+    publisher: "차박과 텃밭",
+    url: "https://carcam-n-garden.tistory.com/69",
   },
 ];
+
+// CSP source expressions match the video path. The player URL carries playback bounds.
+export const YOUTUBE_VIDEO_FRAME_SOURCES = REVIEWED_SOURCES.flatMap(({ embed }) =>
+  embed?.provider === "youtube" ? [embed.url.split("?")[0]] : []);
 
 export function reviewedPlacePhotoOriginal(place: PlaceIdentity, flags: PlaceVisualFlags = {}): PlacePhotoOriginalSource | null {
   const source = REVIEWED_SOURCES.find(({ id, name, address }) => id === place.id && name === place.name && address === place.address);

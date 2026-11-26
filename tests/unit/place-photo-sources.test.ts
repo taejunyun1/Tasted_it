@@ -4,13 +4,13 @@ import { describe, expect, it } from "vitest";
 import { PlaceInstagramPhoto } from "../../app/components/places/PlaceInstagramPhoto";
 import { PlacePoiPhoto } from "../../app/components/places/PlacePoiPhoto";
 import { PlacePhotoOriginalLink } from "../../app/components/places/PlacePhotoOriginalLink";
-import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE, YOUTUBE_VIDEO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
+import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
 import { TempCatalogNotice } from "../../app/features/temp-catalog/TempCatalogNotice";
 
 function expectExactPhotoSource(html: string, url: string) {
   const sourceLinks = [...html.matchAll(/<a ([^>]+)>출처<\/a>/gu)];
   expect(sourceLinks).toHaveLength(1);
-  expect(sourceLinks[0][1]).toContain(`href="${url}"`);
+  expect(sourceLinks[0][1]).toContain(`href="${url.replaceAll("&", "&amp;")}"`);
   expect(sourceLinks[0][1]).toContain('rel="noopener"');
   expect(sourceLinks[0][1]).toContain('referrerPolicy="strict-origin"');
 }
@@ -88,10 +88,29 @@ describe("place photo source links", () => {
     const original = reviewedPlacePhotoOriginal(place, { threads: "true" });
     expect(original).toEqual({ url: "https://www.youtube.com/watch?v=XVApkkeXoRQ", publisher: "YouTube · 해남군", mediaKind: "video" });
     const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });
-    expect(source?.embed).toEqual({ provider: "youtube", url: YOUTUBE_VIDEO_FRAME_SOURCE });
+    expect(source?.embed).toEqual({ provider: "youtube", url: "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ" });
     const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
     expect(html).toContain("YouTube에 연결해 영상 보기");
     expect(html).not.toContain("<iframe");
     expectExactPhotoSource(html, "https://www.youtube.com/watch?v=XVApkkeXoRQ");
+  });
+
+  it.each([
+    ["place-intake-5510fb20164ca7a5536bcb45", "60년전통손두부식당", "전남광주 구례군 동해벚꽃로 95 (죽마리)",
+      "https://www.youtube.com/watch?v=kTz_GZQEXZ4&t=65s", "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4?start=65", undefined],
+    ["place-intake-7b0c5921a7dd34f9b880ed5e", "팔레스분식", "전남광주 북구 밤실로208번길 20 (두암동)",
+      "https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s", "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag?start=320&end=338", "원본 영상에 유료 프로모션 포함"],
+    ["place-intake-d9ea0471ad5c4eb487d3dc29", "광성식당", "전북 남원시 광한서로 7 (천거동)",
+      "https://carcam-n-garden.tistory.com/69", undefined, undefined],
+  ])("binds the exact reviewed source for %s", (id, name, address, url, embedUrl, disclosure) => {
+    const place = { id, name, address };
+    expect(reviewedPlacePhotoOriginal(place)?.embed).toBeUndefined();
+    expect(reviewedPlacePhotoOriginal({ ...place, address: `${address} 2층` }, { youtube: "true" })).toBeNull();
+    const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });
+    expect(source?.embed?.url).toBe(embedUrl);
+    const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
+    expectExactPhotoSource(html, url);
+    expect(html).not.toContain("<iframe");
+    if (disclosure) expect(html).toContain(disclosure);
   });
 });

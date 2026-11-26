@@ -1,6 +1,6 @@
 import { NO_STORE_HEADERS } from "../students/policy";
 import { INSTAGRAM_PHOTO_FRAME_SOURCES } from "../poi-media/instagram-photos";
-import { allowsPlaceVisualFrames, THREADS_PHOTO_FRAME_SOURCE, YOUTUBE_VIDEO_FRAME_SOURCE, type PlaceVisualFlags } from "../poi-media/photo-original-sources";
+import { allowsPlaceVisualFrames, THREADS_PHOTO_FRAME_SOURCE, YOUTUBE_VIDEO_FRAME_SOURCES, type PlaceVisualFlags } from "../poi-media/photo-original-sources";
 
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -54,7 +54,7 @@ export function withSecurityHeaders(response: Response, request?: Request, insta
     const allowedFrames = [
       instagramPhotosEnabled === "true" ? INSTAGRAM_PHOTO_FRAME_SOURCES : "",
       canOpenPlaceVisual && visualFlags.threads === "true" ? THREADS_PHOTO_FRAME_SOURCE : "",
-      canOpenPlaceVisual && visualFlags.youtube === "true" ? YOUTUBE_VIDEO_FRAME_SOURCE : "",
+      canOpenPlaceVisual && visualFlags.youtube === "true" ? YOUTUBE_VIDEO_FRAME_SOURCES.join(" ") : "",
     ].filter(Boolean).join(" ");
     if (allowedFrames) headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${allowedFrames}`));
   }

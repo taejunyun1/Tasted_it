@@ -73,13 +73,17 @@ describe("applySecurityHeaders", () => {
     expect(policy(withSecurityHeaders(new Response(null, { headers: { "Content-Type": "application/json" } }), publicRequest, undefined, threadsEnabled))).toBe(CONTENT_SECURITY_POLICY);
   });
 
-  it("allows the single privacy-enhanced YouTube player on a public browse document", () => {
+  it("allows only curated privacy-enhanced YouTube players on public browse documents", () => {
     const html = () => new Response(null, { headers: { "Content-Type": "text/html" } });
     const youtube = { youtube: "true" };
     const request = (path: string) => new Request(`https://example.test${path}`);
-    expect(withSecurityHeaders(html(), request("/places/fixture"), undefined, youtube).headers.get("Content-Security-Policy")).toBe(
-      CONTENT_SECURITY_POLICY.replace("frame-src 'none'", "frame-src https://www.youtube-nocookie.com/embed/XVApkkeXoRQ"),
-    );
+    const frames = withSecurityHeaders(html(), request("/places/fixture"), undefined, youtube).headers
+      .get("Content-Security-Policy")?.split("; ").find((value) => value.startsWith("frame-src "));
+    expect(frames?.split(" ").slice(1)).toEqual([
+      "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ",
+      "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4",
+      "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag",
+    ]);
     expect(withSecurityHeaders(html(), request("/me"), undefined, youtube).headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
   });
 });
