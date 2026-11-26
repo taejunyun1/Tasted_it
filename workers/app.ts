@@ -7,6 +7,8 @@ import { runScheduledPlaceMaintenance } from "../app/features/places/scheduled-p
 import { runScheduledParkingSync } from "../app/features/parking/scheduled-parking.server";
 import { runScheduledOnboardingDataLifecycle } from "../app/features/onboarding/data-lifecycle.server";
 import { isRsiCron } from "../app/features/operations/rsi-self-check";
+import { createDb } from "../app/db/client.server";
+import { cleanupPilotPhotos } from "../app/features/ratings/student-review-pilot-photo.server";
 import { handleRsiOnDemandRequest, runScheduledRsiSelfCheck } from "../app/features/operations/rsi-self-check.server";
 
 const requestHandler = createRequestHandler(
@@ -14,7 +16,7 @@ const requestHandler = createRequestHandler(
   import.meta.env.MODE,
 );
 
-export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED">>({
+export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED" | "STUDENT_REVIEW_PILOT_PHOTOS">>({
   async fetch(request, env) {
     const rsi = await handleRsiOnDemandRequest(request, env);
     if (rsi) return withSecurityHeaders(rsi, request);
@@ -24,6 +26,9 @@ export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHO
     if (isRsiCron(controller.cron)) {
       ctx.waitUntil(runScheduledRsiSelfCheck(env));
       return;
+    }
+    if (env.STUDENT_REVIEW_PILOT_PHOTOS) {
+      ctx.waitUntil(cleanupPilotPhotos(createDb(env.DB), env.STUDENT_REVIEW_PILOT_PHOTOS, new Date().toISOString()));
     }
     ctx.waitUntil(Promise.all([
       runScheduledCandidateSync(env),

@@ -16,7 +16,7 @@ export default defineConfig({
         compatibilityFlags: ["nodejs_compat"],
         d1Databases: ["DB", "MIGRATION_DB"],
 
-        r2Buckets: ["REVIEW_PHOTOS"],
+        r2Buckets: ["REVIEW_PHOTOS", "PILOT_TEST_PHOTOS"],
         bindings: {
           STUDENT_INVITE_COOKIE_SECRET: "synthetic-integration-session-secret-not-production",
           STUDENT_WORKSPACE_ENABLED: "true",
