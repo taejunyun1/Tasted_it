@@ -1,0 +1,75 @@
+{
+  "fullFrameWithSyntheticPhoto": {
+    "revision": "e2784edac653dbc1b550f8d7b601cd410cf99a58",
+    "buildSha256": "185f97248407e0d1272ecd7ccc2649b07b59dfd6670d61c52e262e988523777b",
+    "migrationCount": 59,
+    "workerOutbound": 0,
+    "checks": [
+      {
+        "layout": "desktop",
+        "viewportWidth": 1366,
+        "fit": "contain",
+        "edges": {
+          "corners": [
+            "topLeft",
+            "topRight",
+            "bottomLeft",
+            "bottomRight"
+          ],
+          "boxWidth": 715,
+          "boxHeight": 620
+        },
+        "sameSourceBytes": true,
+        "sourceCaptionVisible": true
+      },
+      {
+        "layout": "mobile",
+        "viewportWidth": 320,
+        "fit": "contain",
+        "edges": {
+          "corners": [
+            "topLeft",
+            "topRight",
+            "bottomLeft",
+            "bottomRight"
+          ],
+          "boxWidth": 320,
+          "boxHeight": 230
+        },
+        "sameSourceBytes": true,
+        "sourceCaptionVisible": true
+      }
+    ]
+  },
+  "approvedOriginalLocal": {
+    "revision": "e2784edac653dbc1b550f8d7b601cd410cf99a58",
+    "approvedOriginal": "육모정",
+    "originalSha256": "e0584085348b0f3c49efcf37c85a996199284496f93ede3f5f411dd09d70e0eb",
+    "originalBytes": 454570,
+    "buildSha256": "185f97248407e0d1272ecd7ccc2649b07b59dfd6670d61c52e262e988523777b",
+    "migrationCount": 59,
+    "workerOutbound": 0,
+    "checks": [
+      {
+        "layout": "desktop",
+        "viewportWidth": 1366,
+        "fit": "contain",
+        "naturalWidth": 940,
+        "naturalHeight": 627,
+        "sameSourceBytes": true,
+        "sourceCaptionVisible": true,
+        "originalSourceLinkEqual": true
+      },
+      {
+        "layout": "mobile",
+        "viewportWidth": 320,
+        "fit": "contain",
+        "naturalWidth": 940,
+        "naturalHeight": 627,
+        "sameSourceBytes": true,
+        "sourceCaptionVisible": true,
+        "originalSourceLinkEqual": true
+      }
+    ]
+  }
+}

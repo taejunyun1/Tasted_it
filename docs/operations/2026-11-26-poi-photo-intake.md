@@ -32,6 +32,10 @@
 
 ## 반입 준비
 
+공공누리 제3유형으로 확인한 대표 사진은 `OPEN_LICENSE`로 준비하고 이용 근거와 원문을 항목별로 남긴다. 원본 JPEG를 그대로 보관하고 상세와 모바일 시트에 전체 프레임을 표시한다. 사진 밖 캡션에 제공자와 원문 링크를 둔다. 사진 속 저작권 표시가 원천 메타데이터와 다르면 제공 권한과 정확한 작성자를 대조할 때까지 공개를 보류한다. [한국관광공사 관광정보 API](https://www.data.go.kr/data/15101578/openapi.do) · [공공누리 제3유형](https://www.kogl.or.kr/info/licenseType3.do)
+
+남원 육모정의 TourAPI 대표 사진은 공개 장소 주소와 일치하고 제3유형으로 확인했다. JPEG 원본 1개를 로컬 반입 계획으로 준비했다. 부산집과 오얏리 돌솥밥은 원본 안에 별도 출처 표시가 있어 해당 제공 권한을 확인 중이다. 운영 반입과 공개는 대기다. [육모정 원본 사진](https://tong.visitkorea.or.kr/cms/resource/60/2899760_image2_1.jpg) · [전체 프레임 표시 검증](../evidence/cst-poi-original-frame-20261126/summary.json)
+
 1. 공개 적격 일반 장소의 canonical ID·상호·도로명주소가 확인된 스냅샷과 개별 사진의 원문·작성자/제공자·이용 범위·확인일을 확보한다. 사진과 점포 주소가 정확히 일치해야 한다. 공공누리 1유형이나 별도 이용허락 등 외부 원본의 재사용 근거와 필요한 표기 문구를 확인한다. 플랫폼의 원문 URL은 이용 권리 확인 자료와 함께 기록한다. [공공누리 1유형](https://www.kogl.or.kr/info/licenseType1.do) · [NAVER 접근 정책](https://policy.naver.com/policy/disclaimer.html)
 2. 저장할 JPEG 바이트의 SHA-256을 고정한다. 위치·개인정보와 EXIF를 점검한다. 이용 조건에서 허용하는 범위로만 변환한다. 준비 CLI는 이미 검토한 로컬 JPEG를 대상으로 SHA-256·크기·파일 형식·EXIF와 대상의 상호·주소를 대조한다. 원본 URL을 브라우저에서 열 수 있으나 준비 CLI와 공개 Worker는 해당 외부 URL에서 이미지를 가져오지 않는다.
 3. 스냅샷은 공개 적격 일반 장소의 배열이며 각 항목은 id·name·address를 가진다. manifest는 schemaVersion 1과 photos 배열을 가진다. 항목 값은 UUID id, place(id·name·address), sourceUrl, attribution, rightsBasis, rightsEvidence, reviewedAt, sha256, file이며 파일은 입력 디렉터리의 JPEG 이름이다. reviewedAt은 밀리초까지 있는 UTC ISO 시각이다. rightsBasis는 OWN_WORK·MERCHANT_PERMISSION·KOGL_1·OPEN_LICENSE 중 해당 값을 쓴다. rightsEvidence에는 검토 근거 참조와 조건을 기록한다.
