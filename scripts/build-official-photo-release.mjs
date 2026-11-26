@@ -58,11 +58,13 @@ const publicVotePatch = "ops/releases/public-place-vote-494c07f.patch";
 const publicVoteTargets = [
   "app/app.css",
   "app/components/map/PlaceMap.tsx",
+  "app/components/onboarding/GuestSaveControl.tsx",
   "app/components/places/PlaceCard.tsx",
   "app/components/places/PlaceDetailSheet.tsx",
   "app/components/ratings/VoteControl.tsx",
   "app/features/auth/login.ts",
   "app/features/ratings/vote.server.ts",
+  "app/routes/guest-saves-resource.ts",
   "app/routes/map-category.tsx",
   "app/routes/place-detail.tsx",
 ];

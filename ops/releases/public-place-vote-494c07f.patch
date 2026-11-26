@@ -70,6 +70,65 @@ diff --git a/app/components/map/PlaceMap.tsx b/app/components/map/PlaceMap.tsx
      {(error || locationNotice) && <p className="map-error" role="status" aria-live="polite">{error || locationNotice}</p>}
      {selectedOverview}
    </div>;
+diff --git a/app/components/onboarding/GuestSaveControl.tsx b/app/components/onboarding/GuestSaveControl.tsx
+index 0ee8ef3..e586c41 100644
+--- a/app/components/onboarding/GuestSaveControl.tsx
++++ b/app/components/onboarding/GuestSaveControl.tsx
+@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
+ import { useFetcher } from "react-router";
+ import { safeReturnTo } from "../../features/auth/login";
+
+-type GuestSaveResult = { ok: boolean; saved?: boolean; signedIn?: boolean; expired?: boolean; message?: string };
++type GuestSaveResult = { ok: boolean; saved?: boolean; signedIn?: boolean; expired?: boolean; message?: string; outcome?: "REJECTED" | "UNKNOWN" };
++type ConfirmedChoice = { saved: boolean; signedIn: boolean };
+ type GuestSaveControlProps = { placeId: string; returnTo: string; showLogin?: boolean };
+ export function GuestSaveControl(props: GuestSaveControlProps) {
+   // A sheet can change its place without unmounting. Scope all hook/fetcher state
+@@ -13,28 +14,30 @@ export function GuestSaveControl(props: GuestSaveControlProps) {
+ function GuestSaveControlForPlace({ placeId, returnTo, showLogin = true }: GuestSaveControlProps) {
+   const fetcher = useFetcher<GuestSaveResult>();
+   useEffect(() => { void fetcher.load(`/resources/guest-saves?placeId=${encodeURIComponent(placeId)}`); }, [placeId]);
+-  const [saved, setSaved] = useState(false);
+-  const [signedIn, setSignedIn] = useState(false);
+-  const [ready, setReady] = useState(false);
++  const [confirmedChoice, setConfirmedChoice] = useState<ConfirmedChoice | null>(null);
++  const responseChoice = fetcher.data?.ok && typeof fetcher.data.saved === "boolean" && typeof fetcher.data.signedIn === "boolean"
++    ? { saved: fetcher.data.saved, signedIn: fetcher.data.signedIn }
++    : null;
+   useEffect(() => {
+-    if (fetcher.data?.ok) {
+-      setSaved(Boolean(fetcher.data.saved));
+-      setSignedIn(Boolean(fetcher.data.signedIn));
+-      setReady(true);
+-    }
++    if (responseChoice) setConfirmedChoice(responseChoice);
+   }, [fetcher.data]);
++  const choice = responseChoice ?? confirmedChoice;
++  const needsRead = !choice || (!responseChoice && fetcher.data?.outcome !== "REJECTED");
++  const ready = !needsRead && fetcher.state === "idle";
++  const saved = choice?.saved ?? false;
++  const signedIn = choice?.signedIn;
+   return <div className="guest-save-control">
+-    {!ready && fetcher.data?.ok !== false && <p role="status">저장 상태를 확인하고 있어요.</p>}
+-    <fetcher.Form method="post" action="/resources/guest-saves">
++    {needsRead && fetcher.data?.ok !== false && <p role="status">저장 상태를 확인하고 있어요.</p>}
++    <fetcher.Form method="post" action="/resources/guest-saves" onSubmit={event => { if (!ready) event.preventDefault(); }}>
+       <input type="hidden" name="intent" value="save" />
+       <input type="hidden" name="placeId" value={placeId} />
+       <input type="hidden" name="saved" value={String(!saved)} />
+-      <button type="submit" aria-pressed={saved} disabled={!ready || fetcher.state !== "idle"}>{signedIn ? (saved ? "저장 해제" : "저장") : (saved ? "임시 저장 해제" : "임시 저장")}</button>
++      <button type="submit" aria-pressed={needsRead ? undefined : saved} disabled={!ready}>{signedIn ? (saved ? "저장 해제" : "저장") : (saved ? "임시 저장 해제" : "임시 저장")}</button>
+     </fetcher.Form>
+-    {!signedIn && <p>임시 저장은 최대 50곳이며 비회원 취향과 함께 최대 30일 동안 보관합니다.</p>}
++    {signedIn === false && <p>임시 저장은 최대 50곳이며 비회원 취향과 함께 최대 30일 동안 보관합니다.</p>}
+     {fetcher.data?.expired && <p role="status">이전 임시 자료가 만료되었습니다. 새로 저장할 수 있어요.</p>}
+     {fetcher.data?.ok === false && <p role="alert">{fetcher.data.message}</p>}
+-    {!ready && fetcher.data?.ok === false && <button type="button" disabled={fetcher.state !== "idle"} onClick={() => { void fetcher.load(`/resources/guest-saves?placeId=${encodeURIComponent(placeId)}`); }}>저장 상태 다시 확인</button>}
+-    {showLogin && !signedIn && <a href={`/login?returnTo=${encodeURIComponent(safeReturnTo(returnTo))}`}>로그인하고 임시 자료 연결</a>}
++    {needsRead && fetcher.data?.ok === false && <button type="button" disabled={fetcher.state !== "idle"} onClick={() => { void fetcher.load(`/resources/guest-saves?placeId=${encodeURIComponent(placeId)}`); }}>저장 상태 다시 확인</button>}
++    {showLogin && signedIn === false && <a href={`/login?returnTo=${encodeURIComponent(safeReturnTo(returnTo))}`}>로그인하고 임시 자료 연결</a>}
+   </div>;
+ }
 diff --git a/app/components/places/PlaceCard.tsx b/app/components/places/PlaceCard.tsx
 index 3ce0c45..2ad8908 100644
 --- a/app/components/places/PlaceCard.tsx
@@ -343,8 +402,8 @@ diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/
 +  useEffect(() => () => {
 +    const restore = restoreAfterMapUpdate.current;
 +    restoreAfterMapUpdate.current = null;
-+    // Marker setup runs in a passive effect after the map receives new results.
-+    if (restore) queueMicrotask(restore);
++    // Allow the closing navigation to replace its markers before restoring focus.
++    if (restore) requestAnimationFrame(restore);
 +  }, []);
 +
 +  useLayoutEffect(() => {
@@ -803,6 +862,101 @@ index 67b2a74..ec2180a 100644
 +    });
 +  }
    return true;
+diff --git a/app/routes/guest-saves-resource.ts b/app/routes/guest-saves-resource.ts
+index 6ff455d..4b89f9e 100644
+--- a/app/routes/guest-saves-resource.ts
++++ b/app/routes/guest-saves-resource.ts
+@@ -5,6 +5,7 @@ import type { Route } from "./+types/guest-saves-resource";
+ import { createDb } from "../db/client.server";
+ import { guestTasteSessions, places } from "../db/schema";
+ import { getOptionalUser } from "../features/auth/session.server";
++import { readBoundedBody } from "../features/http/bounded-body";
+ import { isSameOriginMutation } from "../features/http/same-origin";
+ import { getSaved, setSavedAndRefreshTaste } from "../features/saves/save.server";
+ import { getPlaceBySlug } from "../features/places/place.server";
+@@ -20,20 +21,14 @@ function json(value: unknown, status = 200, cookie?: string | null) {
+   if (cookie) headers.append("Set-Cookie", cookie);
+   return Response.json(value, { status, headers });
+ }
++function rejected(message: string, status: number) {
++  return json({ ok: false, outcome: "REJECTED", message }, status);
++}
+ export function headers() { return PRIVATE_HEADERS; }
+ export async function readGuestSaveForm(request: Request) {
+   if (!isSameOriginMutation(request)) throw new Response(null, { status: 403 });
+   if (!request.headers.get("Content-Type")?.startsWith("application/x-www-form-urlencoded")) throw new Response(null, { status: 415 });
+-  const reader = request.body?.getReader();
+-  const chunks: Uint8Array[] = []; let length = 0;
+-  if (reader) while (true) {
+-    const { done, value } = await reader.read(); if (done) break;
+-    length += value.byteLength;
+-    if (length > 1024) { await reader.cancel(); throw new Response(null, { status: 413 }); }
+-    chunks.push(value);
+-  }
+-  const bytes = new Uint8Array(length); let offset = 0;
+-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
++  const bytes = await readBoundedBody(request, 1024);
+   const values: Record<string, string> = Object.create(null);
+   for (const [key, value] of new URLSearchParams(new TextDecoder().decode(bytes))) {
+     if (Object.hasOwn(values, key)) throw new Response(null, { status: 400 });
+@@ -63,30 +58,34 @@ export async function loader({ request }: Route.LoaderArgs) {
+   }
+ }
+ export async function action({ request }: Route.ActionArgs) {
+-  if (request.method !== "POST") return json({ ok: false, message: "지원하지 않는 요청입니다." }, 405);
+-  if (env.ONBOARDING_ENABLED !== "true") return json({ ok: false, message: "임시 저장을 현재 사용할 수 없습니다." }, 404);
++  if (request.method !== "POST") return rejected("지원하지 않는 요청입니다.", 405);
++  if (env.ONBOARDING_ENABLED !== "true") return rejected("임시 저장을 현재 사용할 수 없습니다.", 404);
++  let choiceWriteStarted = false;
+   try {
+     const form = await readGuestSaveForm(request);
+     const valid = form.intent === "merge" ? mergeSchema.safeParse(form) : saveSchema.safeParse(form);
+-    if (!valid.success) return json({ ok: false, message: "요청 내용을 확인해 주세요." }, 400);
++    if (!valid.success) return rejected("요청 내용을 확인해 주세요.", 400);
+     const db = createDb(env.DB); const now = new Date().toISOString();
+     const user = await getOptionalUser(request);
+     await consumeGuestSaveWriteLimit(db, request.headers.get("CF-Connecting-IP"), now);
+     if (form.intent === "merge") {
+-      if (!mergeSchema.safeParse(form).success) return json({ ok: false, message: "요청 내용을 확인해 주세요." }, 400);
+-      if (!user) return json({ ok: false, message: "로그인한 뒤 다시 연결해 주세요." }, 401);
++      if (!mergeSchema.safeParse(form).success) return rejected("요청 내용을 확인해 주세요.", 400);
++      if (!user) return rejected("로그인한 뒤 다시 연결해 주세요.", 401);
++      choiceWriteStarted = true;
+       const result = await mergeGuestTasteSessionFromRequest(db, request, user.id, now);
+       return json({ ok: true, merged: result.merged, message: result.merged ? "임시 저장과 취향을 계정에 연결했습니다." : "연결할 유효한 임시 자료가 없습니다." }, 200, result.expireCookie);
+     }
+     const parsed = saveSchema.safeParse(form);
+-    if (!parsed.success) return json({ ok: false, message: "요청 내용을 확인해 주세요." }, 400);
++    if (!parsed.success) return rejected("요청 내용을 확인해 주세요.", 400);
+     const { placeId } = parsed.data; const saved = parsed.data.saved === "true";
+     await assertPublicPlace(db, placeId);
+     if (user) {
++      choiceWriteStarted = true;
+       await setSavedAndRefreshTaste(db, { userId: user.id, placeId, saved, now });
+       return json({ ok: true, saved, signedIn: true, expired: false });
+     }
+     const { session, setCookie } = await getOrCreateGuestSession(db, request, now);
++    choiceWriteStarted = true;
+     await setGuestSavedPlace(db, { sessionId: session.id, placeId, saved, now });
+     return json({ ok: true, saved, signedIn: false, expired: false, expiresAt: session.expiresAt }, 200, setCookie);
+   } catch (error) {
+@@ -98,14 +97,14 @@ export async function action({ request }: Route.ActionArgs) {
+       : status === 404 ? "공개된 장소를 찾을 수 없습니다."
+       : status < 500 ? "요청 내용을 확인한 뒤 다시 시도해 주세요."
+       : "저장·연결 결과를 확인하지 못했습니다. 새로고침해 현재 상태를 확인한 뒤 필요하면 다시 시도해 주세요.";
+-    return json({ ok: false, message }, status);
++    return json({ ok: false, outcome: !choiceWriteStarted && status < 500 ? "REJECTED" : "UNKNOWN", message }, status);
+   }
+ }
+
+ // A response can be lost after a committed write; keep retry UI without claiming rollback.
+ export async function clientAction({ serverAction }: Route.ClientActionArgs) {
+   try { return await serverAction(); }
+-  catch { return { ok: false, message: "저장·연결 결과를 확인하지 못했습니다. 새로고침해 현재 상태를 확인한 뒤 필요하면 다시 시도해 주세요." }; }
++  catch { return { ok: false, outcome: "UNKNOWN", message: "저장·연결 결과를 확인하지 못했습니다. 저장 상태를 다시 확인한 뒤 필요하면 다시 시도해 주세요." }; }
+ }
+ export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
+   try { return await serverLoader(); }
 diff --git a/app/routes/map-category.tsx b/app/routes/map-category.tsx
 --- a/app/routes/map-category.tsx
 +++ b/app/routes/map-category.tsx
