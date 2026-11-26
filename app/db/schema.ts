@@ -183,6 +183,28 @@ export const places = sqliteTable(
   ],
 );
 
+export const placePoiMedia = sqliteTable(
+  "place_poi_media",
+  {
+    id: text("id").primaryKey().notNull(),
+    placeId: text("place_id")
+      .notNull()
+      .references(() => places.id, { onDelete: "cascade" }),
+    state: text("state", { enum: ["STAGED", "PUBLISHED", "WITHDRAWN"] }).notNull().default("STAGED"),
+    sourceUrl: text("source_url").notNull(),
+    attribution: text("attribution").notNull(),
+    rightsBasis: text("rights_basis", { enum: ["OWN_WORK", "MERCHANT_PERMISSION", "KOGL_1", "OPEN_LICENSE"] }).notNull(),
+    rightsEvidence: text("rights_evidence").notNull(),
+    sha256: text("sha256").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    contentType: text("content_type", { enum: ["image/jpeg"] }).notNull(),
+    reviewedAt: text("reviewed_at").notNull(),
+  },
+  (table) => [
+    index("place_poi_media_public_idx").on(table.placeId, table.state, table.reviewedAt, table.id),
+  ],
+);
+
 export const placeCategories = sqliteTable(
   "place_categories",
   {

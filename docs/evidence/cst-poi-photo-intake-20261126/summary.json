@@ -1,0 +1,33 @@
+{
+  "sourceSha": "7b4e884af18d19de818fc0bf3f4badedd96b3eb5",
+  "compiledBrowserCompletedAtKst": "2026-11-26T14:38:54+09:00",
+  "environment": "Local compiled Worker with isolated D1 and R2, synthetic place JPEG and source URL",
+  "integration": {
+    "command": "pnpm run test:integration tests/integration/poi-media-route.test.ts",
+    "passed": 13,
+    "failed": 0
+  },
+  "browser": {
+    "desktop": 1,
+    "pixel7": 1,
+    "readyGet": 200,
+    "readyHead": 200,
+    "jpegDigestMatches": true,
+    "sourceUrlMatches": true,
+    "withdrawnGet": 404,
+    "withdrawnHead": 404,
+    "fallbackDetail": 200
+  },
+  "intake": {
+    "validManifest": 1,
+    "invalidManifestRejected": 6,
+    "stagingSqlValid": 1,
+    "staleWithoutPrimaryOrWithPublicTempRejected": 2,
+    "publishedByPrepareTool": 0
+  },
+  "screenshots": [
+    "desktop-poi-credit.png",
+    "mobile-poi-credit.png"
+  ],
+  "limits": "Local synthetic bytes only. No rights grants or photos from third parties, no production changes."
+}

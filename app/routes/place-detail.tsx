@@ -9,10 +9,12 @@ import { formatPublicRatingSummary } from "../features/places/place-discovery";
 import { PublicRatingMeta } from "../components/ratings/PublicRatingMeta";
 import { FlavorMeter } from "../components/ratings/FlavorMeter";
 import { PlaceInformation } from "../components/places/PlaceInformation";
+import { PlacePoiPhoto } from "../components/places/PlacePoiPhoto";
 import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "../components/places/PlacePublicEvidence";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
+import { getPublicPoiPhoto } from "../features/poi-media/poi-media.server";
 import { castVote, getCurrentVoteState, withdrawVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
 import { readPlaceMutationBrowseReturn } from "../features/auth/place-detail-return";
@@ -97,12 +99,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos, publicReviewers] = await Promise.all([
+  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos, publicReviewers, poiPhoto] = await Promise.all([
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
     listPublishedPlaceReviewPhotos(db, place.id, 12),
     listPublicPlaceReviewers(db, place.id),
+    getPublicPoiPhoto(db, place.id, env.POI_MEDIA_PUBLIC_ENABLED),
   ]);
   const rating = publicRatingFromPlace(place);
   if (provenance) {
@@ -122,7 +125,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
   const publicOrigin = resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL);
-  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, publicReviewers, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, publicReviewers, poiPhoto, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -224,13 +227,14 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
       <Link to="/places">맛집 리스트로</Link>
     </main>;
   }
-  const { place, rating, flavorPrint, reviewPhotos, publicReviewers } = loaderData;
+  const { place, rating, flavorPrint, reviewPhotos, publicReviewers, poiPhoto } = loaderData;
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
       <Link className="back-link" to={`/?category=${encodeURIComponent(place.primaryCategory.slug)}`}>← {place.primaryCategory.name} 지도로</Link>
       <div className="detail-grid">
-        <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>
+        {poiPhoto ? <PlacePoiPhoto photo={poiPhoto} placeName={place.name} heroClassName="detail-hero" /> :
+        <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
         <article className="detail-copy">
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
           {place.tempCatalog && <TempCatalogNotice info={place.tempCatalog} />}

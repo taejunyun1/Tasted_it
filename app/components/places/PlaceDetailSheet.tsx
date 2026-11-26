@@ -13,6 +13,7 @@ import { PublicRatingMeta } from "../ratings/PublicRatingMeta";
 import { FlavorMeter } from "../ratings/FlavorMeter";
 import { PlaceInformation } from "./PlaceInformation";
 import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "./PlacePublicEvidence";
+import { PlacePoiPhoto } from "./PlacePoiPhoto";
 import { VoteControl } from "../ratings/VoteControl";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
@@ -193,7 +194,8 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
           <button type="button" onClick={onClose}>목록으로 돌아가기</button>
         </div>
       </div> : <>
-        <div className="place-detail-sheet__hero" data-has-photo={Boolean(data.place.heroImageUrl)}>{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>
+        {data.poiPhoto ? <PlacePoiPhoto photo={data.poiPhoto} placeName={data.place.name} heroClassName="place-detail-sheet__hero" /> :
+        <div className="place-detail-sheet__hero" data-has-photo={Boolean(data.place.heroImageUrl)}>{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
         <div className="place-detail-sheet__body">
           <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
           <h2>{data.place.name}</h2>
