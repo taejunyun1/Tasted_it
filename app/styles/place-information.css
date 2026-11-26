@@ -1,0 +1,8 @@
+.place-information > div {
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  column-gap: 0.5rem;
+}
+
+.place-information dd {
+  overflow-wrap: anywhere;
+}

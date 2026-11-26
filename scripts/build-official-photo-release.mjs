@@ -116,6 +116,7 @@ const publicPlaceInformationUiTargets = [
 const publicPlaceInformationFiles = [
   "app/components/places/PlaceInformation.tsx",
   "app/features/places/public-information.ts",
+  "app/styles/place-information.css",
 ];
 const poiMediaPublicPatch = "ops/releases/poi-media-public-494c07f.patch";
 const poiMediaPublicTargets = [
