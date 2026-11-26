@@ -1,5 +1,13 @@
+import type { FocusEvent } from "react";
 import type { DiscoveryPlace } from "../../features/places/place-discovery";
 import { PlaceCard, type OpenPlaceDetail } from "./PlaceCard";
+
+function revealFocusedCard({ target }: FocusEvent<HTMLDivElement>) {
+  if (target.matches(":focus-visible")) {
+    // Browser focus can leave a partially visible card clipped inside the rail.
+    target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+  }
+}
 
 export function PlaceDiscoveryRail({
   title,
@@ -22,7 +30,8 @@ export function PlaceDiscoveryRail({
       </div>
       <p>{description}</p>
     </header>
-    {places.length ? <div className="discovery-rail" role="list" aria-labelledby={`discovery-${kind}`}>
+    {places.length ? <div className="discovery-rail" role="list" aria-labelledby={`discovery-${kind}`}
+      onFocus={kind === "golden" ? revealFocusedCard : undefined}>
       {places.map((place, index) => <PlaceCard
         key={place.id}
         place={place}
