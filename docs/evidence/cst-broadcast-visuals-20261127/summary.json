@@ -1,0 +1,97 @@
+{
+  "localMigrations": 59,
+  "results": [
+    {
+      "name": "60년전통손두부식당",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 65.014701,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "팔레스분식",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 320.019184,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "광성식당",
+      "width": 1280,
+      "playerStarted": false,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "목살집",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 120.021707,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "고부정",
+      "width": 1280,
+      "playerStarted": false,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "60년전통손두부식당",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 65.116984,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "팔레스분식",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 320.055518,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "광성식당",
+      "width": 320,
+      "playerStarted": false,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "목살집",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 120.056578,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "고부정",
+      "width": 320,
+      "playerStarted": false,
+      "sourceLinkCount": 1
+    }
+  ],
+  "productionChanged": false,
+  "host": "localhost",
+  "numericLoopbackPlayback": {
+    "testedPlace": "60년전통손두부식당",
+    "result": "provider unavailable",
+    "directSourceLinkRetained": true
+  },
+  "refererOriginOnly": true,
+  "socialSourceReview": {
+    "locations": 32,
+    "matchedFacebookPosts": 0,
+    "matchedTikTokPosts": 0,
+    "tiktokSearchIndexLimited": true
+  }
+}

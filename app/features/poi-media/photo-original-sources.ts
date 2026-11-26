@@ -3,6 +3,7 @@ type PlaceIdentity = { id: string; name: string; address: string };
 export type PlacePhotoOriginalSource = {
   url: string;
   publisher: string;
+  disclosure?: string;
   mediaKind?: "video";
   embed?: { provider: "threads" | "youtube"; url: string };
 };
@@ -10,7 +11,6 @@ export type PlaceVisualFlags = { threads?: string; youtube?: string };
 
 // The official embed script produces this narrowly scoped frame for the selected post.
 export const THREADS_PHOTO_FRAME_SOURCE = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
-export const YOUTUBE_VIDEO_FRAME_SOURCE = "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ";
 
 export function allowsPlaceVisualFrames(pathname: string) {
   return pathname === "/" || /^\/(?:places|maps)(?:\/|$)/u.test(pathname);
@@ -95,9 +95,83 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     publisher: "YouTube · 해남군",
     url: "https://www.youtube.com/watch?v=XVApkkeXoRQ",
     mediaKind: "video",
-    embed: { provider: "youtube", url: YOUTUBE_VIDEO_FRAME_SOURCE },
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ" },
+  },
+  {
+    id: "place-intake-5510fb20164ca7a5536bcb45",
+    name: "60년전통손두부식당",
+    address: "전남광주 구례군 동해벚꽃로 95 (죽마리)",
+    publisher: "YouTube · KBS LIFE",
+    url: "https://www.youtube.com/watch?v=kTz_GZQEXZ4&t=65s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4?start=65" },
+  },
+  {
+    id: "place-intake-7b0c5921a7dd34f9b880ed5e",
+    name: "팔레스분식",
+    address: "전남광주 북구 밤실로208번길 20 (두암동)",
+    publisher: "YouTube · 채널광주",
+    disclosure: "원본 영상에 유료 프로모션 포함",
+    url: "https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag?start=320&end=338" },
+  },
+  {
+    id: "place-intake-d9ea0471ad5c4eb487d3dc29",
+    name: "광성식당",
+    address: "전북 남원시 광한서로 7 (천거동)",
+    publisher: "차박과 텃밭",
+    url: "https://carcam-n-garden.tistory.com/69",
+  },
+  {
+    id: "place-intake-14a109105ee648efe481ac85",
+    name: "착한가리비",
+    address: "전남광주 북구 대자로 69 (운암동)",
+    publisher: "치즈맛양념감자",
+    url: "https://hwa2ting.tistory.com/429",
+  },
+  {
+    id: "place-intake-950ba22fa1c3cd0685fbbdde",
+    name: "목살집",
+    address: "전남광주 남구 광복마을6길 1 (진월동)",
+    publisher: "YouTube · 맛집따개",
+    url: "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120" },
+  },
+  {
+    id: "place-intake-e73658c5cb8bf44d666e628a",
+    name: "고부정",
+    address: "전남광주 담양군 지침6길 53 (지침리)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/32230517/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "c893e7dc-c6a0-4467-82b8-8859051d24c8",
+    name: "고템커피",
+    address: "전남광주통합특별시 고흥군 고흥읍 고흥로 1670-7",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/1117337292/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "place-intake-02c40d8d0a6e5409b7425fda",
+    name: "담양현재국수",
+    address: "전남광주 담양군 객사3길 24 (객사리)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/1870179264/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "place-intake-7a534081f2e2fca2ce7b27c8",
+    name: "들뫼풍경",
+    address: "전북 고창군 전봉준로 108 (율계리)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/32246867/photo?filterType=%EC%97%85%EC%B2%B4",
   },
 ];
+
+// CSP source expressions match the video path. The player URL carries playback bounds.
+export const YOUTUBE_VIDEO_FRAME_SOURCES = REVIEWED_SOURCES.flatMap(({ embed }) =>
+  embed?.provider === "youtube" ? [embed.url.split("?")[0]] : []);
 
 export function reviewedPlacePhotoOriginal(place: PlaceIdentity, flags: PlaceVisualFlags = {}): PlacePhotoOriginalSource | null {
   const source = REVIEWED_SOURCES.find(({ id, name, address }) => id === place.id && name === place.name && address === place.address);

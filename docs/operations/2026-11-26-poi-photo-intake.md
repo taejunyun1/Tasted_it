@@ -79,6 +79,14 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 `--photo-source-links` 후보는 YouTube와 Threads를 기본 비활성으로 생성한다. `POI_YOUTUBE_VISUAL_ENABLED=true`로 켜는 운영 적용은 별도 심사에서 후보와 범위를 고정한다. 문제가 발생하면 YouTube 플래그를 내려 원문 링크로 돌린다. 추가 서버 API, 영상 저장, 스키마 변경과 사용료는 없다.
 
+## 방송사 원본과 개별 사진 게시물
+
+구례 60년전통손두부식당은 KBS 방송 안내의 주소를 대조해 전용 영상의 01:05부터 연결한다. 로컬에서 `localhost` 상세는 실제로 재생됐고 `127.0.0.1` 상세의 플레이어는 YouTube에서 직접 보도록 안내했다. 상세의 **출처**에서는 원본의 해당 시각을 바로 열 수 있다. 팔레스분식은 채널광주 원본에서 상호와 도로명주소를 대조하고 상세 버튼으로 05:20–05:38 구간을 연다. 원본의 유료 프로모션 표시는 상세에도 안내한다. [KBS 방송 안내](https://iaudience.kbs.co.kr/broadcast/9564) · [KBS 원본](https://www.youtube.com/watch?v=kTz_GZQEXZ4&t=65s) · [채널광주 원본](https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s) · [YouTube 재생 구간](https://developers.google.com/youtube/player_parameters)
+
+광성식당과 착한가리비는 방문 사진과 각 원게시물에 표시된 광한서로 7과 대자로 69를 대조했다. 고부정·고템커피·담양현재국수·들뫼풍경은 업체 이미지가 표시되는 네이버 플레이스 갤러리로 연결한다. 각 상세에 게시자와 단일 **출처**를 제공한다. Facebook과 TikTok은 장소가 일치하는 개별 공개 원게시물과 비로그인 상태에서 실제 동작하는 공식 표시 경로를 확인한 뒤 등록한다. [광성식당 원본](https://carcam-n-garden.tistory.com/69) · [착한가리비 원본](https://hwa2ting.tistory.com/429) · [Facebook 게시물 oEmbed](https://developers.facebook.com/docs/graph-api/reference/oembed-post) · [TikTok Embed Player](https://developers.tiktok.com/docs/en/embed-player)
+
+진월동 목살집은 작성자가 명시한 광복마을6길 1과 영상의 상호를 대조했다. 같은 원본의 02:00부터 조리 장면을 표시한다. [맛집따개 원본](https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s)
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.

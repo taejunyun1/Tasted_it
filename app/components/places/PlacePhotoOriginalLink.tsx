@@ -35,7 +35,8 @@ export function PlacePhotoOriginalLink({ source }: { source: PlacePhotoOriginalS
         className={`block w-full min-w-0 rounded-md border border-neutral-300 bg-white ${youtube ? "aspect-video min-h-[200px]" : "h-[560px]"}`} />}
     </>}
     <p className="text-xs [overflow-wrap:anywhere]">
-      외부 장소 {mediaLabel} · {source.publisher}{" "}
+      외부 장소 {mediaLabel} · {source.publisher}
+      {source.disclosure && ` · ${source.disclosure}`}{" "}
       <a href={source.url} target="_blank" rel="noopener" referrerPolicy="strict-origin"
         className="inline-flex min-h-11 items-center underline! underline-offset-4">출처</a>
     </p>

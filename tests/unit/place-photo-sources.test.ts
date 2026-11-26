@@ -4,13 +4,13 @@ import { describe, expect, it } from "vitest";
 import { PlaceInstagramPhoto } from "../../app/components/places/PlaceInstagramPhoto";
 import { PlacePoiPhoto } from "../../app/components/places/PlacePoiPhoto";
 import { PlacePhotoOriginalLink } from "../../app/components/places/PlacePhotoOriginalLink";
-import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE, YOUTUBE_VIDEO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
+import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
 import { TempCatalogNotice } from "../../app/features/temp-catalog/TempCatalogNotice";
 
 function expectExactPhotoSource(html: string, url: string) {
   const sourceLinks = [...html.matchAll(/<a ([^>]+)>출처<\/a>/gu)];
   expect(sourceLinks).toHaveLength(1);
-  expect(sourceLinks[0][1]).toContain(`href="${url}"`);
+  expect(sourceLinks[0][1]).toContain(`href="${url.replaceAll("&", "&amp;")}"`);
   expect(sourceLinks[0][1]).toContain('rel="noopener"');
   expect(sourceLinks[0][1]).toContain('referrerPolicy="strict-origin"');
 }
@@ -62,6 +62,10 @@ describe("place photo source links", () => {
     ["0bf5c86b-5043-4d3f-98ce-5949f2db2800", "전라도미가", "전남광주통합특별시 동구 필문대로191번길 19, 1층 (산수동)", "37505718"],
     ["place-intake-afcab0afe63e6705a527d23f", "한마음포차", "전남광주 동구 서석로10번길 10 (불로동)", "38276589"],
     ["bd45a029-bce6-485d-8efc-425dca48f606", "조단부부", "전남광주통합특별시 구례군 구례읍 봉성로 103-1", "1619421905"],
+    ["place-intake-e73658c5cb8bf44d666e628a", "고부정", "전남광주 담양군 지침6길 53 (지침리)", "32230517"],
+    ["c893e7dc-c6a0-4467-82b8-8859051d24c8", "고템커피", "전남광주통합특별시 고흥군 고흥읍 고흥로 1670-7", "1117337292"],
+    ["place-intake-02c40d8d0a6e5409b7425fda", "담양현재국수", "전남광주 담양군 객사3길 24 (객사리)", "1870179264"],
+    ["place-intake-7a534081f2e2fca2ce7b27c8", "들뫼풍경", "전북 고창군 전봉준로 108 (율계리)", "32246867"],
   ])("links the owner gallery for %s", (id, name, address, naverId) => {
     const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
     const source = reviewedPlacePhotoOriginal({ id, name, address }, { threads: "true", youtube: "true" });
@@ -88,10 +92,33 @@ describe("place photo source links", () => {
     const original = reviewedPlacePhotoOriginal(place, { threads: "true" });
     expect(original).toEqual({ url: "https://www.youtube.com/watch?v=XVApkkeXoRQ", publisher: "YouTube · 해남군", mediaKind: "video" });
     const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });
-    expect(source?.embed).toEqual({ provider: "youtube", url: YOUTUBE_VIDEO_FRAME_SOURCE });
+    expect(source?.embed).toEqual({ provider: "youtube", url: "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ" });
     const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
     expect(html).toContain("YouTube에 연결해 영상 보기");
     expect(html).not.toContain("<iframe");
     expectExactPhotoSource(html, "https://www.youtube.com/watch?v=XVApkkeXoRQ");
+  });
+
+  it.each([
+    ["place-intake-5510fb20164ca7a5536bcb45", "60년전통손두부식당", "전남광주 구례군 동해벚꽃로 95 (죽마리)",
+      "https://www.youtube.com/watch?v=kTz_GZQEXZ4&t=65s", "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4?start=65", undefined],
+    ["place-intake-7b0c5921a7dd34f9b880ed5e", "팔레스분식", "전남광주 북구 밤실로208번길 20 (두암동)",
+      "https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s", "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag?start=320&end=338", "원본 영상에 유료 프로모션 포함"],
+    ["place-intake-d9ea0471ad5c4eb487d3dc29", "광성식당", "전북 남원시 광한서로 7 (천거동)",
+      "https://carcam-n-garden.tistory.com/69", undefined, undefined],
+    ["place-intake-14a109105ee648efe481ac85", "착한가리비", "전남광주 북구 대자로 69 (운암동)",
+      "https://hwa2ting.tistory.com/429", undefined, undefined],
+    ["place-intake-950ba22fa1c3cd0685fbbdde", "목살집", "전남광주 남구 광복마을6길 1 (진월동)",
+      "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s", "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120", undefined],
+  ])("binds the exact reviewed source for %s", (id, name, address, url, embedUrl, disclosure) => {
+    const place = { id, name, address };
+    expect(reviewedPlacePhotoOriginal(place)?.embed).toBeUndefined();
+    expect(reviewedPlacePhotoOriginal({ ...place, address: `${address} 2층` }, { youtube: "true" })).toBeNull();
+    const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });
+    expect(source?.embed?.url).toBe(embedUrl);
+    const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
+    expectExactPhotoSource(html, url);
+    expect(html).not.toContain("<iframe");
+    if (disclosure) expect(html).toContain(disclosure);
   });
 });
