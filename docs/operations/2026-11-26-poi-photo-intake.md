@@ -42,6 +42,19 @@ node --experimental-transform-types scripts/prepare-poi-media.mjs \
   manifest.json eligible-public-places.json local-jpegs private-staging-plan.json
 ```
 
+## 운영 기준선과 호환되는 후보
+
+직접인증과 일반 장소 사진을 함께 검증하려면 최신 소스에서 장소 사진 경로를 선택한 후보를 만든다.
+
+```sh
+release_dir=$(mktemp -d)
+node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student-pilot --poi-media
+```
+
+`student-pilot-release.json`의 `poiMedia`에 공개·관리 패치와 복사한 소스의 지문, 필요한 0063·0064의 파일 지문을 남긴다. 후보의 공개 사진 변수와 직접인증 사진 접수는 초기 미지정 상태다. 0065까지만 있는 실증 후보는 기존 `--student-pilot`로 생성한다.
+
+일반 장소 사진을 준비하는 후속 환경은 운영 장부의 56개 뒤에 0065, 0063, 0064 순서로 적용한 59개 장부를 사용한다. 0065가 적용된 환경에서는 기존 57개 순서를 확인하고 0063·0064만 추가할 후보로 지정한다. 관리자 화면에서는 기존 비공개 사진 바인딩의 `poi-media/` 원본을 대조한다. 공개를 승인한 실행에서는 배포 설정에 `POI_MEDIA_PUBLIC_ENABLED=true`를 지정해 상세와 모바일 시트의 사진·원문 링크를 확인한다. 사진 공개 중지와 개별 회수는 아래 기준을 따른다.
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.
