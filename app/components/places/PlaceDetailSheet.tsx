@@ -15,6 +15,7 @@ import { PlaceInformation } from "./PlaceInformation";
 import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "./PlacePublicEvidence";
 import { PlacePoiPhoto } from "./PlacePoiPhoto";
 import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
+import { PlacePhotoOriginalLink } from "./PlacePhotoOriginalLink";
 import { VoteControl } from "../ratings/VoteControl";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
@@ -204,6 +205,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
           {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
           <PlaceRatingBadges goldenPick={data.hasGoldenPick} hiddenGem={data.hiddenGem.eligible} />
           <address>{data.place.address}</address>
+          {data.photoOriginal && <PlacePhotoOriginalLink source={data.photoOriginal} />}
           {!data.poiPhoto && data.instagramPhoto && <div className="mt-5">
             <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />
           </div>}

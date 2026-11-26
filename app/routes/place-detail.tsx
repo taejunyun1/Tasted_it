@@ -13,12 +13,14 @@ import { FlavorMeter } from "../components/ratings/FlavorMeter";
 import { PlaceInformation } from "../components/places/PlaceInformation";
 import { PlacePoiPhoto } from "../components/places/PlacePoiPhoto";
 import { PlaceInstagramPhoto } from "../components/places/PlaceInstagramPhoto";
+import { PlacePhotoOriginalLink } from "../components/places/PlacePhotoOriginalLink";
 import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "../components/places/PlacePublicEvidence";
 import { getPlaceFlavorPrint } from "../features/ratings/flavor-print.server";
 import { listActiveGoldenPicks } from "../features/ratings/golden-pick.server";
 import { getHiddenGemStatus } from "../features/ratings/rating-badges.server";
 import { eligiblePoiMediaPlace, getPublicPoiPhoto } from "../features/poi-media/poi-media.server";
 import { curatedInstagramPhoto } from "../features/poi-media/instagram-photos";
+import { reviewedPlacePhotoOriginal } from "../features/poi-media/photo-original-sources";
 import type { PlaceDetail as PublicPlaceDetail } from "../features/places/place.types";
 import { castVote, getCurrentVoteState, withdrawVote } from "../features/ratings/vote.server";
 import { getOptionalUser, requireUser } from "../features/auth/session.server";
@@ -93,9 +95,11 @@ async function recordPlaceProductEvent(db: ReturnType<typeof createDb>, input: {
   }
 }
 
-async function getPublicInstagramPhoto(db: AppDb, place: PublicPlaceDetail) {
-  const photo = curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED);
-  if (!photo || place.tempCatalog || place.heroImageUrl) return null;
+async function getPublicPlacePhotoSources(db: AppDb, place: PublicPlaceDetail) {
+  if (place.tempCatalog || place.heroImageUrl) return null;
+  const instagramPhoto = curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED);
+  const photoOriginal = instagramPhoto ? null : reviewedPlacePhotoOriginal(place);
+  if (!instagramPhoto && !photoOriginal) return null;
   try {
     const [eligible] = await db.select({ id: places.id }).from(places)
       .where(and(
@@ -104,7 +108,7 @@ async function getPublicInstagramPhoto(db: AppDb, place: PublicPlaceDetail) {
         eq(places.address, place.address),
         eligiblePoiMediaPlace(db, eq(places.id, place.id)),
       )).limit(1);
-    return eligible ? photo : null;
+    return eligible ? { instagramPhoto, photoOriginal } : null;
   } catch {
     return null;
   }
@@ -122,14 +126,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [flavorPrint, goldenPicks, hiddenGem, nativeReviewPhotos, publicReviewers, poiPhoto, instagramPhoto, pilotPhotos] = await Promise.all([
+  const [flavorPrint, goldenPicks, hiddenGem, nativeReviewPhotos, publicReviewers, poiPhoto, photoSources, pilotPhotos] = await Promise.all([
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
     listPublishedPlaceReviewPhotos(db, place.id, 12),
     listPublicPlaceReviewers(db, place.id),
     getPublicPoiPhoto(db, place.id, env.POI_MEDIA_PUBLIC_ENABLED),
-    getPublicInstagramPhoto(db, place),
+    getPublicPlacePhotoSources(db, place),
     env.STUDENT_REVIEW_PILOT_PHOTOS ? listPublicPilotPhotos(db, place.id).catch(() => []) : [],
   ]);
   const reviewPhotos = pilotPhotos.length
@@ -156,7 +160,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     : `/places/${place.slug}`;
   const publicOrigin = resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL);
   return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, publicReviewers,
-    poiPhoto, instagramPhoto, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+    poiPhoto, instagramPhoto: photoSources?.instagramPhoto ?? null,
+    photoOriginal: poiPhoto ? null : photoSources?.photoOriginal ?? null,
+    hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -258,7 +264,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
       <Link to="/places">맛집 리스트로</Link>
     </main>;
   }
-  const { place, rating, flavorPrint, reviewPhotos, publicReviewers, poiPhoto, instagramPhoto } = loaderData;
+  const { place, rating, flavorPrint, reviewPhotos, publicReviewers, poiPhoto, instagramPhoto, photoOriginal } = loaderData;
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
@@ -277,6 +283,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{formatRatingGroup(rating.userScore, rating.userSampleCount)}</strong></div><div><span>리뷰어</span><strong>{formatRatingGroup(rating.reviewerScore, rating.reviewerSampleCount)}</strong></div><small>{reviewerWeightExplanation(rating.userSampleCount)}</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <PlaceInformation place={place} />
+          {photoOriginal && <PlacePhotoOriginalLink source={photoOriginal} />}
           <fieldset className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl key={place.id} placeId={place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>
           <PlaceCorrectionLink placeId={place.id} />
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
