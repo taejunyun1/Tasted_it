@@ -81,7 +81,10 @@ export function getPublishedPoiMedia(db: AppDb, id: string) {
   return findPublishedPoiMedia(db, eq(placePoiMedia.id, id));
 }
 
-export async function readVerifiedPoiMedia(bucket: R2Bucket, photo: Pick<PoiMediaEvidence, "id" | "sha256" | "byteSize">) {
+export const POI_MEDIA_ORIGINAL_ATTACHMENT_KEY = "poi-original-attachment";
+type PoiMediaObjectIdentity = Pick<PoiMediaEvidence, "id" | "sha256" | "byteSize">;
+
+export async function readVerifiedPoiMediaAsset(bucket: R2Bucket, photo: PoiMediaObjectIdentity) {
   const object = await bucket.get(getPoiMediaObjectKey(photo.id, photo.sha256));
   if (!object) return null;
   if (object.size !== photo.byteSize || object.httpMetadata?.contentType !== POI_MEDIA_CONTENT_TYPE) {
@@ -94,5 +97,12 @@ export async function readVerifiedPoiMedia(bucket: R2Bucket, photo: Pick<PoiMedi
       bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9) return null;
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buffer)),
     (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return digest === photo.sha256 ? buffer : null;
+  return digest === photo.sha256 ? {
+    buffer,
+    attachmentId: object.customMetadata?.[POI_MEDIA_ORIGINAL_ATTACHMENT_KEY],
+  } : null;
+}
+
+export async function readVerifiedPoiMedia(bucket: R2Bucket, photo: PoiMediaObjectIdentity) {
+  return (await readVerifiedPoiMediaAsset(bucket, photo))?.buffer ?? null;
 }
