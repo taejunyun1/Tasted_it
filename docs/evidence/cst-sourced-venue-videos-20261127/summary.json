@@ -1,11 +1,13 @@
 {
-  "revision": "e95913de7c024372aa0cc551ff2a90f1409c0165",
+  "revision": "bda8cb2c97864f9f6397b1699be523421580a633",
   "ledger": 59,
   "ledgerSha256": "c968f4252c2ef02399a8d615b22b4c6ef8cd8b87fb073c65915ca7b4ed55cce2",
-  "buildSha256": "9c6563e488681e0ea6c3266f8a6dae0ff57954840fc8eefcde0870c4774f3258",
+  "buildSha256": "d017acfa3fa26d051d45a4126c332a5c2b6fc061644ae54ac05a53e6597d662d",
   "exactVenues": [
     "광성식당",
-    "복록수"
+    "복록수",
+    "고템커피",
+    "들뫼풍경"
   ],
   "providerFixture": "in-browser fulfilled synthetic iframe, no external traffic",
   "views": [
@@ -56,6 +58,54 @@
       "originOnlyReferer": true,
       "exactFrameCsp": true,
       "screenshot": "bokroksu-320.png"
+    },
+    {
+      "name": "고템커피",
+      "viewport": 1280,
+      "href": "https://www.youtube.com/watch?v=dwhKx8NkcfI",
+      "frame": "https://www.youtube-nocookie.com/embed/dwhKx8NkcfI",
+      "photoSourceLinks": 1,
+      "disclosure": null,
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "screenshot": "gotem-1280.png"
+    },
+    {
+      "name": "고템커피",
+      "viewport": 320,
+      "href": "https://www.youtube.com/watch?v=dwhKx8NkcfI",
+      "frame": "https://www.youtube-nocookie.com/embed/dwhKx8NkcfI",
+      "photoSourceLinks": 1,
+      "disclosure": null,
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "screenshot": "gotem-320.png"
+    },
+    {
+      "name": "들뫼풍경",
+      "viewport": 1280,
+      "href": "https://www.youtube.com/watch?v=KGm3K1ezZ3I",
+      "frame": "https://www.youtube-nocookie.com/embed/KGm3K1ezZ3I",
+      "photoSourceLinks": 1,
+      "disclosure": "2019년 공개 영상",
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "screenshot": "deulmoe-1280.png"
+    },
+    {
+      "name": "들뫼풍경",
+      "viewport": 320,
+      "href": "https://www.youtube.com/watch?v=KGm3K1ezZ3I",
+      "frame": "https://www.youtube-nocookie.com/embed/KGm3K1ezZ3I",
+      "photoSourceLinks": 1,
+      "disclosure": "2019년 공개 영상",
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "screenshot": "deulmoe-320.png"
     }
   ],
   "fallbacks": [
@@ -68,6 +118,18 @@
     {
       "name": "복록수",
       "exactSource": "https://m.blog.naver.com/fmfun/clip/306388",
+      "noFrame": true,
+      "noNetwork": true
+    },
+    {
+      "name": "고템커피",
+      "exactSource": "https://m.place.naver.com/restaurant/1117337292/photo?filterType=%EC%97%85%EC%B2%B4",
+      "noFrame": true,
+      "noNetwork": true
+    },
+    {
+      "name": "들뫼풍경",
+      "exactSource": "https://m.place.naver.com/restaurant/32246867/photo?filterType=%EC%97%85%EC%B2%B4",
       "noFrame": true,
       "noNetwork": true
     }
@@ -111,14 +173,58 @@
         "currentTime": 45.43,
         "decodedFrames": 24
       }
+    },
+    {
+      "name": "고템커피",
+      "viewports": [
+        1280,
+        320
+      ],
+      "actualPlayback": true,
+      "frame": [
+        360,
+        640
+      ],
+      "durationSeconds": 28.581,
+      "placeEvidence": [
+        "description exact lot number",
+        "0:03 greenhouse storefront",
+        "same structure and street address from independent visit record"
+      ]
+    },
+    {
+      "name": "들뫼풍경",
+      "viewports": [
+        1280,
+        320
+      ],
+      "actualPlayback": true,
+      "frame": [
+        640,
+        360
+      ],
+      "durationSeconds": 6.041,
+      "placeEvidence": [
+        "description exact street address",
+        "tea room and venue name at 2s",
+        "2019 epigram campaign"
+      ]
     }
   ],
+  "naverOriginalShare": {
+    "venues": [
+      "원조목살집",
+      "광성식당"
+    ],
+    "anonymousPlayback": true,
+    "publicShareOption": "copy original URL"
+  },
   "localCandidateCoverage": {
     "generalPublishedRows": 78,
-    "inAppCandidate": 64,
-    "sourceLinkOnly": 11,
+    "inAppCandidate": 66,
+    "sourceLinkOnly": 9,
     "held": 3,
-    "method": "two verified venue additions to #582's 62/13/3"
+    "method": "four verified venue additions to #582's 62/13/3"
   },
   "productionChanged": false
 }
