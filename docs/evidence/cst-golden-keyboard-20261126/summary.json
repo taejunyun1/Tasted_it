@@ -1,0 +1,32 @@
+{
+  "sourceSha": "a67069a5cdc668dc1a5937e9c1fd2b73edc12194",
+  "recordedAtKst": "2026-11-26T23:10:35.449196+09:00",
+  "environment": "Loopback React Router Worker, isolated synthetic D1, Chromium. Cross-origin browser requests blocked.",
+  "test": "explorer-accessibility.spec.ts, mobile-chromium, mobile Golden Pick",
+  "result": {
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "runnerSeconds": 13.9
+  },
+  "unfixedObservations": [
+    "At widths 320 and 390, focus moved to the second card while the rail scroll offset stayed at zero.",
+    "Correcting only the horizontal scroll still lost card focus when Enter interrupted the pending smooth vertical scroll."
+  ],
+  "scope": [
+    "320 and 390 CSS pixels. Tab reveals the second card, shows an inset keyboard outline and keeps the link at least 44px high.",
+    "Enter opens the same place with GOLDEN / REVIEWER attribution and a recommendation request ID. Escape restores the same link and horizontal offset.",
+    "An independent 1440px Chromium page receives Tab on the second card and displays it within the viewport."
+  ],
+  "otherChecks": {
+    "typecheck": "pass",
+    "productionDependencyAudit": "No known vulnerabilities found",
+    "independentDiffReview": "No merge blocker found"
+  },
+  "screenshots": [
+    "golden-focus-320.png",
+    "golden-focus-desktop.png"
+  ],
+  "operatingDeployment": "pending",
+  "lastBrowserCaptureAtKst": "2026-11-26T23:08:55.918039+09:00"
+}

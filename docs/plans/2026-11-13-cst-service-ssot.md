@@ -150,6 +150,10 @@ PR #472의 UI를 기존 PR #470에 합류하고 ADMIN 항목별 결과/제안 �
 
 이 기록은 로컬 합성 브라우저·D1의 구현 증거다. 정확한 Worker의 실제 지도 SDK와 전체 U/D/S·T01~T08 수용 확인이 남아 있다. 운영 B17과 #397은 HOLD다.
 
+### 2026-11-26 #471 골든픽 카드 키보드 이동
+
+320px와 390px 목록에서 Tab을 누르면 화면 밖 카드가 보이고 초점 윤곽선이 표시된다. Enter로 같은 장소의 상세를 열고 Escape로 닫으면 원래 카드와 가로 위치로 돌아온다. 1440px 데스크톱을 포함한 합성 브라우저 검증을 통과했다. 운영 반영은 대기다. [T07 검증](../evidence/cst-golden-keyboard-20261126/summary.json)
+
 ## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
 
 최종 통합 [PR #470](https://github.com/taejunyun1/Tasted_it/pull/470)은 11개 코드 head와 이 SSOT를 포함한다. 통합 코드의 로컬 검증·독립 리뷰·빌드·Wrangler dry-run은 통과했으나, 직전 확인 head `484aba9`의 [CI 44148261161](https://github.com/taejunyun1/Tasted_it/actions/runs/44148261161)도 4개 job 모두 결제/지출 한도로 시작 전에 중단됐다. 따라서 새 기능의 main 병합·운영 배포는 실행하지 않았다.
