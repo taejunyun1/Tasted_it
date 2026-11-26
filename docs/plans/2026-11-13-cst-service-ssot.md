@@ -16,7 +16,9 @@
 
 운영 Worker `1343a5e8`의 홈·분류 지도는 응답 헤더에서 위치 권한을 차단했다. 현재 소스에 병합된 #488을 운영 호환 빌드에 연결해 동일 출처에서 브라우저 위치 권한을 요청하고 광주·전남·전북의 공개 검색 범위를 갱신한다. 지도·목록 전환 중에도 위치 범위를 보존하고 사용자 지도 이동이나 후속 검색 뒤 늦게 도착한 위치 응답은 무시한다. [#471 추적](https://github.com/taejunyun1/Tasted_it/issues/471) · [#488 지도 동작](https://github.com/taejunyun1/Tasted_it/pull/488)
 
-코드 `deddce9`의 호환 Worker와 운영 장부 56개 순서를 재현한 합성 D1에서 검증했다. 데스크톱과 모바일 Chromium에서 홈·분류 지도 내 주변 검색이 군산 공개 장소를 표시했고 권역 밖 위치는 광주 기본 범위로 돌아왔다. 위치 거절, 후속 검색, 진행 중인 지도·목록 전환, 모의 지도 제공자의 위치 이동 직후 지도 조작을 확인했다. 외부 Worker 호출은 0회였다. #533의 1단계 승인 산출물은 `59f09e2`로 고정돼 있으며 위치 호환의 운영 적용과 실제 지도 제공자 확인은 대기다. [데스크톱 분류 화면](../evidence/cst-public-location-compat-20261126/desktop-category.png) · [모바일 홈 화면](../evidence/cst-public-location-compat-20261126/mobile-home.png) · [#533 1단계](https://github.com/taejunyun1/Tasted_it/pull/533)
+코드 `f4ee655`의 호환 Worker와 운영 장부 56개 순서를 재현한 합성 D1에서 검증했다. 데스크톱과 모바일 Chromium에서 홈·분류 지도 내 주변 검색이 군산 공개 장소를 표시했고 권역 밖 위치는 광주 기본 범위로 돌아왔다. 위치 거절, 후속 검색, 진행 중인 지도·목록 전환, 모의 지도 제공자의 위치 이동 직후 지도 조작을 확인했다. 외부 Worker 호출은 0회였다. #533의 1단계 승인 산출물은 `59f09e2`로 고정돼 있으며 위치 호환의 운영 적용과 실제 지도 제공자 확인은 대기다. [데스크톱 분류 화면](../evidence/cst-public-location-compat-20261126/desktop-category.png) · [모바일 홈 화면](../evidence/cst-public-location-compat-20261126/mobile-home.png) · [#533 1단계](https://github.com/taejunyun1/Tasted_it/pull/533)
+
+후속 확인에서 승인된 #533 호환본의 공개 모바일 장소 상세 시트에는 추천·비추천 동작이 없음을 코드로 대조했다. 일반 상세의 추천·비추천은 남아 있다. 현재 소스의 #490 동작을 기준으로 U05·T02·T06 호환 검증을 별도 범위에서 이어간다. [#490 모바일 평가](https://github.com/taejunyun1/Tasted_it/pull/490)
 
 ## 2026-11-26 CI·병합 및 운영 상태
 
