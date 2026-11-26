@@ -157,11 +157,13 @@ test("T07 keyboard reads and saves from a failed category map at 320px", async (
   }
 });
 
-test("T02 mobile recommendation voting and withdrawal keep the sheet, source and saved place", async ({ page, baseURL }, info) => {
+test("T02 mobile recommendation vote and save changes persist across detail and the member list", async ({ browser, page, baseURL }, info) => {
   test.skip(info.project.name !== "mobile-chromium");
   test.setTimeout(90_000);
   const fixture = mobileSheetVoteFixture(baseURL!, "recommendation");
+  const peer = mobileSheetVoteFixture(baseURL!, "recommendation-peer");
   const origin = new URL(baseURL!).origin;
+  const peerContext = await browser.newContext({ baseURL });
   try {
     fixture.create({ publicEvidence: true });
     await syntheticContext(page, origin, fixture);
@@ -178,6 +180,18 @@ test("T02 mobile recommendation voting and withdrawal keep the sheet, source and
     expect(detailEvent).toMatch(/^[0-9a-f-]{36}$/);
 
     await expectPublicEvidence(sheet, fixture);
+    // Give a second member a choice on the same place before changing the first member's rows.
+    peer.create();
+    const peerPage = await peerContext.newPage();
+    await syntheticContext(peerPage, origin, { ...fixture, session: peer.session });
+    await peerPage.goto(detail.pathname);
+    const peerVote = peerPage.getByRole("button", { name: "추천", exact: true });
+    const peerSaved = peerPage.getByRole("button", { name: "저장됨", exact: true });
+    await peerVote.click();
+    await expect(peerVote).toHaveAttribute("aria-pressed", "true");
+    await peerPage.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(peerSaved).toHaveAttribute("aria-pressed", "true");
+
     const postedPaths: string[] = [];
     page.on("request", request => {
       const url = new URL(request.url());
@@ -189,6 +203,7 @@ test("T02 mobile recommendation voting and withdrawal keep the sheet, source and
     const thumbsUp = sheet.getByRole("button", { name: "추천", exact: true });
     const thumbsDown = sheet.getByRole("button", { name: "비추천", exact: true });
     const withdraw = sheet.getByRole("button", { name: "평가 취소", exact: true });
+    const rating = sheet.locator(".place-detail-sheet__breakdown");
 
     await sheet.getByRole("button", { name: "맛집지도에 추가", exact: true }).click();
     await expect(saved).toHaveAttribute("aria-pressed", "true");
@@ -196,8 +211,23 @@ test("T02 mobile recommendation voting and withdrawal keep the sheet, source and
     await thumbsUp.click();
     await expect(thumbsUp).toHaveAttribute("aria-pressed", "true");
     await expect(saved).toHaveAttribute("aria-pressed", "true");
+    await expect(rating).toContainText(/일반 회원\s+2\/\d+/);
     await expect(page).toHaveURL(sheetUrl.href);
     expect(fixture.projection()).toEqual({ vote: 1, reason: null, saved: 1 });
+
+    const repeatedVote = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.origin === origin && url.pathname.replace(/\.data$/, "") === detail.pathname
+        && response.request().method() === "POST";
+    });
+    await thumbsUp.click();
+    expect((await repeatedVote).ok()).toBe(true);
+    await expect(thumbsUp).toBeEnabled();
+    await expect(thumbsUp).toHaveAttribute("aria-pressed", "true");
+    await expect(rating).toContainText(/일반 회원\s+2\/\d+/);
+    expect(fixture.projection()).toEqual({ vote: 1, reason: null, saved: 1 });
+    const initialVote = { event_type: "CREATE", value: 1 };
+    expect(fixture.events()).toEqual([initialVote]);
 
     await thumbsDown.click();
     await sheet.getByRole("radio", { name: "메뉴", exact: true }).check();
@@ -217,24 +247,59 @@ test("T02 mobile recommendation voting and withdrawal keep the sheet, source and
     await expect(page).toHaveURL(sheetUrl.href);
     expect(await originalDialog.evaluate(dialog => dialog.matches("dialog:modal"))).toBe(true);
     expect(fixture.projection()).toEqual({ vote: null, reason: null, saved: 1 });
-    expect(fixture.events()).toEqual([{ event_type: "CREATE", value: 1 }, { event_type: "CHANGE", value: -1 }, { event_type: "WITHDRAW", value: -1 }]);
-    expect(postedPaths).toEqual([detailPath, detailPath, detailPath, detailPath]);
+    const voteHistory = [initialVote, { event_type: "CHANGE", value: -1 }, { event_type: "WITHDRAW", value: -1 }];
+    expect(fixture.events()).toEqual(voteHistory);
+    expect(postedPaths).toEqual(Array(5).fill(detailPath));
+    // Recommendation interaction telemetry records both clicks. The D1 vote history records only the first choice.
     expect(fixture.recommendationEvents().map(row => [row.event_name, JSON.parse(row.metadata_json), row.id])).toEqual([
       ["RECOMMENDATION_DETAIL_OPENED", source, detailEvent],
       ["RECOMMENDATION_DISLIKED", { ...source, reason: "MENU" }, expect.any(String)],
       ["RECOMMENDATION_LIKED", source, expect.any(String)],
+      ["RECOMMENDATION_LIKED", source, expect.any(String)],
       ["RECOMMENDATION_SAVED", source, expect.any(String)],
     ]);
 
+    await page.reload();
+    await expect(page).toHaveURL(sheetUrl.href);
+    await expect(sheet.getByRole("heading", { name: fixture.name, exact: true })).toBeVisible();
+    await expect(thumbsUp).toHaveAttribute("aria-pressed", "false");
+    await expect(thumbsDown).toHaveAttribute("aria-pressed", "false");
+    await expect(withdraw).toHaveCount(0);
+    await expect(saved).toHaveAttribute("aria-pressed", "true");
     await sheet.getByRole("button", { name: "상세 정보 닫기", exact: true }).click();
     await expect(sheet).toHaveCount(0);
     await expect(page).toHaveURL(url => url.pathname === "/places" && !url.searchParams.has("place")
       && url.searchParams.get("q") === fixture.name && url.searchParams.get("bbox") === bbox && url.searchParams.get("selected") === fixture.id);
     await page.goto("/me");
     const savedPlaces = page.getByRole("region", { name: "저장한 장소", exact: true });
-    await expect(savedPlaces.getByRole("link", { name: fixture.name, exact: true })).toBeVisible();
+    const savedRow = savedPlaces.locator("article").filter({ has: page.locator(`a[href="${detail.pathname}"]`) });
+    await expect(savedRow.getByRole("link", { name: fixture.name, exact: true })).toBeVisible();
+    await savedRow.getByRole("button", { name: "저장 해제", exact: true }).click();
+    await expect(savedPlaces.getByRole("status")).toHaveText("저장을 해제했습니다.");
+    await expect(savedRow).toHaveCount(0);
+    expect(fixture.projection()).toEqual({ vote: null, reason: null, saved: 0 });
+    await savedPlaces.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath("t02-mobile-member-unsaved.png"), animations: "disabled" });
+
+    await page.goto(sheetUrl.href);
+    await expect(sheet.getByRole("heading", { name: fixture.name, exact: true })).toBeVisible();
+    await expect(thumbsUp).toHaveAttribute("aria-pressed", "false");
+    await expect(thumbsDown).toHaveAttribute("aria-pressed", "false");
+    await expect(withdraw).toHaveCount(0);
+    const unsaved = sheet.getByRole("button", { name: "맛집지도에 추가", exact: true });
+    await expect(unsaved).toHaveAttribute("aria-pressed", "false");
+    await expect(rating).toContainText(/일반 회원\s+1\/\d+/);
+    await sheet.getByText("아직 평가하지 않았어요.", { exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath("t02-mobile-detail-after-unsave.png"), animations: "disabled" });
+    expect(fixture.events()).toEqual(voteHistory);
+    expect(postedPaths).toEqual(Array(5).fill(detailPath));
+
+    await peerPage.reload();
+    await expect(peerVote).toHaveAttribute("aria-pressed", "true");
+    await expect(peerSaved).toHaveAttribute("aria-pressed", "true");
   } finally {
-    fixture.cleanup();
+    await peerContext.close();
+    try { peer.cleanup(); } finally { fixture.cleanup(); }
   }
 });
 
