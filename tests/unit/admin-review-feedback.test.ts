@@ -14,6 +14,7 @@ import AdminPlaces from "../../app/routes/admin-places";
 import { ErrorBoundary as SyncErrorBoundary } from "../../app/routes/admin-data-sync";
 import { PlaceReviewToolbar } from "../../app/components/admin/PlaceReviewToolbar";
 import { parsePlaceReviewQuery } from "../../app/features/places/place-review-pagination";
+import type { AdminPlaceSummary } from "../../app/features/places/place.types";
 
 const query = parsePlaceReviewQuery(new URL("https://example.com/?step=1&q=국밥&region=GWANGJU&page=2"));
 
@@ -65,13 +66,29 @@ describe("admin review results and navigation", () => {
     expect(html).toMatch(/<a[^>]*page=2[^>]*suggestionPage=9[^>]*>다음<\/a>/);
   });
 
-  it("names the places table and explains its empty state", () => {
-    const html = renderToStaticMarkup(createElement(AdminPlaces, { loaderData: { places: [] } } as never));
+  it("names the places table and column headers when there are places", () => {
+    const places: AdminPlaceSummary[] = [{
+      id: "place-1",
+      slug: "sample-place",
+      name: "합성 장소",
+      status: "DRAFT",
+      categoryName: "분식",
+      updatedAt: "2026-11-22T00:00:00Z",
+    }];
+    const html = renderToStaticMarkup(createElement(AdminPlaces, { loaderData: { places } } as never));
     expect(html).toContain("<caption");
-    expect(html).toContain("등록된 장소 목록");
+    expect(html).toContain("등록된 장소 목록 · 총 1곳");
     expect(html).toContain('aria-label="장소 목록 가로 스크롤" tabindex="0"');
-    expect(html).toContain('colSpan="4"');
+    expect(html).toMatch(/<th[^>]*>장소<\/th>/);
+  });
+
+  it("explains the empty places list with direct management links", () => {
+    const html = renderToStaticMarkup(createElement(AdminPlaces, { loaderData: { places: [] } } as never));
     expect(html).toContain("등록된 장소가 없습니다");
+    expect(html).toContain('href="/admin/place-operations?step=1"');
+    expect(html).toContain('href="/admin/import"');
+    expect(html).not.toContain("<table");
+    expect(html).not.toContain('aria-label="장소 목록 가로 스크롤"');
   });
 
   it("distinguishes forbidden sync access from a loading failure", () => {

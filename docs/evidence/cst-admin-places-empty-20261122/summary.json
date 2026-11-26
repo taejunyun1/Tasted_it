@@ -1,0 +1,47 @@
+{
+  "sourceSha": "af4c93c3447ca414dfccb7f7d4d5dbf9622a217a",
+  "appTree": "51547a953e0992fc3056373db61fc104b802597c",
+  "baselineSha": "bc7241da3650cbd2e61f6a5c09aec4e5dbc9df3f",
+  "completedAtKst": "2026-11-22T13:17:41.734+09:00",
+  "environment": "로컬 컴파일 Worker, 격리 합성 D1, 데스크톱 Chromium과 320 CSS px 모바일 Chromium(빈 목록)",
+  "results": {
+    "baselineEmpty": {
+      "startedAtKst": "2026-11-22T13:16:54.906+09:00",
+      "completedAtKst": "2026-11-22T13:16:55.827+09:00",
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "viewportCssPx": 320,
+      "failure": "가로 스크롤 표가 빈 목록 안내 문구의 끝을 가림"
+    },
+    "empty": {
+      "startedAtKst": "2026-11-22T13:17:31.311+09:00",
+      "completedAtKst": "2026-11-22T13:17:32.548+09:00",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "populated": {
+      "startedAtKst": "2026-11-22T13:17:39.367+09:00",
+      "completedAtKst": "2026-11-22T13:17:41.734+09:00",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS"
+  },
+  "scope": [
+    "장소 0곳의 별도 합성 DB에서 안내 문구 전체가 보이고 빈 가로 스크롤 영역은 탭 순서에 들어가지 않음",
+    "본문으로 건너뛰기 뒤 Tab 키로 장소 검수와 CSV 가져오기 링크에 차례로 접근",
+    "장소가 있는 합성 DB에서 표 제목, 장소 열, 표본 장소와 CSV 행별 오류 확인"
+  ],
+  "screenshots": [
+    "desktop-empty.png",
+    "mobile-empty-320.png"
+  ],
+  "limits": [
+    "운영 및 실제 모바일 기기와 전체 T07 실증은 별도 검증 대상"
+  ]
+}
