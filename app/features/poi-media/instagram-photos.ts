@@ -66,6 +66,60 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전북 남원시 동헌길 9-1 (하정동)",
     shortcode: "DfmAwzLSVgI",
   },
+  {
+    id: "21878806-0f15-42e4-a57a-3b2089589c93",
+    name: "마일드 스탠다드",
+    address: "전남광주통합특별시 동구 동계천로 159-11, 1층 (동명동)",
+    shortcode: "Df6jAEbPI3Q",
+  },
+  {
+    id: "place-intake-654459fbb74ffadf0c412913",
+    name: "스테이케이션",
+    address: "전남광주 나주시 석전2길 18 (빛가람동)",
+    shortcode: "DgJW1KNyNM1",
+  },
+  {
+    id: "d9a1b95a-0c5d-4c6c-80cf-d5696c83b7cb",
+    name: "코롬방제과점",
+    address: "전남광주통합특별시 목포시 영산로75번길 7, 1,2층 (무안동)",
+    shortcode: "C_2XNECy1hy",
+  },
+  {
+    id: "place-intake-b6994b31660af59b6a587981",
+    name: "음악이 흐른다(Music Flows)",
+    address: "전남광주 구례군 간문대평1길 1 (간문리)",
+    shortcode: "DfV9WOlRzKi",
+  },
+  {
+    id: "place-intake-c17571b501282d309075cff0",
+    name: "룩투",
+    address: "전북 군산시 구영5길 104-4 (영화동)",
+    shortcode: "DfWMykXvNJ5",
+  },
+  {
+    id: "place-intake-c99b2821062cd3f08b365f18",
+    name: "트레비아",
+    address: "전북 군산시 영화동 17-11 1층",
+    shortcode: "DbH-0Xhypdw",
+  },
+  {
+    id: "058fd0c6-8ea2-4eea-9af8-e8d8a0b4e7f0",
+    name: "피트(Pitt)",
+    address: "전남광주통합특별시 남구 양림로41번길 5-1, 1층 (양림동)",
+    shortcode: "DMkWTRwxvi4",
+  },
+  {
+    id: "place-intake-2055f015783de9553209c9a4",
+    name: "다수",
+    address: "전남광주 광산구 첨단중앙로67번길 56 (월계동)",
+    shortcode: "DZFLgRxvvO3",
+  },
+  {
+    id: "place-intake-52f73671abd20c8973588bf3",
+    name: "땡스덕 베르베르의집",
+    address: "전북 고창군 왕림로 25 (세곡리)",
+    shortcode: "DLWKyrfTCKW",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
