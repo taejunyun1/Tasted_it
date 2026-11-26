@@ -1,0 +1,39 @@
+{
+  "revision": "c8b093676bef0a3914e6af18fa326e31199992c1",
+  "buildSha256": "838724270f311e84f746a22fdec831a53e83912ee2418313f9e2678c116dbd65",
+  "migrations": 59,
+  "workerOutbound": 0,
+  "results": [
+    {
+      "layout": "desktop",
+      "viewportWidth": 1366,
+      "reauthRequired": true,
+      "attachmentRemainedStaged": true,
+      "verifiedPreviewExactBytes": true,
+      "anonymous404UntilExplicitPublish": true,
+      "publishedExactBytesAndOriginalLink": true,
+      "publicAndPrivate404AfterWithdraw": true,
+      "interruptedAuditRetriedWithoutOverwrite": true,
+      "auditActions": [
+        "POI_MEDIA_ORIGINAL_ATTACH",
+        "POI_MEDIA_PUBLISH",
+        "POI_MEDIA_WITHDRAW"
+      ]
+    },
+    {
+      "layout": "mobile",
+      "viewportWidth": 320,
+      "reauthRequired": true,
+      "attachmentRemainedStaged": true,
+      "verifiedPreviewExactBytes": true,
+      "anonymous404UntilExplicitPublish": true,
+      "publishedExactBytesAndOriginalLink": true,
+      "publicAndPrivate404AfterWithdraw": true,
+      "auditActions": [
+        "POI_MEDIA_ORIGINAL_ATTACH",
+        "POI_MEDIA_PUBLISH",
+        "POI_MEDIA_WITHDRAW"
+      ]
+    }
+  ]
+}
