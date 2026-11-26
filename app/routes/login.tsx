@@ -78,7 +78,7 @@ export async function action({ request }: Route.ActionArgs) {
 export default function Login({ actionData, loaderData }: Route.ComponentProps) {
   const fieldErrors = actionData && "fieldErrors" in actionData ? actionData.fieldErrors as { email?: string; password?: string } : undefined;
   const continuation = loaderData.returnTo === "/" ? "" : `?returnTo=${encodeURIComponent(loaderData.returnTo)}`;
-  return <AuthPage eyebrow={loaderData.studentPilot ? "학생 실증" : "WELCOME BACK"} title={loaderData.studentPilot ? "학생 실증 로그인" : "다시 취향을 이어가세요."} description={loaderData.studentPilot ? "실증에 등록된 이메일과 비밀번호로 로그인합니다." : "가입한 이메일과 비밀번호로 로그인합니다."}>
+  return <AuthPage eyebrow={loaderData.studentPilot ? "직접인증" : "WELCOME BACK"} title={loaderData.studentPilot ? "직접인증 로그인" : "다시 취향을 이어가세요."} description={loaderData.studentPilot ? "등록된 계정의 이메일과 비밀번호로 로그인합니다." : "가입한 이메일과 비밀번호로 로그인합니다."}>
     {loaderData.oauthError && <p className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{loaderData.oauthError}</p>}
     {loaderData.studentPilot ? <div className="mt-8" /> : <><div className="mt-8 grid gap-3"><GoogleAuthButton returnTo={loaderData.returnTo} /><NaverAuthButton returnTo={loaderData.returnTo} /></div>
     <AuthDivider /></>}

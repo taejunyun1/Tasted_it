@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDb } from "../../app/db/client.server";
-import { categories, currentVotes, placeCategories, places, ratingSnapshots, reviewerProfiles, reviewerReliabilitySnapshots, reviewerVisitPhotos, reviewerVisitReviews, users, voteEvents } from "../../app/db/schema";
+import { categories, currentVotes, placeCategories, places, ratingSnapshots, reviewerProfiles, reviewerReliabilitySnapshots, reviewerVisitPhotos, reviewerVisitReviews, studentInvitations, studentSeats, users, voteEvents } from "../../app/db/schema";
 import { getLatestRatingSnapshot, recomputePlaceRating } from "../../app/features/ratings/recompute.server";
 
 import { listPlaces } from "../../app/features/places/place.server";
@@ -24,7 +24,7 @@ beforeEach(async () => {
 });
 
 describe("reviewer publication consumers", () => {
-  it("returns only public names and profile slugs for the current place in stable order", async () => {
+  it("returns public author names, slugs and direct-verification affiliation in stable order", async () => {
     const db = createDb(env.DB);
     const otherPlaceId = crypto.randomUUID();
     await db.insert(places).values({
@@ -42,10 +42,36 @@ describe("reviewer publication consumers", () => {
       await db.update(reviewerProfiles).set({ slug }).where(eq(reviewerProfiles.userId, reviewerId));
     }
     expect(await listPublicPlaceReviewers(db, placeId)).toEqual([
-      { slug: "public-a", displayName: "공개 이름" },
-      { slug: "public-z", displayName: "공개 이름" },
+      { slug: "public-a", displayName: "공개 이름", directlyVerified: false },
+      { slug: "public-z", displayName: "공개 이름", directlyVerified: false },
     ]);
-    expect(await listPublicPlaceReviewers(db, otherPlaceId)).toEqual([{ slug: "public-other", displayName: "공개 이름" }]);
+    expect(await listPublicPlaceReviewers(db, otherPlaceId)).toEqual([{ slug: "public-other", displayName: "공개 이름", directlyVerified: false }]);
+  });
+
+  it("labels an approved direct-verification author without a public photo while keeping an unapproved visit private", async () => {
+    const db = createDb(env.DB);
+    const reviewerId = crypto.randomUUID();
+    await db.insert(users).values({
+      id: reviewerId, email: `${reviewerId}@example.test`, displayName: "자체 방문 작성자", role: "REVIEWER", createdAt: now, updatedAt: now,
+    });
+    const { reviewId } = await seedApprovedReviewerVote(db, {
+      reviewerId, placeId, eventId: reviewerId, value: 1, now, projectVote: false,
+    });
+    const seat = eq(studentSeats.code, "A");
+    await db.update(studentSeats).set({ userId: reviewerId }).where(seat);
+    const reviewers = () => listPublicPlaceReviewers(db, placeId);
+    const expected = [{ slug: reviewerId, displayName: "자체 방문 작성자", directlyVerified: true }];
+    await expect(reviewers()).resolves.toEqual(expected);
+
+    await db.insert(studentInvitations).values({
+      id: crypto.randomUUID(), tokenHash: crypto.randomUUID(), seatCode: "A",
+      createdAt: now, expiresAt: now, consumedAt: now, consumedBy: reviewerId,
+    });
+    await db.update(studentSeats).set({ userId: null }).where(seat);
+    await expect(reviewers()).resolves.toEqual(expected);
+
+    await db.update(reviewerVisitReviews).set({ status: "PENDING" }).where(eq(reviewerVisitReviews.id, reviewId));
+    await expect(reviewers()).resolves.toEqual([]);
   });
 
   it("removes a place reviewer when the review, photo rights, author, or venue becomes ineligible", async () => {
@@ -57,7 +83,7 @@ describe("reviewer publication consumers", () => {
       reviewerId, placeId, eventId: reviewerId, value: 1, now, withPhoto: true, projectVote: false,
     });
     const reviewers = () => listPublicPlaceReviewers(db, placeId);
-    const expected = [{ slug: reviewerId, displayName: "검수 리뷰어" }];
+    const expected = [{ slug: reviewerId, displayName: "검수 리뷰어", directlyVerified: false }];
     expect(await reviewers()).toEqual(expected);
 
     const review = db.update(reviewerVisitReviews);

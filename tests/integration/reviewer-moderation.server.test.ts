@@ -251,7 +251,7 @@ it("approves HOLD without a neutral vote, and withdraws an unchanged prior react
   const empty = await submit("HOLD");
   expect(await listPublicPlaceReviewers(db, place)).toEqual([]);
   await approve(empty.id);
-  expect(await listPublicPlaceReviewers(db, place)).toEqual([{ slug: reviewer, displayName: "리뷰어" }]);
+  expect(await listPublicPlaceReviewers(db, place)).toEqual([{ slug: reviewer, displayName: "리뷰어", directlyVerified: false }]);
   expect(await listPublishedPlaceReviewPhotos(db, place)).toEqual([]);
   expect(
     await env.DB.prepare(

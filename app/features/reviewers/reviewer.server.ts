@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, inArray, isNull, like, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, like, ne, or } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
 import { isWithdrawnEmail } from "../auth/withdraw";
 import { slugifyPlaceName } from "../places/place-slug";
+import { directlyVerifiedAuthorCondition } from "./direct-verification.server";
 import { isDormantAt, type ReviewerApplicationInput, validateReviewerApplication } from "./reviewer-policy";
 
 const OPEN_APPLICATIONS = ["APPLIED", "REVIEWING"] as const;
@@ -110,8 +111,7 @@ export async function getPublicReviewerProfile(db: AppDb, slug: string) {
     profile: reviewerProfiles,
     displayName: users.displayName,
     email: users.email,
-    directlyVerified: sql<boolean>`(exists(select 1 from student_seats where user_id=${reviewerProfiles.userId})
-      or exists(select 1 from student_invitations where consumed_by=${reviewerProfiles.userId} and consumed_at is not null))`.mapWith(Boolean),
+    directlyVerified: directlyVerifiedAuthorCondition(reviewerProfiles.userId),
   }).from(reviewerProfiles)
     .innerJoin(users, eq(users.id, reviewerProfiles.userId))
     .where(and(eq(reviewerProfiles.slug, slug), eq(reviewerProfiles.status, "ACTIVE"), eq(users.role, "REVIEWER"))).limit(1);

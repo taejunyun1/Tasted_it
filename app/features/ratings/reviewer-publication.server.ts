@@ -1,5 +1,6 @@
 import { and, asc, eq, sql, type SQLWrapper } from "drizzle-orm";
 import { publicVenueVisibilityCondition } from "../places/public-venue-visibility.server";
+import { directlyVerifiedAuthorCondition } from "../reviewers/direct-verification.server";
 import type { AppDb } from "../../db/client.server";
 import {
   currentVotes,
@@ -77,7 +78,11 @@ export function eligibleReviewCondition(
 
 export function listPublicPlaceReviewers(db: AppDb, placeId: string) {
   return db
-    .select({ slug: reviewerProfiles.slug, displayName: users.displayName })
+    .select({
+      slug: reviewerProfiles.slug,
+      displayName: users.displayName,
+      directlyVerified: directlyVerifiedAuthorCondition(reviewerProfiles.userId),
+    })
     .from(reviewerVisitReviews)
     .innerJoin(reviewerProfiles, eq(reviewerProfiles.userId, reviewerVisitReviews.reviewerUserId))
     .innerJoin(users, eq(users.id, reviewerVisitReviews.reviewerUserId))

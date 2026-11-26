@@ -380,7 +380,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
           <span>{notice === "review-withdrawn" ? "철회 완료" : "검수 요청 완료"}</span>
           <strong>{notice === "review-withdrawn" ? "공개 대상에서 제외했어요. 기록은 보존됩니다." : "관리자 검수 후 공개 여부를 안내해요. 아직 추천에 반영되지 않았어요."}</strong>
           {canManageReceiptPhoto
-            ? <Link className="inline-flex min-h-11 items-center" to={`/reviewer/pilot-photo/${encodeURIComponent(publishedReviewId)}`}>실증 사진 관리</Link>
+            ? <Link className="inline-flex min-h-11 items-center" to={`/reviewer/pilot-photo/${encodeURIComponent(publishedReviewId)}`}>직접인증 사진 관리</Link>
             : <a href={`#review-${publishedReviewId}`}>제출 기록 보기</a>}
         </section>
       )}
@@ -472,7 +472,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
             <p className="eyebrow">{pilotPhotoAfterSubmission ? "STEP 04 / PHOTO" : "STEP 04 / PHOTO & GOLDEN"}</p>
             {pilotPhotoAfterSubmission ? <>
               <h2 id="review-step-photo" tabIndex={-1}>사진은 리뷰 제출 후에 첨부해요.</h2>
-              <p>검수를 요청한 뒤 해당 리뷰에 <strong>실증 사진 관리</strong>가 표시되면 직접 촬영한 JPEG·PNG·WebP 사진 한 장을 첨부할 수 있어요.</p>
+              <p>검수를 요청한 뒤 해당 리뷰에 <strong>직접인증 사진 관리</strong>가 표시되면 직접 촬영한 JPEG·PNG·WebP 사진 한 장을 첨부할 수 있어요.</p>
               <p>다른 사람의 얼굴이나 차량 번호, 영수증의 개인정보는 가려 주세요. 리뷰와 사진이 모두 승인되면 장소 상세에 공개돼요.</p>
             </> : <>
             <h2 id="review-step-photo">사진은 선택 사항이에요.</h2>
@@ -566,7 +566,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
                 </div> : null}
               </div>
               <div className="reviewer-history-summary">
-                {hasPilotPhotoLink && <Link className="reviewer-history-place-link" to={`/reviewer/pilot-photo/${encodeURIComponent(review.id)}`}>실증 사진 관리</Link>}
+                {hasPilotPhotoLink && <Link className="reviewer-history-place-link" to={`/reviewer/pilot-photo/${encodeURIComponent(review.id)}`}>직접인증 사진 관리</Link>}
                 {(!hasPilotPhotoLink || review.photos.length > 0) && <span className="reviewer-history-photo-count">{review.photos.length ? `사진 ${review.photos.length}장` : "사진 없음"}</span>}
                 <time dateTime={review.publishedAt}>{formatReviewerPublishedDate(review.publishedAt)}</time>
               </div>

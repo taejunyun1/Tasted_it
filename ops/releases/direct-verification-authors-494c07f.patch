@@ -1,0 +1,54 @@
+diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
+--- a/app/components/places/PlaceDetailSheet.tsx
++++ b/app/components/places/PlaceDetailSheet.tsx
+@@ -12,3 +12,4 @@
+ import { VoteControl } from "../ratings/VoteControl";
++import { PlacePublicReviewers } from "./PlacePublicEvidence";
+
+ const PLACE_DETAIL_MOBILE_QUERY = "(max-width: 760px)";
+@@ -217,3 +218,4 @@
+           <div className="place-detail-sheet__breakdown"><span>일반 회원 <b>{data.rating.userScore ?? `${data.rating.userSampleCount}/8`}</b></span><span>리뷰어 <b>{data.rating.reviewerScore ?? `${data.rating.reviewerSampleCount}/8`}</b></span></div>
++          <PlacePublicReviewers reviewers={data.publicReviewers} heading="h3" />
+           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
+           <dl><div><dt>주소</dt><dd>{data.place.address}</dd></div><div><dt>주차</dt><dd>{data.place.parkingSummary ?? "정보 확인 중"}</dd></div>{data.place.phone && <div><dt>전화</dt><dd>{data.place.phone}</dd></div>}</dl>
+diff --git a/app/features/ratings/reviewer-publication.server.ts b/app/features/ratings/reviewer-publication.server.ts
+index 5070281..d11512a 100644
+--- a/app/features/ratings/reviewer-publication.server.ts
++++ b/app/features/ratings/reviewer-publication.server.ts
+@@ -1,10 +1,14 @@
+-import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
++import { and, asc, eq, sql, type SQLWrapper } from "drizzle-orm";
+ import { publicVenueVisibilityCondition } from "../places/public-venue-visibility.server";
++import { directlyVerifiedAuthorCondition } from "../reviewers/direct-verification.server";
+ import type { AppDb } from "../../db/client.server";
+ import {
+   currentVotes,
+   places,
++  reviewerProfiles,
+   reviewerPublicationState,
++  reviewerVisitReviews,
++  users,
+ } from "../../db/schema";
+
+ export const REVIEWER_PUBLICATION_RULE = "cst-reviewer-publication-v1";
+@@ -72,6 +76,20 @@ export function eligibleReviewCondition(
+     )))`;
+ }
+
++export function listPublicPlaceReviewers(db: AppDb, placeId: string) {
++  return db
++    .select({
++      slug: reviewerProfiles.slug,
++      displayName: users.displayName,
++      directlyVerified: directlyVerifiedAuthorCondition(reviewerProfiles.userId),
++    })
++    .from(reviewerVisitReviews)
++    .innerJoin(reviewerProfiles, eq(reviewerProfiles.userId, reviewerVisitReviews.reviewerUserId))
++    .innerJoin(users, eq(users.id, reviewerVisitReviews.reviewerUserId))
++    .where(and(eq(reviewerVisitReviews.placeId, placeId), eligibleReviewCondition(reviewerVisitReviews.id)))
++    .orderBy(asc(users.displayName), asc(reviewerProfiles.slug));
++}
++
+ export function eligibleVoteCondition() {
+   return sql<boolean>`exists(select 1 from vote_events public_vote where public_vote.id=${currentVotes.eventId}
+     and public_vote.place_id=${currentVotes.placeId} and public_vote.user_id=${currentVotes.userId}

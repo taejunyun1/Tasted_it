@@ -137,7 +137,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       right.publishedAt.localeCompare(left.publishedAt) || right.reviewId.localeCompare(left.reviewId) ||
       left.position - right.position).slice(0, 12)
     : nativeReviewPhotos;
-  const verifiedAuthors = new Set(pilotPhotos.map((photo) => photo.reviewerSlug));
   const rating = publicRatingFromPlace(place);
   if (provenance) {
     await recordPlaceProductEvent(db, {
@@ -156,8 +155,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
     : `/places/${place.slug}`;
   const publicOrigin = resolvePublicOrigin(request.url, (env as Env & { APP_BASE_URL?: string }).APP_BASE_URL);
-  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos,
-    publicReviewers: publicReviewers.map((reviewer) => ({ ...reviewer, directlyVerified: verifiedAuthors.has(reviewer.slug) })),
+  return { place, publicOrigin, rating, flavorPrint, hiddenGem, reviewPhotos, publicReviewers,
     poiPhoto, instagramPhoto, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
 }
 

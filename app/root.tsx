@@ -36,7 +36,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
   const location = useLocation();
   return <>
     <header className="site-head">
-      <Link className="brand" to={studentPilot ? "/student" : "/"}>Re:Taste<span>{studentPilot ? "학생 실증" : "광주·전남 맛 지도"}</span></Link>
+      <Link className="brand" to={studentPilot ? "/student" : "/"}>Re:Taste<span>{studentPilot ? "직접인증" : "광주·전남 맛 지도"}</span></Link>
       <nav className="site-head__nav" aria-label="주요 메뉴">
         {!studentPilot && <div className="site-head__primary">
           <Link to="/places">맛집 리스트</Link>
