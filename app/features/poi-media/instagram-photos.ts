@@ -174,6 +174,18 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전남광주 서구 화정로 272 (농성동)",
     shortcode: "Df3sfqKS21-",
   },
+  {
+    id: "place-intake-d24f63e5517f71f4a93c6920",
+    name: "스시에이와",
+    address: "전북 군산시 구영4길 24 (영화동)",
+    shortcode: "DTpYd2Qjwlk",
+  },
+  {
+    id: "eb836a2d-6f41-452e-adbe-cfbb054aae0a",
+    name: "해남의 아침 커피로스터리",
+    address: "전남광주통합특별시 해남군 해남읍 수성2길 19, 1층",
+    shortcode: "DfS6cnGSZCB",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
