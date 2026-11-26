@@ -23,9 +23,10 @@ export default function AdminPlaces({ loaderData }: Route.ComponentProps) {
         <div>
           <h1 className="mt-2 text-[21px] font-semibold">장소 관리</h1>
         </div>
-        <nav className="flex gap-3">
+        <nav className="flex flex-wrap gap-3">
           <Link className="border border-neutral-950 px-4 py-2 font-medium" to="/admin/place-operations?step=1">장소 검수</Link>
           <Link className="border border-neutral-950 px-4 py-2 font-medium" to="/admin/import">CSV 가져오기</Link>
+          <Link className="border border-neutral-950 px-4 py-2 font-medium" to="/admin/poi-media">장소 사진 관리</Link>
         </nav>
       </div>
 

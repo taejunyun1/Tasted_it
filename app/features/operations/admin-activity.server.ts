@@ -13,6 +13,9 @@ const AUDIT_COUNT = `(SELECT count(*) FROM (SELECT 1 FROM admin_audit_logs al
   WHERE al.action='ADMIN_OPERATION_COMMITTED' AND al.target_type='ADMIN_OPERATION'
   AND al.target_id=o.id AND al.actor_user_id=o.actor_user_id LIMIT 2))`;
 const AUDIT_NAMES: Record<string, string> = {
+  POI_MEDIA_PUBLISH: "장소 사진 공개 승인",
+  POI_MEDIA_WITHDRAW: "장소 사진 회수",
+  POI_MEDIA_IDENTITY_WITHDRAWN: "장소 정보 변경으로 사진 회수",
   APPROVE_CANDIDATE: "후보 승인", REJECT_CANDIDATE: "후보 반려", PLACE_REVIEW_PUBLISH: "장소 공개",
   PLACE_REVIEW_HOLD: "장소 검수 보류", PLACE_REVIEW_EXCLUDE: "장소 제외", RSI_SELF_CHECK: "서비스 경로 점검",
   EMAIL_DOMAIN_REPAIR: "발신 도메인 작업", RESOLVE_OPERATIONAL_ALERT: "운영 경보 처리",

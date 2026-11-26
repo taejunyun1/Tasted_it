@@ -48,6 +48,8 @@ export default [
   route("admin/members", "routes/admin-members.tsx"),
   route("admin/students", "routes/admin-students.tsx"),
   route("admin/places", "routes/admin-places.tsx"),
+  route("admin/poi-media", "routes/admin-poi-media.tsx"),
+  route("admin/poi-media/:mediaId/preview", "routes/admin-poi-media-preview.ts"),
   route("admin/import", "routes/admin-import.tsx"),
   route("admin/candidates", "routes/admin-candidates.tsx"),
   route("admin/candidates/bulk", "routes/admin-candidates-bulk.tsx"),
