@@ -1,0 +1,33 @@
+{
+  "revision": "5ab4e37c845d301b2c449054fb8134a855cb37e6",
+  "buildSha256": "aa09b1cb49f292f7807639dce9a5e2ae974b3397240e577a793009f3c0579f54",
+  "configSha256": "0f0e2f6c45a837bf0868f63a59f0e71987cbc9de4b38a13aa515a37db041b43c",
+  "migrations": 59,
+  "pilotSeats": "A",
+  "evidence": [
+    {
+      "viewportWidth": 1366,
+      "scrollWidth": 1366,
+      "tempVisible": true,
+      "tempDisabled": true,
+      "ordinarySelected": true,
+      "ordinaryContinuedToEvaluation": true
+    },
+    {
+      "viewportWidth": 320,
+      "scrollWidth": 320,
+      "tempVisible": true,
+      "tempDisabled": true,
+      "ordinarySelected": true,
+      "ordinaryContinuedToEvaluation": true
+    }
+  ],
+  "ordinaryWorkflowBTempSelectable": true,
+  "ordinaryWorkflowBContinuedToEvaluation": true,
+  "offPageTempDraftResourceHttp": 200,
+  "offPageTempDraftCleared": true,
+  "visitRows": 0,
+  "pilotPhotoObjects": 0,
+  "workerExternalRequests": 0,
+  "productionChanged": false
+}

@@ -14,6 +14,8 @@ Re:Taste 자체 방문 콘텐츠의 공개 명칭은 **직접인증**이다. 승
 
 승인된 직접인증 사진을 공개 작성자 프로필의 해당 방문에도 연결한다. 방문과 사진이 모두 승인된 상태에서만 표시하고, 사진을 철회하면 방문 기록을 유지한 채 사진만 내린다. 59개 장부의 격리 Worker에서 비로그인 데스크톱과 320px 모바일의 JPEG 표시, 미승인·철회 사진의 조회 차단과 내부 사진 설명의 비노출을 확인했다. 운영 적용은 별도 전환 범위로 기록한다. [검증 결과](../evidence/cst-direct-profile-photo-20261126/summary.json) · [데스크톱](../evidence/cst-direct-profile-photo-20261126/desktop.png) · [모바일](../evidence/cst-direct-profile-photo-20261126/mobile-320.png)
 
+직접인증 사진 접수 중에는 장소 선택 화면의 공개 TEMP 항목에 사진 첨부 불가 사유를 표시하고 선택을 막는다. 이전 TEMP 초안을 다시 열면 장소 선택으로 돌아간다. 일반 리뷰는 기존 장소 선택을 사용한다. 59개 장부의 격리 Worker에서 데스크톱과 320px 모바일의 선택 제한, 일반 장소 평가 진입, 초안 복귀를 확인했다. [검증 결과](../evidence/cst-direct-temp-choice-20261126/summary.json) · [데스크톱](../evidence/cst-direct-temp-choice-20261126/desktop.png) · [모바일](../evidence/cst-direct-temp-choice-20261126/mobile-320.png)
+
 A·B 접수 시작 전 #560의 정확한 병합 소스 `3afc225`로 #559의 세 산출물을 교체한다. 해당 버전에서 장소 상세와 작성자 프로필의 실제 JPEG와 출처 링크를 대조한다. #533·#556 선행 단계와 승인·메일 조건을 계승한다. [고정 전환 절차](../operations/2026-11-26-cst-direct-verification-ab-activation.md) · [격리 검증](../evidence/cst-ab-profile-rollout-20261126/summary.json)
 
 자체 방문 콘텐츠의 공개 표기로 **직접인증**을 적용한 후보에서 A·B 접수를 연다. 준비 도구는 공개 프로필·장소 작성자 표기 증거가 빠진 후보의 접수 설정 생성을 차단한다. 직접인증 빌드의 운영 반영과 참여자 직업 정보 비노출을 확인한 뒤 A·B의 활동 승인 절차를 시작한다. [후속 접수 설정 절차](../operations/2026-11-26-cst-student-production-compat.md#후속-후보의-접수-설정-준비)

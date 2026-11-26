@@ -3,7 +3,7 @@ import { useFetcher } from "react-router";
 import { reviewerPlaceSearchHref, type ReviewerPlaceOption, type ReviewerPlacePage, type ReviewerPlaceResponse } from "../features/ratings/reviewer-place-search";
 import "../styles/reviewer-place-picker.css";
 
-export function ReviewerPlacePicker({ initialPage, selectedPlace, onChoose }: { initialPage: ReviewerPlacePage; selectedPlace: ReviewerPlaceOption | null; onChoose: (place: ReviewerPlaceOption) => void }) {
+export function ReviewerPlacePicker({ initialPage, selectedPlace, directVerification, onChoose }: { initialPage: ReviewerPlacePage; selectedPlace: ReviewerPlaceOption | null; directVerification: boolean; onChoose: (place: ReviewerPlaceOption) => void }) {
   const fetcher = useFetcher<ReviewerPlaceResponse>();
   const [query, setQuery] = useState(initialPage.query);
   const [page, setPage] = useState(initialPage);
@@ -61,14 +61,15 @@ export function ReviewerPlacePicker({ initialPage, selectedPlace, onChoose }: { 
       <p className="reviewer-place-selection">선택한 장소 <strong>{selectedPlace.placeName}</strong> · {selectedPlace.address}</p>
     )}
     <div className="reviewer-place-grid" aria-label="장소 검색 결과" aria-busy={busy}>
-      {page.places.map((place) => (
-        <button key={place.placeId} type="button" aria-pressed={selectedPlace?.placeId === place.placeId} onClick={() => onChoose(place)}>
+      {page.places.map((place) => {
+        const unavailable = directVerification && place.isTemporary;
+        return <button key={place.placeId} type="button" disabled={unavailable} aria-pressed={selectedPlace?.placeId === place.placeId} onClick={() => onChoose(place)}>
           <span>{place.categoryEmoji} {place.categoryName}{place.neighborhood && ` · ${place.neighborhood}`}</span>
           <strong>{place.placeName}</strong>
           <span>{place.address}</span>
-          <small>{selectedPlace?.placeId === place.placeId ? "선택됨" : "이 장소 선택"}</small>
-        </button>
-      ))}
+          <small>{unavailable ? "사진 첨부 불가 · TEMP 장소" : selectedPlace?.placeId === place.placeId ? "선택됨" : "이 장소 선택"}</small>
+        </button>;
+      })}
       {!page.places.length && <p className="reviewer-empty">일치하는 검수 장소가 없어요. 다른 검색어를 사용하거나 장소 제안에서 먼저 알려주세요.</p>}
     </div>
     <nav className="reviewer-place-search-controls" aria-label="장소 검색 결과 페이지">

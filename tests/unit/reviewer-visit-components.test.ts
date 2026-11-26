@@ -19,6 +19,7 @@ const props = {
     categoryId: "cat-ramen",
     categoryName: "라멘",
     categoryEmoji: "🍜",
+    isTemporary: false,
   }],
   categories: [{ id: "cat-ramen", name: "라멘", emoji: "🍜" }],
   history: [],

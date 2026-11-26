@@ -1,0 +1,38 @@
+diff --git a/app/components/reviewer-visit-flow.tsx b/app/components/reviewer-visit-flow.tsx
+--- a/app/components/reviewer-visit-flow.tsx
++++ b/app/components/reviewer-visit-flow.tsx
+@@ -128,0 +129 @@
++  const selectedTempUnavailable = pilotPhotoAfterSubmission && selectedPlace?.isTemporary === true;
+@@ -175 +176,3 @@
+-    const category = categories.find((item) => item.id === draft.categoryId) ?? categories.find((item) => item.id === place?.categoryId);
++    const temporaryUnavailable = pilotPhotoAfterSubmission && place?.isTemporary === true;
++    const availablePlace = temporaryUnavailable ? null : place;
++    const category = categories.find((item) => item.id === draft.categoryId) ?? categories.find((item) => item.id === availablePlace?.categoryId);
+@@ -177,2 +180,2 @@
+-    setStep(place ? Math.max(1, Math.min(5, Number.isInteger(draft.step) ? draft.step : 1)) : 1);
+-    setPlaceId(place?.placeId ?? ""); setChosenPlace(place);
++    setStep(availablePlace ? Math.max(1, Math.min(5, Number.isInteger(draft.step) ? draft.step : 1)) : 1);
++    setPlaceId(availablePlace?.placeId ?? ""); setChosenPlace(availablePlace);
+@@ -182,2 +185,2 @@
+-    setRestored(Boolean(place));
+-    if (!place) setToast({ kind: "info", message: "작성 중이던 장소를 더 이상 선택할 수 없어요. 다른 검수 장소를 골라주세요." });
++    setRestored(Boolean(availablePlace));
++    if (!availablePlace) setToast({ kind: "info", message: temporaryUnavailable ? "작성 중이던 TEMP 장소에는 사진을 첨부할 수 없어요. 일반 공개 장소를 선택해 주세요." : "작성 중이던 장소를 더 이상 선택할 수 없어요. 다른 검수 장소를 골라주세요." });
+@@ -220 +223 @@
+-    if (nextPlace.placeId === placeId) return;
++    if (nextPlace.placeId === placeId || (pilotPhotoAfterSubmission && nextPlace.isTemporary)) return;
+@@ -310,0 +314 @@
++    if (selectedTempUnavailable) return;
+@@ -349 +353 @@
+-  const canContinue = step === 1 ? Boolean(selectedPlace)
++  const canContinue = step === 1 ? Boolean(selectedPlace && !selectedTempUnavailable)
+@@ -417,0 +422 @@
++        {selectedTempUnavailable && <p className="reviewer-form-error" role="alert">장소 단계에서 사진을 첨부할 수 있는 일반 공개 장소를 다시 선택해 주세요.</p>}
+@@ -423,2 +428,2 @@
+-            <p>검수된 장소를 검색해 선택하세요. 선택한 장소의 대표 카테고리를 먼저 보여드려요.</p>
+-            <ReviewerPlacePicker initialPage={initialPlacePage} selectedPlace={selectedPlace} onChoose={choosePlace} />
++            <p>{pilotPhotoAfterSubmission ? "직접인증 사진을 첨부할 수 있는 일반 공개 장소를 선택해 주세요." : "검수된 장소를 검색해 선택하세요. 선택한 장소의 대표 카테고리를 먼저 보여드려요."}</p>
++            <ReviewerPlacePicker initialPage={initialPlacePage} selectedPlace={selectedPlace} directVerification={pilotPhotoAfterSubmission} onChoose={choosePlace} />
+@@ -537 +542 @@
+-            <button type="submit" className="reviewer-primary" disabled={!selectedPlace || !selectedCategory || !evaluation || !canPublishGolden || publishing || preparingPhotos}>{publishing ? "제출 중…" : "검수 요청"}</button>
++            <button type="submit" className="reviewer-primary" disabled={!selectedPlace || selectedTempUnavailable || !selectedCategory || !evaluation || !canPublishGolden || publishing || preparingPhotos}>{publishing ? "제출 중…" : "검수 요청"}</button>

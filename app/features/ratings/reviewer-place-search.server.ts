@@ -4,10 +4,11 @@ import { categories, placeCategories, places } from "../../db/schema";
 import { REVIEWER_BADGE_CATALOG } from "./reviewer-visit";
 import { reviewerSubmissionPlaceCondition } from "./reviewer-publication.server";
 import { encodeReviewerPlaceCursor, REVIEWER_PLACE_PAGE_SIZE, ReviewerPlaceSearchInputError, type ReviewerPlaceSearchInput, type ReviewerPlaceOption } from "./reviewer-place-search";
+import { isPublishedTempPlace } from "./student-review-pilot-photo.server";
 
 export async function listReviewerPlacePage(db: AppDb, userId: string, input: ReviewerPlaceSearchInput) {
   const reviewed = sql<0 | 1>`case when exists(select 1 from reviewer_visit_reviews own_review where own_review.place_id=${places.id} and own_review.reviewer_user_id=${userId}) then 1 else 0 end`;
-  const fields = { placeId: places.id, placeName: places.name, address: places.address, neighborhood: places.neighborhood, categoryId: categories.id, categoryName: categories.name, categoryEmoji: categories.emoji, reviewed };
+  const fields = { placeId: places.id, placeName: places.name, address: places.address, neighborhood: places.neighborhood, categoryId: categories.id, categoryName: categories.name, categoryEmoji: categories.emoji, isTemporary: isPublishedTempPlace(places.id), reviewed };
   const base = and(reviewerSubmissionPlaceCondition(), eq(categories.isActive, true), inArray(categories.name, Object.keys(REVIEWER_BADGE_CATALOG)))!;
   // Literal substring matching also handles long Korean queries without D1's
   // LIKE-pattern byte ceiling. User '%' and '_' are ordinary search text.

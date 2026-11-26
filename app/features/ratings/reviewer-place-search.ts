@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const REVIEWER_PLACE_PAGE_SIZE = 20;
-export type ReviewerPlaceOption = { placeId: string; placeName: string; address: string; neighborhood: string | null; categoryId: string; categoryName: string; categoryEmoji: string };
+export type ReviewerPlaceOption = { placeId: string; placeName: string; address: string; neighborhood: string | null; categoryId: string; categoryName: string; categoryEmoji: string; isTemporary: boolean };
 export type ReviewerPlacePage = { query: string; places: ReviewerPlaceOption[]; nextCursor: string | null };
 export type ReviewerPlaceResponse = { ok: true; requestKey: string; page: ReviewerPlacePage; selectedPlace: ReviewerPlaceOption | null } | { ok: false; requestKey: string; message: string; restartSearch?: true };
 const safeText = z.string().regex(/^[^\u0000-\u001f\u007f]*$/u);

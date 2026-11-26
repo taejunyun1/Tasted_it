@@ -54,6 +54,7 @@ const pilotMainFiles = [
   "app/routes/student-review-photo.ts",
 ];
 const reviewerPlacePickerPatch = "ops/releases/reviewer-place-picker-494c07f.patch";
+const directVerificationPlaceChoicePatch = "ops/releases/direct-verification-place-choice-494c07f.patch";
 const reviewerPlacePickerTargets = [
   "app/components/reviewer-visit-flow.tsx",
   "app/routes.ts",
@@ -262,6 +263,9 @@ const pilotProof = studentPilot ? {
     reviewerPlacePickerPatch, ".reviewer-place-picker.patch", reviewerPlacePickerTargets,
   ),
   reviewerPlacePickerFileSha256: copyMainFiles(reviewerPlacePickerFiles),
+  directVerificationPlaceChoicePatchSha256: applyReleasePatch(
+    directVerificationPlaceChoicePatch, ".direct-verification-place-choice.patch", ["app/components/reviewer-visit-flow.tsx"], ["--unidiff-zero"],
+  ),
   migration: { file: pilotMigration, sha256: digest(committed(pilotMigration)), applied: false },
   orderedBaselineLedgerSha256,
 } : null;

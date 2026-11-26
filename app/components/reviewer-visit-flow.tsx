@@ -125,6 +125,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   const [draftVersion, setDraftVersion] = useState(0);
 
   const selectedPlace = chosenPlace?.placeId === placeId ? chosenPlace : places.find((place) => place.placeId === placeId) ?? null;
+  const selectedTempUnavailable = pilotPhotoAfterSubmission && selectedPlace?.isTemporary === true;
   const initialPlacePage = useMemo(() => placePage ?? { query: "", places, nextCursor: null }, [placePage, places]);
   const selectedCategory = categories.find((category) => category.id === categoryId) ?? null;
   const categoryName = selectedCategory?.name as ReviewerCategoryName | undefined;
@@ -171,15 +172,17 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   }
 
   function applyRestoredDraft(draft: Draft, place: ReviewerPlaceOption | null) {
-    const category = categories.find((item) => item.id === draft.categoryId) ?? categories.find((item) => item.id === place?.categoryId);
+    const temporaryUnavailable = pilotPhotoAfterSubmission && place?.isTemporary === true;
+    const availablePlace = temporaryUnavailable ? null : place;
+    const category = categories.find((item) => item.id === draft.categoryId) ?? categories.find((item) => item.id === availablePlace?.categoryId);
     const allowed = category ? REVIEWER_BADGE_CATALOG[category.name as ReviewerCategoryName] ?? [] : [];
-    setStep(place ? Math.max(1, Math.min(5, Number.isInteger(draft.step) ? draft.step : 1)) : 1);
-    setPlaceId(place?.placeId ?? ""); setChosenPlace(place);
+    setStep(availablePlace ? Math.max(1, Math.min(5, Number.isInteger(draft.step) ? draft.step : 1)) : 1);
+    setPlaceId(availablePlace?.placeId ?? ""); setChosenPlace(availablePlace);
     setCategoryId(category?.id ?? "");
     setEvaluation(["RECOMMEND", "HOLD", "NOT_RECOMMEND"].includes(draft.evaluation ?? "") ? draft.evaluation : null);
     setBadges(draft.badges.filter((badge) => typeof badge === "string" && (allowed as readonly string[]).includes(badge)).slice(0, 2));
-    setRestored(Boolean(place));
-    if (!place) setToast({ kind: "info", message: "작성 중이던 장소를 더 이상 선택할 수 없어요. 다른 검수 장소를 골라주세요." });
+    setRestored(Boolean(availablePlace));
+    if (!availablePlace) setToast({ kind: "info", message: temporaryUnavailable ? "작성 중이던 TEMP 장소에는 사진을 첨부할 수 없어요. 일반 공개 장소를 선택해 주세요." : "작성 중이던 장소를 더 이상 선택할 수 없어요. 다른 검수 장소를 골라주세요." });
   }
 
   useEffect(() => {
@@ -216,7 +219,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   }, [fetcher.state]);
 
   function choosePlace(nextPlace: ReviewerPlaceOption) {
-    if (nextPlace.placeId === placeId) return;
+    if (nextPlace.placeId === placeId || (pilotPhotoAfterSubmission && nextPlace.isTemporary)) return;
     if (nextPlace.placeId !== placeId) {
       setEvaluation(null);
       replacePhotos([]);
@@ -307,6 +310,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
 
   function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (selectedTempUnavailable) return;
     if (submitLockRef.current || fetcher.state !== "idle" || preparingPhotos) {
       if (submitLockRef.current) setToast({ kind: "info", message: "리뷰를 제출하고 있어요." });
       return;
@@ -345,7 +349,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
     setStep((current) => Math.min(5, current + 1));
   }
 
-  const canContinue = step === 1 ? Boolean(selectedPlace)
+  const canContinue = step === 1 ? Boolean(selectedPlace && !selectedTempUnavailable)
     : step === 2 ? Boolean(evaluation)
       : step === 3 ? Boolean(selectedCategory)
         : true;
@@ -414,13 +418,14 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
         {badges.map((badge) => <input key={badge} type="hidden" name="badges" value={badge} />)}
 
         {formError && <p className="reviewer-form-error" role="alert">{formError}</p>}
+        {selectedTempUnavailable && <p className="reviewer-form-error" role="alert">장소 단계에서 사진을 첨부할 수 있는 일반 공개 장소를 다시 선택해 주세요.</p>}
 
         <fieldset className="reviewer-card-stack" disabled={!hydrated || publishing || preparingPhotos}>
           <section className="reviewer-step-card" hidden={step !== 1} aria-labelledby="review-step-place">
             <p className="eyebrow">STEP 01 / PLACE</p>
             <h2 id="review-step-place">어디를 다녀오셨나요?</h2>
-            <p>검수된 장소를 검색해 선택하세요. 선택한 장소의 대표 카테고리를 먼저 보여드려요.</p>
-            <ReviewerPlacePicker initialPage={initialPlacePage} selectedPlace={selectedPlace} onChoose={choosePlace} />
+            <p>{pilotPhotoAfterSubmission ? "직접인증 사진을 첨부할 수 있는 일반 공개 장소를 선택해 주세요." : "검수된 장소를 검색해 선택하세요. 선택한 장소의 대표 카테고리를 먼저 보여드려요."}</p>
+            <ReviewerPlacePicker initialPage={initialPlacePage} selectedPlace={selectedPlace} directVerification={pilotPhotoAfterSubmission} onChoose={choosePlace} />
           </section>
 
           <section className="reviewer-step-card" hidden={step !== 2} aria-labelledby="review-step-evaluation">
@@ -533,7 +538,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
               {step === 1 ? "다음: 평가" : step === 2 ? "다음: 맛 배지" : step === 3 ? `다음: ${photoStepLabel}` : "다음: 확인"}
             </button>
           ) : (
-            <button type="submit" className="reviewer-primary" disabled={!selectedPlace || !selectedCategory || !evaluation || !canPublishGolden || publishing || preparingPhotos}>{publishing ? "제출 중…" : "검수 요청"}</button>
+            <button type="submit" className="reviewer-primary" disabled={!selectedPlace || selectedTempUnavailable || !selectedCategory || !evaluation || !canPublishGolden || publishing || preparingPhotos}>{publishing ? "제출 중…" : "검수 요청"}</button>
           )}
         </div>
       </fetcher.Form>
