@@ -1,3 +1,38 @@
+diff --git a/app/components/map/MapPlaceDetail.tsx b/app/components/map/MapPlaceDetail.tsx
+--- a/app/components/map/MapPlaceDetail.tsx
++++ b/app/components/map/MapPlaceDetail.tsx
+@@ -23,5 +23,5 @@
+     </div>
+     <div className="map-place-sheet__identity">
+-      <div className="map-place-sheet__meta"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</p><span className="place-verified-badge">검수 완료</span></div>
++      <div className="map-place-sheet__meta"><p>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</p><span className="place-verified-badge">{place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
+       <h2>{place.name}</h2>
+       <address>{place.address || "주소 확인 중"}</address>
+diff --git a/app/components/map/MapPlaceList.tsx b/app/components/map/MapPlaceList.tsx
+--- a/app/components/map/MapPlaceList.tsx
++++ b/app/components/map/MapPlaceList.tsx
+@@ -1,2 +1,3 @@
++import { useId } from "react";
+ import type { RegionCluster, RegionClusterLevel, RegionGroup } from "../../features/maps/region-cluster-policy";
+ import { formatPublicRatingSummary } from "../../features/places/place-discovery";
+@@ -8,13 +9,15 @@
+   startIndex?: number;
+ }) {
++  const statusIdPrefix = useId();
+   return <ol className="map-place-list">
+     {places.map((place, index) => {
++      const statusId = `${statusIdPrefix}-${index}`;
+       return <li key={place.id}>
+-        <button type="button" aria-label={`${place.name} 선택`} onClick={() => onSelect(place.id)}>
++        <button type="button" aria-label={`${place.name} 선택`} aria-describedby={statusId} onClick={() => onSelect(place.id)}>
+           <span className="map-place-index">{String(startIndex + index + 1).padStart(2, "0")}</span>
+           <span className="map-place-summary">
+             <strong>{place.name}</strong>
+             <small>{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood || "지역 확인 중"}</small>
+-            <span className="place-verified-badge">검수 완료</span>
++            <span id={statusId} className="place-verified-badge">{place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span>
+           </span>
+           <span className="map-place-rating">{formatPublicRatingSummary(place)}</span>
 diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
 --- a/app/components/places/PlaceDetailSheet.tsx
 +++ b/app/components/places/PlaceDetailSheet.tsx

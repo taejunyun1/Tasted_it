@@ -108,6 +108,8 @@ const publicPlaceInformationDataTargets = [
 ];
 const publicPlaceInformationUiPatch = "ops/releases/public-place-information-ui-494c07f.patch";
 const publicPlaceInformationUiTargets = [
+  "app/components/map/MapPlaceDetail.tsx",
+  "app/components/map/MapPlaceList.tsx",
   "app/components/places/PlaceDetailSheet.tsx",
   "app/routes/place-detail.tsx",
 ];
