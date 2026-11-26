@@ -1,0 +1,172 @@
+{
+  "revision": "fbdef66c204db72b1241821a96bb24aa53ff1170",
+  "buildSha256": "c52f4a8b2fe8e4231c9187ee4d41257c78c63c78991894aa48658509327029c3",
+  "migrations": 59,
+  "indexedOperatingHours": true,
+  "verifierExcluded": true,
+  "hidden404": true,
+  "workerOutboundAttempts": 0,
+  "browserExternalRequestsBlocked": 2,
+  "strictBadges": true,
+  "tempScopeObservation": {
+    "tempParamPreserved": true,
+    "ordinaryResultCount": 1,
+    "tempResultCount": 0
+  },
+  "checks": [
+    {
+      "dateLabelLines": 1,
+      "layout": "desktop",
+      "place": "fixture-u04-known",
+      "status": "PASS",
+      "viewportWidth": 1366,
+      "scrollWidth": 1366,
+      "surfaceWidth": 1366,
+      "surfaceScrollWidth": 1366,
+      "heroWidth": 715.671875,
+      "heroHeight": 1297.921875,
+      "copyWidth": 208.875,
+      "copyFontSize": "16px",
+      "copyOverflow": false
+    },
+    {
+      "dateLabelLines": 1,
+      "layout": "desktop",
+      "place": "fixture-u04-unknown",
+      "status": "PASS",
+      "viewportWidth": 1366,
+      "scrollWidth": 1366,
+      "surfaceWidth": 1366,
+      "surfaceScrollWidth": 1366,
+      "heroWidth": 715.671875,
+      "heroHeight": 1249.921875,
+      "copyWidth": 208.875,
+      "copyFontSize": "16px",
+      "copyOverflow": false
+    },
+    {
+      "dateLabelLines": 1,
+      "layout": "desktop",
+      "place": "fixture-u04-temp",
+      "status": "PASS",
+      "viewportWidth": 1366,
+      "scrollWidth": 1366,
+      "surfaceWidth": 1366,
+      "surfaceScrollWidth": 1366,
+      "heroWidth": 715.671875,
+      "heroHeight": 1507.546875,
+      "copyWidth": 166.59375,
+      "copyFontSize": "16px",
+      "copyOverflow": false
+    },
+    {
+      "dateLabelLines": 1,
+      "layout": "mobile",
+      "place": "fixture-u04-known",
+      "status": "PASS",
+      "viewportWidth": 320,
+      "scrollWidth": 320,
+      "surfaceWidth": 320,
+      "surfaceScrollWidth": 320,
+      "heroWidth": 320,
+      "heroHeight": 230,
+      "copyWidth": 208.21875,
+      "copyFontSize": "16px",
+      "copyOverflow": false
+    },
+    {
+      "dateLabelLines": 1,
+      "layout": "mobile",
+      "place": "fixture-u04-unknown",
+      "status": "PASS",
+      "viewportWidth": 320,
+      "scrollWidth": 320,
+      "surfaceWidth": 320,
+      "surfaceScrollWidth": 320,
+      "heroWidth": 320,
+      "heroHeight": 230,
+      "copyWidth": 208.21875,
+      "copyFontSize": "16px",
+      "copyOverflow": false
+    },
+    {
+      "dateLabelLines": 1,
+      "layout": "mobile",
+      "place": "fixture-u04-temp",
+      "status": "PASS",
+      "viewportWidth": 320,
+      "scrollWidth": 320,
+      "surfaceWidth": 320,
+      "surfaceScrollWidth": 320,
+      "heroWidth": 320,
+      "heroHeight": 230,
+      "copyWidth": 167.421875,
+      "copyFontSize": "16px",
+      "copyOverflow": false
+    }
+  ],
+  "mapChecks": [
+    {
+      "layout": "desktop",
+      "place": "fixture-u04-known",
+      "badge": "공개 장소",
+      "accessibleDescription": "공개 장소",
+      "fallbackChecked": false,
+      "status": "PASS"
+    },
+    {
+      "layout": "desktop",
+      "place": "fixture-u04-temp",
+      "badge": "TEMP · 영업 미확인",
+      "accessibleDescription": "TEMP · 영업 미확인",
+      "fallbackChecked": true,
+      "status": "PASS"
+    },
+    {
+      "layout": "mobile",
+      "place": "fixture-u04-known",
+      "badge": "공개 장소",
+      "accessibleDescription": "공개 장소",
+      "fallbackChecked": false,
+      "status": "PASS"
+    },
+    {
+      "layout": "mobile",
+      "place": "fixture-u04-temp",
+      "badge": "TEMP · 영업 미확인",
+      "accessibleDescription": "TEMP · 영업 미확인",
+      "fallbackChecked": true,
+      "status": "PASS"
+    }
+  ],
+  "fallbackLayout": [
+    {
+      "layout": "desktop",
+      "noticeAndMinimapVisible": true,
+      "verticalOverlapPixels": 0
+    },
+    {
+      "layout": "mobile",
+      "noticeAndMinimapVisible": true,
+      "verticalOverlapPixels": 15
+    }
+  ],
+  "otherCompatibilityModes": [
+    {
+      "ledger": 56,
+      "publicHtmlAndData": 8,
+      "verifierExcluded": true,
+      "hidden404": true,
+      "workerOutbound": 0
+    },
+    {
+      "ledger": 57,
+      "publicHtmlAndData": 8,
+      "verifierExcluded": true,
+      "hidden404": true,
+      "workerOutbound": 0
+    }
+  ],
+  "strictWranglerDryRuns": 3,
+  "productionChanged": false
+}
