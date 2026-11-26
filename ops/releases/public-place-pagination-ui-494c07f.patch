@@ -483,7 +483,18 @@ diff --git a/app/routes/place-list.tsx b/app/routes/place-list.tsx
 +  }, [loaderData.pagination.page]);
    const recommendationFetcher = useFetcher<typeof recommendationLoader>();
    const [selectedBadges, setSelectedBadges] = useState(loaderData.recommendations.selectedBadges);
-@@ -117,10 +142,10 @@
+@@ -75,4 +100,10 @@
+   const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
+   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
++  const effectiveSearch = new URLSearchParams(loaderData.search);
++  const hasSearchFilters = Boolean(loaderData.state.query || loaderData.categorySlug
++    || effectiveSearch.has("bbox") || selectedBadges.length);
++  const resetSearch = new URLSearchParams();
++  if (loaderData.tempOnly) resetSearch.set("temp", "1");
++  if (params.has("qa")) resetSearch.set("qa", "1");
+   const recommendationError = recommendationFetcher.data && !recommendationFetcher.data.ok
+     ? recommendationFetcher.data.message : null;
+@@ -117,19 +148,28 @@
      <section className="discovery-section discovery-all" aria-labelledby="all-places">
        <header className="discovery-heading">
 -        <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places">{loaderData.tempOnly ? "TEMP 베타 전체 장소" : "전체 장소"}</h2></div>
@@ -496,12 +507,15 @@ diff --git a/app/routes/place-list.tsx b/app/routes/place-list.tsx
 +        <input key={loaderData.state.query} id="place-query" name="q" defaultValue={loaderData.state.query} placeholder="장소 이름이나 주소 검색" />
          <input type="hidden" name="category" value={loaderData.categorySlug ?? ""} />
          <input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} />
-@@ -129,7 +154,14 @@
+         {loaderData.tempOnly && <input type="hidden" name="temp" value="1" />}
+         {params.has("qa") && <input type="hidden" name="qa" value="1" />}
++        {selectedBadges.map((badge) => <input key={badge} type="hidden" name="badge" value={badge} />)}
          <button>찾기</button>
        </Form>
 -      <p className="discovery-count">{loaderData.places.length} PLACES · {categoryName}</p>
 -      <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} onOpenDetail={(path) => openDetail(path, place.id)} />)}</div>
 -      {!loaderData.places.length && <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>}
++      {hasSearchFilters && <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlaceMapScopeHref("list", resetSearch.toString())}#all-places`}>검색 조건 초기화</Link>}
 +      <p id="place-search-status" className="discovery-count" role="status" aria-live="polite" aria-atomic="true">{searchPending ? "장소를 찾고 있어요. 검색이 끝날 때까지 기존 결과를 표시합니다." : `전체 ${loaderData.pagination.total}곳${loaderData.pagination.start ? ` · ${loaderData.pagination.start}–${loaderData.pagination.end}번째 표시` : ""} · ${categoryName}`}</p>
 +      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} onOpenDetail={(path) => openDetail(path, place.id)} />)}</div>
 +      {!loaderData.places.length && (loaderData.pagination.outOfRange
