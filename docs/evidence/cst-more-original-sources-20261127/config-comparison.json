@@ -1,0 +1,33 @@
+{
+  "revision": "a91ccb7c5e044ce59a76a6a6dc50729969be51a1",
+  "sourceBuildSha256": "8798de77433667a77035a81920eb229b1ba392730b25a8036c97e2dd88eada44",
+  "variants": {
+    "closed": {
+      "referenceConfigSha256": "02845cee0b3299d2c33826db0f42b0c1f06ed80e89fdd0b718690f68454b1743",
+      "verifiedConfigSha256": "2e95c5cab7c5bcd5572eaf0128163b637108920e02bf394d41a3edb7d2acc3a5",
+      "verifiedBuildSha256": "0c0b940f5e7aa18ef32a169227ac86665934c2a1b05a938492dcd4fa31ce7d9d",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": false
+    },
+    "ab": {
+      "referenceConfigSha256": "ad18a14741b70fc844edb156ac5821850a3eb46bb21096e0267cfeb888ad6ebf",
+      "verifiedConfigSha256": "213dd96282c0722bce870247754a265382cdf9f39f75bf9fc2ae5a988d3c2e5e",
+      "verifiedBuildSha256": "5bd0417cf26f8cdd776850c2c7c1a08a97adc8c407a91ce931ba3f66e72c3a9e",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": true
+    }
+  },
+  "authorizedForDeploy": false,
+  "configurationPurpose": "local later rollout readiness",
+  "strictDryRun": {
+    "closed": "passed",
+    "ab": "passed"
+  },
+  "remoteUpload": false
+}
