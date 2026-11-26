@@ -7,6 +7,12 @@ type CuratedInstagramPost = PlaceIdentity & { shortcode: string };
 
 const CURATED_POSTS: readonly CuratedInstagramPost[] = [
   {
+    id: "326e83f2-e5cb-47d9-aed5-fd0a70d787e7",
+    name: "굿베리베이커리카페",
+    address: "전남광주통합특별시 구례군 구례읍 구례여중길 1",
+    shortcode: "Dfl4bhGs3SL",
+  },
+  {
     id: "676ff645-06d0-4bb3-9e2c-9969b3618000",
     name: "가람장어다이닝",
     address: "전남광주통합특별시 광산구 풍영정길 325, 1동 2층 (신창동)",
@@ -58,7 +64,7 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     id: "place-intake-5dfc9346f7776ba6a1890265",
     name: "나그네의 주머니",
     address: "전북 남원시 동헌길 9-1 (하정동)",
-    shortcode: "DfmA5vokm4m",
+    shortcode: "DfmAwzLSVgI",
   },
 ];
 
