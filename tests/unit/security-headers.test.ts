@@ -80,6 +80,7 @@ describe("applySecurityHeaders", () => {
     const frames = withSecurityHeaders(html(), request("/places/fixture"), undefined, youtube).headers
       .get("Content-Security-Policy")?.split("; ").find((value) => value.startsWith("frame-src "));
     expect(frames?.split(" ").slice(1)).toEqual([
+      "https://www.youtube-nocookie.com/embed/ZnbtJLRHUzM",
       "https://www.youtube-nocookie.com/embed/VfODxqfwx9w",
       "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ",
       "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4",

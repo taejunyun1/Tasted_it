@@ -129,6 +129,8 @@ describe("place photo source links", () => {
       "https://www.youtube.com/watch?v=VfODxqfwx9w&t=66s", "https://www.youtube-nocookie.com/embed/VfODxqfwx9w?start=66"],
     ["place-intake-02c40d8d0a6e5409b7425fda", "담양현재국수", "전남광주 담양군 객사3길 24 (객사리)",
       "https://www.youtube.com/watch?v=glRm4NcRhac&t=273s", "https://www.youtube-nocookie.com/embed/glRm4NcRhac?start=273&end=298"],
+    ["place-intake-e724797f168726b01426c9cc", "그랑깨", "전북 남원시 광한서로 52 (금동)",
+      "https://www.youtube.com/watch?v=ZnbtJLRHUzM&t=80s", "https://www.youtube-nocookie.com/embed/ZnbtJLRHUzM?start=80"],
   ])("chooses the matching video and its exact source instead of the fallback gallery for %s", (id, name, address, url, embedUrl) => {
     const place = { id, name, address };
     const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });
@@ -137,5 +139,13 @@ describe("place photo source links", () => {
     const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
     expectExactPhotoSource(html, url);
     expect(html).not.toContain("<iframe");
+  });
+
+  it("keeps the Namwon archive available while the venue video is disabled", () => {
+    const place = { id: "place-intake-e724797f168726b01426c9cc", name: "그랑깨", address: "전북 남원시 광한서로 52 (금동)" };
+    const source = reviewedPlacePhotoOriginal(place, { youtube: "false" });
+    expect(source?.publisher).toBe("남원시 사진기록관");
+    expect(source?.url).toContain("dataId=922811");
+    expect(source?.embed).toBeUndefined();
   });
 });

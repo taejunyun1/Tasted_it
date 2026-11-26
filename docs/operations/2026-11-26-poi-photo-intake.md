@@ -91,6 +91,8 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 오비수산은 장신로19번안길 23-4의 업체가 올린 2026년 6월 10일 영상이 있는 네이버 플레이스 소식 탭에 연결한다. **출처**에서 업체가 게시한 원문 목록을 열 수 있다. [오비수산 업체 소식](https://m.place.naver.com/restaurant/2004979994/feed) · [네이버 공유 안내](https://help.naver.com/service/30026/contents/20492?osType=COMMONOS)
 
+그랑깨는 작성자 설명의 광한서로 52와 영상 속 간판·상차림을 대조한 뒤 01:20부터 연결한다. 영상 표시를 끄면 남원시 사진기록관 원문에 연결한다. [그랑깨 게시자 원본](https://www.youtube.com/watch?v=ZnbtJLRHUzM&t=80s)
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.

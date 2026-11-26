@@ -60,8 +60,14 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     id: "place-intake-e724797f168726b01426c9cc",
     name: "그랑깨",
     address: "전북 남원시 광한서로 52 (금동)",
-    publisher: "남원시 사진기록관",
-    url: "https://photo.namwon.go.kr/index.namwon?menuCd=DOM_000000201002002000&pageType=VIEW&category_code=001002002000&dataId=922811&returnList=Y",
+    publisher: "YouTube · 맛사장",
+    url: "https://www.youtube.com/watch?v=ZnbtJLRHUzM&t=80s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/ZnbtJLRHUzM?start=80" },
+    fallback: {
+      publisher: "남원시 사진기록관",
+      url: "https://photo.namwon.go.kr/index.namwon?menuCd=DOM_000000201002002000&pageType=VIEW&category_code=001002002000&dataId=922811&returnList=Y",
+    },
   },
   {
     id: "place-intake-4c5afcf5031e6bfbf8d3484e",
