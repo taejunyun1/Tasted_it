@@ -228,6 +228,12 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전남광주 나주시 우정로 106 (빛가람동)",
     shortcode: "DALqhiKh99e",
   },
+  {
+    id: "place-intake-eb81a1d9204b032843f8b751",
+    name: "렌더링커피",
+    address: "전남광주 동구 구성로194번길 15-15 (대인동)",
+    shortcode: "DcBSGbojzJy",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
