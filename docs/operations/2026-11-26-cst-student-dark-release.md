@@ -51,4 +51,12 @@
 - 새 버전 100%, 공개 경로·관리자 로그인 접근, 공식 사진 30곳의 정확한 프레임·원문과 TEMP 비노출, 새 R2 객체 0개와 D1 장부 57개·기존 집계를 확인한다. 비로그인 제한 경로는 로그인 이동, 정확한 형식의 합성 미등록 ID `/student-review-photos/00000000-0000-4000-8000-000000000000`에 익명 GET·HEAD가 404/no-store인지 확인한다. 학생 접수 닫힘은 실제 미지정 변수와 로컬 검증, 예약 0행으로 확인한다. 실제 사람 계정에 로그인하거나 운영 POST를 보내지 않는다. 날짜/버전이 일치한 새 버전 RSI를 별도 확인하며 대기 중이면 그대로 기록한다. 이전 버전의 마지막 성공은 이 검증으로 쓰지 않는다.
 - 배포 전에 실패하면 트래픽을 유지한다. D1 또는 버킷을 이미 추가했다면 그 상태를 보고하고 0065 drop, Time Travel, 버킷 삭제는 실행하지 않는다. 배포 뒤 회귀·예상 밖의 공개/데이터 변동은 `pnpm exec wrangler rollback 1343a5e8-8bfe-496b-9950-80b41482ea90 --name retaste-beta --yes --profile tastedit-production`을 최대 1회 실행하고 정확한 100%, 기존 공개 경로, 사진 30곳과 57개 원장을 확인한다. 스키마와 버킷을 보존한다. 정책의 보관 기간은 확인 대기로 유지한다. DARK에서 예상과 달리 예약이 한 건이라도 생겼다면 예약 키를 보존하고 새 쓰기를 중지한 상태에서 별도 정리 복구를 승인받는다. 이전 Worker는 새 사진을 정리하지 않는다.
 
+## 운영 실행 이력
+
+- 2026-11-26 21:47 KST의 `1343a5e8` 예약 실행은 Cloudflare Observability와 D1을 대조했다. 제공자의 예약 시각은 21:47:03.826 KST였고, 같은 호출의 실행 결과와 `RSI_SELF_CHECK` 6개 경로가 성공했다. 구조화 로그와 D1 감사의 시각은 21:47:05.630 KST로 일치했다. 실시간 수집기가 타임아웃으로 종료되어 저장된 호출 원본으로 실행을 확인했다.
+- `59f09e2`로 만든 고정 후보에서 R2 Standard 비공개 버킷 한 개와 0065 한 개를 적용했다. 배포 전후 버킷 객체 0개, 공개 개발 URL 비활성, 커스텀 도메인 0개를 확인했다. 전환 전후 장부는 57개였고, 신규 사진 행 0개와 정확한 인덱스 5개·트리거 7개를 확인했다. 장소 원장 856건, 검수 연결 83건, 연결 좌석 2개를 대조했다.
+- 21:55:33 KST에 `d0b63f00-f26d-46b0-9d35-9989b7f3c8af`를 단독 100%로 전환했다. 업로드는 고정된 전체 설정으로 실행했다. 트래픽 전환에만 Worker 이름과 대상 버전을 명시해 기존 관측 설정을 보존했다. 공개 주소·두 cron·미리보기 비활성, 전역 사진 접수 비활성 및 좌석 미지정을 대조했다.
+- 배포 후 공식 Instagram 사진 30곳의 실제 렌더링과 원문 링크, 대표 장소의 데스크톱 상세·모바일 시트를 확인했다. TEMP 표본에는 외부 사진 프레임이 없었고, 미등록 직접인증 사진은 익명 GET·HEAD에서 404와 `no-store`였다. 기존 로그인과 관리·리뷰 접근 조건을 대조했다.
+- 새 버전의 첫 정기 RSI와 D1 감사는 2026-11-27 03:47 KST 회차를 기다린다. [#556 후속 운영 절차](2026-11-26-cst-integrated-direct-poi-rollout.md)
+
 [Cloudflare R2 명령](https://developers.cloudflare.com/workers/wrangler/commands/r2/) · [D1 장부](https://developers.cloudflare.com/d1/reference/migrations/) · [버전 업로드와 전환](https://developers.cloudflare.com/workers/wrangler/commands/workers/) · [롤백](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/)
