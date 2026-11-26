@@ -59,6 +59,12 @@ node scripts/verify-student-pilot.mjs http://127.0.0.1:5184 /path/to/candidate/c
 
 사용량 상한은 후보 3자원, D1 장부 59개와 합성 시드 1회, 합성 브라우저 검증 1회와 확인 요청, 2장 업로드, 비활성·활성 배포 각 1회다. 별도 요금제 변경, 외부 메일, 지도·AI 유료 호출은 없다. 표준 R2와 D1의 사용량은 기존 계정 내 포함량을 따른다. [D1 요금](https://developers.cloudflare.com/d1/platform/pricing/) · [R2 요금](https://developers.cloudflare.com/r2/pricing/) · [첫 Worker 배포](https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/#first-upload) · [Wrangler 비밀 바인딩](https://developers.cloudflare.com/workers/configuration/secrets/)
 
+### 2026-11-26 원격 실행 확인
+
+- `ad19278e`에 후보 트래픽 100%를 적용했다. 닫힌 첫 배포의 학생 경로는 404, 검증 주소의 비인증 학생 경로와 실제 JS 자산은 401이었다. 앱 입장은 11월 27일 15:30:13 KST에 만료된다.
+- 전용 D1의 장부 59개와 합성 계정 3개를 확인했다. 두 학생이 각 JPEG 한 장을 제출했다. 작성자는 검수 중 자기 사진을 확인했고 직접 공개 조회는 404였다. 운영자 승인 뒤 앱 비로그인 상세에서 JPEG와 출처 링크 두 개를 확인했다. 각 작성자 철회 후 직접 조회는 404, D1 사진·정리 작업·가드와 R2 객체는 0건이었다.
+- 운영 Worker `ff51553c` 100%, 장소 원장 856건과 장부 56개는 대조값이 일치했다. 실제 학생 연결과 메일 발송은 대기다. [#521 실행 영수증](https://github.com/taejunyun1/Tasted_it/pull/521)
+
 ## 운영 전 확인
 
 1. 지정된 운영자는 참여자 두 명의 계정과 좌석, 이메일 인증 상태를 비공개로 대조한다. 새 학생 초대에는 한 사람당 하나만 발급한다. 초대는 최대 7일이며 좌석 만료를 넘지 않는다.
