@@ -66,6 +66,7 @@ describe("place photo source links", () => {
     ["c893e7dc-c6a0-4467-82b8-8859051d24c8", "고템커피", "전남광주통합특별시 고흥군 고흥읍 고흥로 1670-7", "1117337292"],
     ["place-intake-02c40d8d0a6e5409b7425fda", "담양현재국수", "전남광주 담양군 객사3길 24 (객사리)", "1870179264"],
     ["place-intake-7a534081f2e2fca2ce7b27c8", "들뫼풍경", "전북 고창군 전봉준로 108 (율계리)", "32246867"],
+    ["place-intake-5d7a3a429e2c173c6e3c2d5d", "실키밀키", "전남광주 광산구 첨단내촌로 46-1 (월계동)", "1942978740"],
   ])("links the owner gallery for %s", (id, name, address, naverId) => {
     const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
     const source = reviewedPlacePhotoOriginal({ id, name, address });
@@ -120,6 +121,8 @@ describe("place photo source links", () => {
       "https://www.youtube.com/shorts/nILy25jCyaI", "https://www.youtube-nocookie.com/embed/nILy25jCyaI", undefined],
     ["place-intake-17422a656ab8d3e89bc20013", "반달곰식당", "전남광주 구례군 중앙로 88 (봉북리)",
       "https://m.blog.naver.com/studio_young0425/224365538127", undefined, undefined],
+    ["place-intake-04a99c49889c69595df5332a", "자매통닭&호프", "광주 동구 천변우로 363-26 (호남동)",
+      "https://m.blog.naver.com/sososo2516/224145188426", undefined, undefined],
     ["place-intake-4413539f62e7921d84f7f1d1", "대나무골", "전남광주 담양군 대전로 182 (태목리)",
       "https://www.youtube.com/watch?v=oZOV6I1EbHg", "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg", "2020년 공개 영상"],
     ["place-intake-70adfdd5a852000637f61b24", "구수향", "전남광주 동구 예술길 23-6 (궁동)",

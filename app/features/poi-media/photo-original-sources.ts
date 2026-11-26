@@ -267,6 +267,20 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     publisher: "네이버 블로그 · young624",
     url: "https://m.blog.naver.com/studio_young0425/224365538127",
   },
+  {
+    id: "place-intake-5d7a3a429e2c173c6e3c2d5d",
+    name: "실키밀키",
+    address: "전남광주 광산구 첨단내촌로 46-1 (월계동)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/1942978740/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "place-intake-04a99c49889c69595df5332a",
+    name: "자매통닭&호프",
+    address: "광주 동구 천변우로 363-26 (호남동)",
+    publisher: "네이버 블로그 · 박소술",
+    url: "https://m.blog.naver.com/sososo2516/224145188426",
+  },
 ];
 
 // CSP source expressions match the video path. The player URL carries playback bounds.
