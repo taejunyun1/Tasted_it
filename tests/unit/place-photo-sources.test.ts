@@ -109,7 +109,7 @@ describe("place photo source links", () => {
     ["place-intake-6ffa8e7ddfaac3f3fb91e854", "복록수", "전남광주 동구 서석로10번길 9 (불로동)",
       "https://m.blog.naver.com/fmfun/clip/306388", undefined, undefined],
     ["place-intake-4c5afcf5031e6bfbf8d3484e", "사거리통골뱅이", "광주 동구 충장로58번길 18-2 (충장동, 충장로4가)",
-      "https://m.blog.naver.com/loveis7108/clip/7801577", undefined, undefined],
+      "https://www.youtube.com/shorts/edU_JvgAprI", "https://www.youtube-nocookie.com/embed/edU_JvgAprI", "2023년 공개 영상"],
     ["place-intake-c30606b3e3b35b21fcbaf9f5", "원조목살집", "전남광주 목포시 평화로107번길 3 (상동)",
       "https://m.blog.naver.com/jiwon4348/clip/5134953", undefined, undefined],
     ["place-intake-14a109105ee648efe481ac85", "착한가리비", "전남광주 북구 대자로 69 (운암동)",
@@ -117,7 +117,9 @@ describe("place photo source links", () => {
     ["place-intake-950ba22fa1c3cd0685fbbdde", "목살집", "전남광주 남구 광복마을6길 1 (진월동)",
       "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s", "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120", undefined],
     ["place-intake-296fe52a6f1a1f39f8a2a9f6", "오비수산", "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
-      "https://m.place.naver.com/restaurant/2004979994/feed", undefined, undefined],
+      "https://www.youtube.com/shorts/nILy25jCyaI", "https://www.youtube-nocookie.com/embed/nILy25jCyaI", undefined],
+    ["place-intake-17422a656ab8d3e89bc20013", "반달곰식당", "전남광주 구례군 중앙로 88 (봉북리)",
+      "https://m.blog.naver.com/studio_young0425/224365538127", undefined, undefined],
     ["place-intake-4413539f62e7921d84f7f1d1", "대나무골", "전남광주 담양군 대전로 182 (태목리)",
       "https://www.youtube.com/watch?v=oZOV6I1EbHg", "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg", "2020년 공개 영상"],
     ["place-intake-70adfdd5a852000637f61b24", "구수향", "전남광주 동구 예술길 23-6 (궁동)",
@@ -167,5 +169,17 @@ describe("place photo source links", () => {
     expect(source?.publisher).toBe("남원시 사진기록관");
     expect(source?.url).toContain("dataId=922811");
     expect(source?.embed).toBeUndefined();
+  });
+
+  it.each([
+    ["place-intake-4c5afcf5031e6bfbf8d3484e", "사거리통골뱅이", "광주 동구 충장로58번길 18-2 (충장동, 충장로4가)",
+      "https://m.blog.naver.com/loveis7108/clip/7801577"],
+    ["place-intake-296fe52a6f1a1f39f8a2a9f6", "오비수산", "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
+      "https://m.place.naver.com/restaurant/2004979994/feed"],
+  ])("keeps the exact Naver source when the venue video is disabled for %s", (id, name, address, url) => {
+    const source = reviewedPlacePhotoOriginal({ id, name, address }, { youtube: "false" });
+    expect(source).toMatchObject({ url, mediaKind: "video" });
+    expect(source?.embed).toBeUndefined();
+    expectExactPhotoSource(renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! })), url);
   });
 });
