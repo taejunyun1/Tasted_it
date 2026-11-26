@@ -483,10 +483,13 @@ diff --git a/app/routes/place-list.tsx b/app/routes/place-list.tsx
 +  }, [loaderData.pagination.page]);
    const recommendationFetcher = useFetcher<typeof recommendationLoader>();
    const [selectedBadges, setSelectedBadges] = useState(loaderData.recommendations.selectedBadges);
-@@ -75,4 +100,10 @@
+@@ -75,4 +100,13 @@
    const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
    const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
 +  const effectiveSearch = new URLSearchParams(loaderData.search);
++  effectiveSearch.delete("badge");
++  for (const badge of selectedBadges) effectiveSearch.append("badge", badge);
++  const paginationSearch = effectiveSearch.toString();
 +  const hasSearchFilters = Boolean(loaderData.state.query || loaderData.categorySlug
 +    || effectiveSearch.has("bbox") || selectedBadges.length);
 +  const resetSearch = new URLSearchParams();
@@ -494,7 +497,7 @@ diff --git a/app/routes/place-list.tsx b/app/routes/place-list.tsx
 +  if (params.has("qa")) resetSearch.set("qa", "1");
    const recommendationError = recommendationFetcher.data && !recommendationFetcher.data.ok
      ? recommendationFetcher.data.message : null;
-@@ -117,19 +148,28 @@
+@@ -117,19 +151,28 @@
      <section className="discovery-section discovery-all" aria-labelledby="all-places">
        <header className="discovery-heading">
 -        <div><p className="eyebrow">ALL PLACES</p><h2 id="all-places">{loaderData.tempOnly ? "TEMP 베타 전체 장소" : "전체 장소"}</h2></div>
@@ -519,12 +522,12 @@ diff --git a/app/routes/place-list.tsx b/app/routes/place-list.tsx
 +      <p id="place-search-status" className="discovery-count" role="status" aria-live="polite" aria-atomic="true">{searchPending ? "장소를 찾고 있어요. 검색이 끝날 때까지 기존 결과를 표시합니다." : `전체 ${loaderData.pagination.total}곳${loaderData.pagination.start ? ` · ${loaderData.pagination.start}–${loaderData.pagination.end}번째 표시` : ""} · ${categoryName}`}</p>
 +      <div className="place-grid discovery-grid" aria-busy={searchPending}>{loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} onOpenDetail={(path) => openDetail(path, place.id)} />)}</div>
 +      {!loaderData.places.length && (loaderData.pagination.outOfRange
-+        ? <p className="discovery-empty">이 페이지에 표시할 장소가 없습니다. <Link className="underline!" to={`${publicPlacePageHref(loaderData.search, 1)}#all-places`}>같은 조건의 첫 페이지로 돌아가기</Link></p>
++        ? <p className="discovery-empty">이 페이지에 표시할 장소가 없습니다. <Link className="underline!" to={`${publicPlacePageHref(paginationSearch, 1)}#all-places`}>같은 조건의 첫 페이지로 돌아가기</Link></p>
 +        : <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>)}
 +      {loaderData.pagination.totalPages > 1 && !loaderData.pagination.outOfRange && <nav className="flex flex-wrap items-center gap-4" aria-label="장소 목록 페이지">
-+        {loaderData.pagination.page > 1 ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(loaderData.search, loaderData.pagination.page - 1)}#all-places`}>이전 페이지</Link> : <span aria-disabled="true">이전 페이지</span>}
++        {loaderData.pagination.page > 1 ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(paginationSearch, loaderData.pagination.page - 1)}#all-places`}>이전 페이지</Link> : <span aria-disabled="true">이전 페이지</span>}
 +        <span aria-current="page">{loaderData.pagination.page} / {loaderData.pagination.totalPages} 페이지</span>
-+        {loaderData.pagination.page < loaderData.pagination.totalPages ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(loaderData.search, loaderData.pagination.page + 1)}#all-places`}>다음 페이지</Link> : <span aria-disabled="true">다음 페이지</span>}
++        {loaderData.pagination.page < loaderData.pagination.totalPages ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(paginationSearch, loaderData.pagination.page + 1)}#all-places`}>다음 페이지</Link> : <span aria-disabled="true">다음 페이지</span>}
 +      </nav>}
      </section>
      <PlaceDetailSheet detailPath={detailPath} onClose={closeDetail} />
