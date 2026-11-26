@@ -4,11 +4,14 @@ import { z } from "zod";
 import type { AppDb } from "../../db/client.server";
 import { placePoiMedia, places } from "../../db/schema";
 import { getAdminAssurance, type AdminSession } from "../auth/admin-assurance.server";
+import { parseReviewerPhotoFiles } from "../ratings/reviewer-photo";
 import {
+  getPoiMediaObjectKey, POI_MEDIA_CONTENT_TYPE,
   poiMediaByteSizeSchema, poiMediaIdSchema, poiMediaSha256Schema, poiMediaSourceUrlSchema,
 } from "./poi-media";
 import {
-  eligiblePoiMediaPlace, poiMediaEvidenceFields, poiMediaEvidenceSchema, readVerifiedPoiMedia,
+  eligiblePoiMediaPlace, poiMediaEvidenceFields, poiMediaEvidenceSchema, POI_MEDIA_ORIGINAL_ATTACHMENT_KEY,
+  readVerifiedPoiMedia, readVerifiedPoiMediaAsset,
 } from "./poi-media.server";
 
 const photoIdentitySchema = z.object({
@@ -16,6 +19,11 @@ const photoIdentitySchema = z.object({
   sha256: poiMediaSha256Schema,
   byteSize: poiMediaByteSizeSchema,
 });
+
+const placeIdentityFields = {
+  expectedPlaceName: z.string().min(1).max(2048),
+  expectedPlaceAddress: z.string().min(1).max(2048),
+};
 
 const transitionFields = {
   id: poiMediaIdSchema,
@@ -26,10 +34,9 @@ const transitionFields = {
 export const poiMediaAdminTransitionSchema = z.discriminatedUnion("intent", [
   z.object({
     ...transitionFields,
+    ...placeIdentityFields,
     intent: z.literal("PUBLISH"),
     expectedState: z.literal("STAGED"),
-    expectedPlaceName: z.string().min(1).max(2048),
-    expectedPlaceAddress: z.string().min(1).max(2048),
   }),
   z.object({
     ...transitionFields,
@@ -38,11 +45,24 @@ export const poiMediaAdminTransitionSchema = z.discriminatedUnion("intent", [
   }),
 ]);
 
+const originalAttachmentSchema = z.object({
+  id: poiMediaIdSchema,
+  expectedSha256: poiMediaSha256Schema,
+  ...placeIdentityFields,
+  now: z.iso.datetime({ precision: 3 }),
+});
+
 type PoiMediaState = typeof placePoiMedia.$inferSelect.state;
 type TransitionInput = z.infer<typeof poiMediaAdminTransitionSchema> & AdminSession & { now: string };
+type AdminMediaFailure = "INVALID_INPUT" | "NOT_FOUND" | "STALE" | "INELIGIBLE" | "ASSET_UNVERIFIED" | "FORBIDDEN";
 type TransitionResult =
   | { ok: true; state: PoiMediaState; changed: boolean }
-  | { ok: false; code: "INVALID_INPUT" | "NOT_FOUND" | "STALE" | "INELIGIBLE" | "ASSET_UNVERIFIED" | "FORBIDDEN" };
+  | { ok: false; code: AdminMediaFailure };
+type PhotoPlaceIdentity = z.infer<z.ZodObject<typeof placeIdentityFields>>;
+type OriginalAttachmentInput = z.infer<typeof originalAttachmentSchema> & AdminSession & { bytes: Uint8Array<ArrayBuffer> };
+type OriginalAttachmentResult =
+  | { ok: true; changed: boolean }
+  | { ok: false; code: AdminMediaFailure | "UPLOAD_UNCONFIRMED" };
 
 export type AdminPoiMedia = {
   id: string;
@@ -92,6 +112,62 @@ export async function readAdminPoiMediaPreview(db: AppDb, bucket: R2Bucket, id: 
   return photo.success ? readVerifiedPoiMedia(bucket, photo.data) : null;
 }
 
+const originalAttachmentAction = "POI_MEDIA_ORIGINAL_ATTACH";
+type OriginalIdentity = z.infer<typeof photoIdentitySchema>;
+type OriginalStatus = "READY" | "UNCONFIRMED";
+
+function originalAttachmentAudit(photo: OriginalIdentity) {
+  return {
+    id: `poi-media-original-attach-${photo.id}-${photo.sha256}`,
+    beforeState: JSON.stringify({ state: "STAGED", sha256: photo.sha256 }),
+    afterState: JSON.stringify({ state: "STAGED", sha256: photo.sha256, originalAttached: true, byteSize: photo.byteSize }),
+  };
+}
+
+function matchesOriginalAttachmentAudit(photo: OriginalIdentity) {
+  const audit = originalAttachmentAudit(photo);
+  return sql`a.id = ${audit.id} AND a.action = ${originalAttachmentAction} AND a.target_type = 'PLACE_POI_MEDIA'
+    AND a.target_id = ${photo.id} AND a.before_state = ${audit.beforeState} AND a.after_state = ${audit.afterState}`;
+}
+
+async function verifiedOriginalCondition(
+  bucket: R2Bucket | undefined,
+  photo: AdminPoiMedia | null,
+): Promise<SQL | true | null> {
+  if (!bucket || !photo || photo.state === "WITHDRAWN") return null;
+  const identity = photoIdentitySchema.safeParse(photo);
+  if (!identity.success) return null;
+  try {
+    const asset = await readVerifiedPoiMediaAsset(bucket, identity.data);
+    if (!asset) return null;
+    // Legacy, verified originals staged outside this browser flow have no attachment marker.
+    if (asset.attachmentId === undefined) return true;
+    if (asset.attachmentId !== photo.id) return null;
+    return sql`EXISTS (SELECT 1 FROM admin_audit_logs a WHERE ${matchesOriginalAttachmentAudit(identity.data)})`;
+  } catch {
+    return null;
+  }
+}
+
+async function originalConditionIsReady(db: AppDb, condition: SQL | true | null) {
+  if (condition === true) return true;
+  if (condition === null) return false;
+  return Boolean((await db.get<{ ready: number }>(sql`SELECT ${condition} AS ready`))?.ready);
+}
+
+export async function getAdminPoiMediaOriginalStatus(
+  db: AppDb,
+  bucket: R2Bucket | undefined,
+  photo: AdminPoiMedia | null,
+): Promise<OriginalStatus> {
+  try {
+    const condition = await verifiedOriginalCondition(bucket, photo);
+    return await originalConditionIsReady(db, condition) ? "READY" : "UNCONFIRMED";
+  } catch {
+    return "UNCONFIRMED";
+  }
+}
+
 type AdminAssurance = NonNullable<Awaited<ReturnType<typeof getAdminAssurance>>>;
 
 function currentAssuranceCondition(operator: AdminSession, assurance: AdminAssurance): SQL {
@@ -114,6 +190,20 @@ function currentAssuranceCondition(operator: AdminSession, assurance: AdminAssur
   )`;
 }
 
+function eligiblePhotoPlace(db: AppDb, expected: PhotoPlaceIdentity): SQL {
+  return eligiblePoiMediaPlace(db, sql`
+    ${places.id} = ${placePoiMedia.placeId} AND ${places.name} = ${expected.expectedPlaceName}
+      AND ${places.address} = ${expected.expectedPlaceAddress}
+  `);
+}
+
+function checkPhotoPlace(photo: AdminPoiMedia, expected: PhotoPlaceIdentity) {
+  if (photo.placeName !== expected.expectedPlaceName || photo.placeAddress !== expected.expectedPlaceAddress) {
+    return "STALE" as const;
+  }
+  return photo.eligibleForPublication ? null : "INELIGIBLE" as const;
+}
+
 function checkTransitionState(
   photo: AdminPoiMedia | null,
   input: z.infer<typeof poiMediaAdminTransitionSchema>,
@@ -122,10 +212,8 @@ function checkTransitionState(
   if (!photo) return { ok: false, code: "NOT_FOUND" };
   if (photo.sha256 !== input.expectedSha256) return { ok: false, code: "STALE" };
   if (input.intent === "PUBLISH") {
-    if (photo.placeName !== input.expectedPlaceName || photo.placeAddress !== input.expectedPlaceAddress) {
-      return { ok: false, code: "STALE" };
-    }
-    if (!photo.eligibleForPublication) return { ok: false, code: "INELIGIBLE" };
+    const code = checkPhotoPlace(photo, input);
+    if (code) return { ok: false, code };
   }
   if (photo.state === nextState) return { ok: true, state: nextState, changed: false };
   if (photo.state !== input.expectedState) return { ok: false, code: "STALE" };
@@ -157,14 +245,11 @@ export async function applyPoiMediaAdminTransition(
 
   let publishCondition: SQL | undefined;
   if (transition.intent === "PUBLISH") {
-    const identity = photoIdentitySchema.safeParse(photo);
-    if (!bucket || !identity.success || !await readVerifiedPoiMedia(bucket, identity.data)) {
+    const original = await verifiedOriginalCondition(bucket, photo);
+    if (original === null || !await originalConditionIsReady(db, original)) {
       return { ok: false, code: "ASSET_UNVERIFIED" };
     }
-    publishCondition = eligiblePoiMediaPlace(db, sql`
-      ${places.id} = ${placePoiMedia.placeId} AND ${places.name} = ${transition.expectedPlaceName}
-        AND ${places.address} = ${transition.expectedPlaceAddress}
-    `);
+    publishCondition = and(eligiblePhotoPlace(db, transition), original === true ? undefined : original);
   }
 
   const update = db.update(placePoiMedia).set({ state: nextState }).where(and(
@@ -191,4 +276,106 @@ export async function applyPoiMediaAdminTransition(
   if (!(await activeOperator())?.allowed) return { ok: false, code: "FORBIDDEN" };
   return checkTransitionState(await getAdminPoiMedia(db, transition.id), transition, nextState)
     ?? { ok: false, code: "STALE" };
+}
+
+function originalAttachmentFailure(photo: AdminPoiMedia, input: z.infer<typeof originalAttachmentSchema>) {
+  if (photo.state !== "STAGED" || photo.sha256 !== input.expectedSha256) return "STALE" as const;
+  return checkPhotoPlace(photo, input);
+}
+
+export async function applyPoiMediaOriginalAttachment(
+  db: AppDb,
+  bucket: R2Bucket | undefined,
+  input: OriginalAttachmentInput,
+): Promise<OriginalAttachmentResult> {
+  const validated = originalAttachmentSchema.safeParse(input);
+  const bytes = input.bytes;
+  if (!validated.success || !(bytes instanceof Uint8Array) || !poiMediaByteSizeSchema.safeParse(bytes.byteLength).success) {
+    return { ok: false, code: "INVALID_INPUT" };
+  }
+  const attachment = validated.data;
+  const assurance = await getAdminAssurance(db.$client, { ...input, now: new Date(attachment.now) });
+  if (!assurance) return { ok: false, code: "FORBIDDEN" };
+
+  const photo = await getAdminPoiMedia(db, attachment.id);
+  if (!photo) return { ok: false, code: "NOT_FOUND" };
+  const preflight = originalAttachmentFailure(photo, attachment);
+  if (preflight) return { ok: false, code: preflight };
+  const identity = photoIdentitySchema.safeParse(photo);
+  if (!identity.success || bytes.byteLength !== photo.byteSize) return { ok: false, code: "ASSET_UNVERIFIED" };
+  const form = new FormData();
+  form.set("photos", new File([bytes], "original.jpg", { type: POI_MEDIA_CONTENT_TYPE }));
+  try {
+    await parseReviewerPhotoFiles(form);
+  } catch {
+    return { ok: false, code: "ASSET_UNVERIFIED" };
+  }
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  if (Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("") !== photo.sha256) {
+    return { ok: false, code: "ASSET_UNVERIFIED" };
+  }
+  if (!bucket) return { ok: false, code: "UPLOAD_UNCONFIRMED" };
+
+  const operator = currentAssuranceCondition(input, assurance);
+  const matches = and(
+    eq(placePoiMedia.id, photo.id), eq(placePoiMedia.sha256, photo.sha256), eq(placePoiMedia.byteSize, photo.byteSize),
+    eq(placePoiMedia.state, "STAGED"), operator, eligiblePhotoPlace(db, attachment),
+  );
+  const permittedRow = db.select({ id: placePoiMedia.id }).from(placePoiMedia).where(matches);
+  const explainWriteDenial = async (): Promise<OriginalAttachmentResult> => {
+    const status = await db.get<{ allowed: number }>(sql`SELECT ${operator} AS allowed`);
+    if (!status?.allowed) return { ok: false, code: "FORBIDDEN" };
+    const current = await getAdminPoiMedia(db, photo.id);
+    if (!current) return { ok: false, code: "NOT_FOUND" };
+    return { ok: false, code: originalAttachmentFailure(current, attachment) ?? "UPLOAD_UNCONFIRMED" };
+  };
+  if (!(await permittedRow.get())) return explainWriteDenial();
+
+  const objectKey = getPoiMediaObjectKey(photo.id, photo.sha256);
+  try {
+    await bucket.put(objectKey, bytes, {
+      onlyIf: new Headers({ "If-None-Match": "*" }),
+      httpMetadata: { contentType: POI_MEDIA_CONTENT_TYPE },
+      customMetadata: { [POI_MEDIA_ORIGINAL_ATTACHMENT_KEY]: photo.id },
+      sha256: digest,
+    });
+  } catch {
+    // A failed response can follow a committed write. Read the exact key before deciding.
+  }
+  try {
+    const asset = await readVerifiedPoiMediaAsset(bucket, identity.data);
+    if (!asset) {
+      return { ok: false, code: await bucket.head(objectKey) ? "ASSET_UNVERIFIED" : "UPLOAD_UNCONFIRMED" };
+    }
+    if (asset.attachmentId !== undefined && asset.attachmentId !== photo.id) {
+      return { ok: false, code: "ASSET_UNVERIFIED" };
+    }
+  } catch {
+    return { ok: false, code: "UPLOAD_UNCONFIRMED" };
+  }
+
+  const audit = originalAttachmentAudit(identity.data);
+  try {
+    const inserted = await db.get<{ id: string }>(sql`
+      INSERT INTO admin_audit_logs
+        (id, actor_user_id, action, target_type, target_id, before_state, after_state, created_at)
+      SELECT ${audit.id}, ${input.actorUserId}, ${originalAttachmentAction}, 'PLACE_POI_MEDIA', ${photo.id},
+        ${audit.beforeState}, ${audit.afterState}, ${attachment.now}
+      FROM place_poi_media WHERE ${matches}
+      ON CONFLICT (id) DO NOTHING RETURNING id
+    `);
+    if (inserted) return { ok: true, changed: true };
+  } catch {
+    // A retry can reconcile an already-verified private object without overwriting it.
+  }
+  try {
+    const confirmed = await db.get<{ id: string }>(sql`
+      SELECT a.id FROM place_poi_media JOIN admin_audit_logs a ON ${matchesOriginalAttachmentAudit(identity.data)}
+      WHERE ${matches}
+    `);
+    if (confirmed) return { ok: true, changed: false };
+    return await explainWriteDenial();
+  } catch {
+    return { ok: false, code: "UPLOAD_UNCONFIRMED" };
+  }
 }

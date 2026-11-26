@@ -13,6 +13,7 @@ const AUDIT_COUNT = `(SELECT count(*) FROM (SELECT 1 FROM admin_audit_logs al
   WHERE al.action='ADMIN_OPERATION_COMMITTED' AND al.target_type='ADMIN_OPERATION'
   AND al.target_id=o.id AND al.actor_user_id=o.actor_user_id LIMIT 2))`;
 const AUDIT_NAMES: Record<string, string> = {
+  POI_MEDIA_ORIGINAL_ATTACH: "장소 사진 원본 첨부",
   POI_MEDIA_PUBLISH: "장소 사진 공개 승인",
   POI_MEDIA_WITHDRAW: "장소 사진 회수",
   POI_MEDIA_IDENTITY_WITHDRAWN: "장소 정보 변경으로 사진 회수",
