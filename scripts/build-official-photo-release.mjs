@@ -202,6 +202,16 @@ const goldenKeyboardTargets = [
   "app/components/places/PlaceDiscoveryRail.tsx",
   "app/routes/place-list.tsx",
 ];
+const photoSourceLinksPatch = "ops/releases/photo-source-links-494c07f.patch";
+const photoSourceLinksTargets = [
+  "app/components/places/PlaceDetailSheet.tsx",
+  "app/routes/place-detail.tsx",
+];
+const photoSourceLinksFiles = [
+  "app/components/places/PlacePhotoOriginalLink.tsx",
+  "app/features/poi-media/photo-original-sources.ts",
+];
+const photoSourceLinksReplacements = ["app/features/temp-catalog/TempCatalogNotice.tsx"];
 
 function git(args, cwd = repository) {
   return execFileSync("git", args, { cwd, maxBuffer: 128 * 1024 * 1024 });
@@ -211,9 +221,11 @@ const [output, ...modes] = process.argv.slice(2);
 const studentPilot = modes.includes("--student-pilot");
 const poiMedia = modes.includes("--poi-media");
 const goldenKeyboard = modes.includes("--golden-keyboard");
-if (!output || !isAbsolute(output) || modes.length !== Number(studentPilot) + Number(poiMedia) + Number(goldenKeyboard) ||
-    (poiMedia && !studentPilot) || (goldenKeyboard && !poiMedia)) {
-  throw new Error("Usage: node scripts/build-official-photo-release.mjs <new-absolute-output-dir> [--student-pilot [--poi-media [--golden-keyboard]]]");
+const photoSourceLinks = modes.includes("--photo-source-links");
+const validModeCount = [studentPilot, poiMedia, goldenKeyboard, photoSourceLinks].filter(Boolean).length;
+if (!output || !isAbsolute(output) || modes.length !== validModeCount ||
+    (poiMedia && !studentPilot) || ((goldenKeyboard || photoSourceLinks) && !poiMedia)) {
+  throw new Error("Usage: node scripts/build-official-photo-release.mjs <new-absolute-output-dir> [--student-pilot [--poi-media [--golden-keyboard] [--photo-source-links]]]");
 }
 const fromRepository = relative(repository, output);
 if (!fromRepository.startsWith("../") || existsSync(output)) {
@@ -334,6 +346,15 @@ const publicAuthContinuationProof = {
 const goldenKeyboardProof = goldenKeyboard ? {
   goldenKeyboardPatchSha256: applyReleasePatch(goldenKeyboardPatch, ".golden-keyboard.patch", goldenKeyboardTargets),
 } : {};
+const photoSourceLinksProof = photoSourceLinks ? {
+  photoSourceLinks: {
+    patchSha256: applyReleasePatch(photoSourceLinksPatch, ".photo-source-links.patch", photoSourceLinksTargets),
+    fileSha256: {
+      ...copyMainFiles(photoSourceLinksFiles),
+      ...copyMainFiles(photoSourceLinksReplacements, { replace: true }),
+    },
+  },
+} : {};
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -356,6 +377,7 @@ const attestation = {
   publicPlacePagination: publicPlacePaginationProof,
   publicAuthContinuation: publicAuthContinuationProof,
   ...goldenKeyboardProof,
+  ...photoSourceLinksProof,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: buildFingerprint(buildRoot),

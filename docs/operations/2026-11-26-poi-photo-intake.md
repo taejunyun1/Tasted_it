@@ -59,6 +59,8 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 `student-pilot-release.json`의 `poiMedia`에 공개·관리 패치와 복사한 소스의 지문, 필요한 0063·0064의 파일 지문을 남긴다. 후보의 공개 사진 변수와 직접인증 사진 접수는 초기 미지정 상태다. 0065까지만 있는 실증 후보는 기존 `--student-pilot`로 생성한다.
 
+출처 링크를 포함한 후속 후보는 `--student-pilot --poi-media --photo-source-links`로 생성한다. 골든픽 후보에는 `--golden-keyboard`를 함께 지정할 수 있다. `student-pilot-release.json`의 `photoSourceLinks`에 상세·시트 패치와 복사한 원문 목록, 링크, TEMP 안내 파일의 지문을 기록한다. 합성 59개 장부의 빌드에서 데스크톱과 320px 모바일의 복순이네 원문 링크와 젤라또 노베오 Instagram 링크를 확인했다. #556·#563·#568의 실행에는 각 승인 절차의 고정 산출물을 사용한다.
+
 일반 장소 사진을 준비하는 후속 환경은 운영 장부의 56개 뒤에 0065, 0063, 0064 순서로 적용한 59개 장부를 사용한다. 0065가 적용된 환경에서는 기존 57개 순서를 확인하고 0063·0064만 추가할 후보로 지정한다. 관리자 화면에서는 기존 비공개 사진 바인딩의 `poi-media/` 원본을 대조한다. 공개를 승인한 실행에서는 배포 설정에 `POI_MEDIA_PUBLIC_ENABLED=true`를 지정해 상세와 모바일 시트의 사진·원문 링크를 확인한다. 사진 공개 중지와 개별 회수는 아래 기준을 따른다.
 
 59개 장부의 합성 환경에서 관리자 비밀번호 재인증, 승인과 회수 감사, 공개 GET·HEAD의 JPEG 해시 및 회수 뒤 404를 확인했다. 일반 장소 사진과 별도 직접인증 사진이 데스크톱 상세와 모바일 시트에 같이 표시됐다. 공개 변수를 비운 상태와 TEMP 표본의 사진 미노출, 공식 Instagram 대체 표시, 기존 두 사진 저장 경로의 보존도 확인했다. [실행 기록](../evidence/cst-poi-media-compat-20261126/summary.json) · [320px 관리자](../evidence/cst-poi-media-compat-20261126/admin-preview-mobile.png) · [모바일 공개 상세](../evidence/cst-poi-media-compat-20261126/public-photo-mobile.png)

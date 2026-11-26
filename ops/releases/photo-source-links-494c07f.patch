@@ -1,0 +1,79 @@
+diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
+--- a/app/components/places/PlaceDetailSheet.tsx
++++ b/app/components/places/PlaceDetailSheet.tsx
+@@ -9,6 +9,7 @@
+ import { TempCatalogNotice } from "../../features/temp-catalog/TempCatalogNotice";
+ import type { PlaceDetailLoadFailure } from "../../features/places/place-detail-client";
+ import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
++import { PlacePhotoOriginalLink } from "./PlacePhotoOriginalLink";
+ import { PlacePoiPhoto } from "./PlacePoiPhoto";
+ import { VoteControl } from "../ratings/VoteControl";
+ import { PlacePublicReviewers } from "./PlacePublicEvidence";
+@@ -205,6 +206,7 @@
+           <h2>{data.place.name}</h2>
+           {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
+           <address>{data.place.address}</address>
++          {data.photoOriginal && <PlacePhotoOriginalLink source={data.photoOriginal} />}
+           {!data.poiPhoto && data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
+           {data.pilotPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="pilot-sheet-photo-title">
+             <div><h2 id="pilot-sheet-photo-title">직접인증 방문 사진</h2></div>
+diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
+--- a/app/routes/place-detail.tsx
++++ b/app/routes/place-detail.tsx
+@@ -27,8 +27,10 @@
+ import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
+ import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
+ import { PlaceInstagramPhoto } from "../components/places/PlaceInstagramPhoto";
++import { PlacePhotoOriginalLink } from "../components/places/PlacePhotoOriginalLink";
+ import { PlacePoiPhoto } from "../components/places/PlacePoiPhoto";
+ import { curatedInstagramPhoto } from "../features/poi-media/instagram-photos";
++import { reviewedPlacePhotoOriginal } from "../features/poi-media/photo-original-sources";
+ import { getPublicPoiPhoto } from "../features/poi-media/poi-media.server";
+ import { listPublicPilotPhotos } from "../features/ratings/student-review-pilot-photo.server";
+ import { listPublicPlaceReviewers } from "../features/ratings/reviewer-publication.server";
+@@ -93,13 +95,16 @@
+   const officialPhoto = !place.heroImageUrl && !place.tempCatalog
+     ? curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED)
+     : null;
+-  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible, pilotPhotos, publicReviewers, poiPhoto] = await Promise.all([
++  const originalSource = !place.heroImageUrl && !place.tempCatalog && !officialPhoto
++    ? reviewedPlacePhotoOriginal(place)
++    : null;
++  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, photoSourceEligible, pilotPhotos, publicReviewers, poiPhoto] = await Promise.all([
+     getLatestRatingSnapshot(db, place.id),
+     getPlaceFlavorPrint(db, place.id),
+     listActiveGoldenPicks(db, now),
+     getHiddenGemStatus(db, { placeId: place.id, now }),
+     listPublishedPlaceReviewPhotos(db, place.id, 12),
+-    officialPhoto ? isEligibleOfficialPhotoPlace(db, place).catch(() => false) : false,
++    officialPhoto || originalSource ? isEligibleOfficialPhotoPlace(db, place).catch(() => false) : false,
+     env.STUDENT_REVIEW_PILOT_PHOTOS ? listPublicPilotPhotos(db, place.id).catch(() => []) : [],
+     listPublicPlaceReviewers(db, place.id),
+     getPublicPoiPhoto(db, place.id, env.POI_MEDIA_PUBLIC_ENABLED),
+@@ -137,7 +142,8 @@
+     });
+   }
+   const returnTo = provenance?.requestPath ?? `/places/${encodeURIComponent(place.slug)}`;
+-  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, pilotPhotos, publicReviewers, poiPhoto, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
++  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, pilotPhotos, publicReviewers, poiPhoto, instagramPhoto: photoSourceEligible ? officialPhoto : null,
++    photoOriginal: photoSourceEligible && !poiPhoto ? originalSource : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+ }
+
+ export async function action({ request, params, url }: Route.ActionArgs) {
+@@ -245,7 +251,7 @@
+       <Link to="/places">맛집 리스트로</Link>
+     </main>;
+   }
+-  const { place, rating, flavorPrint, reviewPhotos, pilotPhotos, publicReviewers, poiPhoto, instagramPhoto } = loaderData;
++  const { place, rating, flavorPrint, reviewPhotos, pilotPhotos, publicReviewers, poiPhoto, instagramPhoto, photoOriginal } = loaderData;
+   const query = encodeURIComponent(place.address);
+   return (
+     <main id="main" className="detail shell">
+@@ -264,6 +270,7 @@
+           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
+           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
+           <PlaceInformation place={place} />
++          {photoOriginal && <PlacePhotoOriginalLink source={photoOriginal} />}
+           <VoteControl key={place.id} placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
+           <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
+           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
