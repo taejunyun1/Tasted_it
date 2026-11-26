@@ -1,6 +1,6 @@
 import { NO_STORE_HEADERS } from "../students/policy";
 import { INSTAGRAM_PHOTO_FRAME_SOURCES } from "../poi-media/instagram-photos";
-import { THREADS_PHOTO_FRAME_SOURCE } from "../poi-media/photo-original-sources";
+import { allowsPlaceVisualFrames, THREADS_PHOTO_FRAME_SOURCE, YOUTUBE_VIDEO_FRAME_SOURCE, type PlaceVisualFlags } from "../poi-media/photo-original-sources";
 
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -44,21 +44,17 @@ function isPrivateWorkspaceRequest(request: Request) {
     || path === "/admin" || path === "/admin.data" || path.startsWith("/admin/");
 }
 
-function isPlaceBrowsingDocument(request?: Request) {
-  if (!request) return false;
-  const path = new URL(request.url).pathname;
-  return path === "/" || /^\/(?:places|maps)(?:\/|$)/u.test(path);
-}
-
-export function withSecurityHeaders(response: Response, request?: Request, instagramPhotosEnabled?: string, threadsPhotosEnabled?: string) {
+export function withSecurityHeaders(response: Response, request?: Request, instagramPhotosEnabled?: string, visualFlags: PlaceVisualFlags = {}) {
   const headers = applySecurityHeaders(response.headers);
   const privateWorkspace = Boolean(request && isPrivateWorkspaceRequest(request));
   // The parent document's CSP also applies to the detail sheet after SPA navigation.
   // Allow the specific curated frames without granting first-party script access.
   if (headers.get("Content-Type")?.startsWith("text/html") && !response.headers.has("Content-Security-Policy")) {
+    const canOpenPlaceVisual = response.ok && request && allowsPlaceVisualFrames(new URL(request.url).pathname);
     const allowedFrames = [
       instagramPhotosEnabled === "true" ? INSTAGRAM_PHOTO_FRAME_SOURCES : "",
-      threadsPhotosEnabled === "true" && response.ok && isPlaceBrowsingDocument(request) ? THREADS_PHOTO_FRAME_SOURCE : "",
+      canOpenPlaceVisual && visualFlags.threads === "true" ? THREADS_PHOTO_FRAME_SOURCE : "",
+      canOpenPlaceVisual && visualFlags.youtube === "true" ? YOUTUBE_VIDEO_FRAME_SOURCE : "",
     ].filter(Boolean).join(" ");
     if (allowedFrames) headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${allowedFrames}`));
   }

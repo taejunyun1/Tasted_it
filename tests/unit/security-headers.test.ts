@@ -61,15 +61,26 @@ describe("applySecurityHeaders", () => {
     const html = () => new Response(null, { headers: { "Content-Type": "text/html; charset=utf-8" } });
     const publicRequest = new Request("https://example.test/places");
     const policy = (response: Response) => response.headers.get("Content-Security-Policy");
-    expect(policy(withSecurityHeaders(html(), publicRequest, undefined, "true"))).toBe(
+    const threadsEnabled = { threads: "true" };
+    expect(policy(withSecurityHeaders(html(), publicRequest, undefined, threadsEnabled))).toBe(
       CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${frame}`),
     );
-    expect(policy(withSecurityHeaders(html(), publicRequest, "true", "true"))).toContain(`${frame};`);
+    expect(policy(withSecurityHeaders(html(), publicRequest, "true", threadsEnabled))).toContain(`${frame};`);
     for (const path of ["/admin/places", "/me/privacy", "/reviewer/pilot-photo/fixture", "/login", "/privacy"]) {
-      expect(policy(withSecurityHeaders(html(), new Request(`https://example.test${path}`), undefined, "true"))).toBe(CONTENT_SECURITY_POLICY);
+      expect(policy(withSecurityHeaders(html(), new Request(`https://example.test${path}`), undefined, threadsEnabled))).toBe(CONTENT_SECURITY_POLICY);
     }
-    expect(policy(withSecurityHeaders(new Response(null, { status: 404, headers: { "Content-Type": "text/html" } }), publicRequest, undefined, "true"))).toBe(CONTENT_SECURITY_POLICY);
-    expect(policy(withSecurityHeaders(new Response(null, { headers: { "Content-Type": "application/json" } }), publicRequest, undefined, "true"))).toBe(CONTENT_SECURITY_POLICY);
+    expect(policy(withSecurityHeaders(new Response(null, { status: 404, headers: { "Content-Type": "text/html" } }), publicRequest, undefined, threadsEnabled))).toBe(CONTENT_SECURITY_POLICY);
+    expect(policy(withSecurityHeaders(new Response(null, { headers: { "Content-Type": "application/json" } }), publicRequest, undefined, threadsEnabled))).toBe(CONTENT_SECURITY_POLICY);
+  });
+
+  it("allows the single privacy-enhanced YouTube player on a public browse document", () => {
+    const html = () => new Response(null, { headers: { "Content-Type": "text/html" } });
+    const youtube = { youtube: "true" };
+    const request = (path: string) => new Request(`https://example.test${path}`);
+    expect(withSecurityHeaders(html(), request("/places/fixture"), undefined, youtube).headers.get("Content-Security-Policy")).toBe(
+      CONTENT_SECURITY_POLICY.replace("frame-src 'none'", "frame-src https://www.youtube-nocookie.com/embed/XVApkkeXoRQ"),
+    );
+    expect(withSecurityHeaders(html(), request("/me"), undefined, youtube).headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
   });
 });
 

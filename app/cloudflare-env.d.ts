@@ -11,6 +11,7 @@ declare namespace Cloudflare {
     NAVER_LOCAL_SEARCH_DAILY_LIMIT: string;
     POI_INSTAGRAM_PHOTO_ENABLED?: string;
     POI_THREADS_PHOTO_ENABLED?: string;
+    POI_YOUTUBE_VISUAL_ENABLED?: string;
     DATA_GO_KR_SERVICE_KEY: string;
     RESEND_API_KEY: string;
     RESEND_FROM_EMAIL: string;

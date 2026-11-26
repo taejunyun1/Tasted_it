@@ -73,6 +73,12 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 `POI_THREADS_PHOTO_ENABLED=true`는 홈과 공개 장소 탐색 HTML의 지정 프레임에 적용한다. 클릭 시 제공자가 일반 브라우저 요청 정보와 IP를 받을 수 있다. 프레임은 `no-referrer`와 `allow-scripts` 샌드박스를 사용하며 Re:Taste 서버의 외부 API 호출과 사진 파일 저장 비용은 없다. 운영 활성화는 후보와 검증 범위를 지정한 승인 후에 진행한다. 프레임 경로가 바뀌거나 문제가 생기면 플래그를 내려 출처 링크로 돌린다. 담당은 Jay/Codex다.
 
+### 해남군 공개 영상
+
+서성식당은 **YouTube에 연결해 영상 보기**를 누르면 해남군 원본의 개인정보 보호 강화 플레이어를 연다. 서비스 origin과 일반 요청 정보가 YouTube에 전달된다. 장소 URL과 검색어는 Referer에 포함하지 않는다. 320px에서도 플레이어 영역은 200×200px 이상이다. 다른 경로의 문서에서 장소 상세로 이동해 최초 CSP가 영상 경로를 제한하면 **장소 상세 다시 열기**를 제공한다. **출처**는 해남군의 원게시물로 이동한다. [YouTube 임베드 요구사항](https://developers.google.com/youtube/terms/required-minimum-functionality) · [검증](../evidence/cst-county-video-20261127/summary.json)
+
+`--photo-source-links` 후보는 YouTube와 Threads를 기본 비활성으로 생성한다. `POI_YOUTUBE_VISUAL_ENABLED=true`로 켜는 운영 적용은 별도 심사에서 후보와 범위를 고정한다. 문제가 발생하면 YouTube 플래그를 내려 원문 링크로 돌린다. 추가 서버 API, 영상 저장, 스키마 변경과 사용료는 없다.
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.

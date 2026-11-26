@@ -1,10 +1,20 @@
 type PlaceIdentity = { id: string; name: string; address: string };
 
-export type PlacePhotoOriginalSource = { url: string; publisher: string; embedUrl?: string };
+export type PlacePhotoOriginalSource = {
+  url: string;
+  publisher: string;
+  mediaKind?: "video";
+  embed?: { provider: "threads" | "youtube"; url: string };
+};
+export type PlaceVisualFlags = { threads?: string; youtube?: string };
 
-const THREADS_PHOTO_POST_URL = "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W";
 // The official embed script produces this narrowly scoped frame for the selected post.
 export const THREADS_PHOTO_FRAME_SOURCE = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
+export const YOUTUBE_VIDEO_FRAME_SOURCE = "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ";
+
+export function allowsPlaceVisualFrames(pathname: string) {
+  return pathname === "/" || /^\/(?:places|maps)(?:\/|$)/u.test(pathname);
+}
 
 const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = [
   {
@@ -40,7 +50,8 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     name: "옛날두부",
     address: "전남광주 화순군 시장길 33 (삼천리)",
     publisher: "Threads · @hwasun_dubu",
-    url: THREADS_PHOTO_POST_URL,
+    url: "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W",
+    embed: { provider: "threads", url: THREADS_PHOTO_FRAME_SOURCE },
   },
   {
     id: "place-intake-e724797f168726b01426c9cc",
@@ -77,13 +88,20 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     publisher: "네이버 플레이스 · 업체 사진",
     url: "https://m.place.naver.com/restaurant/1619421905/photo?filterType=%EC%97%85%EC%B2%B4",
   },
+  {
+    id: "place-intake-f7a0d770e886c35979f8fd2a",
+    name: "서성식당",
+    address: "전남광주 해남군 중앙1로 282 (구교리)",
+    publisher: "YouTube · 해남군",
+    url: "https://www.youtube.com/watch?v=XVApkkeXoRQ",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: YOUTUBE_VIDEO_FRAME_SOURCE },
+  },
 ];
 
-export function reviewedPlacePhotoOriginal(place: PlaceIdentity, threadsEnabled?: string): PlacePhotoOriginalSource | null {
+export function reviewedPlacePhotoOriginal(place: PlaceIdentity, flags: PlaceVisualFlags = {}): PlacePhotoOriginalSource | null {
   const source = REVIEWED_SOURCES.find(({ id, name, address }) => id === place.id && name === place.name && address === place.address);
   if (!source) return null;
-  const { url, publisher } = source;
-  return threadsEnabled === "true" && url === THREADS_PHOTO_POST_URL
-    ? { url, publisher, embedUrl: THREADS_PHOTO_FRAME_SOURCE }
-    : { url, publisher };
+  const { id, name, address, embed, ...original } = source;
+  return embed && flags[embed.provider] === "true" ? { ...original, embed } : original;
 }

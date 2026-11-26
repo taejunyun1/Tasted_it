@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { PlaceInstagramPhoto } from "../../app/components/places/PlaceInstagramPhoto";
 import { PlacePoiPhoto } from "../../app/components/places/PlacePoiPhoto";
 import { PlacePhotoOriginalLink } from "../../app/components/places/PlacePhotoOriginalLink";
-import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
+import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE, YOUTUBE_VIDEO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
 import { TempCatalogNotice } from "../../app/features/temp-catalog/TempCatalogNotice";
 
 function expectExactPhotoSource(html: string, url: string) {
@@ -64,7 +64,7 @@ describe("place photo source links", () => {
     ["bd45a029-bce6-485d-8efc-425dca48f606", "조단부부", "전남광주통합특별시 구례군 구례읍 봉성로 103-1", "1619421905"],
   ])("links the owner gallery for %s", (id, name, address, naverId) => {
     const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
-    const source = reviewedPlacePhotoOriginal({ id, name, address }, "true");
+    const source = reviewedPlacePhotoOriginal({ id, name, address }, { threads: "true", youtube: "true" });
     expect(source).toEqual({ url, publisher: "네이버 플레이스 · 업체 사진" });
     expect(reviewedPlacePhotoOriginal({ id, name, address: `${address} 2층` })).toBeNull();
     expectExactPhotoSource(renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! })), url);
@@ -73,13 +73,25 @@ describe("place photo source links", () => {
   it("offers the registered Threads gallery only when enabled and waits for a click", () => {
     const place = { id: "place-intake-1d21bef4545b2941c0c68f66", name: "옛날두부", address: "전남광주 화순군 시장길 33 (삼천리)" };
     const disabled = reviewedPlacePhotoOriginal(place);
-    expect(disabled?.embedUrl).toBeUndefined();
-    const source = reviewedPlacePhotoOriginal(place, "true");
-    expect(source?.embedUrl).toBe(THREADS_PHOTO_FRAME_SOURCE);
+    expect(disabled?.embed).toBeUndefined();
+    const source = reviewedPlacePhotoOriginal(place, { threads: "true" });
+    expect(source?.embed).toEqual({ provider: "threads", url: THREADS_PHOTO_FRAME_SOURCE });
     const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
     expect(html).toContain("Threads에 연결해 사진 보기");
     expect(html).not.toContain("<iframe");
     expectExactPhotoSource(html, "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W");
-    expect(reviewedPlacePhotoOriginal({ ...place, name: "다른 업소" }, "true")).toBeNull();
+    expect(reviewedPlacePhotoOriginal({ ...place, name: "다른 업소" }, { threads: "true" })).toBeNull();
+  });
+
+  it("keeps the county video source available with its player independently gated", () => {
+    const place = { id: "place-intake-f7a0d770e886c35979f8fd2a", name: "서성식당", address: "전남광주 해남군 중앙1로 282 (구교리)" };
+    const original = reviewedPlacePhotoOriginal(place, { threads: "true" });
+    expect(original).toEqual({ url: "https://www.youtube.com/watch?v=XVApkkeXoRQ", publisher: "YouTube · 해남군", mediaKind: "video" });
+    const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });
+    expect(source?.embed).toEqual({ provider: "youtube", url: YOUTUBE_VIDEO_FRAME_SOURCE });
+    const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
+    expect(html).toContain("YouTube에 연결해 영상 보기");
+    expect(html).not.toContain("<iframe");
+    expectExactPhotoSource(html, "https://www.youtube.com/watch?v=XVApkkeXoRQ");
   });
 });
