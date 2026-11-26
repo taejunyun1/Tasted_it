@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
+import { PlaceReviewPhotos } from "../../app/components/places/PlacePublicEvidence";
 import {
   recommendationPlacePath,
   recommendationRequestPath,
@@ -53,6 +57,28 @@ describe("place discovery visual contract", () => {
     const requestPath = recommendationRequestPath(trustedPath, requestId);
     expect(safePlaceDetailRequestPath(requestPath))
       .toBe(`${canonical}?sourceRail=TRUSTED&discoveryMode=QUALITY&recommendationRequestId=${requestId}`);
+  });
+
+  it("labels the service-authored photo only when the gallery has mixed sources", () => {
+    const ordinaryPhoto = {
+      id: "ordinary-photo", reviewId: "review-a", position: 0, publishedAt: "2026-11-26",
+      url: "/review-photos/ordinary-photo", reviewerSlug: "ordinary-author", reviewerDisplayName: "일반 작성자",
+    };
+    const verifiedPhoto = {
+      ...ordinaryPhoto, id: "verified-photo", reviewId: "review-b",
+      url: "/student-review-photos/verified-photo", reviewerSlug: "verified-author", reviewerDisplayName: "자체 콘텐츠 작성자",
+      directlyVerified: true as const,
+    };
+    const html = renderToStaticMarkup(createElement(
+      MemoryRouter, null, createElement(PlaceReviewPhotos, { placeName: "합성 장소", photos: [ordinaryPhoto, verifiedPhoto] }),
+    ));
+
+    expect(html).toContain("승인된 방문 사진");
+    expect(html).toContain('href="/reviewers/ordinary-author"');
+    expect(html).toContain("사진 제공 · 일반 작성자");
+    expect(html).not.toContain("직접인증 · 사진 제공 · 일반 작성자");
+    expect(html).toContain('href="/reviewers/verified-author"');
+    expect(html).toContain("직접인증 · 사진 제공 · 자체 콘텐츠 작성자");
   });
 
   it("shares the Course and My Taste palette and respects reduced motion", () => {

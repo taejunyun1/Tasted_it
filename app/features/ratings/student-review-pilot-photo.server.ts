@@ -316,7 +316,7 @@ export async function listPublicPilotPhotos(db: AppDb, placeId: string) {
     .innerJoin(users, eq(users.id, photos.authorUserId))
     .where(and(eq(photos.placeId, placeId), eq(photos.status, "APPROVED"), eq(photos.sealed, true), canPublish()))
     .orderBy(desc(reviewerVisitReviews.publishedAt), desc(photos.id)).limit(12);
-  return rows.map((photo) => ({ ...photo, url: `/student-review-photos/${photo.id}` }));
+  return rows.map((photo) => ({ ...photo, directlyVerified: true as const, url: `/student-review-photos/${photo.id}` }));
 }
 
 export async function cleanupPilotPhotos(db: AppDb, bucket: Pick<PilotBucket, "head" | "delete">, now: string) {

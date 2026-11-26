@@ -8,6 +8,8 @@
 
 운영 호환 후보의 로컬 시험에서 이메일 인증된 두 합성 계정의 신청, 일반 승인 미달과 사유를 입력한 B08 예외 승인, 첫 방문 기록·사진·공개·철회를 연결했다. 다음 후보는 첫 작성 중 사진 단계 본문을 보여주고 검수 요청 확인에서 해당 리뷰의 첨부 경로로 바로 이동한다. 실제 신청과 운영 적용은 대기다. [첫 리뷰 실행 증거](../operations/2026-11-26-cst-student-reviewer-pilot.md#첫-신청부터-사진-공개까지-로컬-검증)
 
+Re:Taste 자체 방문 콘텐츠의 공개 명칭은 **직접인증**이다. 승인된 사진과 해당 장소의 작성자, 공개 작성자 프로필에 적용한다. 한 화면에 일반 사진과 함께 표시되면 자체 사진에만 직접인증을 표시한다. 사진 출처 링크는 작성자 프로필로 연결하고 참여자의 직업 정보는 내부 프로필에 둔다. 코드 `e3a5bea`의 격리 호환 Worker에서 데스크톱과 390px 모바일의 제목·링크·프로필, 승인 전 비공개와 A 사진 철회를 확인했다. 운영 반영은 대기다. [검증 결과](../evidence/cst-direct-verification-20261126/summary.json) · [모바일 장소](../evidence/cst-direct-verification-20261126/mobile-place.png) · [데스크톱 작성자](../evidence/cst-direct-verification-20261126/desktop-profile.png)
+
 ## 2026-11-26 Instagram 공식 사진 표시
 
 운영 Worker `1343a5e8` 100%에서 일반 공개 장소 78곳 중 등록된 공식 Instagram 사진 30곳의 실제 이미지와 원문 링크를 비로그인 데스크톱 Chromium으로 대조했다. 젤라또 노베오의 모바일 상세에서도 실제 이미지를 확인했다. 장부 56개와 원장 856건, 검수 연결 83건을 배포 전후에 대조했다. 대접나주배닭강정과 렌더링커피의 공식 정지 사진을 포함해 #539 기준 저장소 등록은 38곳이다. 추가 여덟 곳의 운영 반영과 나머지 40곳의 출처 확인은 #515에서 추적한다. 동일 버전의 첫 정기 RSI는 21:47 KST 예정이다. [#529 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/529) · [#537 사진 등록](https://github.com/taejunyun1/Tasted_it/pull/537) · [#539 사진 등록](https://github.com/taejunyun1/Tasted_it/pull/539) · [#515 사진 추적](https://github.com/taejunyun1/Tasted_it/issues/515) · [사진 운영 절차](../operations/2026-11-26-poi-photo-intake.md#공식-instagram-사진-게시물)

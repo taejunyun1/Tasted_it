@@ -75,6 +75,11 @@ const publicVoteSupportFiles = [
   "app/features/places/place-detail-client.ts",
   "app/features/places/place-detail-path.ts",
 ];
+const directVerificationPatch = "ops/releases/direct-verification-profile-494c07f.patch";
+const directVerificationTargets = [
+  "app/features/reviewers/reviewer.server.ts",
+  "app/routes/reviewer-profile.tsx",
+];
 const pilotMigration = "drizzle/0065_student_review_pilot_photos.sql";
 const orderedBaselineLedgerSha256 = "a9beee8c240ccef6d667125f9968c4d70483c315d1afe458f99b18c582762928";
 
@@ -152,6 +157,9 @@ const publicVoteSupportFileSha256 = copyMainFiles(publicVoteSupportFiles);
 const publicVotePatchSha256 = applyReleasePatch(
   publicVotePatch, ".public-place-vote.patch", publicVoteTargets, ["--unidiff-zero"],
 );
+const directVerificationPatchSha256 = applyReleasePatch(
+  directVerificationPatch, ".direct-verification-profile.patch", directVerificationTargets,
+);
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -170,6 +178,7 @@ const attestation = {
   placeDetailVoteLinkPatchSha256,
   publicVotePatchSha256,
   publicVoteSupportFileSha256,
+  directVerificationPatchSha256,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: digest(JSON.stringify(emittedFiles)),
