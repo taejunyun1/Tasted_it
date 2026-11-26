@@ -1,0 +1,59 @@
+{
+  "revision": "2b2e828e69cda5f4f4a4b1278f1b545cba42e3fe",
+  "sourceBuildSha256": "bb91d51e4a189295e5032b275ed05e267be99a5d323905a3c90c2b1d22ca998d",
+  "variants": {
+    "closed": {
+      "referenceConfigSha256": "02845cee0b3299d2c33826db0f42b0c1f06ed80e89fdd0b718690f68454b1743",
+      "verifiedConfigSha256": "83276cf5c571a74f764b1653607e4241bd6c58aa88eefbdd7e9a5fb1eb0e0874",
+      "verifiedBuildSha256": "b10bfc89f3d26ad14cfbb6c118072041fb576a352f55ac3f35c7121764d58dc0",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": false,
+      "previousApprovedConfigSha256": "0e228c2b65d158b70086a5bd7df232699f7035904e7643372e9987f82d002964",
+      "matchesPreviousApprovedSettings": true
+    },
+    "ab": {
+      "referenceConfigSha256": "ad18a14741b70fc844edb156ac5821850a3eb46bb21096e0267cfeb888ad6ebf",
+      "verifiedConfigSha256": "93876638658794175fc022780bb05d5c2f6ae3bfca5b56fd50a4ecd99ad191c9",
+      "verifiedBuildSha256": "706201a7da15e17aa12e8622884f95d50bbe6093f53ebe6bb97cb90beaf4a0d3",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": true,
+      "previousApprovedConfigSha256": "1e4f99e7c849c127d22114ce62c291103650c2a4dbde1dec71bbfc7c8b6b781c",
+      "matchesPreviousApprovedSettings": true
+    }
+  },
+  "configurationPurpose": "local later rollout readiness",
+  "runtimeFilesChangedSincePr591": {
+    "app/features/ratings/student-review-pilot-photo.server.ts": "d25c7825ea7a34ee3d4dbd7721a0b878260e0cfd8ea1e3e7d114e7c51e45071a",
+    "app/routes/admin-student-review-photos.tsx": "d10f8dafd8828bdb328910270b055f3a8a04bd2fafbb14202ce981ccd945d77b"
+  },
+  "inheritedReleaseInputsMatchPr591": true,
+  "previousApproval": 591,
+  "strictDryRun": {
+    "closed": true,
+    "ab": true
+  },
+  "browser": {
+    "localOnly": true,
+    "migrations": 59,
+    "viewports": [
+      1280,
+      320
+    ],
+    "actions": {
+      "publicPhotoHiddenByLivenessExclusion": true,
+      "unassuredRetirementRedirected": true,
+      "passwordReauthentication": true,
+      "retiredAndAuditedOnce": true,
+      "localPlaceRestorationDoesNotReExposePhoto": true
+    },
+    "workerOutbound": 0
+  },
+  "previousMediaUploadOrTrafficObserved": false,
+  "remoteUpload": false
+}
