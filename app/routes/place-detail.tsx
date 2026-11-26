@@ -268,21 +268,23 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
     </main>;
   }
   const { place, rating, flavorPrint, reviewPhotos, publicReviewers, poiPhoto, instagramPhoto, photoOriginal } = loaderData;
+  const inlineOriginal = !poiPhoto && !instagramPhoto && photoOriginal?.embed ? photoOriginal : null;
   const query = encodeURIComponent(place.address);
   return (
     <main id="main" className="detail shell">
       <Link className="back-link" to={`/?category=${encodeURIComponent(place.primaryCategory.slug)}`}>← {place.primaryCategory.name} 지도로</Link>
-      <div className="detail-grid">
+      <div className={inlineOriginal ? "detail-grid min-h-0! grid-cols-1!" : "detail-grid"}>
         {poiPhoto ? <PlacePoiPhoto photo={poiPhoto} placeName={place.name} heroClassName="detail-hero" /> :
         instagramPhoto ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
           <PlaceInstagramPhoto photo={instagramPhoto} placeName={place.name} />
-        </div> : photoOriginal?.embed ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
-          <PlacePhotoOriginalLink key={photoOriginal.url} source={photoOriginal} />
         </div> :
-        <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
-        <article className="detail-copy">
+        !inlineOriginal && <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
+        <article className={inlineOriginal ? "detail-copy mx-auto w-full max-w-3xl border-0!" : "detail-copy"}>
           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
           {place.tempCatalog && <TempCatalogNotice info={place.tempCatalog} />}
+          {inlineOriginal && <div className="min-w-0 max-w-2xl">
+            <PlacePhotoOriginalLink key={inlineOriginal.url} source={inlineOriginal} />
+          </div>}
           <PlaceRatingBadges goldenPick={loaderData.hasGoldenPick} hiddenGem={loaderData.hiddenGem.eligible} />
           <div className="score"><div><strong>{rating.overallScore !== null ? `${rating.overallScore}%` : rating.overallSampleCount < 8 ? `${rating.overallSampleCount}/8` : `${rating.overallSampleCount}명`}</strong><p className="public-rating-summary">{formatPublicRatingSummary(place)}</p></div><PublicRatingMeta place={place} /></div>
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{formatRatingGroup(rating.userScore, rating.userSampleCount)}</strong></div><div><span>리뷰어</span><strong>{formatRatingGroup(rating.reviewerScore, rating.reviewerSampleCount)}</strong></div><small>{reviewerWeightExplanation(rating.userSampleCount)}</small></section>

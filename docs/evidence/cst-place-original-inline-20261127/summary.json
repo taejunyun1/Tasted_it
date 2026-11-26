@@ -1,0 +1,188 @@
+{
+  "revision": "2f438c960132be04e2c48536717ede5c378ffbb9",
+  "buildSha256": "12d884b2217d05a4e26cb7272501d92691229b4c805e1e6cea61ee922e4ea6d9",
+  "ledger": 59,
+  "providerFixture": "in-browser fulfilled synthetic iframe, no external traffic",
+  "outbound": 0,
+  "views": [
+    {
+      "name": "자매통닭&호프",
+      "viewport": 1280,
+      "route": "detail",
+      "href": "https://www.youtube.com/watch?v=sdU5W_AqNB0&t=8s",
+      "frame": "https://www.youtube-nocookie.com/embed/sdU5W_AqNB0?start=8",
+      "photoSourceLinks": 1,
+      "disclosure": null,
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "closedAfterToggle": true,
+      "noOverflow": true,
+      "order": {
+        "correctOrder": true,
+        "mediaHeroAbsent": true,
+        "gridChildren": [
+          "ARTICLE"
+        ],
+        "gridTrackCount": 1,
+        "gridMinHeight": "0px",
+        "bodyBorders": [
+          "0px",
+          "0px",
+          "0px",
+          "0px"
+        ]
+      },
+      "expandedFrameWidth": 640,
+      "expandedFrameHeight": 360
+    },
+    {
+      "name": "자매통닭&호프",
+      "viewport": 320,
+      "route": "sheet",
+      "href": "https://www.youtube.com/watch?v=sdU5W_AqNB0&t=8s",
+      "frame": "https://www.youtube-nocookie.com/embed/sdU5W_AqNB0?start=8",
+      "photoSourceLinks": 1,
+      "disclosure": null,
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "closedAfterToggle": true,
+      "noOverflow": true,
+      "order": {
+        "correctOrder": true,
+        "mediaHeroAbsent": true,
+        "gridChildren": null,
+        "gridTrackCount": null,
+        "gridMinHeight": null,
+        "bodyBorders": null
+      },
+      "expandedFrameWidth": 284,
+      "expandedFrameHeight": 200
+    },
+    {
+      "name": "자매통닭&호프",
+      "viewport": 320,
+      "route": "detail",
+      "href": "https://www.youtube.com/watch?v=sdU5W_AqNB0&t=8s",
+      "frame": "https://www.youtube-nocookie.com/embed/sdU5W_AqNB0?start=8",
+      "photoSourceLinks": 1,
+      "disclosure": null,
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "closedAfterToggle": true,
+      "noOverflow": true,
+      "order": {
+        "correctOrder": true,
+        "mediaHeroAbsent": true,
+        "gridChildren": [
+          "ARTICLE"
+        ],
+        "gridTrackCount": 1,
+        "gridMinHeight": "0px",
+        "bodyBorders": [
+          "0px",
+          "0px",
+          "0px",
+          "0px"
+        ]
+      },
+      "expandedFrameWidth": 234,
+      "expandedFrameHeight": 200
+    },
+    {
+      "name": "고부정",
+      "viewport": 1280,
+      "route": "detail",
+      "href": "https://www.youtube.com/watch?v=goG50n4pO98",
+      "frame": "https://www.youtube-nocookie.com/embed/goG50n4pO98",
+      "photoSourceLinks": 1,
+      "disclosure": null,
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "closedAfterToggle": true,
+      "noOverflow": true,
+      "order": {
+        "correctOrder": true,
+        "mediaHeroAbsent": true,
+        "gridChildren": [
+          "ARTICLE"
+        ],
+        "gridTrackCount": 1,
+        "gridMinHeight": "0px",
+        "bodyBorders": [
+          "0px",
+          "0px",
+          "0px",
+          "0px"
+        ]
+      },
+      "expandedFrameWidth": 640,
+      "expandedFrameHeight": 360
+    },
+    {
+      "name": "고부정",
+      "viewport": 320,
+      "route": "sheet",
+      "href": "https://www.youtube.com/watch?v=goG50n4pO98",
+      "frame": "https://www.youtube-nocookie.com/embed/goG50n4pO98",
+      "photoSourceLinks": 1,
+      "disclosure": null,
+      "beforeClickProviderRequests": 0,
+      "originOnlyReferer": true,
+      "exactFrameCsp": true,
+      "closedAfterToggle": true,
+      "noOverflow": true,
+      "order": {
+        "correctOrder": true,
+        "mediaHeroAbsent": true,
+        "gridChildren": null,
+        "gridTrackCount": null,
+        "gridMinHeight": null,
+        "bodyBorders": null
+      },
+      "expandedFrameWidth": 284,
+      "expandedFrameHeight": 200
+    },
+    {
+      "name": "옛날두부",
+      "provider": "threads",
+      "source": "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W",
+      "renderedSyntheticFrame": true,
+      "sourceLinkCount": 1,
+      "combinedWithArticle": true,
+      "noReferrer": true
+    },
+    {
+      "name": "젤라또 노베오",
+      "provider": "instagram",
+      "source": "https://www.instagram.com/p/DVU7dmQEnHV/",
+      "renderedSyntheticFrame": true,
+      "sourceLinkCount": 1,
+      "combinedWithArticle": false,
+      "noReferrer": true
+    }
+  ],
+  "fallbacks": [
+    {
+      "name": "자매통닭&호프",
+      "exactSource": "https://m.blog.naver.com/sososo2516/224145188426",
+      "noFrame": true,
+      "noNetwork": true,
+      "existingHero": true
+    },
+    {
+      "name": "고부정",
+      "exactSource": "https://m.place.naver.com/restaurant/32230517/photo?filterType=%EC%97%85%EC%B2%B4",
+      "noFrame": true,
+      "noNetwork": true,
+      "existingHero": true
+    }
+  ],
+  "evidenceFiles": [
+    "desktop.png",
+    "mobile.png"
+  ]
+}
