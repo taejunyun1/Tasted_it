@@ -5,15 +5,16 @@ index 72ac2fb..8da87aa 100644
 @@ -11,0 +12 @@ declare namespace Cloudflare {
 +    POI_INSTAGRAM_PHOTO_ENABLED?: string;
 diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
-index 669b9d3..7da5721 100644
+index 669b9d3..15dedd6 100644
 --- a/app/components/places/PlaceDetailSheet.tsx
 +++ b/app/components/places/PlaceDetailSheet.tsx
 @@ -6,0 +7 @@ import { GuestSaveControl } from "../onboarding/GuestSaveControl";
 +import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
-@@ -36 +37,2 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
+@@ -36 +37 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
 -        <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>
-+        {data.instagramPhoto ? <div className="px-5 pt-5"><PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} /></div>
-+          : <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
++        {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
+@@ -41,0 +43 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
++          {data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
 diff --git a/app/features/http/security-headers.ts b/app/features/http/security-headers.ts
 index 517ded3..fa04388 100644
 --- a/app/features/http/security-headers.ts
