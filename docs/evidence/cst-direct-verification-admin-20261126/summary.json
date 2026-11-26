@@ -1,0 +1,26 @@
+{
+  "revision": "22f7e8518899218141cc2f99e0d60fde089c01eb",
+  "buildSha256": "5b79a58a53c31260a25339a9e256381e00de6490fdb45399e795e0cac6e3d147",
+  "migrations": 59,
+  "workerOutbound": 0,
+  "checks": [
+    {
+      "layout": "desktop",
+      "viewportWidth": 1366,
+      "link": true,
+      "emptyQueue": true,
+      "title": true,
+      "loadedPhotoAlt": true,
+      "noOverflow": true
+    },
+    {
+      "layout": "mobile",
+      "viewportWidth": 320,
+      "link": true,
+      "emptyQueue": true,
+      "title": true,
+      "loadedPhotoAlt": true,
+      "noOverflow": true
+    }
+  ]
+}
