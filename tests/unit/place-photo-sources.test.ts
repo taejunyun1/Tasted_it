@@ -68,7 +68,7 @@ describe("place photo source links", () => {
     ["place-intake-7a534081f2e2fca2ce7b27c8", "들뫼풍경", "전북 고창군 전봉준로 108 (율계리)", "32246867"],
   ])("links the owner gallery for %s", (id, name, address, naverId) => {
     const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
-    const source = reviewedPlacePhotoOriginal({ id, name, address }, { threads: "true", youtube: "true" });
+    const source = reviewedPlacePhotoOriginal({ id, name, address });
     expect(source).toEqual({ url, publisher: "네이버 플레이스 · 업체 사진" });
     expect(reviewedPlacePhotoOriginal({ id, name, address: `${address} 2층` })).toBeNull();
     expectExactPhotoSource(renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! })), url);
@@ -110,6 +110,8 @@ describe("place photo source links", () => {
       "https://hwa2ting.tistory.com/429", undefined, undefined],
     ["place-intake-950ba22fa1c3cd0685fbbdde", "목살집", "전남광주 남구 광복마을6길 1 (진월동)",
       "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s", "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120", undefined],
+    ["place-intake-296fe52a6f1a1f39f8a2a9f6", "오비수산", "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
+      "https://m.place.naver.com/restaurant/2004979994/feed", undefined, undefined],
   ])("binds the exact reviewed source for %s", (id, name, address, url, embedUrl, disclosure) => {
     const place = { id, name, address };
     expect(reviewedPlacePhotoOriginal(place)?.embed).toBeUndefined();
@@ -120,5 +122,20 @@ describe("place photo source links", () => {
     expectExactPhotoSource(html, url);
     expect(html).not.toContain("<iframe");
     if (disclosure) expect(html).toContain(disclosure);
+  });
+
+  it.each([
+    ["0bf5c86b-5043-4d3f-98ce-5949f2db2800", "전라도미가", "전남광주통합특별시 동구 필문대로191번길 19, 1층 (산수동)",
+      "https://www.youtube.com/watch?v=VfODxqfwx9w&t=66s", "https://www.youtube-nocookie.com/embed/VfODxqfwx9w?start=66"],
+    ["place-intake-02c40d8d0a6e5409b7425fda", "담양현재국수", "전남광주 담양군 객사3길 24 (객사리)",
+      "https://www.youtube.com/watch?v=glRm4NcRhac&t=273s", "https://www.youtube-nocookie.com/embed/glRm4NcRhac?start=273&end=298"],
+  ])("chooses the matching video and its exact source instead of the fallback gallery for %s", (id, name, address, url, embedUrl) => {
+    const place = { id, name, address };
+    const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });
+    expect(source).toMatchObject({ url, mediaKind: "video", embed: { provider: "youtube", url: embedUrl } });
+    expect(reviewedPlacePhotoOriginal({ ...place, name: "다른 업소" }, { youtube: "true" })).toBeNull();
+    const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
+    expectExactPhotoSource(html, url);
+    expect(html).not.toContain("<iframe");
   });
 });
