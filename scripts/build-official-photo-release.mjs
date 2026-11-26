@@ -195,6 +195,13 @@ const poiMediaMigrations = [
 ];
 const pilotMigration = "drizzle/0065_student_review_pilot_photos.sql";
 const orderedBaselineLedgerSha256 = "a9beee8c240ccef6d667125f9968c4d70483c315d1afe458f99b18c582762928";
+const goldenKeyboardPatch = "ops/releases/golden-keyboard-494c07f.patch";
+const goldenKeyboardTargets = [
+  "app/app.css",
+  "app/components/places/PlaceCard.tsx",
+  "app/components/places/PlaceDiscoveryRail.tsx",
+  "app/routes/place-list.tsx",
+];
 
 function git(args, cwd = repository) {
   return execFileSync("git", args, { cwd, maxBuffer: 128 * 1024 * 1024 });
@@ -203,9 +210,10 @@ function git(args, cwd = repository) {
 const [output, ...modes] = process.argv.slice(2);
 const studentPilot = modes.includes("--student-pilot");
 const poiMedia = modes.includes("--poi-media");
-if (!output || !isAbsolute(output) || modes.length !== Number(studentPilot) + Number(poiMedia) ||
-    (poiMedia && !studentPilot)) {
-  throw new Error("Usage: node scripts/build-official-photo-release.mjs <new-absolute-output-dir> [--student-pilot [--poi-media]]");
+const goldenKeyboard = modes.includes("--golden-keyboard");
+if (!output || !isAbsolute(output) || modes.length !== Number(studentPilot) + Number(poiMedia) + Number(goldenKeyboard) ||
+    (poiMedia && !studentPilot) || (goldenKeyboard && !poiMedia)) {
+  throw new Error("Usage: node scripts/build-official-photo-release.mjs <new-absolute-output-dir> [--student-pilot [--poi-media [--golden-keyboard]]]");
 }
 const fromRepository = relative(repository, output);
 if (!fromRepository.startsWith("../") || existsSync(output)) {
@@ -323,6 +331,9 @@ const publicAuthContinuationProof = {
   ),
   fileSha256: copyMainFiles(publicAuthContinuationFiles),
 };
+const goldenKeyboardProof = goldenKeyboard ? {
+  goldenKeyboardPatchSha256: applyReleasePatch(goldenKeyboardPatch, ".golden-keyboard.patch", goldenKeyboardTargets),
+} : {};
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -344,6 +355,7 @@ const attestation = {
   publicPlaceMapScopePatchSha256,
   publicPlacePagination: publicPlacePaginationProof,
   publicAuthContinuation: publicAuthContinuationProof,
+  ...goldenKeyboardProof,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: buildFingerprint(buildRoot),
