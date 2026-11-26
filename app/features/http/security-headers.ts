@@ -1,4 +1,5 @@
 import { NO_STORE_HEADERS } from "../students/policy";
+import { INSTAGRAM_PHOTO_FRAME_SOURCES } from "../poi-media/instagram-photos";
 
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -42,8 +43,14 @@ function isPrivateWorkspaceRequest(request: Request) {
     || path === "/admin" || path === "/admin.data" || path.startsWith("/admin/");
 }
 
-export function withSecurityHeaders(response: Response, request?: Request) {
+export function withSecurityHeaders(response: Response, request?: Request, instagramPhotosEnabled?: string) {
   const headers = applySecurityHeaders(response.headers);
+  // The parent document's CSP also applies to the detail sheet after SPA navigation.
+  // Allow the specific curated frames without granting first-party script access.
+  if (instagramPhotosEnabled === "true" && INSTAGRAM_PHOTO_FRAME_SOURCES
+    && headers.get("Content-Type")?.startsWith("text/html") && !response.headers.has("Content-Security-Policy")) {
+    headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${INSTAGRAM_PHOTO_FRAME_SOURCES}`));
+  }
   // Router redirects bypass route-level headers. Enforce privacy on the final
   // Worker response, including auth redirects, errors, and single-fetch data.
   if (request && isPrivateWorkspaceRequest(request)) {

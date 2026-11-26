@@ -9,6 +9,7 @@ declare namespace Cloudflare {
     NAVER_API_HUB_KEY: string;
     NAVER_LOCAL_SEARCH_ENABLED: string;
     NAVER_LOCAL_SEARCH_DAILY_LIMIT: string;
+    POI_INSTAGRAM_PHOTO_ENABLED?: string;
     DATA_GO_KR_SERVICE_KEY: string;
     RESEND_API_KEY: string;
     RESEND_FROM_EMAIL: string;

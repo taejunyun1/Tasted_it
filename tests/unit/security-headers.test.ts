@@ -37,5 +37,17 @@ describe("applySecurityHeaders", () => {
     const publicResponse = withSecurityHeaders(new Response(null, { headers: { "Cache-Control": "public, max-age=60" } }), new Request("https://example.test/places"));
     expect(publicResponse.headers.get("Cache-Control")).toBe("public, max-age=60");
   });
+
+  it("allows only curated Instagram frames in HTML when the photo flag is enabled", () => {
+    const response = () => new Response(null, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    const request = new Request("https://example.test/places");
+    expect(withSecurityHeaders(response(), request).headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
+    const allowed = withSecurityHeaders(response(), request, "true").headers.get("Content-Security-Policy");
+    const directives = allowed?.split("; ") ?? [];
+    expect(directives.find((value) => value.startsWith("frame-src "))).toContain("https://www.instagram.com/p/DVU7dmQEnHV/embed/");
+    expect(directives.find((value) => value.startsWith("script-src "))).not.toContain("instagram.com");
+    expect(withSecurityHeaders(new Response(null, { headers: { "Content-Type": "application/json" } }), request, "true")
+      .headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
+  });
 });
 

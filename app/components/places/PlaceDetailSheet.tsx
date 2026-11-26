@@ -14,6 +14,7 @@ import { FlavorMeter } from "../ratings/FlavorMeter";
 import { PlaceInformation } from "./PlaceInformation";
 import { PlaceCorrectionLink, PlacePublicReviewers, PlaceRatingBadges, PlaceReviewPhotos } from "./PlacePublicEvidence";
 import { PlacePoiPhoto } from "./PlacePoiPhoto";
+import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
 import { VoteControl } from "../ratings/VoteControl";
 
 type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
@@ -195,6 +196,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
         </div>
       </div> : <>
         {data.poiPhoto ? <PlacePoiPhoto photo={data.poiPhoto} placeName={data.place.name} heroClassName="place-detail-sheet__hero" /> :
+        data.instagramPhoto ? null :
         <div className="place-detail-sheet__hero" data-has-photo={Boolean(data.place.heroImageUrl)}>{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
         <div className="place-detail-sheet__body">
           <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
@@ -202,6 +204,9 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
           {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
           <PlaceRatingBadges goldenPick={data.hasGoldenPick} hiddenGem={data.hiddenGem.eligible} />
           <address>{data.place.address}</address>
+          {!data.poiPhoto && data.instagramPhoto && <div className="mt-5">
+            <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />
+          </div>}
           <div className="place-detail-sheet__score"><div><strong>{data.rating.overallScore !== null ? `${data.rating.overallScore}%` : data.rating.overallSampleCount < 8 ? `${data.rating.overallSampleCount}/8` : `${data.rating.overallSampleCount}명`}</strong><p className="public-rating-summary">{formatPublicRatingSummary(data.place)}</p></div><PublicRatingMeta place={data.place} /></div>
           <div className="place-detail-sheet__breakdown"><span>일반 회원 <b>{formatRatingGroup(data.rating.userScore, data.rating.userSampleCount)}</b></span><span>리뷰어 <b>{formatRatingGroup(data.rating.reviewerScore, data.rating.reviewerSampleCount)}</b></span></div>
           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
