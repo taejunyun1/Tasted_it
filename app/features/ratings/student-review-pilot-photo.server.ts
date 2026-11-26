@@ -239,17 +239,22 @@ export async function submitPilotPhoto(db: AppDb, bucket: Pick<PilotBucket, "put
   }
 }
 
-export function listPilotPhotosForAdmin(db: AppDb) {
-  return db.select({
+export async function listPilotPhotosForAdmin(db: AppDb) {
+  const mayPreview = sql<boolean>`case when ${matchesCurrentReview()} and ${photos.sealed} then 1 else 0 end`
+    .mapWith(Boolean).as("may_preview");
+  const rows = await db.select({
     id: photos.id, reviewId: photos.reviewId, status: photos.status, caption: photos.caption, takenOn: photos.takenOn,
-    placeName: places.name, reviewerDisplayName: users.displayName,
+    placeName: photos.placeName, placeAddress: photos.placeAddress, reviewerDisplayName: users.displayName,
+    mayPreview,
     mayApprove: sql<boolean>`case when ${photos.status} = 'PENDING' and ${canPublish()} then 1 else 0 end`.mapWith(Boolean),
   }).from(photos)
     .innerJoin(reviewerVisitReviews, eq(reviewerVisitReviews.id, photos.reviewId))
     .innerJoin(places, eq(places.id, reviewerVisitReviews.placeId))
     .innerJoin(users, eq(users.id, photos.authorUserId))
-    .where(and(inArray(photos.status, ["PENDING", "APPROVED"]), matchesCurrentReview()))
-    .orderBy(asc(sql`case when ${photos.status} = 'PENDING' then 0 else 1 end`), desc(photos.createdAt), asc(photos.id)).limit(50);
+    .where(inArray(photos.status, ["PENDING", "APPROVED"]))
+    .orderBy(desc(mayPreview), asc(sql`case when ${photos.status} = 'PENDING' then 0 else 1 end`),
+      desc(photos.createdAt), asc(photos.id)).limit(50);
+  return rows.map((photo) => photo.mayPreview ? photo : { ...photo, caption: null });
 }
 
 export async function decidePilotPhoto(db: AppDb, input: {

@@ -4,7 +4,7 @@ import { expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
 import { cleanupPilotPhotos, listPublicPilotPhotos, submitPilotPhoto } from "../../app/features/ratings/student-review-pilot-photo.server";
-import { action as moderatePhoto } from "../../app/routes/admin-student-review-photos";
+import { action as moderatePhoto, loader as readAdminPhotos } from "../../app/routes/admin-student-review-photos";
 import { action as moderateReview } from "../../app/routes/admin-reviewer-visits";
 import { action as photoAction, loader as photoForm } from "../../app/routes/reviewer-pilot-photo";
 import { loader as readReviewerProfile } from "../../app/routes/reviewer-profile";
@@ -59,12 +59,14 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
   const date = now.slice(0, 10);
   const future = (minutes: number) => new Date(+moment + minutes * 60_000).toISOString();
   const placeId = "student-pilot-place";
+  const placeName = "합성 라멘";
+  const placeAddress = "광주광역시 동구 합성길 10";
   const categoryId = "student-pilot-category";
   await database.batch([
     database.prepare("INSERT INTO categories(id,slug,name,emoji,sort_order,is_active,created_at,updated_at) VALUES(?,?,?,'🍜',999,1,?,?)")
       .bind(categoryId, categoryId, "라멘", now, now),
-    database.prepare("INSERT INTO places(id,slug,name,status,address,neighborhood,latitude,longitude,search_text,created_at,updated_at) VALUES(?,?,?,'PUBLISHED','광주광역시 동구 합성길 10','동명동',35.149,126.923,'합성 라멘',?,?)")
-      .bind(placeId, placeId, "합성 라멘", now, now),
+    database.prepare("INSERT INTO places(id,slug,name,status,address,neighborhood,latitude,longitude,search_text,created_at,updated_at) VALUES(?,?,?,'PUBLISHED',?,'동명동',35.149,126.923,?,?,?)")
+      .bind(placeId, placeId, placeName, placeAddress, placeName, now, now),
     database.prepare("INSERT INTO place_categories(place_id,category_id,is_primary) VALUES(?,?,1)").bind(placeId, categoryId),
   ]);
 
@@ -143,6 +145,8 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
       params: { photoId },
     } as never);
     const checks = { visitVerified: "on", placeVerified: "on", rightsVerified: "on", privacyVerified: "on" };
+    const assureAdmin = () => database.prepare(`INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at)
+      VALUES(?,?,'PASSWORD',?,?)`).bind(admin.session, admin.id, now, future(10)).run();
     const approvePhoto = (photoId: string) => moderatePhoto({ request: request(photoAdminPath, admin.session, new URLSearchParams({
       photoId, decision: "APPROVE", reason: "합성 사진 공개 검수", ...checks,
     })) } as never);
@@ -225,8 +229,7 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
         const unverifiedAdmin = await approvePhoto(photoId);
         expect(unverifiedAdmin).toBeInstanceOf(Response);
         expect((unverifiedAdmin as Response).status).toBe(302);
-        await database.prepare(`INSERT INTO admin_session_assurances(session_id,actor_user_id,method,verified_at,expires_at)
-          VALUES(?,?,'PASSWORD',?,?)`).bind(admin.session, admin.id, now, future(10)).run();
+        await assureAdmin();
         expect(await approvePhoto(photoId)).toMatchObject({ init: { status: 409 } });
       }
       const approvedReview = await moderateReview({ request: request("/admin/reviewer-visits", admin.session, new URLSearchParams({
@@ -312,5 +315,54 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
     expect(await database.prepare("SELECT count(*) AS count FROM admin_audit_logs WHERE action='STUDENT_REVIEW_PILOT_PHOTO_APPROVED'").first("count")).toBe(2);
     expect(await database.prepare("SELECT count(*) AS count FROM reviewer_visit_photos").first("count")).toBe(0);
     expect(await database.prepare("SELECT count(*) AS count FROM reviewer_photo_cleanup_jobs").first("count")).toBe(0);
+
+    expect(await submitPhoto(bReview.reviewId, b.session)).toMatchObject({ data: { ok: true } });
+    const recalledPhotoId = await database.prepare("SELECT id FROM student_review_pilot_photos WHERE review_id=?")
+      .bind(bReview.reviewId).first<string>("id");
+    expect(recalledPhotoId).not.toBeNull();
+    const id = recalledPhotoId!;
+    expect(await approvePhoto(id)).toMatchObject({ data: { ok: true } });
+    expect((await view(id)).status).toBe(200);
+    expect((await view(id, admin.session)).status).toBe(200);
+
+    const adminPhotos = () => readAdminPhotos({ request: request(photoAdminPath, admin.session) } as never);
+    await database.prepare(`INSERT INTO place_liveness_states(place_id,status,recommendation_excluded,updated_at)
+      VALUES(?,'SUSPECTED',1,?)`).bind(placeId, now).run();
+    expect(await adminPhotos()).toMatchObject({ data: { photos: [{
+      id, reviewId: bReview.reviewId, status: "APPROVED", placeName, placeAddress,
+      mayPreview: false, mayApprove: false, caption: null,
+    }] } });
+    expect((await view(id)).status).toBe(404);
+    expect((await view(id, admin.session)).status).toBe(404);
+
+    const reason = "추천 제외 장소의 합성 사진 회수";
+    const retire = () => moderatePhoto({ request: request(photoAdminPath, admin.session, new URLSearchParams({
+      photoId: id, decision: "RETIRE", reason,
+    })) } as never);
+    await database.prepare("DELETE FROM admin_session_assurances WHERE session_id=?").bind(admin.session).run();
+    const unverifiedRetirement = await retire();
+    expect(unverifiedRetirement).toBeInstanceOf(Response);
+    expect((unverifiedRetirement as Response).status).toBe(302);
+    expect((unverifiedRetirement as Response).headers.get("Location")).toMatch(/^\/admin\/reauth\?/);
+    expect(await database.prepare("SELECT status FROM student_review_pilot_photos WHERE id=?")
+      .bind(id).first("status")).toBe("APPROVED");
+    const retirementAudits = () => database.prepare(`SELECT actor_user_id AS actorUserId,
+      json_extract(after_state,'$.status') AS status, json_extract(after_state,'$.reason') AS reason
+      FROM admin_audit_logs WHERE action='STUDENT_REVIEW_PILOT_PHOTO_RETIRED'
+      AND target_type='STUDENT_REVIEW_PILOT_PHOTO' AND target_id=?`).bind(id).all();
+    expect((await retirementAudits()).results).toEqual([]);
+    await assureAdmin();
+    expect(await retire()).toMatchObject({ data: { ok: true } });
+    expect((await retirementAudits()).results).toEqual([{ actorUserId: admin.id, status: "RETIRED", reason }]);
+    expect(await adminPhotos()).toMatchObject({ data: { photos: [] } });
+
+    await database.prepare("UPDATE place_liveness_states SET recommendation_excluded=0 WHERE place_id=?")
+      .bind(placeId).run();
+    expect(await database.prepare("SELECT id FROM reviewer_public_place_ids WHERE id=?")
+      .bind(placeId).first("id")).toBe(placeId);
+    expect((await view(id)).status).toBe(404);
+    expect((await view(id, admin.session)).status).toBe(404);
+    expect(await listPublicPilotPhotos(db, placeId)).toEqual([]);
+    await expect(cleanupPilotPhotos(db, bucket, future(4))).resolves.toMatchObject({ deleted: 1, failed: 0 });
   });
 }, 30_000);

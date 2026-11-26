@@ -105,17 +105,18 @@ export default function AdminStudentReviewPhotos({ loaderData: { photos }, actio
     {photos.map((photo) => <article key={photo.id} className="grid gap-4 border-t border-neutral-300 py-5">
       <div>
         <h2 className="text-lg font-semibold">{photo.placeName}</h2>
-        <p className="text-sm">{photo.reviewerDisplayName} · {photo.status === "APPROVED" ? "공개 승인" : "검수 대기"}</p>
+        <p className="text-sm">{photo.reviewerDisplayName} · {photo.mayPreview ? (photo.status === "APPROVED" ? "공개 승인" : "검수 대기") : "미리보기 제한"}</p>
       </div>
-      <img
+      {photo.mayPreview ? <img
         src={`/student-review-photos/${encodeURIComponent(photo.id)}?preview=1`}
         alt="검수용 직접인증 사진"
         loading="lazy"
         className="max-h-80 max-w-full rounded-md border border-neutral-300 object-contain"
-      />
+      /> : <p>현재 공개 조건을 충족하지 않아 미리보기를 열 수 없습니다. 이 사진은 회수할 수 있습니다.</p>}
       <dl className="grid gap-2 break-words">
         <div><dt className="font-semibold">촬영일</dt><dd><time dateTime={photo.takenOn}>{photo.takenOn}</time></dd></div>
-        <div><dt className="font-semibold">사진 설명</dt><dd>{photo.caption}</dd></div>
+        {photo.mayPreview ? <div><dt className="font-semibold">사진 설명</dt><dd>{photo.caption}</dd></div> :
+          <div><dt className="font-semibold">제출 당시 장소 주소</dt><dd>{photo.placeAddress}</dd></div>}
       </dl>
 
       {photo.mayApprove && <Form method="post" className="grid max-w-xl gap-3">
@@ -135,7 +136,7 @@ export default function AdminStudentReviewPhotos({ loaderData: { photos }, actio
           공개 승인
         </button>
       </Form>}
-      {photo.status === "PENDING" && !photo.mayApprove && <p>방문 리뷰 승인과 장소의 공개 상태를 확인해 주세요.</p>}
+      {photo.status === "PENDING" && photo.mayPreview && !photo.mayApprove && <p>방문 리뷰 승인과 장소의 공개 상태를 확인해 주세요.</p>}
 
       <details className="max-w-xl">
         <summary className="min-h-11 cursor-pointer py-2 underline">사진 회수</summary>
