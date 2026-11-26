@@ -19,7 +19,7 @@ import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit
 import { listReviewerPlacePage } from "../features/ratings/reviewer-place-search.server";
 import { parseReviewerPlaceSearch, ReviewerPlaceSearchInputError } from "../features/ratings/reviewer-place-search";
 import { canUploadReviewerPhotos } from "../features/students/reviewer-photo-pilot.server";
-import { listPilotPhotoHistoryLinks } from "../features/ratings/student-review-pilot-photo.server";
+import { canAdmitPilotPhotoAuthor, listPilotPhotoHistoryLinks } from "../features/ratings/student-review-pilot-photo.server";
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
 
@@ -69,14 +69,16 @@ export async function loader({ request }: Route.LoaderArgs) {
     && (requestedNotice === "review-submitted" || requestedNotice === "review-with-photos-submitted" || requestedNotice === "review-updated" || requestedNotice === "review-withdrawn")
     ? requestedNotice
     : null;
-  const pilotPhotoReviewIds = env.STUDENT_REVIEW_PILOT_PHOTOS && history.length
-    ? await listPilotPhotoHistoryLinks(db, {
-      userId: user.id,
-      reviewIds: history.map(({ id }) => id),
-      seats: env.STUDENT_WORKSPACE_ENABLED === "true" ? env.STUDENT_REVIEW_PILOT_SEATS : undefined,
-      now,
-    }).catch(() => [])
-    : [];
+  const pilotPhotoSeats = env.STUDENT_WORKSPACE_ENABLED === "true" ? env.STUDENT_REVIEW_PILOT_SEATS : undefined;
+  const pilotPhotoAuthor = { userId: user.id, seats: pilotPhotoSeats, now };
+  const [pilotPhotoReviewIds, pilotPhotoAfterSubmission] = await Promise.all([
+    env.STUDENT_REVIEW_PILOT_PHOTOS && history.length
+      ? listPilotPhotoHistoryLinks(db, { ...pilotPhotoAuthor, reviewIds: history.map(({ id }) => id) }).catch(() => [])
+      : [],
+    env.STUDENT_REVIEW_PILOT_PHOTOS && canSubmit && !photoUploadEnabled
+      ? canAdmitPilotPhotoAuthor(db, pilotPhotoAuthor).catch(() => false)
+      : false,
+  ]);
   const lastReview = history.at(-1);
   const historyNextHref = history.length === 12 && lastReview ? `/reviewer/ratings?${new URLSearchParams({ beforeUpdatedAt: lastReview.updatedAt, beforeId: lastReview.id })}` : null;
   return {
@@ -91,6 +93,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     publishedReviewId,
     notice,
     photoUploadEnabled,
+    pilotPhotoAfterSubmission,
     pilotPhotoReviewIds,
   };
 }
