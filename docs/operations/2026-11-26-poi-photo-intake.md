@@ -4,9 +4,11 @@
 
 일반 장소 사진은 직접 방문 승인 리뷰 사진 및 TEMP 사진과 별도로 관리한다. 공개된 일반 장소에서 최신 승인 JPEG를 보여 주고 제공자와 원본 페이지 링크를 사진 아래에 표시한다. 내부 이용 증빙은 공개 응답에서 제외된다. 폐업·회수·업종 제외·주분류 누락·TEMP 또는 비공개 상태에서는 사진 URL이 R2를 읽기 전에 닫힌다.
 
+네이버·Instagram·Facebook·Threads·TikTok 원문은 장소와 작성자가 확인된 게시물의 고유 주소를 사용한다. 화면에는 작은 **출처** 링크 하나를 표시하며 링크를 누르면 작성자의 게시물을 연다. 제공자 임베드는 비로그인 상태에서 실제 표시를 확인한 뒤 사용한다. 사진 파일을 복제해 게시할 때는 별도의 이용 근거를 기록한다. [Facebook 공개 게시물](https://developers.facebook.com/docs/plugins/embedded-posts/) · [Threads 게시물 임베드](https://developers.facebook.com/docs/threads/tools-and-resources/embed-a-threads-post) · [TikTok 플레이어](https://developers.tiktok.com/doc/embed-player/) · [저작권법 제35조의5·제37조](https://www.law.go.kr/LSW/lsInfoP.do?ancNo=21595&ancYd=20260428&efYd=20261029&lsiSeq=285693)
+
 ## 공식 Instagram 사진 게시물
 
-지점과 사진이 일치하는 공개 게시물에 한해 Instagram이 제공하는 원본 임베드를 장소 상세와 모바일 상세에 표시한다. 사진 아래에 작은 **사진 출처 · Instagram 원문** 링크가 보인다. Worker가 사진 파일을 가져오거나 R2에 복사하는 단계는 없으며, 등록한 원문 경로만 브라우저 프레임에서 허용한다. [Instagram 공개 게시물 임베드](https://developers.facebook.com/documentation/instagram-platform/oembed)
+지점과 사진이 일치하는 공개 게시물에 한해 Instagram이 제공하는 원본 임베드를 장소 상세와 모바일 상세에 표시한다. 사진 아래에 제공자 이름과 **출처** 링크가 보인다. Worker가 사진 파일을 가져오거나 R2에 복사하는 단계는 없으며, 등록한 원문 경로만 브라우저 프레임에서 허용한다. [Instagram 공개 게시물 임베드](https://developers.facebook.com/documentation/instagram-platform/oembed)
 
 저장소에 등록한 36곳의 각 장소 ID·상호·상세주소와 게시물 1개를 대조했다. 공개 장소 조건, 폐업, TEMP와 현재 식별 자료는 상세 화면을 열 때 다시 검사한다. 새 게시물을 추가할 때는 운영 원장과 공식 작성 계정, 첫 화면에 표시되는 실제 매장·메뉴 사진, 비로그인 임베드 표시를 확인한다. 공동 업체 계정의 다른 지점, 행사 포스터, 현 주소 폐업 공지는 사진 후보에서 제외한다. 여러 장에 개인 사진이 함께 있으면 메뉴 사진 단독으로 표시되는 공식 임베드를 확인한다.
 
