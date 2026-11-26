@@ -81,9 +81,11 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 ## 방송사 원본과 개별 사진 게시물
 
-구례 60년전통손두부식당은 KBS 방송 안내의 주소를 대조해 전용 영상의 01:05부터 연결한다. 팔레스분식은 채널광주 원본에서 상호와 도로명주소가 확인된 05:20–05:38 구간을 연다. 이 원본에는 유료 프로모션 표시가 있으며 상세에도 해당 사실을 표시한다. 두 영상은 상세 버튼을 누른 뒤 제공자의 재생창이 열리며 **출처**는 각각 해당 시각의 원본으로 이동한다. [KBS 방송 안내](https://iaudience.kbs.co.kr/broadcast/9564) · [KBS 원본](https://www.youtube.com/watch?v=kTz_GZQEXZ4&t=65s) · [채널광주 원본](https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s) · [YouTube 재생 구간](https://developers.google.com/youtube/player_parameters)
+구례 60년전통손두부식당은 KBS 방송 안내의 주소를 대조해 전용 영상의 01:05부터 연결한다. 로컬에서 `localhost` 상세는 실제로 재생됐고 `127.0.0.1` 상세의 플레이어는 YouTube에서 직접 보도록 안내했다. 상세의 **출처**에서는 원본의 해당 시각을 바로 열 수 있다. 팔레스분식은 채널광주 원본에서 상호와 도로명주소를 대조하고 상세 버튼으로 05:20–05:38 구간을 연다. 원본의 유료 프로모션 표시는 상세에도 안내한다. [KBS 방송 안내](https://iaudience.kbs.co.kr/broadcast/9564) · [KBS 원본](https://www.youtube.com/watch?v=kTz_GZQEXZ4&t=65s) · [채널광주 원본](https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s) · [YouTube 재생 구간](https://developers.google.com/youtube/player_parameters)
 
-광성식당은 원게시물에 표시된 광한서로 7과 식당 방문 사진을 대조했다. 상세에 게시자와 단일 **출처**를 제공한다. Facebook과 TikTok은 장소가 일치하는 개별 공개 원게시물과 비로그인 상태에서 실제 동작하는 공식 표시 경로를 확인한 뒤 등록한다. [광성식당 원본](https://carcam-n-garden.tistory.com/69) · [Facebook 게시물 oEmbed](https://developers.facebook.com/docs/graph-api/reference/oembed-post) · [TikTok Embed Player](https://developers.tiktok.com/docs/en/embed-player)
+광성식당과 착한가리비는 방문 사진과 각 원게시물에 표시된 광한서로 7과 대자로 69를 대조했다. 고부정·고템커피·담양현재국수·들뫼풍경은 업체 이미지가 표시되는 네이버 플레이스 갤러리로 연결한다. 각 상세에 게시자와 단일 **출처**를 제공한다. Facebook과 TikTok은 장소가 일치하는 개별 공개 원게시물과 비로그인 상태에서 실제 동작하는 공식 표시 경로를 확인한 뒤 등록한다. [광성식당 원본](https://carcam-n-garden.tistory.com/69) · [착한가리비 원본](https://hwa2ting.tistory.com/429) · [Facebook 게시물 oEmbed](https://developers.facebook.com/docs/graph-api/reference/oembed-post) · [TikTok Embed Player](https://developers.tiktok.com/docs/en/embed-player)
+
+진월동 목살집은 작성자가 명시한 광복마을6길 1과 영상의 상호를 대조했다. 같은 원본의 02:00부터 조리 장면을 표시한다. [맛집따개 원본](https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s)
 
 ## 적용과 회수 기준
 

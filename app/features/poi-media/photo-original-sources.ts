@@ -123,6 +123,50 @@ const REVIEWED_SOURCES: readonly (PlaceIdentity & PlacePhotoOriginalSource)[] = 
     publisher: "차박과 텃밭",
     url: "https://carcam-n-garden.tistory.com/69",
   },
+  {
+    id: "place-intake-14a109105ee648efe481ac85",
+    name: "착한가리비",
+    address: "전남광주 북구 대자로 69 (운암동)",
+    publisher: "치즈맛양념감자",
+    url: "https://hwa2ting.tistory.com/429",
+  },
+  {
+    id: "place-intake-950ba22fa1c3cd0685fbbdde",
+    name: "목살집",
+    address: "전남광주 남구 광복마을6길 1 (진월동)",
+    publisher: "YouTube · 맛집따개",
+    url: "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120" },
+  },
+  {
+    id: "place-intake-e73658c5cb8bf44d666e628a",
+    name: "고부정",
+    address: "전남광주 담양군 지침6길 53 (지침리)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/32230517/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "c893e7dc-c6a0-4467-82b8-8859051d24c8",
+    name: "고템커피",
+    address: "전남광주통합특별시 고흥군 고흥읍 고흥로 1670-7",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/1117337292/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "place-intake-02c40d8d0a6e5409b7425fda",
+    name: "담양현재국수",
+    address: "전남광주 담양군 객사3길 24 (객사리)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/1870179264/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "place-intake-7a534081f2e2fca2ce7b27c8",
+    name: "들뫼풍경",
+    address: "전북 고창군 전봉준로 108 (율계리)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/32246867/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
 ];
 
 // CSP source expressions match the video path. The player URL carries playback bounds.

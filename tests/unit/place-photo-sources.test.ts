@@ -62,6 +62,10 @@ describe("place photo source links", () => {
     ["0bf5c86b-5043-4d3f-98ce-5949f2db2800", "전라도미가", "전남광주통합특별시 동구 필문대로191번길 19, 1층 (산수동)", "37505718"],
     ["place-intake-afcab0afe63e6705a527d23f", "한마음포차", "전남광주 동구 서석로10번길 10 (불로동)", "38276589"],
     ["bd45a029-bce6-485d-8efc-425dca48f606", "조단부부", "전남광주통합특별시 구례군 구례읍 봉성로 103-1", "1619421905"],
+    ["place-intake-e73658c5cb8bf44d666e628a", "고부정", "전남광주 담양군 지침6길 53 (지침리)", "32230517"],
+    ["c893e7dc-c6a0-4467-82b8-8859051d24c8", "고템커피", "전남광주통합특별시 고흥군 고흥읍 고흥로 1670-7", "1117337292"],
+    ["place-intake-02c40d8d0a6e5409b7425fda", "담양현재국수", "전남광주 담양군 객사3길 24 (객사리)", "1870179264"],
+    ["place-intake-7a534081f2e2fca2ce7b27c8", "들뫼풍경", "전북 고창군 전봉준로 108 (율계리)", "32246867"],
   ])("links the owner gallery for %s", (id, name, address, naverId) => {
     const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
     const source = reviewedPlacePhotoOriginal({ id, name, address }, { threads: "true", youtube: "true" });
@@ -102,6 +106,10 @@ describe("place photo source links", () => {
       "https://www.youtube.com/watch?v=fFQgQMYL8ag&t=320s", "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag?start=320&end=338", "원본 영상에 유료 프로모션 포함"],
     ["place-intake-d9ea0471ad5c4eb487d3dc29", "광성식당", "전북 남원시 광한서로 7 (천거동)",
       "https://carcam-n-garden.tistory.com/69", undefined, undefined],
+    ["place-intake-14a109105ee648efe481ac85", "착한가리비", "전남광주 북구 대자로 69 (운암동)",
+      "https://hwa2ting.tistory.com/429", undefined, undefined],
+    ["place-intake-950ba22fa1c3cd0685fbbdde", "목살집", "전남광주 남구 광복마을6길 1 (진월동)",
+      "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s", "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120", undefined],
   ])("binds the exact reviewed source for %s", (id, name, address, url, embedUrl, disclosure) => {
     const place = { id, name, address };
     expect(reviewedPlacePhotoOriginal(place)?.embed).toBeUndefined();

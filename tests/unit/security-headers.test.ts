@@ -83,6 +83,7 @@ describe("applySecurityHeaders", () => {
       "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ",
       "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4",
       "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag",
+      "https://www.youtube-nocookie.com/embed/INk0aC5hoK4",
     ]);
     expect(withSecurityHeaders(html(), request("/me"), undefined, youtube).headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
   });
