@@ -98,7 +98,10 @@ async function recordPlaceProductEvent(db: ReturnType<typeof createDb>, input: {
 async function getPublicPlacePhotoSources(db: AppDb, place: PublicPlaceDetail) {
   if (place.tempCatalog || place.heroImageUrl) return null;
   const instagramPhoto = curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED);
-  const photoOriginal = instagramPhoto ? null : reviewedPlacePhotoOriginal(place, env.POI_THREADS_PHOTO_ENABLED);
+  const photoOriginal = instagramPhoto ? null : reviewedPlacePhotoOriginal(place, {
+    threads: env.POI_THREADS_PHOTO_ENABLED,
+    youtube: env.POI_YOUTUBE_VISUAL_ENABLED,
+  });
   if (!instagramPhoto && !photoOriginal) return null;
   try {
     const [eligible] = await db.select({ id: places.id }).from(places)
@@ -273,7 +276,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
         {poiPhoto ? <PlacePoiPhoto photo={poiPhoto} placeName={place.name} heroClassName="detail-hero" /> :
         instagramPhoto ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
           <PlaceInstagramPhoto photo={instagramPhoto} placeName={place.name} />
-        </div> : photoOriginal?.embedUrl ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
+        </div> : photoOriginal?.embed ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
           <PlacePhotoOriginalLink key={photoOriginal.url} source={photoOriginal} />
         </div> :
         <div className="detail-hero" data-has-photo={Boolean(place.heroImageUrl)}>{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
@@ -285,7 +288,7 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
           <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{formatRatingGroup(rating.userScore, rating.userSampleCount)}</strong></div><div><span>리뷰어</span><strong>{formatRatingGroup(rating.reviewerScore, rating.reviewerSampleCount)}</strong></div><small>{reviewerWeightExplanation(rating.userSampleCount)}</small></section>
           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><FlavorMeter dimension={dimension.key} value={dimension.median} /><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
           <PlaceInformation place={place} />
-          {photoOriginal && !photoOriginal.embedUrl && <PlacePhotoOriginalLink source={photoOriginal} />}
+          {photoOriginal && !photoOriginal.embed && <PlacePhotoOriginalLink source={photoOriginal} />}
           <fieldset className="contents"><legend className="sr-only">장소 평가와 저장</legend><VoteControl key={place.id} placeId={place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} /></fieldset>
           <PlaceCorrectionLink placeId={place.id} />
           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>

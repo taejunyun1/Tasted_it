@@ -197,7 +197,7 @@ function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
         </div>
       </div> : <>
         {data.poiPhoto ? <PlacePoiPhoto photo={data.poiPhoto} placeName={data.place.name} heroClassName="place-detail-sheet__hero" /> :
-        data.instagramPhoto || data.photoOriginal?.embedUrl ? null :
+        data.instagramPhoto || data.photoOriginal?.embed ? null :
         <div className="place-detail-sheet__hero" data-has-photo={Boolean(data.place.heroImageUrl)}>{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
         <div className="place-detail-sheet__body">
           <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>

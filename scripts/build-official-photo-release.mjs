@@ -401,8 +401,8 @@ if (pilotProof) {
   if (poiMediaProof && Object.hasOwn(config.vars ?? {}, "POI_MEDIA_PUBLIC_ENABLED")) {
     throw new Error("The POI media compatibility build must leave publication off");
   }
-  if (photoSourceLinks && Object.hasOwn(config.vars ?? {}, "POI_THREADS_PHOTO_ENABLED")) {
-    throw new Error("The photo source compatibility build must leave Threads display off");
+  if (photoSourceLinks && ["POI_THREADS_PHOTO_ENABLED", "POI_YOUTUBE_VISUAL_ENABLED"].some((flag) => Object.hasOwn(config.vars ?? {}, flag))) {
+    throw new Error("The photo source compatibility build must leave opt-in visual embeds off");
   }
   writeFileSync(join(output, "student-pilot-release.json"), JSON.stringify({
     ...attestation,

@@ -1,0 +1,15 @@
+{
+  "scope": "local compatibility Worker and synthetic venue/reviewer fixtures",
+  "migrations": 59,
+  "viewportWidths": [1280, 320],
+  "actualProviderPlaybackCases": 2,
+  "syntheticLayoutCases": 2,
+  "reviewerEntryReopenCase": 1,
+  "providerRequestsBeforeClick": 0,
+  "providerReceivesServiceOriginOnly": true,
+  "playerAtLeast200By200": true,
+  "sourceLinkCountPerDetail": 1,
+  "optionalProviderFlagsAbsentFromGeneratedCandidate": true,
+  "capturesUseSyntheticProviderContent": true,
+  "productionChanged": false
+}
