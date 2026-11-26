@@ -4,14 +4,15 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
 
-const e2eStatePath = process.env.RETASTE_E2E === "true" ? ".wrangler/e2e-state" : undefined;
+const localStatePath = process.env.RETASTE_PILOT_STATE_DIR ??
+  (process.env.RETASTE_E2E === "true" ? ".wrangler/e2e-state" : undefined);
 
 export default defineConfig({
   plugins: [
     cloudflare({
       remoteBindings: false,
       viteEnvironment: { name: "ssr" },
-      persistState: e2eStatePath ? { path: e2eStatePath } : true,
+      persistState: localStatePath ? { path: localStatePath } : true,
     }),
     tailwindcss(),
     reactRouter(),

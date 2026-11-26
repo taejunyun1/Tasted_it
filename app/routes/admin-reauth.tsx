@@ -21,8 +21,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const providers = await env.DB.prepare("SELECT provider FROM auth_identities WHERE user_id = ?").bind(user.id).all<{ provider: string }>();
   const url = new URL(request.url);
   return data({
-    hasPassword: !!account?.hasPassword, hasEmail: !!account?.hasEmail,
-    providers: providers.results.map((row) => row.provider),
+    hasPassword: !!account?.hasPassword, hasEmail: env.CST_STUDENT_PILOT !== "true" && !!account?.hasEmail,
+    providers: env.CST_STUDENT_PILOT === "true" ? [] : providers.results.map((row) => row.provider),
     assurance: await getAdminAssurance(env.DB, { actorUserId: user.id, sessionId, now: new Date() }),
     returnTo: adminReturnTo(url.searchParams.get("returnTo")),
     error: url.searchParams.get("error") === "google_fresh_auth"
