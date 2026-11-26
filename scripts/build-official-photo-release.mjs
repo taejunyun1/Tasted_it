@@ -144,6 +144,26 @@ const publicPlacePaginationFiles = [
   "app/features/places/public-metadata.ts",
   "app/features/places/public-place-pagination.ts",
 ];
+const publicAuthContinuationPatch = "ops/releases/public-auth-continuation-494c07f.patch";
+const publicAuthContinuationTargets = [
+  "app/components/auth/TokenHashField.tsx",
+  "app/features/auth/account.server.ts",
+  "app/features/auth/session.server.ts",
+  "app/routes/auth-google-callback.tsx",
+  "app/routes/auth-google.tsx",
+  "app/routes/auth-naver-callback.tsx",
+  "app/routes/auth-naver.tsx",
+  "app/routes/forgot-password.tsx",
+  "app/routes/login.tsx",
+  "app/routes/reset-password.tsx",
+  "app/routes/signup.tsx",
+  "app/routes/verify-email.tsx",
+];
+const publicAuthContinuationFiles = [
+  "app/features/auth/auth-form.tsx",
+  "app/features/auth/oauth-failure.ts",
+  "app/features/auth/verification-link.ts",
+];
 const poiMediaPublicPatch = "ops/releases/poi-media-public-494c07f.patch";
 const poiMediaPublicTargets = [
   "app/components/places/PlaceDetailSheet.tsx",
@@ -285,6 +305,12 @@ const publicPlacePaginationProof = {
   ),
   fileSha256: copyMainFiles(publicPlacePaginationFiles),
 };
+const publicAuthContinuationProof = {
+  patchSha256: applyReleasePatch(
+    publicAuthContinuationPatch, ".public-auth-continuation.patch", publicAuthContinuationTargets,
+  ),
+  fileSha256: copyMainFiles(publicAuthContinuationFiles),
+};
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -305,6 +331,7 @@ const attestation = {
   publicPlaceInformation: publicPlaceInformationProof,
   publicPlaceMapScopePatchSha256,
   publicPlacePagination: publicPlacePaginationProof,
+  publicAuthContinuation: publicAuthContinuationProof,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: buildFingerprint(buildRoot),

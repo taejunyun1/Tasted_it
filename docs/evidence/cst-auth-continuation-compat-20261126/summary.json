@@ -1,0 +1,24 @@
+{
+  "revision": "ca59f53d83ede54c0d5fb06f115a8bdef0b08ac8",
+  "migrations": 56,
+  "workerOutboundAllowedOnlyAsMock": true,
+  "senderDeliveries": 0,
+  "results": [
+    {
+      "layout": "desktop",
+      "providerUnavailableReturn": true,
+      "syntheticVerificationReturn": true,
+      "wrongPasswordRejected": true,
+      "resetRetryReturn": true,
+      "guestSavesAfterRefresh": 1
+    },
+    {
+      "layout": "mobile",
+      "providerUnavailableReturn": true,
+      "syntheticVerificationReturn": true,
+      "wrongPasswordRejected": true,
+      "resetRetryReturn": true,
+      "guestSavesAfterRefresh": 1
+    }
+  ]
+}
