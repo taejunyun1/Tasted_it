@@ -47,7 +47,6 @@ const pilotPatchTargets = [
 ];
 const pilotMainFiles = [
   "app/db/student-review-pilot-photo.ts",
-  "app/features/http/bounded-body.ts",
   "app/features/ratings/student-review-pilot-photo.server.ts",
   "app/routes/admin-student-review-photos.tsx",
   "app/routes/reviewer-pilot-photo.tsx",
@@ -55,6 +54,25 @@ const pilotMainFiles = [
 ];
 const placeDetailVoteLinkPatch = "ops/releases/place-detail-vote-link-494c07f.patch";
 const placeDetailVoteLinkTargets = ["app/components/places/PlaceDetailSheet.tsx"];
+const publicVotePatch = "ops/releases/public-place-vote-494c07f.patch";
+const publicVoteTargets = [
+  "app/app.css",
+  "app/components/map/PlaceMap.tsx",
+  "app/components/places/PlaceCard.tsx",
+  "app/components/places/PlaceDetailSheet.tsx",
+  "app/components/ratings/VoteControl.tsx",
+  "app/features/auth/login.ts",
+  "app/features/ratings/vote.server.ts",
+  "app/routes/map-category.tsx",
+  "app/routes/place-detail.tsx",
+];
+const publicVoteSupportFiles = [
+  "app/features/a11y/focus-return.ts",
+  "app/features/auth/place-detail-return.ts",
+  "app/features/http/bounded-body.ts",
+  "app/features/places/place-detail-client.ts",
+  "app/features/places/place-detail-path.ts",
+];
 const pilotMigration = "drizzle/0065_student_review_pilot_photos.sql";
 const orderedBaselineLedgerSha256 = "a9beee8c240ccef6d667125f9968c4d70483c315d1afe458f99b18c582762928";
 
@@ -128,6 +146,10 @@ const pilotProof = studentPilot ? {
 const placeDetailVoteLinkPatchSha256 = applyReleasePatch(
   placeDetailVoteLinkPatch, ".place-detail-vote-link.patch", placeDetailVoteLinkTargets,
 );
+const publicVoteSupportFileSha256 = copyMainFiles(publicVoteSupportFiles);
+const publicVotePatchSha256 = applyReleasePatch(
+  publicVotePatch, ".public-place-vote.patch", publicVoteTargets, ["--unidiff-zero"],
+);
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -144,6 +166,8 @@ const attestation = {
   patchSha256,
   publicLocationPatchSha256,
   placeDetailVoteLinkPatchSha256,
+  publicVotePatchSha256,
+  publicVoteSupportFileSha256,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: digest(JSON.stringify(emittedFiles)),

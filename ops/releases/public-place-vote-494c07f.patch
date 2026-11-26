@@ -1,0 +1,1025 @@
+diff --git a/app/app.css b/app/app.css
+--- a/app/app.css
++++ b/app/app.css
+@@ -51,3 +51,3 @@
+ .place-detail-overlay{display:none}
+-@media(max-width:760px){.place-detail-overlay{position:fixed;z-index:60;inset:0;display:flex;align-items:flex-end;background:#10171366;backdrop-filter:blur(2px)}.place-detail-sheet{position:relative;width:100%;max-height:92dvh;overflow-y:auto;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -18px 60px #0b140f33;animation:map-sheet-rise .22s ease-out}.place-detail-sheet__handle{position:sticky;z-index:2;top:0;width:42px;height:4px;margin:9px auto -13px;border-radius:9px;background:#c5c8c3}.place-detail-sheet__close{position:sticky;z-index:3;top:10px;float:right;width:42px;height:42px;margin:10px 12px -54px 0;border:1px solid #d8dad6;border-radius:50%;background:#fff;color:#222;font-size:27px;line-height:1;box-shadow:0 3px 14px #1112}.place-detail-sheet__loading{min-height:45vh;display:grid;place-items:center;margin:0;color:var(--muted)}.place-detail-sheet__hero{height:210px;display:grid;place-items:center;overflow:hidden;background:#e7e8e4;font-size:50px}.place-detail-sheet__hero img{width:100%;height:100%;object-fit:cover}.place-detail-sheet__body{padding:24px 20px calc(30px + env(safe-area-inset-bottom))}.place-detail-sheet__body h2{margin:7px 0 8px;padding-right:42px;font-size:34px;line-height:1.08;letter-spacing:-.05em;font-weight:600}.place-detail-sheet__body address{color:var(--muted);font-size:13px;font-style:normal}.place-detail-sheet__score{display:flex;align-items:end;justify-content:space-between;margin-top:25px;padding:20px 0;border-block:1px solid var(--text)}.place-detail-sheet__score strong{font:600 30px "IBM Plex Mono"}.place-detail-sheet__score span{color:var(--muted);font-size:12px}.place-detail-sheet__breakdown{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:16px;background:var(--border)}.place-detail-sheet__breakdown span{display:flex;justify-content:space-between;background:#f7f7f4;padding:13px;font-size:12px}.place-detail-sheet__body section{margin-top:26px;padding-top:20px;border-top:1px solid var(--border)}.place-detail-sheet__body section h3{margin:0 0 14px}.place-detail-sheet__flavor{display:grid;grid-template-columns:64px 1fr 38px;gap:10px;align-items:center;margin:8px 0;font-size:11px}.place-detail-sheet__flavor meter{width:100%}.place-detail-sheet__actions{position:sticky;bottom:-1px;display:grid;grid-template-columns:1fr auto;gap:8px;margin:26px -20px -30px;padding:12px 20px calc(12px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--border)}.place-detail-sheet__actions form{display:contents}.place-detail-sheet__actions a,.place-detail-sheet__actions button{display:grid;place-items:center;min-height:48px;border:1px solid var(--text);padding:10px 13px;background:#fff;font-size:13px;font-weight:500}.place-detail-sheet__actions .place-detail-sheet__save{background:var(--accent);color:#fff;border-color:var(--accent)}}
++@media(max-width:760px){.place-detail-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:none;max-height:92dvh;margin:0;padding:0;overflow-y:auto;overscroll-behavior:contain;border:0;border-radius:18px 18px 0 0;background:#fff;color:inherit;box-shadow:0 -18px 60px #0b140f33}.place-detail-sheet::backdrop{background:#10171366;backdrop-filter:blur(2px)}.place-detail-sheet__handle{position:sticky;z-index:2;top:0;width:42px;height:4px;margin:9px auto -13px;border-radius:9px;background:#c5c8c3}.place-detail-sheet__close{position:sticky;z-index:3;top:10px;float:right;width:42px;height:42px;margin:10px 12px -54px 0;border:1px solid #d8dad6;border-radius:50%;background:#fff;color:#222;font-size:27px;line-height:1;box-shadow:0 3px 14px #1112}.place-detail-sheet__loading{min-height:45vh;display:grid;place-items:center;margin:0;color:var(--muted)}.place-detail-sheet__hero{height:210px;display:grid;place-items:center;overflow:hidden;background:#e7e8e4;font-size:50px}.place-detail-sheet__hero img{width:100%;height:100%;object-fit:cover}.place-detail-sheet__body{padding:24px 20px calc(30px + env(safe-area-inset-bottom))}.place-detail-sheet__body h2{margin:7px 0 8px;padding-right:42px;font-size:34px;line-height:1.08;letter-spacing:-.05em;font-weight:600}.place-detail-sheet__body address{color:var(--muted);font-size:13px;font-style:normal}.place-detail-sheet__score{display:flex;align-items:end;justify-content:space-between;margin-top:25px;padding:20px 0;border-block:1px solid var(--text)}.place-detail-sheet__score strong{font:600 30px "IBM Plex Mono"}.place-detail-sheet__score span{color:var(--muted);font-size:12px}.place-detail-sheet__breakdown{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:16px;background:var(--border)}.place-detail-sheet__breakdown span{display:flex;justify-content:space-between;background:#f7f7f4;padding:13px;font-size:12px}.place-detail-sheet__body section{margin-top:26px;padding-top:20px;border-top:1px solid var(--border)}.place-detail-sheet__body section h3{margin:0 0 14px}.place-detail-sheet__flavor{display:grid;grid-template-columns:64px 1fr 38px;gap:10px;align-items:center;margin:8px 0;font-size:11px}.place-detail-sheet__flavor meter{width:100%}.place-detail-sheet__actions{position:sticky;bottom:-1px;display:grid;grid-template-columns:1fr auto;gap:8px;margin:26px -20px -30px;padding:12px 20px calc(12px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--border)}.place-detail-sheet__actions form{display:contents}.place-detail-sheet__actions a,.place-detail-sheet__actions button{display:grid;place-items:center;min-height:48px;border:1px solid var(--text);padding:10px 13px;background:#fff;font-size:13px;font-weight:500}.place-detail-sheet__actions .place-detail-sheet__save{background:var(--accent);color:#fff;border-color:var(--accent)}}
+ @media(max-width:760px){.discovery-page{padding-top:38px}.discovery-hero{display:block;padding-bottom:32px}.discovery-hero h1{font-size:44px}.discovery-map-link{display:inline-block;margin-top:24px}.discovery-section{padding-top:42px}.discovery-heading{display:block}.discovery-heading>p{margin-top:9px;text-align:left}.discovery-rail{grid-auto-columns:82vw}.discovery-rail .place-image{height:170px}.discovery-all{padding-top:64px}.discovery-search{grid-template-columns:minmax(0,1fr) auto}.discovery-grid{grid-template-columns:1fr 1fr}}
+@@ -155,6 +155,6 @@
+   .map-place-sheet__rating{padding-top:12px}
+-  .place-detail-overlay{background:rgba(15,24,19,.58);backdrop-filter:blur(3px)}
+-  .place-detail-sheet{border-radius:12px 12px 0 0;background:var(--atlas-paper);box-shadow:0 -14px 50px rgba(10,20,14,.3)}
++  .place-detail-sheet::backdrop{background:rgba(15,24,19,.58);backdrop-filter:blur(3px)}
++  .place-detail-sheet{--detail-sheet-inline-padding:18px;scroll-padding-block-end:calc(var(--detail-sheet-actions-height, 0px) + 8px);border-radius:12px 12px 0 0;background:var(--atlas-paper);box-shadow:0 -14px 50px rgba(10,20,14,.3)}
+   .place-detail-sheet__hero{height:230px;background:var(--atlas-paper-deep)}
+-  .place-detail-sheet__body{padding:22px 18px calc(30px + env(safe-area-inset-bottom))}
++  .place-detail-sheet__body{padding:22px var(--detail-sheet-inline-padding) calc(30px + env(safe-area-inset-bottom))}
+   .place-detail-sheet__meta{justify-content:space-between;padding-right:45px}
+@@ -166,3 +166,8 @@
+   .place-detail-sheet__breakdown span{background:#eceee6}
+-  .place-detail-sheet__actions{background:var(--atlas-paper)}
++  .place-detail-sheet__actions{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;margin-inline:calc(-1 * var(--detail-sheet-inline-padding));padding-inline:var(--detail-sheet-inline-padding);background:var(--atlas-paper)}
++  .place-detail-sheet__actions :is(a,button){text-align:center}
++  .place-detail-sheet__actions a,.place-detail-sheet__actions button{max-inline-size:100%;overflow-wrap:anywhere}
++  .place-detail-sheet .vote-control{flex-wrap:wrap}
++  .place-detail-sheet .reaction-controls button,.place-detail-sheet__close{min-block-size:44px;min-inline-size:44px}
++  .place-detail-sheet .negative-reason-form,.place-detail-sheet__breakdown span{min-inline-size:0;overflow-wrap:anywhere}
+   .place-detail-sheet__actions .place-detail-sheet__save{background:var(--atlas-forest);border-color:var(--atlas-forest)}
+@@ -170,2 +175,7 @@
+
++@media(max-width:760px) and (max-height:420px){
++  .place-detail-sheet{scroll-padding-block-end:8px}
++  .place-detail-sheet__actions{position:static}
++}
++
+ /* Course planner: route ribbon first, controls become an entry bottom sheet on mobile. */
+diff --git a/app/components/map/PlaceMap.tsx b/app/components/map/PlaceMap.tsx
+--- a/app/components/map/PlaceMap.tsx
++++ b/app/components/map/PlaceMap.tsx
+@@ -106,7 +106,7 @@
+   focusCluster?: RegionCluster | null;
+   markerRanks?: Record<string, number>;
+   deferBounds?: boolean;
+-  onSelect: (id: string) => void;
++  onSelect: (id: string, opener: HTMLButtonElement) => void;
+   onBounds: (bbox: [number, number, number, number]) => void;
+   onPendingBounds?: (bbox: [number, number, number, number]) => void;
+   onZoom?: (zoom: number) => void;
+@@ -264,7 +264,7 @@
+       if (markerRank) button.dataset.rank = String(markerRank);
+       button.textContent = markerRank ? String(markerRank) : place.primaryCategory.emoji;
+       button.onclick = () => {
+-        selectRef.current(place.id);
++        selectRef.current(place.id, button);
+       };
+       return new maps.Marker({
+         map,
+@@ -378,12 +378,12 @@
+     ><span>{cluster.label}</span><strong>{cluster.count}</strong></button>) : places.map((place) => {
+       const influence = getMarkerInfluence(place.ratingSampleCount ?? 0, 0);
+       const markerRank = markerRanks[place.id];
+-      return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-place-id={place.id} data-influence={influence} data-rank={markerRank} onClick={() => onSelect(place.id)}>{markerRank ?? place.primaryCategory.emoji}</button>;
++      return <button key={place.id} type="button" className={`map-pin influence-${influence}${markerRank ? " map-pin--ranked" : ""}${selected === place.id ? " is-selected" : ""}`} aria-label={`${markerRank ? `${markerRank}번 ` : ""}${place.name} 지도 핀`} data-place-id={place.id} data-influence={influence} data-rank={markerRank} onClick={(event) => onSelect(place.id, event.currentTarget)}>{markerRank ?? place.primaryCategory.emoji}</button>;
+     })}
+   </div>;
+
+   return <div className="map-canvas" aria-label="장소 지도" data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent} onKeyDownCapture={handleMapKeyDown}>
+-    <div className="map-canvas__host" ref={host} aria-hidden="true" />
++    <div className="map-canvas__host" ref={host} />
+     {(error || locationNotice) && <p className="map-error" role="status" aria-live="polite">{error || locationNotice}</p>}
+     {selectedOverview}
+   </div>;
+diff --git a/app/components/places/PlaceCard.tsx b/app/components/places/PlaceCard.tsx
+index 3ce0c45..2ad8908 100644
+--- a/app/components/places/PlaceCard.tsx
++++ b/app/components/places/PlaceCard.tsx
+@@ -1,105 +1,21 @@
+ import { Link } from "react-router";
+ import { formatDistance, formatPublicRatingSummary, type DiscoveryPlace } from "../../features/places/place-discovery";
+ import { shouldOpenPlaceDetailSheet } from "../../features/places/place-detail-sheet";
+-
+-export const RECOMMENDATION_SOURCE_RAILS = ["PERSONAL", "TRUSTED", "GOLDEN"] as const;
+-export const RECOMMENDATION_DISCOVERY_MODES = [
+-  "FAMILIAR",
+-  "ADJACENT",
+-  "EXPLORATION",
+-  "ONBOARDING",
+-  "QUALITY",
+-  "REVIEWER",
+-] as const;
+-
+-export type RecommendationSourceRail = (typeof RECOMMENDATION_SOURCE_RAILS)[number];
+-export type RecommendationDiscoveryMode = (typeof RECOMMENDATION_DISCOVERY_MODES)[number];
+-export type PlaceCardVariant = "default" | "featured" | "personal" | "trusted" | "golden";
+-
+-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+-
+-function hasAllowedRecommendationPair(sourceRail: string | null, discoveryMode: string | null) {
+-  if (sourceRail === "TRUSTED") return discoveryMode === "QUALITY";
+-  if (sourceRail === "GOLDEN") return discoveryMode === "REVIEWER";
+-  return sourceRail === "PERSONAL" && ["FAMILIAR", "ADJACENT", "EXPLORATION", "ONBOARDING"].includes(discoveryMode ?? "");
+-}
+-
+-function parsedPlaceDetailPath(path: string, requestId: "required" | "forbidden") {
+-  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || path.includes("#")) return null;
+-  let destination: URL;
+-  try {
+-    destination = new URL(path, "https://retaste.invalid");
+-  } catch {
+-    return null;
+-  }
+-  if (destination.origin !== "https://retaste.invalid") return null;
+-  if (`${destination.pathname}${destination.search}` !== path) return null;
+-  const encodedSlug = destination.pathname.startsWith("/places/") ? destination.pathname.slice("/places/".length) : "";
+-  let slug: string;
+-  try {
+-    slug = decodeURIComponent(encodedSlug);
+-  } catch {
+-    return null;
+-  }
+-  if (!slug || slug === "." || slug === ".." || /[\/\\?#\u0000-\u001f\u007f]/u.test(slug)) return null;
+-
+-  const entries = [...destination.searchParams.entries()];
+-  if (entries.length === 0) return requestId === "required" ? null : `${destination.pathname}`;
+-  const expectedKeys = requestId === "required"
+-    ? ["sourceRail", "discoveryMode", "recommendationRequestId"]
+-    : ["sourceRail", "discoveryMode"];
+-  if (entries.length !== expectedKeys.length || expectedKeys.some((key) => destination.searchParams.getAll(key).length !== 1)) return null;
+-  if (entries.some(([key]) => !expectedKeys.includes(key))) return null;
+-  if (!hasAllowedRecommendationPair(destination.searchParams.get("sourceRail"), destination.searchParams.get("discoveryMode"))) return null;
+-  const recommendationRequestId = destination.searchParams.get("recommendationRequestId");
+-  if (requestId === "required" && (!recommendationRequestId || !uuidPattern.test(recommendationRequestId))) return null;
+-  if (requestId === "forbidden" && recommendationRequestId) return null;
+-  return `${destination.pathname}${destination.search}`;
+-}
+-
+-export function safePlaceDetailRequestPath(path: string | null) {
+-  if (!path) return null;
+-  const directPath = parsedPlaceDetailPath(path, "forbidden");
+-  if (directPath && !directPath.includes("?")) return directPath;
+-  return parsedPlaceDetailPath(path, "required");
+-}
+-
+-function recommendationProvenance(input: {
+-  variant: PlaceCardVariant;
+-  discoveryMode?: RecommendationDiscoveryMode;
+-}): { sourceRail: RecommendationSourceRail; discoveryMode: RecommendationDiscoveryMode } | null {
+-  if (input.variant === "default") return null;
+-  if (input.variant === "trusted") return { sourceRail: "TRUSTED", discoveryMode: "QUALITY" };
+-  if (input.variant === "golden") return { sourceRail: "GOLDEN", discoveryMode: "REVIEWER" };
+-  const discoveryMode = input.discoveryMode && RECOMMENDATION_DISCOVERY_MODES.includes(input.discoveryMode)
+-    ? input.discoveryMode
+-    : "FAMILIAR";
+-  return { sourceRail: "PERSONAL", discoveryMode };
+-}
+-
+-export function recommendationPlacePath(slug: string, input: {
+-  variant: PlaceCardVariant;
+-  discoveryMode?: RecommendationDiscoveryMode;
+-}) {
+-  const pathname = `/places/${slug}`;
+-  const provenance = recommendationProvenance(input);
+-  if (!provenance) return pathname;
+-  const search = new URLSearchParams(provenance);
+-  return `${pathname}?${search}`;
+-}
+-
+-export function recommendationRequestPath(path: string, requestId: string) {
+-  if (!uuidPattern.test(requestId)) throw new Error("RECOMMENDATION_REQUEST_ID_NOT_ALLOWED");
+-  const recommendationPath = parsedPlaceDetailPath(path, "forbidden");
+-  if (!recommendationPath || !recommendationPath.includes("?")) throw new Error("RECOMMENDATION_PATH_NOT_ALLOWED");
+-  const destination = new URL(recommendationPath, "https://retaste.invalid");
+-  destination.searchParams.set("recommendationRequestId", requestId);
+-  const requestPath = safePlaceDetailRequestPath(`${destination.pathname}${destination.search}`);
+-  if (!requestPath) throw new Error("RECOMMENDATION_PATH_NOT_ALLOWED");
+-  return requestPath;
+-}
+-
+-export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: (detailPath: string) => void }) {
++import { recommendationPlacePath, recommendationRequestPath, safePlaceDetailRequestPath, type PlaceCardVariant, type RecommendationDiscoveryMode } from "../../features/places/place-detail-path";
++
++export {
++  RECOMMENDATION_DISCOVERY_MODES,
++  RECOMMENDATION_SOURCE_RAILS,
++  recommendationPlacePath,
++  recommendationRequestPath,
++  safePlaceDetailRequestPath,
++  safePlaceDetailSearchPath,
++  type PlaceCardVariant,
++  type RecommendationDiscoveryMode,
++  type RecommendationSourceRail,
++} from "../../features/places/place-detail-path";
++
++export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: (detailPath: string, opener: HTMLAnchorElement) => void }) {
+   const ratingSummary = formatPublicRatingSummary(place);
+   const detailPath = recommendationPlacePath(place.slug, {
+     variant,
+@@ -118,7 +34,7 @@ export function PlaceCard({ place, selected = false, distanceMeters, goldenPickA
+           const safeRequestPath = safePlaceDetailRequestPath(requestPath);
+           if (!safeRequestPath) return;
+           event.preventDefault();
+-          onOpenDetail(safeRequestPath);
++          onOpenDetail(safeRequestPath, event.currentTarget);
+         }
+       }}>
+         <div className="place-image">
+diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
+--- a/app/components/places/PlaceDetailSheet.tsx
++++ b/app/components/places/PlaceDetailSheet.tsx
+@@ -1,39 +1,198 @@
+-import { useEffect, useRef } from "react";
+-import { Link, useFetcher } from "react-router";
+-import type { loader as placeDetailLoader } from "../../routes/place-detail";
+-import { useDialogFocusTrap } from "../a11y/useDialogFocusTrap";
+-import { safePlaceDetailRequestPath } from "./PlaceCard";
+-import { GuestSaveControl } from "../onboarding/GuestSaveControl";
+-import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
++import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
++import { createPortal } from "react-dom";
++import { useFetcher, useLocation, useNavigate } from "react-router";
++import type { clientLoader as placeDetailLoader } from "../../routes/place-detail";
++import { tabWrapTarget, visibleFocusableElements } from "../../features/a11y/dialog-focus";
++import { restoreVisibleFocus } from "../../features/a11y/focus-return";
++import { safePlaceDetailRequestPath, safePlaceDetailSearchPath } from "../../features/places/place-detail-path";
+ import { TempCatalogNotice } from "../../features/temp-catalog/TempCatalogNotice";
++import type { PlaceDetailLoadFailure } from "../../features/places/place-detail-client";
++import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
++import { VoteControl } from "../ratings/VoteControl";
+
++const PLACE_DETAIL_MOBILE_QUERY = "(max-width: 760px)";
++
+ type DetailData = Awaited<ReturnType<typeof placeDetailLoader>>;
+
+-export function PlaceDetailSheet({ detailPath, slug, onClose }: {
++export function PlaceDetailSheet({ detailPath, slug, opener, replacementOpener, fallbackFocus, onClose }: {
+   detailPath?: string | null;
+   slug?: string | null;
++  opener?: HTMLElement | null;
++  replacementOpener?: string;
++  fallbackFocus?: string;
+   onClose: () => void;
+ }) {
+-  const detail = useFetcher<DetailData>();
+-  const save = useFetcher<{ ok: true }>();
+-  const sheetRef = useRef<HTMLElement>(null);
+   const requestPath = detailPath === undefined
+-    ? safePlaceDetailRequestPath(slug ? `/places/${slug}` : null)
++    ? safePlaceDetailSearchPath(slug ?? null)
+     : safePlaceDetailRequestPath(detailPath);
+-  useEffect(() => { if (requestPath) detail.load(requestPath); }, [requestPath]);
++  const navigate = useNavigate();
++  const [mobile, setMobile] = useState<boolean | null>(null);
+   useEffect(() => {
+-    if (!requestPath) return;
+-    document.body.style.overflow = "hidden";
+-    return () => { document.body.style.overflow = ""; };
+-  }, [requestPath]);
+-  useDialogFocusTrap(sheetRef, { active: Boolean(requestPath), onClose });
+-  if (!requestPath) return null;
+-  const [placePath] = requestPath.split("?", 1);
+-  const requestedSlug = decodeURIComponent(placePath!.slice("/places/".length));
+-  const data = detail.data?.place.slug === requestedSlug ? detail.data : null;
+-  return <div className="place-detail-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+-    <aside ref={sheetRef} className="place-detail-sheet" role="dialog" aria-modal="true" tabIndex={-1} aria-label={data ? `${data.place.name} 상세 정보` : "장소 상세 불러오는 중"}>
+-      <div className="place-detail-sheet__handle" aria-hidden="true" />
+-      <button type="button" className="place-detail-sheet__close" aria-label="상세 정보 닫기" onClick={onClose}>×</button>
+-      {!data ? <p className="place-detail-sheet__loading">장소 정보를 불러오는 중…</p> : <>
++    const viewport = window.matchMedia(PLACE_DETAIL_MOBILE_QUERY);
++    const syncViewport = () => setMobile(viewport.matches);
++    syncViewport();
++    viewport.addEventListener("change", syncViewport);
++    return () => viewport.removeEventListener("change", syncViewport);
++  }, []);
++  useEffect(() => {
++    if (requestPath && mobile === false) void navigate(requestPath, { replace: true });
++  }, [requestPath, mobile, navigate]);
++
++  if (!requestPath || !mobile) return null;
++  // A failed map read disables its controls, but the independently loaded detail stays usable.
++  return createPortal(
++    <MobilePlaceDetailDialog requestPath={requestPath} opener={opener} replacementOpener={replacementOpener} fallbackFocus={fallbackFocus} onClose={onClose} />,
++    document.body,
++  );
++}
++
++function MobilePlaceDetailDialog({ requestPath, opener, replacementOpener, fallbackFocus, onClose }: {
++  requestPath: string;
++  opener?: HTMLElement | null;
++  replacementOpener?: string;
++  fallbackFocus?: string;
++  onClose: () => void;
++}) {
++  const [attempt, setAttempt] = useState(0);
++  const dialogRef = useRef<HTMLDialogElement>(null);
++  const closeRef = useRef<HTMLButtonElement>(null);
++  const initialFocus = useRef({ opener, replacementOpener, fallbackFocus });
++  const restoreAfterMapUpdate = useRef<(() => void) | null>(null);
++  const startedOutside = useRef(false);
++  const labelId = useId();
++
++  useLayoutEffect(() => {
++    const dialog = dialogRef.current;
++    if (!dialog) return;
++    const pathname = window.location.pathname;
++    const bodyStyle = document.body.style;
++    const overflow = ["overflow-x", "overflow-y"].map((property) => ({
++      property,
++      value: bodyStyle.getPropertyValue(property),
++      priority: bodyStyle.getPropertyPriority(property),
++    }));
++    const previousFocus = document.activeElement;
++    dialog.showModal();
++    bodyStyle.setProperty("overflow", "hidden", "important");
++    closeRef.current?.focus({ preventScroll: true });
++
++    return () => {
++      dialog.close();
++      bodyStyle.removeProperty("overflow");
++      for (const { property, value, priority } of overflow) bodyStyle.setProperty(property, value, priority);
++      // The destination has its own focus when closing also leaves the browse route.
++      if (window.location.pathname !== pathname || !window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches) return;
++      const { opener, replacementOpener, fallbackFocus } = initialFocus.current;
++      const restoreFocus = () => {
++        if (restoreVisibleFocus(opener ?? previousFocus)) return;
++        if (replacementOpener && restoreVisibleFocus(document.querySelector(replacementOpener))) return;
++        if (fallbackFocus) document.querySelector<HTMLElement>(fallbackFocus)?.focus({ preventScroll: true });
++      };
++      if (!replacementOpener) {
++        restoreFocus();
++        return;
++      }
++
++      const closedUrl = window.location.href;
++      const focusAtClose = document.activeElement;
++      restoreAfterMapUpdate.current = () => {
++        if (window.location.href !== closedUrl || !window.matchMedia(PLACE_DETAIL_MOBILE_QUERY).matches
++          || document.querySelector("dialog:modal")) return;
++        if (document.activeElement === focusAtClose || document.activeElement === document.body) restoreFocus();
++      };
++    };
++  }, []);
++
++  useEffect(() => () => {
++    const restore = restoreAfterMapUpdate.current;
++    restoreAfterMapUpdate.current = null;
++    // Marker setup runs in a passive effect after the map receives new results.
++    if (restore) queueMicrotask(restore);
++  }, []);
++
++  useLayoutEffect(() => {
++    const dialog = dialogRef.current;
++    if (dialog?.open && !dialog.contains(document.activeElement)) closeRef.current?.focus({ preventScroll: true });
++  }, [requestPath, attempt]);
++
++  const retry = () => {
++    closeRef.current?.focus({ preventScroll: true });
++    setAttempt((value) => value + 1);
++  };
++
++  return <dialog ref={dialogRef} className="place-detail-sheet" aria-modal="true" aria-labelledby={labelId}
++    onCancel={(event) => { event.preventDefault(); onClose(); }}
++    onKeyDown={(event) => {
++      if (event.defaultPrevented || event.key !== "Tab") return;
++      const target = tabWrapTarget(visibleFocusableElements(event.currentTarget), document.activeElement, event.shiftKey);
++      if (target) { event.preventDefault(); target.focus(); }
++    }}
++    onPointerDown={(event) => {
++      startedOutside.current = event.button === 0 && event.target === event.currentTarget
++        && outsideDialog(event.currentTarget, event.clientX, event.clientY);
++    }}
++    onPointerCancel={() => { startedOutside.current = false; }}
++    onClick={(event) => {
++      const backdropClick = startedOutside.current && event.target === event.currentTarget
++        && outsideDialog(event.currentTarget, event.clientX, event.clientY);
++      startedOutside.current = false;
++      if (backdropClick) onClose();
++    }}>
++    <div className="place-detail-sheet__handle" aria-hidden="true" />
++    <button ref={closeRef} type="button" className="place-detail-sheet__close" aria-label="상세 정보 닫기" onClick={onClose}>×</button>
++    <PlaceDetailRequest key={`${requestPath}:${attempt}`} requestPath={requestPath} labelId={labelId} onClose={onClose} onRetry={retry} />
++  </dialog>;
++}
++
++function outsideDialog(dialog: HTMLDialogElement, x: number, y: number) {
++  const rect = dialog.getBoundingClientRect();
++  return x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom;
++}
++
++function PlaceDetailRequest({ requestPath, labelId, onClose, onRetry }: {
++  requestPath: string;
++  labelId: string;
++  onClose: () => void;
++  onRetry: () => void;
++}) {
++  // Each request owns its fetchers and receipt. Closing or selecting another
++  // place cannot carry an earlier response, save state or failure into it.
++  const location = useLocation();
++  const returnTo = `${location.pathname}${location.search}${location.hash}`;
++  const detail = useFetcher<DetailData>();
++  const [readFailure, setReadFailure] = useState<PlaceDetailLoadFailure | null>(null);
++  const sheetActionsRef = useCallback((actions: HTMLDivElement | null) => {
++    const dialog = actions?.closest("dialog");
++    if (!actions || !dialog) return;
++    // Leave scrolling room for focus even when enlarged action labels wrap.
++    const updateScrollPadding = () => dialog.style.setProperty("--detail-sheet-actions-height", `${actions.offsetHeight}px`);
++    updateScrollPadding();
++    const observer = new ResizeObserver(updateScrollPadding);
++    observer.observe(actions, { box: "border-box" });
++    return () => {
++      observer.disconnect();
++      dialog.style.removeProperty("--detail-sheet-actions-height");
++    };
++  }, []);
++
++  useEffect(() => { void detail.load(requestPath); }, [requestPath, detail.load]);
++  useEffect(() => {
++    if (detail.data && "detailError" in detail.data) setReadFailure(detail.data);
++  }, [detail.data]);
++  // An unrelated route revalidation must not erase the displayed failure.
++  // The explicit retry remounts this request and clears the failure receipt.
++  const failure = readFailure ?? (detail.data && "detailError" in detail.data ? detail.data : null);
++  const data = !failure && detail.data && !("detailError" in detail.data) ? detail.data : null;
++  const loading = !data && !failure;
++  const unavailable = failure?.status === 403 || failure?.status === 404;
++  return <>
++      <span id={labelId} className="sr-only">{data ? `${data.place.name} 상세 정보` : "장소 상세 정보"}</span>
++      {loading ? <p className="place-detail-sheet__loading" role="status">장소 정보를 불러오는 중…</p> : !data ? <div className="place-detail-sheet__body">
++        <h2>{failure?.status === 404 ? "이 장소를 찾을 수 없어요." : failure?.status === 403 ? "이 장소를 볼 수 없어요." : "장소 정보를 불러오지 못했어요."}</h2>
++        <p role="status">{unavailable ? "공개된 다른 장소를 찾아보세요." : "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p>
++        <div ref={sheetActionsRef} className="place-detail-sheet__actions">
++          {!unavailable && <button type="button" className="place-detail-sheet__save" onClick={onRetry}>다시 불러오기</button>}
++          <button type="button" onClick={onClose}>목록으로 돌아가기</button>
++        </div>
++      </div> : <>
+         {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
+@@ -44,3 +203,2 @@
+           <address>{data.place.address}</address>
+-          <p><Link className="inline-flex min-h-11 items-center underline" to={requestPath} reloadDocument>상세 페이지에서 평가하기</Link></p>
+           {data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
+@@ -50,11 +208,18 @@
+           <dl><div><dt>주소</dt><dd>{data.place.address}</dd></div><div><dt>주차</dt><dd>{data.place.parkingSummary ?? "정보 확인 중"}</dd></div>{data.place.phone && <div><dt>전화</dt><dd>{data.place.phone}</dd></div>}</dl>
+-          <div className="place-detail-sheet__actions">
+-            {data.user ? <save.Form method="post" action={requestPath}><input type="hidden" name="intent" value="save"/><input type="hidden" name="saved" value={String(!data.saved)}/><button className="place-detail-sheet__save">{data.saved ? "맛집지도에서 빼기" : "맛집지도에 추가"}</button></save.Form> : <div><a className="place-detail-sheet__save" href={`/login?returnTo=${encodeURIComponent(requestPath)}`}>로그인하고 맛집지도에 추가</a><GuestSaveControl placeId={data.place.id} returnTo={requestPath} showLogin={false}/></div>}
+-            {data.user && data.voteEventId && <save.Form method="post" action={requestPath}><input type="hidden" name="intent" value="withdraw"/><input type="hidden" name="expectedEventId" value={data.voteEventId}/><button disabled={save.state !== "idle"}>평가 취소</button></save.Form>}
+-            <a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>
+-          </div>
++          <VoteControl
++            placeId={data.place.id}
++            vote={data.vote}
++            voteEventId={data.voteEventId}
++            saved={data.saved}
++            signedIn={Boolean(data.user)}
++            returnTo={returnTo}
++            action={requestPath}
++            busyReading={detail.state !== "idle"}
++            onRefresh={onRetry}
++            sheetActionsRef={sheetActionsRef}
++            directions={<a href={`https://map.naver.com/p/search/${encodeURIComponent(data.place.address)}`} target="_blank" rel="noreferrer">네이버 길찾기 ↗</a>}
++          />
+         </div>
+       </>}
+-    </aside>
+-  </div>;
++  </>;
+ }
+diff --git a/app/components/ratings/VoteControl.tsx b/app/components/ratings/VoteControl.tsx
+index 0463380..b158921 100644
+--- a/app/components/ratings/VoteControl.tsx
++++ b/app/components/ratings/VoteControl.tsx
+@@ -1,5 +1,6 @@
+-import { useState } from "react";
+-import { Form, useNavigation } from "react-router";
++import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
++import { Link, useActionData, useFetcher, useFormAction } from "react-router";
++import { authEntryHref } from "../../features/auth/login";
+ import { GuestSaveControl } from "../onboarding/GuestSaveControl";
+
+ const NEGATIVE_REASONS = [
+@@ -10,39 +11,122 @@ const NEGATIVE_REASONS = [
+   { value: "ALREADY_VISITED", label: "이미 가본 곳" },
+ ] as const;
+
+-export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEventId }: {
++type Reaction = "recommend" | "dislike" | "withdraw" | "save";
++type ReactionSubmission = { intent: Exclude<Reaction, "save"> } | { intent: "save"; targetSaved: boolean };
++type ReactionOutcome = { ok: boolean; error?: string; resultUnknown?: boolean; requiresRefresh?: boolean; status?: number };
++
++const pendingMessage: Record<Reaction, string> = {
++  recommend: "추천 반영 중…",
++  dislike: "비추천 반영 중…",
++  withdraw: "평가 취소 중…",
++  save: "저장 상태를 바꾸고 있어요.",
++};
++
++function outcomeMessage(outcome: ReactionOutcome, submitted: ReactionSubmission) {
++  if (outcome.ok) {
++    if (submitted.intent === "save") return submitted.targetSaved ? "맛집지도에 추가했어요." : "맛집지도에서 뺐어요.";
++    if (submitted.intent === "withdraw") return "평가를 취소했습니다.";
++    return submitted.intent === "dislike" ? "비추천을 반영했습니다." : "추천을 반영했습니다.";
++  }
++  if (outcome.error === "VOTE_VERSION_CONFLICT" || outcome.requiresRefresh || outcome.status === 409) {
++    return "다른 요청에서 평가가 변경되었습니다. 현재 상태를 다시 확인해 주세요.";
++  }
++  if (outcome.resultUnknown) return "처리 결과를 확인하지 못했어요. 다시 요청하기 전에 현재 상태를 확인해 주세요.";
++  return "요청을 처리하지 못했어요. 입력을 확인한 뒤 다시 시도해 주세요.";
++}
++
++export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEventId, action, busyReading = false, onRefresh = () => window.location.reload(), directions, sheetActionsRef }: {
+   placeId: string;
+   vote: -1 | 1 | null;
+   voteEventId?: string | null;
+   saved: boolean;
+   signedIn: boolean;
+   returnTo: string;
++  action?: string;
++  busyReading?: boolean;
++  onRefresh?: () => void;
++  directions?: ReactNode;
++  sheetActionsRef?: Ref<HTMLDivElement>;
+ }) {
+-  const navigation = useNavigation();
+-  const pending = navigation.state !== "idle";
++  const mutation = useFetcher<ReactionOutcome>();
++  const actionData = useActionData<ReactionOutcome>();
++  const actionPath = useFormAction(action);
++  const feedbackRef = useRef<HTMLParagraphElement>(null);
++  const locked = useRef(false);
++  const focusFeedback = useRef(false);
++  const [submitted, setSubmitted] = useState<ReactionSubmission | null>(null);
++  const [pending, setPending] = useState(false);
+   const [negativeReasonOpen, setNegativeReasonOpen] = useState(vote === -1);
++  const reasonFormId = useId();
++  const sheet = Boolean(directions);
++  const busy = pending || mutation.state !== "idle";
++  const documentFailure = !sheet && actionData?.ok === false ? actionData : null;
++  const outcome = busy ? null : mutation.data ?? documentFailure;
++  const receipt = submitted ?? (documentFailure ? { intent: "recommend" as const } : null);
++  const needsRead = Boolean(outcome && !outcome.ok && (outcome.resultUnknown || outcome.requiresRefresh || outcome.error === "VOTE_VERSION_CONFLICT" || outcome.status === 409));
++  const disabled = busy || busyReading || needsRead;
++
++  useEffect(() => {
++    if (!outcome || !focusFeedback.current) return;
++    focusFeedback.current = false;
++    if (document.activeElement === document.body || document.activeElement === feedbackRef.current) {
++      feedbackRef.current?.focus({ preventScroll: true });
++    }
++  }, [outcome]);
++
++  function submit(event: FormEvent<HTMLFormElement>, reaction: Reaction) {
++    event.preventDefault();
++    if (locked.current || disabled) return;
++    const form = new FormData(event.currentTarget);
++    if (sheet) form.set("browseReturnTo", returnTo);
++    locked.current = true;
++    focusFeedback.current = true;
++    setSubmitted(reaction === "save" ? { intent: "save", targetSaved: form.get("saved") === "true" } : { intent: reaction });
++    setPending(true);
++    if (reaction === "recommend" || reaction === "withdraw") setNegativeReasonOpen(false);
++    void mutation.submit(form, { method: "post", action: actionPath }).finally(() => {
++      locked.current = false;
++      setPending(false);
++    });
++  }
++
+   if (!signedIn) {
+-    return <div className="reaction-signin"><a href={`/login?returnTo=${encodeURIComponent(returnTo)}`}>로그인하고 취향 남기기</a><GuestSaveControl placeId={placeId} returnTo={returnTo} showLogin={false}/></div>;
++    const loginHref = sheet ? authEntryHref("/login", returnTo) : `/login?returnTo=${encodeURIComponent(returnTo)}`;
++    const signIn = <div className={sheet ? undefined : "reaction-signin"}>
++      <Link className={sheet ? "place-detail-sheet__save" : undefined} to={loginHref}>{sheet ? "로그인하고 맛집지도에 추가" : "로그인하고 취향 남기기"}</Link>
++      <GuestSaveControl placeId={placeId} returnTo={returnTo} showLogin={false} />
++    </div>;
++    return sheet ? <div ref={sheetActionsRef} className="place-detail-sheet__actions">{signIn}{directions}</div> : signIn;
+   }
+-  return (
++
++  const saveControl = needsRead && sheet ? null : <mutation.Form method="post" action={action} onSubmit={event => submit(event, "save")}>
++    <input type="hidden" name="intent" value="save" />
++    <input type="hidden" name="saved" value={String(!saved)} />
++    <button className={sheet ? "place-detail-sheet__save" : "save-control"} aria-pressed={saved} disabled={disabled}>
++      {busy && submitted?.intent === "save" ? "저장 중…" : sheet ? (saved ? "맛집지도에서 빼기" : "맛집지도에 추가") : (saved ? "저장됨" : "저장")}
++    </button>
++  </mutation.Form>;
++  const refresh = needsRead && <button type="button" className={sheet ? "place-detail-sheet__save" : undefined} onClick={onRefresh}>현재 상태 다시 확인</button>;
++  return <>
+     <div className="reaction-controls">
+-      <Form method="post" className="vote-control">
++      <mutation.Form method="post" action={action} className="vote-control" onSubmit={event => submit(event, "recommend")}>
+         <input type="hidden" name="intent" value="vote" />
+-        <button name="value" value="1" aria-pressed={vote === 1} disabled={pending} onClick={() => setNegativeReasonOpen(false)}><span aria-hidden>{vote === 1 ? "✓ " : "↑ "}</span>추천</button>
++        <input type="hidden" name="value" value="1" />
++        <button type="submit" aria-pressed={vote === 1} disabled={disabled}><span aria-hidden>{vote === 1 ? "✓ " : "↑ "}</span>추천</button>
+         <button
+           type="button"
+           aria-pressed={vote === -1}
+           aria-expanded={negativeReasonOpen}
+-          aria-controls="negative-reason-form"
+-          disabled={pending}
++          aria-controls={negativeReasonOpen ? reasonFormId : undefined}
++          disabled={disabled}
+           onClick={() => setNegativeReasonOpen((open) => !open)}
+         ><span aria-hidden>{vote === -1 ? "✓ " : "↓ "}</span>비추천</button>
+-      </Form>
++      </mutation.Form>
+       {negativeReasonOpen && (
+-        <Form method="post" id="negative-reason-form" className="negative-reason-form">
++        <mutation.Form method="post" action={action} id={reasonFormId} className="negative-reason-form" onSubmit={event => submit(event, "dislike")}>
+           <input type="hidden" name="intent" value="vote" />
+           <input type="hidden" name="value" value="-1" />
+-          <fieldset disabled={pending}>
++          <fieldset disabled={disabled}>
+             <legend>비추천 이유를 하나 선택해 주세요</legend>
+             {NEGATIVE_REASONS.map((reason) => (
+               <label key={reason.value} className="negative-reason-option">
+@@ -51,22 +135,25 @@ export function VoteControl({ vote, saved, signedIn, returnTo, placeId, voteEven
+               </label>
+             ))}
+           </fieldset>
+-          <button type="submit" disabled={pending}>비추천 반영</button>
+-        </Form>
++          <button type="submit" disabled={disabled}>비추천 반영</button>
++        </mutation.Form>
+       )}
+       {vote !== null && voteEventId && (
+-        <Form method="post" onSubmit={() => setNegativeReasonOpen(false)}>
++        <mutation.Form method="post" action={action} onSubmit={event => submit(event, "withdraw")}>
+           <input type="hidden" name="intent" value="withdraw" />
+           <input type="hidden" name="expectedEventId" value={voteEventId} />
+-          <button type="submit" disabled={pending}>평가 취소</button>
+-        </Form>
++          <button type="submit" disabled={disabled}>평가 취소</button>
++        </mutation.Form>
+       )}
+-      <Form method="post">
+-        <input type="hidden" name="intent" value="save" />
+-        <input type="hidden" name="saved" value={String(!saved)} />
+-        <button className="save-control" aria-pressed={saved} disabled={pending}>{saved ? "저장됨" : "저장"}</button>
+-      </Form>
+-      <p className="reaction-status" aria-live="polite">{pending ? "반영하는 중…" : vote === 1 ? "이곳을 추천했어요." : vote === -1 ? "이곳을 비추천했어요." : "아직 평가하지 않았어요."}</p>
++      {!sheet && saveControl}
++      <p className="reaction-status">
++        <span>{vote === 1 ? "이곳을 추천했어요." : vote === -1 ? "이곳을 비추천했어요." : "아직 평가하지 않았어요."}</span>
++      </p>
++      {receipt && (busy || outcome) && <p id="vote-feedback" ref={feedbackRef} className="w-full text-xs text-[var(--muted)]" role={outcome?.ok === false ? "alert" : "status"} tabIndex={-1}>
++        {outcome ? outcomeMessage(outcome, receipt) : pendingMessage[receipt.intent]}
++      </p>}
++      {!sheet && refresh}
+     </div>
+-  );
++    {sheet && <div ref={sheetActionsRef} className="place-detail-sheet__actions">{saveControl}{refresh}{directions}</div>}
++  </>;
+ }
+diff --git a/app/features/auth/login.ts b/app/features/auth/login.ts
+index 0edf03f..5aac5c7 100644
+--- a/app/features/auth/login.ts
++++ b/app/features/auth/login.ts
+@@ -1,3 +1,5 @@
++import { safePlaceDetailSearchPath } from "../places/place-detail-path";
++
+ export const PUBLIC_LOGIN_ERROR = "이메일 또는 비밀번호가 올바르지 않습니다.";
+
+ export function publicLoginError(_error: unknown) {
+@@ -11,7 +13,6 @@ export function authEntryHref(pathname: "/login" | "/signup", currentPath: strin
+   // Match that serialization after validation so hydration has the same href.
+   const destination = new URL(returnTo, "https://retaste.invalid");
+   const searchParams = new URLSearchParams(destination.search);
+-  searchParams.delete("_routes");
+   destination.search = searchParams.toString();
+   const canonicalReturnTo = `${destination.pathname}${destination.search}${destination.hash}`;
+   return `${pathname}?returnTo=${encodeURIComponent(canonicalReturnTo)}`;
+@@ -26,13 +27,15 @@ export function retainedAuthFields(form: Record<string, FormDataEntryValue>) {
+
+ export function safeReturnTo(value: string | null | undefined): string {
+   const fallback = "/";
+-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
++  if (!value || !value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u001f\u007f]/u.test(value)) return fallback;
+
+   try {
+-    let decoded = value;
++    // Query values are data. Decoding them along with the path loses literal
++    // percent signs and can flatten the nested place link's own search.
++    let decoded = value.split(/[?#]/u, 1)[0]!;
+     for (let count = 0; count < 3; count += 1) {
+       const next = decodeURIComponent(decoded);
+-      if (next.startsWith("//") || next.includes("\\")) return fallback;
++      if (next.startsWith("//") || /[\\\u0000-\u001f\u007f]/u.test(next)) return fallback;
+       if (next === decoded) break;
+       decoded = next;
+     }
+@@ -40,16 +43,16 @@ export function safeReturnTo(value: string | null | undefined): string {
+     const base = new URL("https://retaste.invalid");
+     const destination = new URL(value, base);
+     const decodedDestination = new URL(decoded, base);
+-    if (decoded.includes("..") || value.includes("..")) return fallback;
++    if (decoded.includes("..")) return fallback;
+     // React Router forwards the original single-fetch request URL to loaders
+     // and actions. Authentication must return to the page, never its data stream.
+-    const isDataRequest = destination.pathname.endsWith(".data");
++    const rewrite = destination.pathname.endsWith(".data") || destination.searchParams.has("_routes");
+     for (const url of [destination, decodedDestination]) {
+       if (url.pathname.endsWith(".data")) {
+         url.pathname = url.pathname === "/_root.data" ? "/" : url.pathname.slice(0, -5);
+-        url.searchParams.delete("_routes");
+       }
+     }
++    if (destination.searchParams.has("_routes")) destination.searchParams.delete("_routes");
+     const isAllowedPath = (pathname: string) =>
+       pathname === "/places" || pathname.startsWith("/places/")
+       || pathname === "/admin" || pathname.startsWith("/admin/")
+@@ -64,8 +67,11 @@ export function safeReturnTo(value: string | null | undefined): string {
+     const isDeniedPath = (pathname: string) => pathname === "/auth" || pathname.startsWith("/auth/");
+     if (destination.origin !== base.origin || decodedDestination.origin !== base.origin) return fallback;
+     if (isDeniedPath(destination.pathname) || isDeniedPath(decodedDestination.pathname)) return fallback;
+-    if (!isAllowedPath(destination.pathname) || !isAllowedPath(decodedDestination.pathname)) return fallback;
+-    return isDataRequest ? `${destination.pathname}${destination.search}${destination.hash}` : value;
++    const homeDetail = destination.pathname === "/" && decodedDestination.pathname === "/"
++      && destination.searchParams.getAll("place").length === 1
++      && safePlaceDetailSearchPath(destination.searchParams.get("place")) !== null;
++    if (!homeDetail && (!isAllowedPath(destination.pathname) || !isAllowedPath(decodedDestination.pathname))) return fallback;
++    return rewrite ? `${destination.pathname}${destination.search}${destination.hash}` : value;
+   } catch {
+     return fallback;
+   }
+diff --git a/app/features/ratings/vote.server.ts b/app/features/ratings/vote.server.ts
+index 67b2a74..ec2180a 100644
+--- a/app/features/ratings/vote.server.ts
++++ b/app/features/ratings/vote.server.ts
+@@ -12,2 +12,3 @@ import { eligibleVoteCondition } from "./reviewer-publication.server";
+ import { enqueueRatingRecompute, markRatingStale } from "./recompute.server";
++import { recordOperationalAlert } from "../operations/alerts.server";
+
+@@ -15,3 +16,3 @@ function invalidateVoteTaste(
+   db: AppDb,
+-  input: { userId: string; eventId: string; now: string },
++  input: { userId: string; eventId: string; now: string; currentEventId?: string },
+ ) {
+@@ -29,3 +30,6 @@ function invalidateVoteTaste(
+         .from(voteEvents)
+-        .where(eq(voteEvents.id, input.eventId)),
++        .where(and(
++          eq(voteEvents.id, input.eventId),
++          input.currentEventId ? sql`exists(select 1 from current_votes where event_id=${input.currentEventId} and user_id=${input.userId}) and not exists(select 1 from invalidated_vote_events where vote_event_id=${input.currentEventId})` : undefined,
++        )),
+     )
+@@ -97,4 +101,36 @@ export async function castVote(db: AppDb, input: CastVoteInput): Promise<void> {
+     previousEvent?.source === "GENERAL" &&
+-    !input.feedback
++    (await getCurrentVoteState(db, input))?.eventId === previous.eventId
+   ) {
++    if (!input.feedback) return;
++    const previousFeedback = await db.query.recommendationFeedback.findFirst({
++      where: and(
++        eq(recommendationFeedback.userId, input.userId),
++        eq(recommendationFeedback.placeId, input.placeId),
++      ),
++    });
++    if (previousFeedback?.value === input.value && previousFeedback.reason === input.feedback.reason) return;
++    // A reason edit changes preference feedback, not the vote or its integrity history.
++    // Guard the current pointer again inside the transaction so a concurrent vote wins.
++    const [changed] = await db.batch([
++      db.insert(recommendationFeedback).select(
++        db.select({
++          userId: sql<string>`${input.userId}`.as("user_id"),
++          placeId: sql<string>`${input.placeId}`.as("place_id"),
++          value: sql<number>`${input.value}`.as("value"),
++          reason: sql<FeedbackReason | null>`${input.feedback.reason}`.as("reason"),
++          createdAt: sql<string>`${input.now}`.as("created_at"),
++          updatedAt: sql<string>`${input.now}`.as("updated_at"),
++        }).from(currentVotes).where(and(
++          eq(currentVotes.placeId, input.placeId),
++          eq(currentVotes.userId, input.userId),
++          eq(currentVotes.eventId, previous.eventId),
++          eligibleVoteCondition(),
++        )),
++      ).onConflictDoUpdate({
++        target: [recommendationFeedback.userId, recommendationFeedback.placeId],
++        set: { value: input.value, reason: input.feedback.reason, updatedAt: input.now },
++      }).returning({ userId: recommendationFeedback.userId }),
++      invalidateVoteTaste(db, { ...input, eventId: previous.eventId, currentEventId: previous.eventId }),
++    ]);
++    if (changed.length !== 1) throw new Error("VOTE_VERSION_CONFLICT");
+     return;
+@@ -241,7 +277,18 @@ export async function withdrawVote(
+   await markRatingStale(db, input.placeId, input.now);
+-  await enqueueRatingRecompute(db, {
+-    placeId: input.placeId,
+-    reason: "VOTE_WITHDRAWN",
+-    now: input.now,
+-  });
++  try {
++    await enqueueRatingRecompute(db, {
++      placeId: input.placeId,
++      reason: "VOTE_WITHDRAWN",
++      now: input.now,
++    });
++  } catch (error) {
++    if (!(error instanceof Error) || (error.message !== "ACTIVE_RATING_CONFIG_NOT_FOUND" && error.message !== "RATING_CONFIG_CHANGED")) throw error;
++    await recordOperationalAlert(db, {
++      alertType: "RATING_RECOMPUTE",
++      sourceId: "ACTIVE_RATING_CONFIG_NOT_FOUND",
++      message: "반응 철회는 저장했지만 활성 평가 설정을 확인할 수 없어 재계산을 접수하지 못했습니다.",
++      details: { code: error.message },
++      now: input.now,
++    });
++  }
+   return true;
+diff --git a/app/routes/map-category.tsx b/app/routes/map-category.tsx
+--- a/app/routes/map-category.tsx
++++ b/app/routes/map-category.tsx
+@@ -1,5 +1,5 @@
+ import { env } from "cloudflare:workers";
+-import { useState } from "react";
++import { useRef, useState } from "react";
+ import { Form, Link, useLocation, useNavigation, useSearchParams } from "react-router";
+ import type { Route } from "./+types/map-category";
+ import { createDb } from "../db/client.server";
+@@ -7,7 +7,10 @@
+ import { useMapLocationRequest } from "../features/maps/use-map-location-request";
+ import { listPlaces } from "../features/places/place.server";
+ import { PlaceMap } from "../components/map/PlaceMap";
+-import { PlaceCard } from "../components/places/PlaceCard";
++import { PlaceCard, safePlaceDetailRequestPath } from "../components/places/PlaceCard";
++import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
++
++type DetailOpener = { element: HTMLElement; requestPath: string; replacement: string };
+
+ export function meta({ params }: Route.MetaArgs) {
+   return [{ title: `${params.categorySlug} 지도 — Re:Taste` }];
+@@ -27,6 +30,7 @@
+   const { locating, notice: locationNotice, clearLocation, locate: requestLocation } = useMapLocationRequest(
+     `${location.key}:${pendingLocation?.key ?? ""}`,
+   );
++  const detailOpener = useRef<DetailOpener | null>(null);
+   const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
+   const setState = (key: string, value: string) => setParams((current) => { current.set(key, value); return current; }, { replace: true });
+   const setBounds = (bbox: [number, number, number, number], fromLocation = false) => {
+@@ -34,6 +38,9 @@
+       const next = new URLSearchParams(current);
+       next.set("bbox", bbox.map((value) => value.toFixed(5)).join(","));
+       if (fromLocation) next.delete("selected");
++      const oldBounds = parseMapState(current.toString()).bbox;
++      const newBounds = parseMapState(next.toString()).bbox;
++      if (oldBounds.some((value, index) => value !== newBounds[index])) next.delete("place");
+       return next;
+     }, { replace: true, preventScrollReset: true });
+   };
+@@ -53,6 +60,40 @@
+     return `?${next}`;
+   };
+   const selected = loaderData.state.selected;
++  const detailPath = params.getAll("place").length === 1 ? safePlaceDetailRequestPath(params.get("place")) : null;
++  const currentOpener = detailOpener.current?.requestPath === detailPath ? detailOpener.current : null;
++  const openDetail = (id: string, path: string, opener: HTMLElement) => {
++    clearLocation();
++    const placeId = CSS.escape(id);
++    const replacement = opener.matches("button.map-pin")
++      ? `.map-panel button.map-pin[data-place-id="${placeId}"]`
++      : `.result-panel #place-${placeId} > a`;
++    detailOpener.current = { element: opener, requestPath: path, replacement };
++    setParams((current) => {
++      const next = new URLSearchParams(pendingLocation?.pathname === location.pathname ? pendingLocation.search : current);
++      next.set("selected", id);
++      next.set("place", path);
++      return next;
++    }, { preventScrollReset: true });
++  };
++  const closeDetail = () => setParams((current) => {
++    const next = new URLSearchParams(current);
++    next.delete("place");
++    return next;
++  }, { replace: true, preventScrollReset: true });
++  const selectPin = (id: string, opener: HTMLButtonElement) => {
++    if (window.matchMedia("(max-width: 760px)").matches) {
++      const place = loaderData.places.find((candidate) => candidate.id === id);
++      const path = safePlaceDetailRequestPath(place ? `/places/${encodeURIComponent(place.slug)}` : null);
++      if (path) {
++        openDetail(id, path, opener);
++        return;
++      }
++    }
++    clearLocation();
++    setState("selected", id);
++    document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" });
++  };
+   return (
+     <main id="main" className="explore-page">
+       <header className="explore-head shell">
+@@ -81,21 +122,18 @@
+             initialBounds={loaderData.state.bbox}
+             locationBounds={locationBounds}
+             onViewportIntent={clearLocation}
+-            onSelect={(id) => {
+-              clearLocation();
+-              setState("selected", id);
+-              document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" });
+-            }}
++            onSelect={selectPin}
+             onBounds={setBounds}
+             onPendingBounds={setBounds}
+           />
+         </section>
+         <section className="result-panel" aria-label="장소 목록">
+           <p className="result-count">{loaderData.places.length} PLACES</p>
+-          {loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} />)}
++          {loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} onOpenDetail={(path, opener) => openDetail(place.id, path, opener)} />)}
+           {!loaderData.places.length && <p className="empty">이 범위에서 등록된 장소를 찾지 못했어요.</p>}
+         </section>
+       </div>
++      <PlaceDetailSheet detailPath={detailPath} opener={currentOpener?.element ?? null} replacementOpener={currentOpener?.replacement} fallbackFocus="#q" onClose={closeDetail} />
+     </main>
+   );
+ }
+diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
+index dc7da88..f240f69 100644
+--- a/app/routes/place-detail.tsx
++++ b/app/routes/place-detail.tsx
+@@ -12,2 +12,4 @@ import { castVote, getCurrentVoteState, withdrawVote } from "../features/ratings
+ import { getOptionalUser, requireUser } from "../features/auth/session.server";
++import { readPlaceMutationBrowseReturn } from "../features/auth/place-detail-return";
++import { loadPlaceDetailSafely, mutatePlaceDetailSafely } from "../features/places/place-detail-client";
+ import { isSameOriginMutation } from "../features/http/same-origin";
+@@ -39,12 +41,3 @@ const actionSchema = z.discriminatedUnion("intent", [
+
+-function recommendationProvenance(request: Request) {
+-  const url = new URL(request.url);
+-  const routeDataMarkers = url.searchParams.getAll("_routes");
+-  const isCanonicalRouteDataRequest = url.pathname.endsWith(".data")
+-    && routeDataMarkers.length === 1
+-    && routeDataMarkers[0] === "routes/place-detail";
+-  if (isCanonicalRouteDataRequest) {
+-    url.pathname = url.pathname.slice(0, -".data".length);
+-    url.searchParams.delete("_routes");
+-  }
++function recommendationProvenance(url: URL) {
+   const requestPath = safePlaceDetailRequestPath(`${url.pathname}${url.search}`);
+@@ -53,2 +46,3 @@ function recommendationProvenance(request: Request) {
+   return {
++    requestPath,
+     sourceRail: validated.searchParams.get("sourceRail") as RecommendationSourceRail,
+@@ -81,3 +75,3 @@ async function recordPlaceProductEvent(db: ReturnType<typeof createDb>, input: {
+
+-export async function loader({ request, params }: Route.LoaderArgs) {
++export async function loader({ request, params, url }: Route.LoaderArgs) {
+   const db = createDb(env.DB);
+@@ -87,3 +81,3 @@ export async function loader({ request, params }: Route.LoaderArgs) {
+   const now = new Date().toISOString();
+-  const provenance = recommendationProvenance(request);
++  const provenance = recommendationProvenance(url ?? new URL(request.url));
+   const guest = provenance && !user ? await getGuestOnboardingFromRequest(db, request, now) : null;
+@@ -137,4 +131,2 @@ export async function loader({ request, params }: Route.LoaderArgs) {
+   }
+-  const returnTo = provenance
+-    ? `${new URL(request.url).pathname}${new URL(request.url).search}`
+-    : `/places/${place.slug}`;
++  const returnTo = provenance?.requestPath ?? `/places/${encodeURIComponent(place.slug)}`;
+@@ -143,5 +135,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
+
+-export async function action({ request, params }: Route.ActionArgs) {
++export async function action({ request, params, url }: Route.ActionArgs) {
+   if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
+-  const user = await requireUser(request);
++  const user = await requireUser(request).catch(async (error: unknown) => {
++    if (error instanceof Response && error.status === 302 && error.headers.get("Location")?.startsWith("/login?returnTo=")) {
++      const continuation = await readPlaceMutationBrowseReturn(request, params.placeSlug);
++      if (continuation) throw redirect(`/login?returnTo=${encodeURIComponent(continuation)}`);
++    }
++    throw error;
++  });
+   const parsed = actionSchema.safeParse(Object.fromEntries(await request.formData()));
+@@ -153,5 +151,10 @@ export async function action({ request, params }: Route.ActionArgs) {
+   const now = new Date().toISOString();
+-  const provenance = recommendationProvenance(request);
++  const provenance = recommendationProvenance(url ?? new URL(request.url));
+   if (parsed.data.intent === "vote") {
+-    await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now, feedback: { reason: parsed.data.reason } });
++    try {
++      await castVote(db, { placeId: place.id, userId: user.id, value: parsed.data.value, eventId: crypto.randomUUID(), now, feedback: { reason: parsed.data.reason } });
++    } catch (error) {
++      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, intent: "vote", requiresRefresh: true, error: "VOTE_VERSION_CONFLICT", message: "다른 요청에서 평가가 변경되었습니다. 현재 상태를 다시 확인해 주세요." }, { status: 409 });
++      throw error;
++    }
+     try {
+@@ -175,3 +178,3 @@ export async function action({ request, params }: Route.ActionArgs) {
+     } catch (error) {
+-      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, error: "VOTE_VERSION_CONFLICT", message: "반응이 변경되었습니다. 새로고침한 뒤 다시 시도해 주세요." }, { status: 409 });
++      if (error instanceof Error && error.message === "VOTE_VERSION_CONFLICT") return Response.json({ ok: false, intent: "withdraw", requiresRefresh: true, error: "VOTE_VERSION_CONFLICT", message: "다른 요청에서 평가가 변경되었습니다. 현재 상태를 다시 확인해 주세요." }, { status: 409 });
+       throw error;
+@@ -200,2 +203,16 @@ export async function action({ request, params }: Route.ActionArgs) {
+
++export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
++  return loadPlaceDetailSafely(serverLoader);
++}
++
++export async function clientAction({ request, serverAction }: Route.ClientActionArgs) {
++  const formData = await request.clone().formData();
++  const intent = formData.get("intent");
++  const outcome = await mutatePlaceDetailSafely(serverAction);
++  if ((intent === "vote" || intent === "withdraw") && outcome && typeof outcome === "object" && "ok" in outcome) {
++    return { ...outcome, intent, ...(intent === "vote" && outcome.ok === true ? { value: formData.get("value") === "-1" ? -1 as const : 1 as const } : {}) };
++  }
++  return outcome;
++}
++
+ export function meta({ params, loaderData }: Route.MetaArgs) {
+@@ -208,3 +225,3 @@ export function meta({ params, loaderData }: Route.MetaArgs) {
+     { property: "og:type", content: "article" },
+-    ...(loaderData?.place.tempCatalog ? [{ name: "robots", content: "noindex,follow" }] : []),
++    ...(loaderData && ("detailError" in loaderData || loaderData.place.tempCatalog) ? [{ name: "robots", content: "noindex,follow" }] : []),
+   ];
+@@ -213,1 +230,11 @@ export function meta({ params, loaderData }: Route.MetaArgs) {
+ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
++  if ("detailError" in loaderData) {
++    const unavailable = loaderData.status === 404 || loaderData.status === 403;
++    return <main id="main" className="error-page">
++      <p className="eyebrow">{unavailable ? `${loaderData.status} / UNAVAILABLE` : "CONNECTION / RETRY"}</p>
++      <h1>{loaderData.status === 404 ? "이 장소를 찾을 수 없어요." : loaderData.status === 403 ? "이 장소를 볼 수 없어요." : "장소 정보를 불러오지 못했어요."}</h1>
++      <p role="status">{unavailable ? "공개된 다른 장소를 찾아보세요." : "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p>
++      {!unavailable && <button type="button" onClick={() => window.location.reload()}>다시 불러오기</button>}
++      <Link to="/places">맛집 리스트로</Link>
++    </main>;
++  }
+@@ -231,3 +258,3 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
+           <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
+-          <VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
++          <VoteControl key={place.id} placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
+           <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>

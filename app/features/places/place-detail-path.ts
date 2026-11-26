@@ -86,7 +86,7 @@ export function recommendationPlacePath(slug: string, input: {
   variant: PlaceCardVariant;
   discoveryMode?: RecommendationDiscoveryMode;
 }) {
-  const pathname = `/places/${slug}`;
+  const pathname = `/places/${encodeURIComponent(slug)}`;
   const provenance = recommendationProvenance(input);
   if (!provenance) return pathname;
   const search = new URLSearchParams(provenance);

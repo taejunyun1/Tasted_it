@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   recommendationPlacePath,
   recommendationRequestPath,
+  safePlaceDetailRequestPath,
 } from "../../app/components/places/PlaceCard";
 
 const rail = readFileSync("app/components/places/PlaceDiscoveryRail.tsx", "utf8");
@@ -40,6 +41,18 @@ describe("place discovery visual contract", () => {
       .toBe("/places/gukbap-house");
     expect(card).toContain("reloadDocument={isRecommendation}");
     expect(card).toContain("recommendationRequestPath(detailPath, crypto.randomUUID())");
+  });
+
+  it("can open Korean place slugs in a detail sheet with or without recommendation context", () => {
+    const slug = "한글-맛집";
+    const canonical = `/places/${encodeURIComponent(slug)}`;
+    const requestId = "7b3c9a17-8064-4d2e-8cf7-857dfc78b86f";
+
+    expect(safePlaceDetailRequestPath(recommendationPlacePath(slug, { variant: "default" }))).toBe(canonical);
+    const trustedPath = recommendationPlacePath(slug, { variant: "trusted" });
+    const requestPath = recommendationRequestPath(trustedPath, requestId);
+    expect(safePlaceDetailRequestPath(requestPath))
+      .toBe(`${canonical}?sourceRail=TRUSTED&discoveryMode=QUALITY&recommendationRequestId=${requestId}`);
   });
 
   it("shares the Course and My Taste palette and respects reduced motion", () => {
