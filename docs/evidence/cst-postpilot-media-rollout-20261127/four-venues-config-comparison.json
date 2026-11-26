@@ -1,0 +1,37 @@
+{
+  "revision": "074fa0b433ff4c85774f0e1eb2c8c4a29269cb5d",
+  "sourceBuildSha256": "6c5a345fda87c98c411d083f5f9185c1813c9891742218e1b4d12ebd35bc7f47",
+  "variants": {
+    "closed": {
+      "referenceConfigSha256": "02845cee0b3299d2c33826db0f42b0c1f06ed80e89fdd0b718690f68454b1743",
+      "verifiedConfigSha256": "1436d994eb563301aad563e9d5b037f56a348f06bd4c90fae23b693c2d97e09a",
+      "verifiedBuildSha256": "533778f7814d433e4a1d47691f7051a9cff20efe225db5342e3757caa7e6bbff",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": false
+    },
+    "ab": {
+      "referenceConfigSha256": "ad18a14741b70fc844edb156ac5821850a3eb46bb21096e0267cfeb888ad6ebf",
+      "verifiedConfigSha256": "b63b91a496a7ca4ccb6bdbf15e53acda7110805a31836888ab2edd31c77273f9",
+      "verifiedBuildSha256": "e56fd0e0d0db4247b647421c8fdd3470bcc4d572fe92a45a836c9c4320d125c8",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": true
+    }
+  },
+  "configurationPurpose": "local later rollout readiness",
+  "trafficOnlyConfigSha256": "5b2f73e17dd59400325ed86397fdeb7c0d7b9c9b2f6ff1154c63d97e488f1ac1",
+  "strictDryRun": {
+    "ab": "passed",
+    "closed": "passed"
+  },
+  "runtimeFilesChangedSincePr583": [
+    "app/features/poi-media/photo-original-sources.ts"
+  ],
+  "priorMediaUploadObserved": false,
+  "remoteUpload": false
+}
