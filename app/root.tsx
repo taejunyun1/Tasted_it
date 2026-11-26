@@ -27,30 +27,31 @@ export async function loader({ request }: Route.LoaderArgs) {
   const studentWorkspaceEnabled = env.STUDENT_WORKSPACE_ENABLED === "true";
   const student = user && user.role !== "ADMIN" && studentWorkspaceEnabled ? await getStudentSeat(createDb(env.DB), { userId: user.id, now: new Date().toISOString() }) : null;
   const guestMergeState = user && env.ONBOARDING_ENABLED === "true" ? await getGuestChoiceMergeState(createDb(env.DB), request, new Date().toISOString()) : "NONE";
-  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student), guestMergeState, mapViewerKey: await mapViewerKey(request, user) };
+  return { user, studentWorkspaceEnabled, hasStudentWorkspace: Boolean(student), guestMergeState, mapViewerKey: await mapViewerKey(request, user), studentPilot: env.CST_STUDENT_PILOT === "true" };
 }
 export function Layout({ children }: { children: React.ReactNode }) { return <html lang="ko"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><Meta/><Links/></head><body><a className="skip-link" href="#main">본문으로 건너뛰기</a>{children}<ScrollRestoration/><Scripts/></body></html>; }
 export default function App({ loaderData }: Route.ComponentProps) {
   const user = loaderData.user;
+  const studentPilot = loaderData.studentPilot;
   const location = useLocation();
   return <>
     <header className="site-head">
-      <Link className="brand" to="/">Re:Taste<span>광주·전남 맛 지도</span></Link>
+      <Link className="brand" to={studentPilot ? "/student" : "/"}>Re:Taste<span>{studentPilot ? "학생 실증" : "광주·전남 맛 지도"}</span></Link>
       <nav className="site-head__nav" aria-label="주요 메뉴">
-        <div className="site-head__primary">
+        {!studentPilot && <div className="site-head__primary">
           <Link to="/places">맛집 리스트</Link>
           <Link to="/courses">코스 추천</Link>
           <Link to="/me">나의 취향</Link>
-        </div>
+        </div>}
         <details className="site-menu" key={location.pathname}>
           <summary role="button" aria-label="메뉴"><span aria-hidden="true">☰</span></summary>
           <div className="site-menu__panel">
-            <Link className="site-menu__primary-link" to="/places">맛집 리스트</Link>
+            {!studentPilot && <><Link className="site-menu__primary-link" to="/places">맛집 리스트</Link>
             <Link className="site-menu__primary-link" to="/courses">코스 추천</Link>
-            <Link className="site-menu__primary-link" to="/me">나의 취향</Link>
+            <Link className="site-menu__primary-link" to="/me">나의 취향</Link></>}
             {user ? <>
               <span className="session-status" aria-label={`로그인됨 · ${user.displayName}`}><i aria-hidden="true" />로그인됨 · {user.displayName}</span>
-              <Link to="/suggestions/new">장소 제안</Link>
+              {!studentPilot && <Link to="/suggestions/new">장소 제안</Link>}
               {user.role === "REVIEWER" && <Link to="/reviewer/ratings">리뷰어 평가</Link>}
               {user.role === "ADMIN" && <Link to="/admin">어드민</Link>}
               {user.role === "ADMIN" && loaderData.studentWorkspaceEnabled && <Link to="/admin/students">학생 계정과 업무</Link>}
@@ -58,7 +59,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
               <Form method="post" action="/logout"><button type="submit">로그아웃</button></Form>
             </> : <>
               <Link to={authEntryHref("/login", location.pathname, location.search)}>로그인</Link>
-              <Link to={authEntryHref("/signup", location.pathname, location.search)}>회원가입</Link>
+              {!studentPilot && <Link to={authEntryHref("/signup", location.pathname, location.search)}>회원가입</Link>}
             </>}
           </div>
         </details>
@@ -67,7 +68,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
     {loaderData.guestMergeState === "PENDING" && <GuestMergeRetry/>}
     {loaderData.guestMergeState === "EXPIRED" && <p className="shell" role="status">임시 자료 보관기간이 지나 계정에 연결하지 못했습니다. 장소와 취향을 다시 선택해 주세요.</p>}
     <Outlet/>
-    <footer className="site-footer"><strong>Re:Taste</strong><span>추천할 만한 한 끼를 기록합니다.</span><nav aria-label="서비스 안내"><Link to="/corrections/new">정보 정정</Link><Link to="/privacy">개인정보 처리방침</Link><Link to="/terms">이용약관</Link></nav></footer>
+    <footer className="site-footer"><strong>Re:Taste</strong><span>추천할 만한 한 끼를 기록합니다.</span><nav aria-label="서비스 안내">{!studentPilot && <Link to="/corrections/new">정보 정정</Link>}<Link to="/privacy">개인정보 처리방침</Link><Link to="/terms">이용약관</Link></nav></footer>
   </>;
 }
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

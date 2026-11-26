@@ -20,6 +20,34 @@ pnpm run test:integration tests/integration/student-reviewer-cleanup-only.test.t
 
 클라우드에서 계정별 화면을 다시 확인해야 할 때는 별도 승인 PR에 운영 트래픽을 받지 않는 Worker 하나와 전용 D1 하나, 비공개 R2 버킷 하나를 명시한다. 빈 D1에 확정 마이그레이션 세트를 적용하고, 합성 데이터와 새 시험 계정만으로 검증한다. 기존 운영 계정·자격 증명·초대 링크 가져오기와 실제 이메일 발송은 각각 승인될 때까지 보류한다.
 
+### 후보 Worker 로컬 실행
+
+후보는 학생 C·D와 관리자 한 명의 합성 계정으로 시작한다. 전역 사진 업로드는 꺼 두고 학생 두 좌석만 지정한다. 브라우저 진입과 서비스 로그인 모두를 확인하며, 학생 신청·사진 리뷰·관리자 검수·장소 사진 경로만 사용한다. OAuth, 가입·복구 메일, 예약 작업과 운영 관리 경로는 후보에서 제외된다.
+
+```sh
+umask 077
+pilot_dir=$(mktemp -d)
+node --experimental-strip-types scripts/prepare-student-pilot.mjs "$pilot_dir/candidate"
+pilot_config="$pilot_dir/candidate/wrangler.json"
+pilot_state="$pilot_dir/state"
+pnpm exec wrangler d1 migrations apply DB --local --config "$pilot_config" --persist-to "$pilot_state"
+pnpm exec wrangler d1 execute DB --local --config "$pilot_config" --persist-to "$pilot_state" --file "$pilot_dir/candidate/seed.sql"
+CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH="$pilot_config" RETASTE_PILOT_STATE_DIR="$pilot_state" pnpm run build
+CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH="$pilot_config" RETASTE_PILOT_STATE_DIR="$pilot_state" pnpm exec vite preview --host 127.0.0.1 --port 5184 --strictPort
+```
+
+후보 전용 장부는 기준 56개, 장소 사진 0063·0064, 사본 0065의 59개다. 사본에는 0055 중 사진 정리 SQL 7문만 들어간다. 생성 설정은 빈 후보용 ID와 로컬 인증 정보를 포함하고 모든 공개 호스트를 비활성화한다. `credentials.json`은 합성 계정 로그인에만 사용한다. 새 후보를 검수할 때는 새 출력 경로와 빈 로컬 상태에서 시작한다.
+
+미리보기와 별도 터미널에서 아래 명령에 생성된 합성 자격 증명 파일의 경로를 전달한다. 사이트 접속, 초대·수락, 두 학생의 사진 제출·공개·철회, 출처 링크, 데스크톱·모바일을 한 번에 확인한다.
+
+```sh
+node scripts/verify-student-pilot.mjs http://127.0.0.1:5184 /path/to/candidate/credentials.json
+```
+
+별도 로컬 후보를 빌드해 Chromium 데스크톱·모바일에서 관리자 재인증, 초대 2건 발급·수락, 리뷰어 신청 2건 승인, 사진 제출·공개·출처 2건·작성자 철회까지 확인했다. 승인 전 직접 조회와 철회 후 조회는 404였다. Wrangler 배포 사전 점검은 로컬에서 통과했다. [데스크톱](../evidence/cst-student-pilot-worker-20261126/desktop.png) · [모바일](../evidence/cst-student-pilot-worker-20261126/mobile.png)
+
+실제 클라우드 후보에서는 별도 승인된 D1 ID와 비공개 R2를 확인하고 후보 전용 인증을 비밀 바인딩으로 주입한다. 기존 운영 Worker와 운영 자원은 대상에서 제외하며, Cloudflare Access 보호와 후보 주소 회수 범위를 운영 PR에 넣는다. 후보 주소를 열기 전에 승인된 참여자와 검증 상한을 확인한다. [Vite 환경 설정](https://developers.cloudflare.com/workers/vite-plugin/reference/cloudflare-environments/) · [Cloudflare Access](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)
+
 ## 운영 전 확인
 
 1. 지정된 운영자는 참여자 두 명의 계정과 좌석, 이메일 인증 상태를 비공개로 대조한다. 새 학생 초대에는 한 사람당 하나만 발급한다. 초대는 최대 7일이며 좌석 만료를 넘지 않는다.
