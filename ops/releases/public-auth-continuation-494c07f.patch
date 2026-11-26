@@ -3,7 +3,7 @@ index af8fa992d63dfd18ada45d2529c20a2acb384768..5b816d1a3020f3625e3b280c414731d8
 --- a/app/components/auth/TokenHashField.tsx
 +++ b/app/components/auth/TokenHashField.tsx
 @@ -2,14 +2,21 @@ import { useEffect, useState } from "react";
- 
+
  export function readBrowserAccountToken() {
    const hash = window.location.hash.replace(/^#/, "");
 -  const query = new URLSearchParams(window.location.search).get("token") ?? "";
@@ -26,7 +26,7 @@ index af8fa992d63dfd18ada45d2529c20a2acb384768..5b816d1a3020f3625e3b280c414731d8
 +    return "";
 +  }
  }
- 
+
  export function TokenHashField({ name = "token" }: { name?: string }) {
 diff --git a/app/features/auth/account.server.ts b/app/features/auth/account.server.ts
 index cb61eccb0a2f9f623b5215eaa3479b2e353366d2..104e147554955c2da249a904c6a6b2a795ea33c1 100644
@@ -43,13 +43,13 @@ index cb61eccb0a2f9f623b5215eaa3479b2e353366d2..104e147554955c2da249a904c6a6b2a7
  import { isWithdrawnEmail, WITHDRAWN_DISPLAY_NAME, withdrawnEmailFor } from "./withdraw";
  import { assertMemberAccess } from "./member-access.server";
 +import { createUserSession } from "./session.server";
- 
+
  const TOKEN_TTL_MS = 30 * 60 * 1000;
  const encoder = new TextEncoder();
 @@ -47,11 +48,15 @@ export async function registerAccount(db: AppDb, input: { email: string; display
    return { userId, email, ...(await issueToken(db, userId, "VERIFY_EMAIL", input.now)) };
  }
- 
+
 -async function consumeToken(db: AppDb, token: string, purpose: "VERIFY_EMAIL" | "RESET_PASSWORD", now: Date) {
 -  const row = await db.query.accountTokens.findFirst({
 -    where: and(eq(accountTokens.tokenHash, await tokenHash(token)), eq(accountTokens.purpose, purpose), isNull(accountTokens.consumedAt), gt(accountTokens.expiresAt, now.toISOString())),
@@ -69,7 +69,7 @@ index cb61eccb0a2f9f623b5215eaa3479b2e353366d2..104e147554955c2da249a904c6a6b2a7
 @@ -63,7 +68,7 @@ export async function verifyEmailToken(db: AppDb, input: { token: string; now: D
    return { userId };
  }
- 
+
 -export async function authenticateAccount(db: AppDb, input: { email: string; password: string }) {
 +async function authenticatePasswordAccount(db: AppDb, input: { email: string; password: string }) {
    const user = await db.query.users.findFirst({ where: eq(users.email, input.email.trim().toLowerCase()) });
@@ -95,10 +95,10 @@ index cb61eccb0a2f9f623b5215eaa3479b2e353366d2..104e147554955c2da249a904c6a6b2a7
 +  const cookie = await createUserSession({ userId: user.id, now: input.now, requestUrl: input.requestUrl, passwordProof });
 +  return { userId: user.id, cookie };
  }
- 
+
  export async function requestPasswordReset(db: AppDb, input: { email: string; now: Date }) {
 @@ -84,10 +102,34 @@ export async function requestPasswordReset(db: AppDb, input: { email: string; no
- 
+
  export async function resetPassword(db: AppDb, input: { token: string; password: string; now: Date }) {
    if (input.password.length < 10) throw new Error("PASSWORD_TOO_SHORT");
 -  const userId = await consumeToken(db, input.token, "RESET_PASSWORD", input.now);
@@ -134,7 +134,7 @@ index cb61eccb0a2f9f623b5215eaa3479b2e353366d2..104e147554955c2da249a904c6a6b2a7
 +  }
    return { userId };
  }
- 
+
 diff --git a/app/features/auth/session.server.ts b/app/features/auth/session.server.ts
 index f56f485a8f20c11f36b034eae15bbeb71e673025..3f9a1051dd7ca4c046db11d707aab4c55ca934f8 100644
 --- a/app/features/auth/session.server.ts
@@ -201,11 +201,11 @@ index 6fefd640a69e68cbd23ca0194c2aee3bb27021c5..4419f54e006d6985112efa88cc4e6d1b
 +    headers: { "Set-Cookie": expireOAuthRequestCookie(requestUrl), "Cache-Control": "private, no-store" },
    });
  }
- 
+
 @@ -43,28 +45,30 @@ export async function loader({ request }: Route.LoaderArgs) {
- 
+
    if (!requestId || !state) return errorRedirect(request.url, "invalid_request");
- 
+
 -  if (providerError) {
 +  let returnTo: string | undefined;
 +  const consumeRequest = async (input: Parameters<typeof consumeGoogleOAuthRequest>[1]) => {
@@ -235,7 +235,7 @@ index 6fefd640a69e68cbd23ca0194c2aee3bb27021c5..4419f54e006d6985112efa88cc4e6d1b
 +    const providerFailure = providerError === "access_denied" ? "cancelled" : "temporarily_unavailable";
 +    return errorRedirect(request.url, !providerError && !code ? "invalid_request" : providerFailure, returnTo);
    }
- 
+
    try {
      const redirectUri = `${url.origin}/auth/google/callback`;
      const result = await completeGoogleLogin(
@@ -274,7 +274,7 @@ index ced352fe78338745ea67b336a3959366bfb3428e..a0c8244c6deae9a377a2ba8cf6f05bcf
  import { safeReturnTo } from "../features/auth/login";
 +import { oauthFailureHref } from "../features/auth/oauth-failure";
  import { getOptionalUser } from "../features/auth/session.server";
- 
+
  export async function loader({ request }: Route.LoaderArgs) {
    const url = new URL(request.url);
    const returnTo = safeReturnTo(url.searchParams.get("returnTo"));
@@ -284,7 +284,7 @@ index ced352fe78338745ea67b336a3959366bfb3428e..a0c8244c6deae9a377a2ba8cf6f05bcf
 +  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
 +    return redirect(oauthFailureHref({ provider: "GOOGLE", code: "temporarily_unavailable", returnTo }));
    }
- 
+
    const issued = await issueGoogleOAuthRequest(createDb(env.DB), {
 diff --git a/app/routes/auth-naver-callback.tsx b/app/routes/auth-naver-callback.tsx
 index fe04c60a8cb03efd3fb798f20c5dbd231b6be2c1..f8b0dba5fdff66c9b7b58957c7d9c518216f57a7 100644
@@ -300,7 +300,7 @@ index fe04c60a8cb03efd3fb798f20c5dbd231b6be2c1..f8b0dba5fdff66c9b7b58957c7d9c518
 +import { createUserSession, getOptionalUser } from "../features/auth/session.server";
  import { ACCOUNT_RESTRICTED_MESSAGE, isAccountRestrictedError, assertMemberAccess } from "../features/auth/member-access.server";
  import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
- 
+
 -function errorRedirect(requestUrl: string, target: string, code: NaverFailureCode | "cancelled") {
 -  const separator = target.includes("?") ? "&" : "?";
 -  return redirect(`${target}${separator}oauthError=${code}&oauthProvider=naver`, {
@@ -312,7 +312,7 @@ index fe04c60a8cb03efd3fb798f20c5dbd231b6be2c1..f8b0dba5fdff66c9b7b58957c7d9c518
 +    headers: { "Set-Cookie": expireNaverOAuthRequestCookie(request.url), "Cache-Control": "private, no-store", Vary: "Cookie" },
    });
  }
- 
+
 @@ -41,29 +43,34 @@ export async function loader({ request }: Route.LoaderArgs) {
    const context = requestId
      ? await peekOAuthRequestContext(db, { id: requestId, provider: "NAVER" })
@@ -320,7 +320,7 @@ index fe04c60a8cb03efd3fb798f20c5dbd231b6be2c1..f8b0dba5fdff66c9b7b58957c7d9c518
 -  const errorTarget = context?.flow === "LOGIN" ? "/login" : "/me";
 -  if (!requestId || !state) return errorRedirect(request.url, errorTarget, "invalid_request");
 +  if (!requestId || !state) return errorRedirect(request, "invalid_request");
- 
+
 +  let returnTo: string | undefined;
 +  const consumeRequest = async (input: Parameters<typeof consumeOAuthRequest>[1]) => {
 +    const verified = await consumeOAuthRequest(db, input);
@@ -345,7 +345,7 @@ index fe04c60a8cb03efd3fb798f20c5dbd231b6be2c1..f8b0dba5fdff66c9b7b58957c7d9c518
 +    const providerFailure = providerError === "access_denied" ? "cancelled" : "temporarily_unavailable";
 +    return errorRedirect(request, !providerError && !code ? "invalid_request" : providerFailure, returnTo);
    }
- 
+
 -  const code = url.searchParams.get("code");
 -  if (!code || !env.NAVER_LOGIN_CLIENT_ID || !env.NAVER_LOGIN_CLIENT_SECRET) {
 -    return errorRedirect(request.url, errorTarget, "invalid_request");
@@ -399,7 +399,7 @@ index 9fcb660c80947f0a4ba1fa722924fbed8ff750e4..240719bfa7726e6c1df9f0a6f8395a98
 +    const destination = flow === "LOGIN" ? "/login" : "/me";
 +    return redirect(oauthFailureHref({ provider: "NAVER", code: "temporarily_unavailable", destination, returnTo }));
    }
- 
+
    const pkce = await newPkcePair();
 diff --git a/app/routes/forgot-password.tsx b/app/routes/forgot-password.tsx
 index 49d1896814702ae8a22c8f71f2b605a5ef428f24..b32180f88d49a963a04755db2b697403dcd7fb48 100644
@@ -485,7 +485,7 @@ index c122cfdb7cdef5558fa2e3b4b89af64ee38aa89f..f571e54f545900ea50f41b7756edfb5e
  import { appendGuestTasteMergeCookie } from "../features/onboarding/guest-merge.server";
  import { consumeLoginRateLimit, MAIL_RATE_LIMIT_MESSAGE } from "../features/security/rate-limit.server";
 +import { AuthForm } from "../features/auth/auth-form";
- 
+
  const schema = z.object({ email: z.email(), password: z.string().min(1), returnTo: z.string().optional() });
  export const headers: Route.HeadersFunction = ({ actionHeaders }) => {
 @@ -39,7 +40,10 @@ export async function action({ request }: Route.ActionArgs) {
@@ -625,7 +625,7 @@ index 886eb9745b7d0955ffa7827b3cb932268adf88d3..126f823da72d93310251b39e617c6664
  import { AuthInput, AuthPage } from "./login";
  import { NaverAuthButton } from "../features/auth/naver-auth-ui";
 +import { AuthForm } from "../features/auth/auth-form";
- 
+
  const schema = z.object({ displayName: z.string().trim().min(2).max(40), email: z.email(), password: z.string().min(10) });
  export function meta() { return [{ title: "회원가입 — Re:Taste" }]; }
 @@ -21,6 +22,8 @@ export async function loader({ request }: Route.LoaderArgs) {
@@ -672,13 +672,13 @@ index c5f2e89aabd6460072f22fce756e2e50b7704f7d..fd5d658ad615ac9a11f237445217f191
 +export function loader({ request }: Route.LoaderArgs) {
 +  return { returnTo: safeReturnTo(new URL(request.url).searchParams.get("returnTo")) };
 +}
- 
+
  export async function action({ request }: Route.ActionArgs) {
    const token = String((await request.formData()).get("token") ?? "");
 @@ -16,32 +22,37 @@ export async function action({ request }: Route.ActionArgs) {
    }
  }
- 
+
 -export default function VerifyEmail({ actionData }: Route.ComponentProps) {
 +export default function VerifyEmail({ actionData, loaderData }: Route.ComponentProps) {
    const fetcher = useFetcher<typeof action>();
@@ -696,7 +696,7 @@ index c5f2e89aabd6460072f22fce756e2e50b7704f7d..fd5d658ad615ac9a11f237445217f191
 +    }
      fetcher.submit({ token }, { method: "post" });
    }, [actionData, fetcher]);
- 
+
    const result = actionData ?? fetcher.data;
 -  const pending = !result;
 +  const pending = !missingToken && !result;
