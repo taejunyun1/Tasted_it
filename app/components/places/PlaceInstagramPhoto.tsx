@@ -4,8 +4,9 @@ export function PlaceInstagramPhoto({ photo, placeName }: {
   photo: PublicInstagramPhoto;
   placeName: string;
 }) {
+  const mediaLabel = photo.postUrl.startsWith("https://www.instagram.com/reel/") ? "영상" : "사진";
   return <figure className="m-0 mx-auto min-w-0 w-full max-w-md">
-    <iframe src={photo.embedUrl} title={`${placeName} Instagram 사진 게시물`}
+    <iframe src={photo.embedUrl} title={`${placeName} Instagram ${mediaLabel} 게시물`}
       loading="lazy" sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
       className="block h-[min(660px,180vw)] min-h-[480px] w-full rounded-md border border-neutral-300 bg-white" />
     <figcaption className="text-xs">

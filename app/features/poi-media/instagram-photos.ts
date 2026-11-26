@@ -3,7 +3,7 @@ import { isSupportedRegionAddress } from "../regions/region-pack";
 const INSTAGRAM_ORIGIN = "https://www.instagram.com";
 
 type PlaceIdentity = { id: string; name: string; address: string };
-type CuratedInstagramPost = PlaceIdentity & { shortcode: string };
+type CuratedInstagramPost = PlaceIdentity & { shortcode: string; path?: "reel" };
 
 const CURATED_POSTS: readonly CuratedInstagramPost[] = [
   {
@@ -234,21 +234,35 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전남광주 동구 구성로194번길 15-15 (대인동)",
     shortcode: "DcBSGbojzJy",
   },
+  {
+    id: "064b24dd-9412-41a7-a237-5a46bf126c0d",
+    name: "소금과 와사비",
+    address: "전남광주통합특별시 동구 동명로 9-4, 1층 (장동)",
+    shortcode: "DfoJ1gpSJ9e",
+    path: "reel",
+  },
+  {
+    id: "place-intake-7c405c2fb6be0ccd2a6bc790",
+    name: "피쩨리아 델깜포",
+    address: "전북 군산시 구영4길 24, 2호 (영화동)",
+    shortcode: "DRMh-qcgOyX",
+    path: "reel",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
 
-function instagramPhoto(shortcode: string): PublicInstagramPhoto {
-  const postUrl = `${INSTAGRAM_ORIGIN}/p/${shortcode}/`;
+function instagramPhoto({ shortcode, path }: CuratedInstagramPost): PublicInstagramPhoto {
+  const postUrl = `${INSTAGRAM_ORIGIN}/${path ?? "p"}/${shortcode}/`;
   return { postUrl, embedUrl: `${postUrl}embed/` };
 }
 
 export const INSTAGRAM_PHOTO_FRAME_SOURCES = CURATED_POSTS
-  .map(({ shortcode }) => instagramPhoto(shortcode).embedUrl)
+  .map((post) => instagramPhoto(post).embedUrl)
   .join(" ");
 
 export function curatedInstagramPhoto(place: PlaceIdentity, enabled?: string): PublicInstagramPhoto | null {
   if (enabled !== "true" || !(isSupportedRegionAddress(place.address) || /^(?:전북특별자치도|전라북도|전북)(?:\s|$)/u.test(place.address))) return null;
   const post = CURATED_POSTS.find(({ id, name, address }) => id === place.id && name === place.name && address === place.address);
-  return post ? instagramPhoto(post.shortcode) : null;
+  return post ? instagramPhoto(post) : null;
 }

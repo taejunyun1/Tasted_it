@@ -44,7 +44,13 @@ describe("applySecurityHeaders", () => {
     expect(withSecurityHeaders(response(), request).headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
     const allowed = withSecurityHeaders(response(), request, "true").headers.get("Content-Security-Policy");
     const directives = allowed?.split("; ") ?? [];
-    expect(directives.find((value) => value.startsWith("frame-src "))).toContain("https://www.instagram.com/p/DVU7dmQEnHV/embed/");
+    const frames = directives.find((value) => value.startsWith("frame-src "))?.split(" ").slice(1);
+    expect(frames).toEqual(expect.arrayContaining([
+      "https://www.instagram.com/p/DVU7dmQEnHV/embed/",
+      "https://www.instagram.com/reel/DfoJ1gpSJ9e/embed/",
+      "https://www.instagram.com/reel/DRMh-qcgOyX/embed/",
+    ]));
+    expect(frames).not.toContain("https://www.instagram.com/");
     expect(directives.find((value) => value.startsWith("script-src "))).not.toContain("instagram.com");
     expect(withSecurityHeaders(new Response(null, { headers: { "Content-Type": "application/json" } }), request, "true")
       .headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
