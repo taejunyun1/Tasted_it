@@ -1,0 +1,20 @@
+{
+  "revision": "239c247980c9e63b901549ecfaf6e0fc943becfc",
+  "buildSha256": "fcb33a79d202c43d64fa2ad2a75bfc2b38cfbc87ca7841f234695785fea332f4",
+  "migrations": 59,
+  "seats": [
+    "A",
+    "B"
+  ],
+  "dateBoundsEnforced": true,
+  "localExternalSourceLinks": true,
+  "firstReviewReceiptToUpload": true,
+  "separateApprovals": true,
+  "ownerAndGuestAccess": true,
+  "renderedGuestDesktopAndMobileAttribution": true,
+  "withdrawnPhotoRemovedFromBoth": true,
+  "otherSeatPhotoStillPublic": true,
+  "legacyBucketUntouched": true,
+  "externalWorkerAttempts": 0,
+  "scope": "localhost only"
+}

@@ -112,6 +112,8 @@ describe("place photo source links", () => {
       "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s", "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120", undefined],
     ["place-intake-296fe52a6f1a1f39f8a2a9f6", "오비수산", "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
       "https://m.place.naver.com/restaurant/2004979994/feed", undefined, undefined],
+    ["place-intake-4413539f62e7921d84f7f1d1", "대나무골", "전남광주 담양군 대전로 182 (태목리)",
+      "https://www.youtube.com/watch?v=oZOV6I1EbHg", "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg", "2020년 공개 영상"],
   ])("binds the exact reviewed source for %s", (id, name, address, url, embedUrl, disclosure) => {
     const place = { id, name, address };
     expect(reviewedPlacePhotoOriginal(place)?.embed).toBeUndefined();
@@ -131,6 +133,14 @@ describe("place photo source links", () => {
       "https://www.youtube.com/watch?v=glRm4NcRhac&t=273s", "https://www.youtube-nocookie.com/embed/glRm4NcRhac?start=273&end=298"],
     ["place-intake-e724797f168726b01426c9cc", "그랑깨", "전북 남원시 광한서로 52 (금동)",
       "https://www.youtube.com/watch?v=ZnbtJLRHUzM&t=80s", "https://www.youtube-nocookie.com/embed/ZnbtJLRHUzM?start=80"],
+    ["place-intake-684ed24c5417c7ec77450dac", "복순이네", "전남광주 동구 양림로 120 (학동)",
+      "https://www.youtube.com/watch?v=XdOXi2ctQQo", "https://www.youtube-nocookie.com/embed/XdOXi2ctQQo"],
+    ["place-intake-9b5c7ca3a8904995819e1530", "엄지빈", "전남광주 화순군 화순읍 진각로 168",
+      "https://www.youtube.com/watch?v=g9UdzGNidBA", "https://www.youtube-nocookie.com/embed/g9UdzGNidBA"],
+    ["place-intake-afcab0afe63e6705a527d23f", "한마음포차", "전남광주 동구 서석로10번길 10 (불로동)",
+      "https://www.youtube.com/watch?v=bLChzMGGUSI&t=765s", "https://www.youtube-nocookie.com/embed/bLChzMGGUSI?start=765&end=780"],
+    ["bd45a029-bce6-485d-8efc-425dca48f606", "조단부부", "전남광주통합특별시 구례군 구례읍 봉성로 103-1",
+      "https://www.youtube.com/watch?v=UuAk8wjryzY&t=512s", "https://www.youtube-nocookie.com/embed/UuAk8wjryzY?start=512&end=525"],
   ])("chooses the matching video and its exact source instead of the fallback gallery for %s", (id, name, address, url, embedUrl) => {
     const place = { id, name, address };
     const source = reviewedPlacePhotoOriginal(place, { youtube: "true" });

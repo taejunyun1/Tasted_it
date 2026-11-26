@@ -80,13 +80,18 @@ describe("applySecurityHeaders", () => {
     const frames = withSecurityHeaders(html(), request("/places/fixture"), undefined, youtube).headers
       .get("Content-Security-Policy")?.split("; ").find((value) => value.startsWith("frame-src "));
     expect(frames?.split(" ").slice(1)).toEqual([
+      "https://www.youtube-nocookie.com/embed/XdOXi2ctQQo",
+      "https://www.youtube-nocookie.com/embed/g9UdzGNidBA",
       "https://www.youtube-nocookie.com/embed/ZnbtJLRHUzM",
       "https://www.youtube-nocookie.com/embed/VfODxqfwx9w",
+      "https://www.youtube-nocookie.com/embed/bLChzMGGUSI",
+      "https://www.youtube-nocookie.com/embed/UuAk8wjryzY",
       "https://www.youtube-nocookie.com/embed/XVApkkeXoRQ",
       "https://www.youtube-nocookie.com/embed/kTz_GZQEXZ4",
       "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag",
       "https://www.youtube-nocookie.com/embed/INk0aC5hoK4",
       "https://www.youtube-nocookie.com/embed/glRm4NcRhac",
+      "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg",
     ]);
     expect(withSecurityHeaders(html(), request("/me"), undefined, youtube).headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
   });
