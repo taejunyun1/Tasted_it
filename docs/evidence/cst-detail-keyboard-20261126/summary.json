@@ -1,0 +1,38 @@
+{
+  "sourceSha": "317cd768e05b8213e846dcab92fffa6b9b68e82e",
+  "environment": "local compiled Worker and isolated synthetic D1 and R2",
+  "mobileChromiumKeyboard": {
+    "command": "BASE_URL=http://127.0.0.1:5298 pnpm exec playwright test tests/e2e/mobile-sheet-vote.spec.ts --project=mobile-chromium --grep 'T07 keyboard'",
+    "completedAtKst": "2026-11-26T14:31:04.819+09:00",
+    "pass": 2,
+    "fail": 0,
+    "skip": 0,
+    "coverage": [
+      "320px map failure fallback with guest and member detail",
+      "390x700 fixed viewport with Chrome text-size-adjust verified at 2x",
+      "actual keyboard retry, reason focus hit test, vote, cancel, save, and Escape focus restoration"
+    ],
+    "baselineFailure": [
+      "2px horizontal modal overflow",
+      "at 200% the focused negative-vote reason was covered by the sticky actions and hit-testing reached save"
+    ],
+    "screenshots": [
+      "desktop-place.png",
+      "mobile-320-keyboard.png",
+      "mobile-200-keyboard.png"
+    ]
+  },
+  "activePeerReviewerPhoto": {
+    "command": "pnpm run test:integration tests/integration/reviewer-photo-route.test.ts",
+    "completedAtKst": "2026-11-26T14:31:19+09:00",
+    "pass": 13,
+    "fail": 0,
+    "skip": 0,
+    "coverage": "The real loader allowed its owner (200) and denied a different active authenticated reviewer on GET and HEAD (404, private no-store, no body or R2 read) for the same pending photo."
+  },
+  "limits": [
+    "Chromium text enlargement emulation and synthetic identities",
+    "Direct Worker-loader invocation for photo isolation",
+    "No release of this SHA or full T04/T07 acceptance"
+  ]
+}
