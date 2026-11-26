@@ -1,0 +1,334 @@
+diff --git a/app/components/map/MapExplorerPanel.tsx b/app/components/map/MapExplorerPanel.tsx
+--- a/app/components/map/MapExplorerPanel.tsx
++++ b/app/components/map/MapExplorerPanel.tsx
+@@ -1,4 +1,5 @@
+ import { useEffect, useMemo, useState, type FormEvent } from "react";
++import { Link } from "react-router";
+ import type { PlaceSummary } from "../../features/places/place.types";
+ import type { RegionCluster, RegionClusterLevel, RegionGroup } from "../../features/maps/region-cluster-policy";
+ import { MapPlaceList } from "./MapPlaceList";
+@@ -11,13 +12,14 @@
+   children: Array<{ id: string; slug: string; name: string; emoji: string; count: number }>;
+ }
+
+-export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, hasSelectedPlace, onSelect, onSearch, onCategory, locating, locationBlocked, locationNotice, onLocate, onGroupSelect }: {
++export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, listHref, hasSelectedPlace, onSelect, onSearch, onCategory, locating, locationBlocked, locationNotice, onLocate, onGroupSelect }: {
+   places: PlaceSummary[];
+   groups: PublicCategoryGroup[];
+   regionGroups: RegionGroup[];
+   clusterLevel: RegionClusterLevel;
+   query: string;
+   category: string | null;
++  listHref: string;
+   hasSelectedPlace: boolean;
+   onSelect: (id: string) => void;
+   onSearch: (query: string) => void;
+@@ -62,6 +64,7 @@
+         <p>GWANGJU · JEONNAM FOOD ATLAS</p>
+         <h1>동네의 맛을<br />지도에서 찾기</h1>
+         <span>직접 확인한 지역의 음식과 장소를 기록합니다.</span>
++        <Link className="mt-2 inline-flex min-h-11 items-center underline" to={listHref}>맛집 리스트에서 보기</Link>
+       </header>
+       <div className="map-search-row">
+         <form onSubmit={submitSearch} role="search">
+diff --git a/app/features/maps/home-curation-options.ts b/app/features/maps/home-curation-options.ts
+--- a/app/features/maps/home-curation-options.ts
++++ b/app/features/maps/home-curation-options.ts
+@@ -22,6 +22,7 @@
+   const requestedMode = params.get("mode") as HomeCurationMode | null;
+   const requestedLocationSource = params.get("locationSource") as HomeLocationSource | null;
+   const hasBrowseIntent = params.get("view") === "browse"
++    || params.get("temp") === "1"
+     || Boolean(params.get("category"))
+     || Boolean(params.get("q")?.trim());
+
+diff --git a/app/features/places/public-place-map-scope.ts b/app/features/places/public-place-map-scope.ts
+new file mode 100644
+--- /dev/null
++++ b/app/features/places/public-place-map-scope.ts
+@@ -0,0 +1,36 @@
++import { parseMapState } from "../maps/map-state";
++
++export function readPublicPlaceMapScope(search: string, routeCategorySlug?: string) {
++  const params = new URLSearchParams(search);
++  const state = parseMapState(search);
++  const tempOnly = params.get("temp") === "1";
++  return {
++    state,
++    filters: {
++      categorySlug: routeCategorySlug ?? (params.get("category") || undefined),
++      query: state.query,
++      bbox: tempOnly ? undefined : state.bbox,
++      tempOnly,
++    },
++  };
++}
++
++export function publicPlaceMapScopeHref(destination: "map" | "list", search: string, options: {
++  categorySlug?: string;
++  selected?: string | null;
++  badges?: readonly string[];
++} = {}) {
++  const current = new URLSearchParams(search);
++  const next = new URLSearchParams();
++  if (destination === "map") next.set("view", "browse");
++  for (const key of ["q", "category", "bbox"]) {
++    const value = current.get(key);
++    if (value) next.set(key, value);
++  }
++  if (options.categorySlug) next.set("category", options.categorySlug);
++  if (current.get("temp") === "1") next.set("temp", "1");
++  for (const badge of options.badges ?? current.getAll("badge")) next.append("badge", badge);
++  if (options.selected) next.set("selected", options.selected);
++  if (current.has("qa")) next.set("qa", "1");
++  return `${destination === "map" ? "/" : "/places"}${next.size ? `?${next}` : ""}`;
++}
+diff --git a/app/routes/home.tsx b/app/routes/home.tsx
+--- a/app/routes/home.tsx
++++ b/app/routes/home.tsx
+@@ -42,6 +42,7 @@
+ } from "../features/places/home-curation-history.client";
+ import { getHomeCurationPage } from "../features/places/home-curation.server";
+ import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
++import { publicPlaceMapScopeHref, readPublicPlaceMapScope } from "../features/places/public-place-map-scope";
+
+ type RecommendationFetcherState = "idle" | "loading" | "submitting";
+
+@@ -185,14 +186,13 @@
+
+ export async function loader({ request }: Route.LoaderArgs) {
+   const url = new URL(request.url);
+-  const state = parseMapState(url.search);
++  const { state, filters } = readPublicPlaceMapScope(url.search);
+   const homeState = parseHomeCurationState(url.search);
+-  const category = url.searchParams.get("category") || undefined;
+   const qaMode = url.searchParams.has("qa");
+   const db = createDb(env.DB);
+   const common = {
+     state,
+-    category: category ?? null,
++    category: filters.categorySlug ?? null,
+     // QA is deliberately self-contained: it must not call the external map SDK
+     // just because an operator's local `.dev.vars` has a real Client ID.
+     clientId: qaMode ? "" : env.NAVER_MAPS_CLIENT_ID ?? "",
+@@ -201,7 +201,7 @@
+
+   if (homeState.view === "browse") {
+     const [places, groups] = await Promise.all([
+-      listPlaces(db, { categorySlug: category, query: state.query, bbox: state.bbox }),
++      listPlaces(db, filters),
+       listPublicCategoryGroups(db),
+     ]);
+     return { ...common, view: "browse" as const, places, groups, curation: null };
+@@ -461,6 +461,7 @@
+       next.delete("q");
+       next.delete("selected");
+       next.delete("place");
++      next.delete("temp");
+       next.set("mode", "now");
+       return next;
+     });
+@@ -503,6 +504,7 @@
+       clusterLevel={clusterLevel}
+       query={liveMapState.query}
+       category={loaderData.category}
++      listHref={publicPlaceMapScopeHref("list", liveSearch, { selected: selectedPlace?.id })}
+       hasSelectedPlace={Boolean(selectedPlace)}
+       onSelect={(id) => setSearch({ selected: id })}
+       onSearch={(q) => setSearch({ q, selected: null })}
+diff --git a/app/routes/map-category.tsx b/app/routes/map-category.tsx
+--- a/app/routes/map-category.tsx
++++ b/app/routes/map-category.tsx
+@@ -6,6 +6,7 @@
+ import { parseMapState } from "../features/maps/map-state";
+ import { useMapLocationRequest } from "../features/maps/use-map-location-request";
+ import { listPlaces } from "../features/places/place.server";
++import { publicPlaceMapScopeHref, readPublicPlaceMapScope } from "../features/places/public-place-map-scope";
+ import { PlaceMap } from "../components/map/PlaceMap";
+ import { PlaceCard, safePlaceDetailRequestPath } from "../components/places/PlaceCard";
+ import { PlaceDetailSheet } from "../components/places/PlaceDetailSheet";
+@@ -17,10 +18,12 @@
+ }
+
+ export async function loader({ request, params }: Route.LoaderArgs) {
+-  const state = parseMapState(new URL(request.url).search);
+-  const places = await listPlaces(createDb(env.DB), { categorySlug: params.categorySlug, query: state.query, bbox: state.bbox });
+-  const clientId = (env as Env & { NAVER_MAPS_CLIENT_ID?: string }).NAVER_MAPS_CLIENT_ID ?? "";
+-  return { places, state, categorySlug: params.categorySlug, clientId };
++  const url = new URL(request.url);
++  const { state, filters } = readPublicPlaceMapScope(url.search, params.categorySlug);
++  const places = await listPlaces(createDb(env.DB), filters);
++  const qaMode = url.searchParams.has("qa");
++  const clientId = qaMode ? "" : (env as Env & { NAVER_MAPS_CLIENT_ID?: string }).NAVER_MAPS_CLIENT_ID ?? "";
++  return { places, state, categorySlug: params.categorySlug, clientId, qaMode, tempOnly: filters.tempOnly };
+ }
+
+ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
+@@ -59,7 +62,7 @@
+     next.set("view", view);
+     return `?${next}`;
+   };
+-  const selected = loaderData.state.selected;
++  const selected = loaderData.places.find((place) => place.id === loaderData.state.selected)?.id ?? null;
+   const detailPath = params.getAll("place").length === 1 ? safePlaceDetailRequestPath(params.get("place")) : null;
+   const currentOpener = detailOpener.current?.requestPath === detailPath ? detailOpener.current : null;
+   const openDetail = (id: string, path: string, opener: HTMLElement) => {
+@@ -103,6 +106,8 @@
+           <input key={loaderData.state.query} id="q" name="q" defaultValue={loaderData.state.query} placeholder="동명동, 라멘…" />
+           <input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} />
+           <input type="hidden" name="view" value={loaderData.state.view} />
++          {loaderData.tempOnly && <input type="hidden" name="temp" value="1" />}
++          {loaderData.qaMode && <input type="hidden" name="qa" value="1" />}
+           <button>찾기</button>
+         </Form>
+       </header>
+@@ -111,6 +116,9 @@
+         <Link to={{ search: viewSearch("list") }} onClick={clearLocation}>목록</Link>
+         <button type="button" disabled={locating || Boolean(pendingLocation)} aria-busy={locating} onClick={locate}>{locating ? "위치 확인 중…" : "내 주변"}</button>
+       </nav>
++      <div className="shell">
++        <Link className="inline-flex min-h-11 items-center underline" to={publicPlaceMapScopeHref("list", params.toString(), { categorySlug: loaderData.categorySlug, selected })}>맛집 리스트에서 보기</Link>
++      </div>
+       {locationNotice && <p className="shell" role="status">{locationNotice}</p>}
+       <div className="explore-split" data-view={loaderData.state.view}>
+         <section className="map-panel" aria-label="지도 보기">
+@@ -118,6 +126,7 @@
+             places={loaderData.places}
+             selected={selected}
+             clientId={loaderData.clientId}
++            qaMode={loaderData.qaMode}
+             deferBounds
+             initialBounds={loaderData.state.bbox}
+             locationBounds={locationBounds}
+diff --git a/app/routes/place-list.tsx b/app/routes/place-list.tsx
+--- a/app/routes/place-list.tsx
++++ b/app/routes/place-list.tsx
+@@ -8,11 +8,11 @@
+ import { PlaceRecommendationControls } from "../components/places/PlaceRecommendationControls";
+ import { createDb } from "../db/client.server";
+ import { getOptionalUser } from "../features/auth/session.server";
+-import { parseMapState } from "../features/maps/map-state";
+ import { getGuestOnboardingFromRequest } from "../features/onboarding/guest-session.server";
+ import { getPlaceRecommendationPage } from "../features/places/place-recommendation.server";
+ import { toggleRecommendationSelection } from "../features/places/place-recommendation-options";
+ import { listPlaces, listPublicCategoryGroups } from "../features/places/place.server";
++import { publicPlaceMapScopeHref, readPublicPlaceMapScope } from "../features/places/public-place-map-scope";
+ import { useEffect, useState } from "react";
+
+ export function meta() {
+@@ -21,9 +21,8 @@
+
+ export async function loader({ request }: Route.LoaderArgs) {
+   const url = new URL(request.url);
+-  const state = parseMapState(url.search);
+-  const categorySlug = url.searchParams.get("category") || undefined;
+-  const tempOnly = url.searchParams.get("temp") === "1";
++  const { state, filters } = readPublicPlaceMapScope(url.search);
++  const { categorySlug, tempOnly } = filters;
+   const [west, south, east, north] = state.bbox;
+   const center = { latitude: (south + north) / 2, longitude: (west + east) / 2 };
+   const db = createDb(env.DB);
+@@ -34,7 +33,7 @@
+     : null;
+   const selectedBadges = url.searchParams.getAll("badge");
+   const [places, groups, recommendations] = await Promise.all([
+-    listPlaces(db, { categorySlug, query: state.query, bbox: tempOnly ? undefined : state.bbox, tempOnly }),
++    listPlaces(db, filters),
+     listPublicCategoryGroups(db),
+     getPlaceRecommendationPage(db, {
+       userId: user?.id,
+@@ -47,7 +46,7 @@
+     }),
+   ]);
+   const category = groups.flatMap((group) => group.children).find((child) => child.slug === categorySlug);
+-  return { places, recommendations, state, category: category ?? null, search: url.search, tempOnly };
++  return { places, recommendations, state, category: category ?? null, categorySlug, search: url.search, tempOnly };
+ }
+
+ export default function PlaceList({ loaderData }: Route.ComponentProps) {
+@@ -62,10 +61,16 @@
+     if (recommendationFetcher.data?.ok) setRecommendations(recommendationFetcher.data.recommendations);
+   }, [recommendationFetcher.data]);
+   const detailPath = safePlaceDetailRequestPath(params.get("place"));
+-  const openDetail = (requestPath: string) => {
++  const selected = loaderData.places.find((place) => place.id === params.get("selected"))?.id;
++  const openDetail = (requestPath: string, placeId?: string) => {
+     const safeRequestPath = safePlaceDetailRequestPath(requestPath);
+     if (!safeRequestPath) return;
+-    setParams((current) => { const next = new URLSearchParams(current); next.set("place", safeRequestPath); return next; });
++    setParams((current) => {
++      const next = new URLSearchParams(current);
++      next.set("place", safeRequestPath);
++      if (placeId) next.set("selected", placeId);
++      return next;
++    });
+   };
+   const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
+   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
+@@ -90,7 +95,7 @@
+         <p>광주·전남의 장소를 취향, 평가 신뢰도, 리뷰어 선택으로 다시 엮었습니다. 임시 정보는 TEMP로 표시합니다.</p>
+         <Link to={loaderData.tempOnly ? "/places" : "/places?temp=1"}>{loaderData.tempOnly ? "전체 장소 보기" : "TEMP 100 베타 목록"}</Link>
+       </div>
+-      <Link className="discovery-map-link" to={`/${loaderData.search}`}>지도에서 보기</Link>
++      <Link className="discovery-map-link" to={publicPlaceMapScopeHref("map", loaderData.search, { selected, badges: selectedBadges })}>지도에서 보기</Link>
+     </header>
+
+     <PlaceRecommendationControls
+@@ -104,9 +109,9 @@
+
+     <section className="discovery-recommendations" aria-live="polite" aria-busy={recommendationFetcher.state !== "idle"}>
+       <header className="discovery-recommendations__title"><p className="eyebrow">FOR YOUR MOMENT</p><h2>{recommendations.title}</h2></header>
+-      <PlaceDiscoveryRail title="취향과 새로운 발견" description="익숙한 취향 네 곳, 이어지는 맛 두 곳, 평소와 다른 선택 두 곳을 섞었습니다." places={recommendations.personal} kind="personal" onOpenDetail={openDetail} />
+-      <PlaceDiscoveryRail title="Re:Taste 추천" description="높은 추천률보다 충분한 평가와 회원·리뷰어의 의견 일치를 먼저 봅니다." places={recommendations.trusted} kind="trusted" onOpenDetail={openDetail} />
+-      <PlaceDiscoveryRail title="Golden Pick 취향 릴레이" description="서로 다른 리뷰어와 메뉴의 선택을 이어봅니다." places={recommendations.golden} kind="golden" onOpenDetail={openDetail} />
++      <PlaceDiscoveryRail title="취향과 새로운 발견" description="익숙한 취향 네 곳, 이어지는 맛 두 곳, 평소와 다른 선택 두 곳을 섞었습니다." places={recommendations.personal} kind="personal" onOpenDetail={(path) => openDetail(path)} />
++      <PlaceDiscoveryRail title="Re:Taste 추천" description="높은 추천률보다 충분한 평가와 회원·리뷰어의 의견 일치를 먼저 봅니다." places={recommendations.trusted} kind="trusted" onOpenDetail={(path) => openDetail(path)} />
++      <PlaceDiscoveryRail title="Golden Pick 취향 릴레이" description="서로 다른 리뷰어와 메뉴의 선택을 이어봅니다." places={recommendations.golden} kind="golden" onOpenDetail={(path) => openDetail(path)} />
+     </section>
+
+     <section className="discovery-section discovery-all" aria-labelledby="all-places">
+@@ -117,13 +122,14 @@
+       <Form action="/places" className="discovery-search">
+         <label htmlFor="place-query">장소 검색</label>
+         <input id="place-query" name="q" defaultValue={loaderData.state.query} placeholder="장소 이름이나 주소 검색" />
+-        <input type="hidden" name="category" value={loaderData.category?.slug ?? ""} />
++        <input type="hidden" name="category" value={loaderData.categorySlug ?? ""} />
+         <input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} />
+         {loaderData.tempOnly && <input type="hidden" name="temp" value="1" />}
++        {params.has("qa") && <input type="hidden" name="qa" value="1" />}
+         <button>찾기</button>
+       </Form>
+       <p className="discovery-count">{loaderData.places.length} PLACES · {categoryName}</p>
+-      <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} key={place.id} onOpenDetail={openDetail} />)}</div>
++      <div className="place-grid discovery-grid">{loaderData.places.map((place) => <PlaceCard place={place} selected={selected === place.id} key={place.id} onOpenDetail={(path) => openDetail(path, place.id)} />)}</div>
+       {!loaderData.places.length && <p className="discovery-empty">이 조건에서 공개된 장소를 찾지 못했어요. 검색어를 줄이거나 지도 범위를 넓혀보세요.</p>}
+     </section>
+     <PlaceDetailSheet detailPath={detailPath} onClose={closeDetail} />
+diff --git a/app/styles/design-system.css b/app/styles/design-system.css
+--- a/app/styles/design-system.css
++++ b/app/styles/design-system.css
+@@ -477,6 +477,24 @@
+   transform:translateX(-50%);
+ }
+
++.map-explorer-map [data-map-unavailable="true"]:has(> .map-location-overview),
++.map-panel [data-map-unavailable="true"]:has(> .map-location-overview){
++  display:flex;
++  flex-direction:column;
++  gap:var(--space-2);
++  padding:var(--space-4);
++}
++
++.map-explorer-map [data-map-unavailable="true"]:has(> .map-location-overview){
++  padding-top:calc(var(--space-4) + 2 * var(--control-height) + var(--space-3));
++}
++
++:is(.map-explorer-map,.map-panel) [data-map-unavailable="true"]:has(> .map-location-overview) > :is(.map-error, .map-location-overview){
++  position:static;
++  inset:auto;
++  transform:none;
++}
++
+ .home-curation-reload-area{
+   position:absolute;
+   z-index:7;
