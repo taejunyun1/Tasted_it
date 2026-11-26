@@ -30,7 +30,7 @@ const requestSchema = z.discriminatedUnion("decision", [
 ]);
 
 export const headers = () => PRIVATE;
-export const meta = () => [{ title: "학생 리뷰 사진 검수 — Re:Taste Admin" }];
+export const meta = () => [{ title: "직접인증 사진 검수 — Re:Taste Admin" }];
 
 function failure(error: string, status: number, headers: Record<string, string> = PRIVATE) {
   return data({ ok: false as const, error }, { status, headers });
@@ -38,11 +38,11 @@ function failure(error: string, status: number, headers: Record<string, string> 
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAdminSession(request);
-  if (!env.STUDENT_REVIEW_PILOT_PHOTOS) throw new Response("학생 리뷰 사진 검수가 연결되지 않았습니다.", { status: 404, headers: PRIVATE });
+  if (!env.STUDENT_REVIEW_PILOT_PHOTOS) throw new Response("직접인증 사진 검수가 연결되지 않았습니다.", { status: 404, headers: PRIVATE });
   try {
     return data({ photos: await listPilotPhotosForAdmin(createDb(env.DB)) }, { headers: PRIVATE });
   } catch {
-    throw new Response("학생 리뷰 사진을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", { status: 503, headers: PRIVATE });
+    throw new Response("직접인증 사진을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", { status: 503, headers: PRIVATE });
   }
 }
 
@@ -51,7 +51,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (request.method !== "POST") return failure("지원하지 않는 요청입니다.", 405, { ...PRIVATE, Allow: "POST" });
   if (!isSameOriginMutation(request)) return failure("요청 출처를 확인할 수 없습니다.", 403);
   const bucket = env.STUDENT_REVIEW_PILOT_PHOTOS;
-  if (!bucket) return failure("학생 리뷰 사진 검수가 연결되지 않았습니다.", 404);
+  if (!bucket) return failure("직접인증 사진 검수가 연결되지 않았습니다.", 404);
   if (request.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase() !== "application/x-www-form-urlencoded") {
     return failure("지원하지 않는 입력 형식입니다.", 415);
   }
@@ -96,11 +96,11 @@ export default function AdminStudentReviewPhotos({ loaderData: { photos }, actio
   const pending = useNavigation().state !== "idle";
   return <main id="main" className="reviewer-moderation-shell">
     <Link className="inline-flex min-h-11 items-center underline" to="/admin/reviewer-visits">방문 리뷰 검수로</Link>
-    <h1>학생 리뷰 사진 검수</h1>
+    <h1>직접인증 사진 검수</h1>
     <p className="reviewer-moderation-notice">연결된 방문 리뷰를 먼저 승인해 주세요. 사진 공개와 회수에는 관리자 재인증이 필요합니다.</p>
     {actionData?.ok === false && <p role="alert">{actionData.error}</p>}
     {actionData?.ok && <p role="status">{actionData.message}</p>}
-    {photos.length === 0 && <p role="status">검수할 학생 리뷰 사진이 없습니다.</p>}
+    {photos.length === 0 && <p role="status">검수할 직접인증 사진이 없습니다.</p>}
 
     {photos.map((photo) => <article key={photo.id} className="grid gap-4 border-t border-neutral-300 py-5">
       <div>
@@ -109,7 +109,7 @@ export default function AdminStudentReviewPhotos({ loaderData: { photos }, actio
       </div>
       <img
         src={`/student-review-photos/${encodeURIComponent(photo.id)}?preview=1`}
-        alt="학생이 제출한 검수용 방문 사진"
+        alt="검수용 직접인증 사진"
         loading="lazy"
         className="max-h-80 max-w-full rounded-md border border-neutral-300 object-contain"
       />
