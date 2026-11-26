@@ -222,6 +222,12 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전북 군산시 신창동 4-6 1층",
     shortcode: "DXfYgKOEyBR",
   },
+  {
+    id: "place-intake-4b145e45d2e6d890232aac0f",
+    name: "대접나주배닭강정",
+    address: "전남광주 나주시 우정로 106 (빛가람동)",
+    shortcode: "DALqhiKh99e",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
