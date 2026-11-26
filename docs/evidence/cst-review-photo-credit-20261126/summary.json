@@ -1,0 +1,19 @@
+{
+  "sourceSha": "3bff0b545bd324f84f7b4180144ef23079c3fcaf",
+  "environment": "Local compiled Worker, isolated D1/R2 and synthetic reviewer photos",
+  "integration": {
+    "command": "pnpm run test:integration tests/integration/reviewer-visit-photo-publish.test.ts tests/integration/reviewer-moderation.server.test.ts",
+    "pass": 31,
+    "fail": 0
+  },
+  "browser": {
+    "desktopChromium": 1,
+    "mobileChromium": 1,
+    "scope": "Admin approves a pending photo; the public gallery shows the JPEG and a keyboard/touch link to the public provider profile. Pending photos and private evidence stay outside the public response."
+  },
+  "screenshots": [
+    "desktop-photo-credit.png",
+    "mobile-photo-credit.png"
+  ],
+  "limits": "Provider attribution for approved reviewer photos. No external image ingestion or publication in production."
+}
