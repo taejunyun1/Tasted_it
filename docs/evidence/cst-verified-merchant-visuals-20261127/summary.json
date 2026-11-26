@@ -1,0 +1,66 @@
+{
+  "revision": "843a0a78d5d4ef1ce150a67ef96529adc796757e",
+  "buildSha256": "1a1a53fc061d53d7ae1f071990c61e7d5358da8395519783a6b1c09ab6503d0f",
+  "localMigrations": 59,
+  "generalVenueRows": 78,
+  "cases": 156,
+  "viewports": [
+    1280,
+    320
+  ],
+  "perViewport": {
+    "instagram": 40,
+    "threads": 2,
+    "youtube": 16,
+    "jpeg": 4,
+    "link": 13,
+    "none": 3
+  },
+  "singleOriginalAnchor": true,
+  "mockProviderFrames": true,
+  "syntheticJpegBytes": true,
+  "originalLinks": [
+    {
+      "name": "뉴욕감자탕",
+      "href": "https://map.naver.com/p/entry/place/2029828674?placePath=%2Fphoto",
+      "kind": "link"
+    },
+    {
+      "name": "야들족발",
+      "href": "https://m.place.naver.com/restaurant/2004050569/photo?filterType=%EC%97%85%EC%B2%B4",
+      "kind": "link"
+    },
+    {
+      "name": "점심한끼",
+      "href": "https://m.place.naver.com/restaurant/1156425740/photo?filterType=%EC%97%85%EC%B2%B4",
+      "kind": "link"
+    }
+  ],
+  "nativeResults": [
+    {
+      "name": "이것이아구찜이다",
+      "width": 1280,
+      "decoded": {
+        "width": 1280,
+        "height": 960
+      },
+      "singleOriginalAnchor": true,
+      "refererSent": false,
+      "requestBeforeClick": false
+    },
+    {
+      "name": "이것이아구찜이다",
+      "width": 320,
+      "decoded": {
+        "width": 1280,
+        "height": 960
+      },
+      "singleOriginalAnchor": true,
+      "refererSent": false,
+      "requestBeforeClick": false
+    }
+  ],
+  "workerOutboundAttempts": 0,
+  "configurationScope": "LOCAL",
+  "productionChanged": false
+}
