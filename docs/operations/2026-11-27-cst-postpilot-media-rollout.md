@@ -37,10 +37,10 @@ pnpm exec wrangler versions deploy "$candidate_version@100" --config "$traffic_o
 
 ## 복구
 
-공개 범위·미디어·직접인증 경계에 중대한 회귀가 확인되면 영수증에 보존한 직전 동일 접수 단계의 승인 버전을 한 번 복구한다. 복구 직전에 현재 접수 상태와 좌석 만료를 확인한다. 접수 종료나 만료 이후의 복구에는 #563의 승인된 접수 종료 버전만 적용한다. 복구 대상이 미확정이면 트래픽 쓰기를 보류한다.
+공개 범위·미디어·직접인증 경계에 중대한 회귀가 확인되면 영수증에 보존한 직전 동일 접수 단계의 승인 버전에 트래픽을 한 번 돌린다. 복구 직전에 현재 접수 상태와 좌석 만료를 확인한다. 접수 종료나 만료 이후의 복구에는 #563의 승인된 접수 종료 버전만 적용한다. 복구 대상이나 비밀 설정의 일치 여부가 미확정이면 트래픽 쓰기를 보류한다. 버전 전환에서 비밀 변경 충돌이 반환되면 기존 배포 상태를 읽고 강제 재시도는 보류한다.
 
 ```sh
-pnpm exec wrangler rollback "$restore_version" --config "$traffic_only_config" --name retaste-beta --yes --profile tastedit-production
+pnpm exec wrangler versions deploy "$restore_version@100" --config "$traffic_only_config" --name retaste-beta --yes --profile tastedit-production
 ```
 
 복구 뒤 실제 버전 단독 100%, 현재 접수 상태와 공개·비공개 경계, 기존 원장·승인 사진의 접근을 확인한다. 복구 버전의 동일 RSI·D1 감사 증거를 남긴다. 한 번의 관리자 점검을 이미 사용한 경우는 정기 실행을 관측한다. [Cloudflare 복구](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/)
