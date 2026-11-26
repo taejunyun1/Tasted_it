@@ -1,3 +1,14 @@
+diff --git a/app/cloudflare-env.d.ts b/app/cloudflare-env.d.ts
+--- a/app/cloudflare-env.d.ts
++++ b/app/cloudflare-env.d.ts
+@@ -10,6 +10,7 @@
+     NAVER_LOCAL_SEARCH_ENABLED: string;
+     NAVER_LOCAL_SEARCH_DAILY_LIMIT: string;
+     POI_INSTAGRAM_PHOTO_ENABLED?: string;
++    POI_THREADS_PHOTO_ENABLED?: string;
+     POI_MEDIA_PUBLIC_ENABLED?: string;
+     DATA_GO_KR_SERVICE_KEY: string;
+     RESEND_API_KEY: string;
 diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
 --- a/app/components/places/PlaceDetailSheet.tsx
 +++ b/app/components/places/PlaceDetailSheet.tsx
@@ -9,11 +20,18 @@ diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/
  import { PlacePoiPhoto } from "./PlacePoiPhoto";
  import { VoteControl } from "../ratings/VoteControl";
  import { PlacePublicReviewers } from "./PlacePublicEvidence";
-@@ -205,6 +206,7 @@
+@@ -199,12 +200,13 @@
+         </div>
+       </div> : <>
+         {data.poiPhoto ? <PlacePoiPhoto photo={data.poiPhoto} placeName={data.place.name} heroClassName="place-detail-sheet__hero" /> :
+-          !data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span className="px-5 text-center text-base tracking-normal">{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
++          !data.instagramPhoto && !data.photoOriginal?.embedUrl && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span className="px-5 text-center text-base tracking-normal">{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
+         <div className="place-detail-sheet__body">
+           <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
            <h2>{data.place.name}</h2>
            {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
            <address>{data.place.address}</address>
-+          {data.photoOriginal && <PlacePhotoOriginalLink source={data.photoOriginal} />}
++          {data.photoOriginal && <PlacePhotoOriginalLink key={data.photoOriginal.url} source={data.photoOriginal} />}
            {!data.poiPhoto && data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
            {data.pilotPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="pilot-sheet-photo-title">
              <div><h2 id="pilot-sheet-photo-title">직접인증 방문 사진</h2></div>
@@ -37,7 +55,7 @@ diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
      : null;
 -  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible, pilotPhotos, publicReviewers, poiPhoto] = await Promise.all([
 +  const originalSource = !place.heroImageUrl && !place.tempCatalog && !officialPhoto
-+    ? reviewedPlacePhotoOriginal(place)
++    ? reviewedPlacePhotoOriginal(place, env.POI_THREADS_PHOTO_ENABLED)
 +    : null;
 +  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, photoSourceEligible, pilotPhotos, publicReviewers, poiPhoto] = await Promise.all([
      getLatestRatingSnapshot(db, place.id),
@@ -69,11 +87,37 @@ diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
    const query = encodeURIComponent(place.address);
    return (
      <main id="main" className="detail shell">
-@@ -264,6 +270,7 @@
+@@ -254,6 +260,8 @@
+         {poiPhoto ? <PlacePoiPhoto photo={poiPhoto} placeName={place.name} heroClassName="detail-hero" /> :
+           instagramPhoto ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
+           <PlaceInstagramPhoto photo={instagramPhoto} placeName={place.name} />
++        </div> : photoOriginal?.embedUrl ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
++          <PlacePhotoOriginalLink key={photoOriginal.url} source={photoOriginal} />
+         </div> : <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span className="px-5 text-center text-base tracking-normal">{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
+         <article className="detail-copy">
+           <p className="eyebrow">{place.primaryCategory.emoji} {place.primaryCategory.name} · {place.neighborhood}</p><h1>{place.name}</h1>
+@@ -264,6 +272,7 @@
            <section className="rating-breakdown" aria-labelledby="rating-breakdown-title"><h2 id="rating-breakdown-title">평가 구성</h2><div><span>일반 회원</span><strong>{rating.userScore === null ? `${rating.userSampleCount}/8` : `${rating.userScore}%`}</strong></div><div><span>리뷰어</span><strong>{rating.reviewerScore === null ? `${rating.reviewerSampleCount}/8` : `${rating.reviewerScore}%`}</strong></div><small>각 집단은 8표부터 숫자를 공개하며 리뷰어 영향은 전체 유효 가중치의 최대 30%입니다.</small></section>
            {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
            <PlaceInformation place={place} />
-+          {photoOriginal && <PlacePhotoOriginalLink source={photoOriginal} />}
++          {photoOriginal && !photoOriginal.embedUrl && <PlacePhotoOriginalLink source={photoOriginal} />}
            <VoteControl key={place.id} placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
            <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
            <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
+diff --git a/workers/app.ts b/workers/app.ts
+--- a/workers/app.ts
++++ b/workers/app.ts
+@@ -16,11 +16,11 @@
+   import.meta.env.MODE,
+ );
+
+-export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED" | "STUDENT_REVIEW_PILOT_PHOTOS">>({
++export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED" | "POI_THREADS_PHOTO_ENABLED" | "STUDENT_REVIEW_PILOT_PHOTOS">>({
+   async fetch(request, env) {
+     const rsi = await handleRsiOnDemandRequest(request, env);
+     if (rsi) return withSecurityHeaders(rsi, request);
+-    return withSecurityHeaders(await requestHandler(request), request, env.POI_INSTAGRAM_PHOTO_ENABLED);
++    return withSecurityHeaders(await requestHandler(request), request, env.POI_INSTAGRAM_PHOTO_ENABLED, env.POI_THREADS_PHOTO_ENABLED);
+   },
+   async scheduled(controller, env, ctx) {
+     if (isRsiCron(controller.cron)) {

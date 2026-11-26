@@ -16,11 +16,11 @@ const requestHandler = createRequestHandler(
   import.meta.env.MODE,
 );
 
-export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED" | "STUDENT_REVIEW_PILOT_PHOTOS">>({
+export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED" | "POI_THREADS_PHOTO_ENABLED" | "STUDENT_REVIEW_PILOT_PHOTOS">>({
   async fetch(request, env) {
     const rsi = await handleRsiOnDemandRequest(request, env);
     if (rsi) return withSecurityHeaders(rsi, request);
-    return withSecurityHeaders(await requestHandler(request), request, env.POI_INSTAGRAM_PHOTO_ENABLED);
+    return withSecurityHeaders(await requestHandler(request), request, env.POI_INSTAGRAM_PHOTO_ENABLED, env.POI_THREADS_PHOTO_ENABLED);
   },
   async scheduled(controller, env, ctx) {
     if (isRsiCron(controller.cron)) {
