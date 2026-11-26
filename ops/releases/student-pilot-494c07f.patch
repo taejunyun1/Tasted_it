@@ -29,24 +29,129 @@
            {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
 --- a/app/components/reviewer-visit-flow.tsx
 +++ b/app/components/reviewer-visit-flow.tsx
-@@ -58,6 +58,7 @@
+@@ -58,6 +58,8 @@ type Props = {
    goldenQuota: { used: number; limit: number; remaining: number };
    publishedReviewId: string | null;
    photoUploadEnabled: boolean;
++  pilotPhotoAfterSubmission?: boolean;
 +  pilotPhotoReviewIds?: string[];
    notice: "review-submitted" | "review-with-photos-submitted" | "review-updated" | "review-withdrawn" | null;
  };
 
-@@ -98,7 +99,7 @@
+@@ -98,7 +100,7 @@ function parseBadges(value: string) {
    }
  }
 
 -export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, notice }: Props) {
-+export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, pilotPhotoReviewIds = [], notice }: Props) {
++export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, pilotPhotoAfterSubmission = false, pilotPhotoReviewIds = [], notice }: Props) {
    const fetcher = useFetcher<{ ok: false; error: string }>();
    const [step, setStep] = useState(1);
    const [placeId, setPlaceId] = useState("");
-@@ -509,6 +510,7 @@
+@@ -321,6 +323,16 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+       : step === 3 ? Boolean(selectedCategory)
+         : true;
+
++  useEffect(() => {
++    if (!pilotPhotoAfterSubmission || step !== 4) return;
++    const heading = document.getElementById("review-step-photo");
++    heading?.focus({ preventScroll: true });
++    heading?.scrollIntoView({ block: "center" });
++  }, [pilotPhotoAfterSubmission, step]);
++
++  const canManageReceiptPhoto = publishedReviewId && notice !== "review-withdrawn" && pilotPhotoReviewIds.includes(publishedReviewId);
++  const photoStepLabel = pilotPhotoAfterSubmission ? "사진" : "사진·Golden";
++
+   return (
+     <main id="main" className="reviewer-publish shell">
+       <header className="reviewer-publish__hero">
+@@ -329,7 +341,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+           <h1>{canSubmit ? "방문 리뷰 제출" : "내 방문 리뷰"}</h1>
+           <p>직접 확인한 방문 근거와 맛의 핵심을 남겨 주세요. 관리자 승인 전에는 공개되지 않아요.</p>
+         </div>
+-        {canSubmit && <div className="reviewer-quota" aria-label="Golden Pick 이번 달 사용량">
++        {canSubmit && !pilotPhotoAfterSubmission && <div className="reviewer-quota" aria-label="Golden Pick 이번 달 사용량">
+           <span>GOLDEN PICK</span>
+           <strong>이번 달 {goldenQuota.used}/{goldenQuota.limit} 사용</strong>
+           <small>{goldenQuota.remaining}개 남음</small>
+@@ -340,7 +352,9 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+         <section className="reviewer-success" aria-live="polite">
+           <span>{notice === "review-withdrawn" ? "철회 완료" : "검수 요청 완료"}</span>
+           <strong>{notice === "review-withdrawn" ? "공개 대상에서 제외했어요. 기록은 보존됩니다." : "관리자 검수 후 공개 여부를 안내해요. 아직 추천에 반영되지 않았어요."}</strong>
+-          <a href={`#review-${publishedReviewId}`}>제출 기록 보기</a>
++          {canManageReceiptPhoto
++            ? <Link className="inline-flex min-h-11 items-center" to={`/reviewer/pilot-photo/${encodeURIComponent(publishedReviewId)}`}>실증 사진 관리</Link>
++            : <a href={`#review-${publishedReviewId}`}>제출 기록 보기</a>}
+         </section>
+       )}
+       {restored && !publishedReviewId && (
+@@ -354,7 +368,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+       {canSubmit && <>
+       {!hydrated && <p className="reviewer-moderation-notice" role="status">화면 준비 중이에요. 준비가 끝나면 장소를 선택해 주세요.</p>}
+       <nav className="reviewer-steps" aria-label="리뷰 제출 단계">
+-        {["1. 장소", "2. 평가", "3. 맛 배지", "4. 사진·Golden", "5. 확인"].map((label, index) => (
++        {["1. 장소", "2. 평가", "3. 맛 배지", `4. ${photoStepLabel}`, "5. 확인"].map((label, index) => (
+           <button key={label} type="button" aria-current={step === index + 1 ? "step" : undefined} disabled={!hydrated || index + 1 > step || publishing || preparingPhotos} onClick={() => setStep(index + 1)}>
+             {label}
+           </button>
+@@ -440,7 +454,12 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+           </section>
+
+           <section className="reviewer-step-card" hidden={step !== 4} aria-labelledby="review-step-photo">
+-            <p className="eyebrow">STEP 04 / PHOTO &amp; GOLDEN</p>
++            <p className="eyebrow">{pilotPhotoAfterSubmission ? "STEP 04 / PHOTO" : "STEP 04 / PHOTO & GOLDEN"}</p>
++            {pilotPhotoAfterSubmission ? <>
++              <h2 id="review-step-photo" tabIndex={-1}>사진은 리뷰 제출 후에 첨부해요.</h2>
++              <p>검수를 요청한 뒤 해당 리뷰에 <strong>실증 사진 관리</strong>가 표시되면 직접 촬영한 JPEG·PNG·WebP 사진 한 장을 첨부할 수 있어요.</p>
++              <p>다른 사람의 얼굴이나 차량 번호, 영수증의 개인정보는 가려 주세요. 리뷰와 사진이 모두 승인되면 장소 상세에 공개돼요.</p>
++            </> : <>
+             <h2 id="review-step-photo">사진은 선택 사항이에요.</h2>
+             <p>얼굴·차량 번호·영수증 개인정보는 올리지 마세요. 선택한 사진은 이 기기에서 JPEG로 다시 준비한 뒤, 리뷰를 제출할 때 저장됩니다. 관리자 승인 전에는 공개되지 않아요.</p>
+             {photoUploadEnabled ? <>
+@@ -462,6 +481,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+               <button type="button" aria-pressed={golden} disabled={!goldenEligible || publishing} onClick={() => setGolden((current) => !current)}>Golden Pick 선택</button>
+               {golden && <label className="reviewer-golden-reason"><span>Golden Pick 이유</span><textarea value={goldenReason} maxLength={100} minLength={15} onChange={(event) => setGoldenReason(event.target.value)} placeholder="다른 사람에게 꼭 권하고 싶은 이유를 15자 이상 남겨주세요." /></label>}
+             </div>
++            </>}
+           </section>
+
+           <section className="reviewer-step-card reviewer-preview" hidden={step !== 5} aria-labelledby="review-step-preview">
+@@ -470,12 +490,16 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+             <dl>
+               <div><dt>장소</dt><dd>{selectedPlace?.placeName ?? "선택 전"}</dd></div>
+               <div><dt>평가</dt><dd>{evaluation ? evaluationLabels[evaluation] : "선택 전"}</dd></div>
++              {!pilotPhotoAfterSubmission && <div><dt>Golden Pick</dt><dd>{golden ? "검수 요청함" : "요청하지 않음"}</dd></div>}
++              {!pilotPhotoAfterSubmission && golden && <div><dt>Golden Pick 이유</dt><dd>{goldenReason.trim() || "이유를 입력해 주세요."}</dd></div>}
+               <div><dt>카테고리</dt><dd>{selectedCategory ? `${selectedCategory.emoji} ${selectedCategory.name}` : "선택 전"}</dd></div>
+               <div><dt>맛 배지</dt><dd>{badges.length ? badges.join(" · ") : "선택 안 함"}</dd></div>
+-              <div><dt>사진</dt><dd>제출 {photos.length}장{photos.length ? " · 관리자 승인 후 공개" : ""}</dd></div>
++              <div><dt>사진</dt><dd>{pilotPhotoAfterSubmission ? "검수 요청 뒤 첨부 가능 여부 확인" : `제출 ${photos.length}장${photos.length ? " · 관리자 승인 후 공개" : ""}`}</dd></div>
+             </dl>
+             <VisitEvidenceFields key={draftVersion} />
+-            <p className="reviewer-privacy-note">제출만으로 평가·배지·사진·Golden Pick이 공개되거나 추천에 반영되지 않아요. 관리자 검수 결과를 확인해 주세요.</p>
++            <p className="reviewer-privacy-note">{pilotPhotoAfterSubmission
++              ? "평가와 배지는 관리자 승인 뒤에 공개돼요."
++              : "제출만으로 평가·배지·사진·Golden Pick이 공개되거나 추천에 반영되지 않아요. 관리자 검수 결과를 확인해 주세요."}</p>
+           </section>
+         </fieldset>
+
+@@ -484,14 +508,14 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
+           <strong>{selectedPlace?.placeName ?? "장소를 먼저 골라주세요"}</strong>
+           <span>{evaluation ? evaluationLabels[evaluation] : "평가 미선택"} · {selectedCategory?.name ?? "카테고리 미선택"}</span>
+           <div>{badges.map((badge) => <i key={badge}>{badge}</i>)}</div>
+-          <small>사진은 자동 저장하지 않으며, 제출할 때만 업로드됩니다.</small>
++          <small>{pilotPhotoAfterSubmission ? "사진 첨부 가능 여부는 제출 기록에서 확인해요." : "사진은 자동 저장하지 않으며, 제출할 때만 업로드됩니다."}</small>
+         </aside>
+
+         <div className="reviewer-actions">
+           <button type="button" className="reviewer-secondary" disabled={step === 1 || publishing || preparingPhotos} onClick={() => setStep((current) => Math.max(1, current - 1))}>이전</button>
+           {step < 5 ? (
+             <button type="button" className="reviewer-primary" disabled={!canContinue || publishing || preparingPhotos} onClick={continueReview}>
+-              {step === 1 ? "다음: 평가" : step === 2 ? "다음: 맛 배지" : step === 3 ? "다음: 사진·Golden" : "다음: 확인"}
++              {step === 1 ? "다음: 평가" : step === 2 ? "다음: 맛 배지" : step === 3 ? `다음: ${photoStepLabel}` : "다음: 확인"}
+             </button>
+           ) : (
+             <button type="submit" className="reviewer-primary" disabled={!selectedPlace || !selectedCategory || !evaluation || !canPublishGolden || publishing || preparingPhotos}>{publishing ? "제출 중…" : "검수 요청"}</button>
+@@ -509,6 +533,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
          {history.length ? <div className="reviewer-history-list">{history.map((review) => {
            const reviewBadges = parseBadges(review.badgesJson).slice(0, 2);
            const firstPhoto = review.photos[0];
@@ -54,7 +159,7 @@
            return (
              <article className="reviewer-history-row" data-has-photo={firstPhoto ? "true" : undefined} key={review.id} id={`review-${review.id}`}>
                {firstPhoto ? <img className="reviewer-history-thumb" src={firstPhoto.url} alt="" loading="lazy" /> : null}
-@@ -526,7 +528,8 @@
+@@ -526,7 +551,8 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
                  </div> : null}
                </div>
                <div className="reviewer-history-summary">
@@ -165,33 +270,39 @@
              <div>
 --- a/app/routes/reviewer-ratings.tsx
 +++ b/app/routes/reviewer-ratings.tsx
-@@ -17,6 +17,7 @@
+@@ -17,6 +17,7 @@ import {
  } from "../features/ratings/reviewer-visit.server";
  import { reviewerSubmissionPlaceCondition } from "../features/ratings/reviewer-publication.server";
  import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit-publish.server";
-+import { listPilotPhotoHistoryLinks } from "../features/ratings/student-review-pilot-photo.server";
++import { canAdmitPilotPhotoAuthor, listPilotPhotoHistoryLinks } from "../features/ratings/student-review-pilot-photo.server";
 
  export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
 
-@@ -63,6 +64,14 @@
+@@ -63,6 +64,17 @@ export async function loader({ request }: Route.LoaderArgs) {
      && (requestedNotice === "review-submitted" || requestedNotice === "review-with-photos-submitted" || requestedNotice === "review-updated" || requestedNotice === "review-withdrawn")
      ? requestedNotice
      : null;
-+  const pilotPhotoReviewIds = env.STUDENT_REVIEW_PILOT_PHOTOS && history.length
-+    ? await listPilotPhotoHistoryLinks(db, {
-+      userId: user.id,
-+      reviewIds: history.map(({ id }) => id),
-+      seats: env.STUDENT_WORKSPACE_ENABLED === "true" ? env.STUDENT_REVIEW_PILOT_SEATS : undefined,
-+      now,
-+    }).catch(() => [])
-+    : [];
++  const photoUploadEnabled = env.REVIEW_PHOTO_UPLOAD_ENABLED === "true";
++  const pilotPhotoSeats = env.STUDENT_WORKSPACE_ENABLED === "true" ? env.STUDENT_REVIEW_PILOT_SEATS : undefined;
++  const pilotPhotoAuthor = { userId: user.id, seats: pilotPhotoSeats, now };
++  const [pilotPhotoReviewIds, pilotPhotoAfterSubmission] = await Promise.all([
++    env.STUDENT_REVIEW_PILOT_PHOTOS && history.length
++      ? listPilotPhotoHistoryLinks(db, { ...pilotPhotoAuthor, reviewIds: history.map(({ id }) => id) }).catch(() => [])
++      : [],
++    env.STUDENT_REVIEW_PILOT_PHOTOS && canSubmit && !photoUploadEnabled
++      ? canAdmitPilotPhotoAuthor(db, pilotPhotoAuthor).catch(() => false)
++      : false,
++  ]);
    const lastReview = history.at(-1);
    const historyNextHref = history.length === 12 && lastReview ? `/reviewer/ratings?${new URLSearchParams({ beforeUpdatedAt: lastReview.updatedAt, beforeId: lastReview.id })}` : null;
    return {
-@@ -76,6 +85,7 @@
+@@ -75,7 +87,9 @@ export async function loader({ request }: Route.LoaderArgs) {
+     goldenQuota,
      publishedReviewId,
      notice,
-     photoUploadEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED === "true",
+-    photoUploadEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED === "true",
++    photoUploadEnabled,
++    pilotPhotoAfterSubmission,
 +    pilotPhotoReviewIds,
    };
  }

@@ -76,6 +76,12 @@ function admission(userId: string, seats: string | undefined, now: SQLWrapper) {
   );
 }
 
+export async function canAdmitPilotPhotoAuthor(db: AppDb, input: Omit<ReviewInput, "reviewId">) {
+  if (seatCodes(input.seats).length === 0) return false;
+  const result = await db.get<{ allowed: number }>(sql`select ${admission(input.userId, input.seats, effectiveTime(input.now))} as allowed`);
+  return result?.allowed === 1;
+}
+
 function reviewCanHavePhoto() {
   return and(
     eligibleReviewPlaceCondition(places.id),

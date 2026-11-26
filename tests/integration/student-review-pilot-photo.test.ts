@@ -91,10 +91,29 @@ it("runs two A/B photos on the exact 56 ledger plus 0065, with private intake, v
   const bucket = env.PILOT_TEST_PHOTOS;
   const pilotEnvironment = {
     ...env, DB: database, REVIEW_PHOTO_UPLOAD_ENABLED: "false",
-    STUDENT_REVIEW_PILOT_PHOTOS: bucket, STUDENT_REVIEW_PILOT_SEATS: "A,B",
+    STUDENT_WORKSPACE_ENABLED: "true", STUDENT_REVIEW_PILOT_PHOTOS: bucket, STUDENT_REVIEW_PILOT_SEATS: "A,B",
   };
+  const readAvailability = (session: string) => reviewHistory({
+    request: request("/reviewer/ratings", session),
+  } as never);
+  await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: "A" }, async () => {
+    expect(await readAvailability(a.session)).toMatchObject({ pilotPhotoAfterSubmission: true, pilotPhotoReviewIds: [] });
+    expect(await readAvailability(b.session)).toMatchObject({ pilotPhotoAfterSubmission: false, pilotPhotoReviewIds: [] });
+  });
+  await withEnv({ ...pilotEnvironment, STUDENT_WORKSPACE_ENABLED: "false" }, async () => {
+    expect(await readAvailability(a.session)).toMatchObject({ pilotPhotoAfterSubmission: false });
+  });
+  await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_PHOTOS: undefined }, async () => {
+    expect(await readAvailability(a.session)).toMatchObject({ pilotPhotoAfterSubmission: false });
+  });
 
   await withEnv(pilotEnvironment, async () => {
+    for (const reviewer of [a, b, c]) {
+      expect(await readAvailability(reviewer.session)).toMatchObject({
+        pilotPhotoAfterSubmission: reviewer !== c, photoUploadEnabled: false, pilotPhotoReviewIds: [],
+      });
+    }
+
     const makeReview = async (session: string) => {
       const body = new FormData();
       for (const [key, value] of Object.entries({
