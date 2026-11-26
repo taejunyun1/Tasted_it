@@ -1,0 +1,35 @@
+{
+  "sourceSha": "644d6a30d895e23e0bfea7d9b130c1afb11c9d4c",
+  "appTree": "518bea92f4714e140a114eed3dae3e6b036f426f",
+  "baselineSha": "bc7241da3650cbd2e61f6a5c09aec4e5dbc9df3f",
+  "verifiedAt": "2026-11-22T13:18:41+09:00",
+  "environment": "컴파일한 앱과 격리된 로컬 D1 사본. 합성 검수 항목 및 로컬 테스트 관리자 세션을 사용했다.",
+  "checks": {
+    "browserBaseline": "Chromium에서 정상 조회 HTTP 200, 로컬 사용량 테이블을 임시로 바꾸면 HTTP 500을 재현했다.",
+    "browserFixed": {
+      "passed": 2,
+      "projects": [
+        "Chromium",
+        "Mobile Chromium (Pixel 7)"
+      ]
+    },
+    "targetedUnitPassed": 8,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "productionDependencyAudit": "PASS",
+    "diffCheck": "PASS"
+  },
+  "scope": [
+    "정상 조회에서는 실제 지역별 사용량과 한도를 표시한다.",
+    "사용량 조회가 실패해도 검수 요청은 HTTP 200을 반환한다. 사용량 조회 실패를 알리고 수치를 숨긴다. 합성 검수 항목 선택과 수동 다음 단계 버튼 활성화를 확인했다.",
+    "테이블명을 복구하고 다시 불러오면 이전 지역별 수치가 다시 표시된다. 검증 종료 후 합성 항목과 임시 테이블명이 남아 있지 않음을 확인했다."
+  ],
+  "screenshots": {
+    "desktop": "desktop-quota-unavailable.png",
+    "mobile": "mobile-quota-unavailable.png"
+  },
+  "limits": [
+    "조회 실패 중 화면과 수동 검수 항목 선택까지 확인했다. NAVER 호출, 검수 상태 변경, 공개 처리는 실행하지 않았다.",
+    "운영 배포·마이그레이션이나 전체 main과 기존 운영 스키마의 호환성은 별도 검증이 필요하다."
+  ]
+}
