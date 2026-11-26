@@ -1,0 +1,59 @@
+{
+  "revision": "8669f1dae3e928a38cda08713f43165b7957e000",
+  "buildSha256": "70c165ad7d3ce392e6030c70beffc3956e9dab4eec35414a5c8c51e7ab940c40",
+  "localMigrations": 59,
+  "generalVenueRows": 78,
+  "cases": 156,
+  "viewports": [
+    1280,
+    320
+  ],
+  "perViewport": {
+    "instagram": 40,
+    "threads": 1,
+    "youtube": 16,
+    "jpeg": 4,
+    "link": 8,
+    "none": 9
+  },
+  "singleOriginalAnchor": true,
+  "mockProviderFrames": true,
+  "syntheticJpegBytes": true,
+  "nativeResults": [
+    {
+      "name": "사거리통골뱅이",
+      "width": 1280,
+      "playback": true,
+      "time": 0.777763,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    },
+    {
+      "name": "오비수산",
+      "width": 1280,
+      "playback": true,
+      "time": 0.560473,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    },
+    {
+      "name": "사거리통골뱅이",
+      "width": 320,
+      "playback": true,
+      "time": 0.455852,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    },
+    {
+      "name": "오비수산",
+      "width": 320,
+      "playback": true,
+      "time": 0.940981,
+      "singleOriginLink": true,
+      "providerOriginOnly": true
+    }
+  ],
+  "workerOutboundAttempts": 0,
+  "configurationScope": "LOCAL",
+  "productionChanged": false
+}
