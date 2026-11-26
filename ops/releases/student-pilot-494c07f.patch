@@ -1,0 +1,228 @@
+--- a/app/cloudflare-env.d.ts
++++ b/app/cloudflare-env.d.ts
+@@ -22,6 +22,8 @@
+     KAKAO_PLACE_VERIFICATION_ENABLED: string;
+     KAKAO_PLACE_VERIFICATION_MODE: string;
+     REVIEW_PHOTO_UPLOAD_ENABLED: string;
++    STUDENT_REVIEW_PILOT_SEATS?: string;
++    STUDENT_REVIEW_PILOT_PHOTOS?: R2Bucket;
+     PLACE_CATEGORY_V5_ENABLED: string;
+     COURSE_CONTEXT_V2_ENABLED: string;
+     REVIEW_CONFIDENT_ADVANCE_ENABLED: string;
+--- a/app/components/places/PlaceDetailSheet.tsx
++++ b/app/components/places/PlaceDetailSheet.tsx
+@@ -41,6 +41,15 @@
+           {data.place.tempCatalog && <TempCatalogNotice info={data.place.tempCatalog} />}
+           <address>{data.place.address}</address>
+           {data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
++          {data.pilotPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="pilot-sheet-photo-title">
++            <div><h2 id="pilot-sheet-photo-title">학생 리뷰어 방문 사진</h2></div>
++            <div>
++              {data.pilotPhotos.map((photo) => <figure key={photo.id}>
++                <img src={photo.url} alt={`${data.place.name} 방문 리뷰 사진`} loading="lazy" />
++                <figcaption><a className="text-xs underline" href={`/reviewers/${encodeURIComponent(photo.reviewerSlug)}`}>사진 출처 · {photo.reviewerDisplayName}</a></figcaption>
++              </figure>)}
++            </div>
++          </section>}
+           <div className="place-detail-sheet__score"><strong>{data.rating.overallScore === null ? `${data.rating.overallSampleCount}/8` : `${data.rating.overallScore}%`}</strong><span>{data.rating.overallScore === null ? "평가 공개까지" : "추천 지표"}</span></div>
+           <div className="place-detail-sheet__breakdown"><span>일반 회원 <b>{data.rating.userScore ?? `${data.rating.userSampleCount}/8`}</b></span><span>리뷰어 <b>{data.rating.reviewerScore ?? `${data.rating.reviewerSampleCount}/8`}</b></span></div>
+           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
+--- a/app/components/reviewer-visit-flow.tsx
++++ b/app/components/reviewer-visit-flow.tsx
+@@ -58,6 +58,7 @@
+   goldenQuota: { used: number; limit: number; remaining: number };
+   publishedReviewId: string | null;
+   photoUploadEnabled: boolean;
++  pilotPhotoReviewIds?: string[];
+   notice: "review-submitted" | "review-with-photos-submitted" | "review-updated" | "review-withdrawn" | null;
+ };
+
+@@ -98,7 +99,7 @@
+   }
+ }
+
+-export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, notice }: Props) {
++export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, pilotPhotoReviewIds = [], notice }: Props) {
+   const fetcher = useFetcher<{ ok: false; error: string }>();
+   const [step, setStep] = useState(1);
+   const [placeId, setPlaceId] = useState("");
+@@ -509,6 +510,7 @@
+         {history.length ? <div className="reviewer-history-list">{history.map((review) => {
+           const reviewBadges = parseBadges(review.badgesJson).slice(0, 2);
+           const firstPhoto = review.photos[0];
++          const hasPilotPhotoLink = pilotPhotoReviewIds.includes(review.id);
+           return (
+             <article className="reviewer-history-row" data-has-photo={firstPhoto ? "true" : undefined} key={review.id} id={`review-${review.id}`}>
+               {firstPhoto ? <img className="reviewer-history-thumb" src={firstPhoto.url} alt="" loading="lazy" /> : null}
+@@ -526,7 +528,8 @@
+                 </div> : null}
+               </div>
+               <div className="reviewer-history-summary">
+-                <span className="reviewer-history-photo-count">{review.photos.length ? `사진 ${review.photos.length}장` : "사진 없음"}</span>
++                {hasPilotPhotoLink && <Link className="reviewer-history-place-link" to={`/reviewer/pilot-photo/${encodeURIComponent(review.id)}`}>실증 사진 관리</Link>}
++                {(!hasPilotPhotoLink || review.photos.length > 0) && <span className="reviewer-history-photo-count">{review.photos.length ? `사진 ${review.photos.length}장` : "사진 없음"}</span>}
+                 <time dateTime={review.publishedAt}>{formatReviewerPublishedDate(review.publishedAt)}</time>
+               </div>
+               {review.reviewReason && <p className="reviewer-moderation-reason">검수 사유: {review.reviewReason}</p>}
+--- a/app/routes.ts
++++ b/app/routes.ts
+@@ -35,7 +35,9 @@
+   route("corrections/verify", "routes/verify-correction.tsx"),
+   route("reviewer/apply", "routes/reviewer-apply.tsx"),
+   route("reviewer/ratings", "routes/reviewer-ratings.tsx"),
++  route("reviewer/pilot-photo/:reviewId", "routes/reviewer-pilot-photo.tsx"),
+   route("review-photos/:photoId", "routes/reviewer-photo.ts"),
++  route("student-review-photos/:photoId", "routes/student-review-photo.ts"),
+   route("reviewers/:slug", "routes/reviewer-profile.tsx"),
+   route("logout", "routes/logout.tsx"),
+   route("admin", "routes/admin-index.tsx"),
+@@ -52,6 +54,7 @@
+   route("admin/reviewers", "routes/admin-reviewers.tsx"),
+   route("admin/ratings", "routes/admin-ratings.tsx"),
+   route("admin/reviewer-visits", "routes/admin-reviewer-visits.tsx"),
++  route("admin/student-review-photos", "routes/admin-student-review-photos.tsx"),
+   route("admin/place-operations", "routes/admin-place-operations.tsx"),
+   route("admin/operations", "routes/admin-operations.tsx"),
+   route("admin/operations/email-domain", "routes/admin-email-domain.ts"),
+--- a/app/routes/admin-reviewer-visits.tsx
++++ b/app/routes/admin-reviewer-visits.tsx
+@@ -34,7 +34,7 @@
+   const reviews = await listReviewerModerationQueue(createDb(env.DB), { actorUserId: admin.id, status, limit: 50, before: cursor });
+   const lastReview = reviews.at(-1);
+   const nextHref = reviews.length === 50 && lastReview ? `?${new URLSearchParams({ status: status ?? "ALL", beforeUpdatedAt: lastReview.updatedAt, beforeId: lastReview.id })}` : null;
+-  return { reviews, status: status ?? "ALL", hasCursor: Boolean(cursor), nextHref };
++  return { reviews, status: status ?? "ALL", hasCursor: Boolean(cursor), nextHref, pilotPhotosConfigured: Boolean(env.STUDENT_REVIEW_PILOT_PHOTOS) };
+ }
+
+ async function readModerationForm(request: Request): Promise<URLSearchParams | Response> {
+@@ -100,6 +100,7 @@
+     <p className="eyebrow">관리자 / 방문 검수</p><h1>방문 리뷰 검수</h1>
+     <p className="reviewer-moderation-notice">방문 근거·사진 권리·개인정보·장소 일치를 확인한 현재 버전만 승인하세요. 승인 전 자료와 공개 회수 자료는 공개 평가·사진에 반영되지 않습니다.</p>
+     <Link to="/admin/ratings">평가 운영으로</Link>
++    {loaderData.pilotPhotosConfigured && <p><Link to="/admin/student-review-photos">학생 실증 사진 검수</Link></p>}
+     {nativeError && <p role="alert">{reviewerModerationErrorMessage(nativeError)}</p>}
+     {nativeSuccess && <p role="status">검수 결과를 저장했어요.</p>}
+     <nav className="reviewer-moderation-filters" aria-label="방문 검수 상태">
+--- a/app/routes/place-detail.tsx
++++ b/app/routes/place-detail.tsx
+@@ -25,6 +25,7 @@
+ import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
+ import { PlaceInstagramPhoto } from "../components/places/PlaceInstagramPhoto";
+ import { curatedInstagramPhoto } from "../features/poi-media/instagram-photos";
++import { listPublicPilotPhotos } from "../features/ratings/student-review-pilot-photo.server";
+
+ const actionSchema = z.discriminatedUnion("intent", [
+   z.object({
+@@ -93,13 +94,14 @@
+   const officialPhoto = !place.heroImageUrl && !place.tempCatalog
+     ? curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED)
+     : null;
+-  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible] = await Promise.all([
++  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible, pilotPhotos] = await Promise.all([
+     getLatestRatingSnapshot(db, place.id),
+     getPlaceFlavorPrint(db, place.id),
+     listActiveGoldenPicks(db, now),
+     getHiddenGemStatus(db, { placeId: place.id, now }),
+     listPublishedPlaceReviewPhotos(db, place.id, 12),
+     officialPhoto ? isEligibleOfficialPhotoPlace(db, place).catch(() => false) : false,
++    env.STUDENT_REVIEW_PILOT_PHOTOS ? listPublicPilotPhotos(db, place.id).catch(() => []) : [],
+   ]);
+   const rating = snapshot ? {
+     overallScore: snapshot.overallScore,
+@@ -136,7 +138,7 @@
+   const returnTo = provenance
+     ? `${new URL(request.url).pathname}${new URL(request.url).search}`
+     : `/places/${place.slug}`;
+-  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
++  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, pilotPhotos, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+ }
+
+ export async function action({ request, params }: Route.ActionArgs) {
+@@ -209,7 +211,7 @@
+ }
+
+ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
+-  const { place, rating, flavorPrint, reviewPhotos, instagramPhoto } = loaderData;
++  const { place, rating, flavorPrint, reviewPhotos, pilotPhotos, instagramPhoto } = loaderData;
+   const query = encodeURIComponent(place.address);
+   return (
+     <main id="main" className="detail shell">
+@@ -230,6 +232,15 @@
+           <VoteControl placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />
+           <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
+           <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
++          {pilotPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="pilot-review-photo-title">
++            <div><h2 id="pilot-review-photo-title">학생 리뷰어 방문 사진</h2></div>
++            <div>
++              {pilotPhotos.map((photo) => <figure key={photo.id}>
++                <img src={photo.url} alt={`${place.name} 방문 리뷰 사진`} loading="lazy" />
++                <figcaption><a className="text-xs underline" href={`/reviewers/${encodeURIComponent(photo.reviewerSlug)}`}>사진 출처 · {photo.reviewerDisplayName}</a></figcaption>
++              </figure>)}
++            </div>
++          </section>}
+           {reviewPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="review-photo-gallery-title">
+             <div><p className="eyebrow">REVIEWER / PHOTO</p><h2 id="review-photo-gallery-title">리뷰어가 남긴 사진</h2></div>
+             <div>
+--- a/app/routes/reviewer-ratings.tsx
++++ b/app/routes/reviewer-ratings.tsx
+@@ -17,6 +17,7 @@
+ } from "../features/ratings/reviewer-visit.server";
+ import { reviewerSubmissionPlaceCondition } from "../features/ratings/reviewer-publication.server";
+ import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit-publish.server";
++import { listPilotPhotoHistoryLinks } from "../features/ratings/student-review-pilot-photo.server";
+
+ export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
+
+@@ -63,6 +64,14 @@
+     && (requestedNotice === "review-submitted" || requestedNotice === "review-with-photos-submitted" || requestedNotice === "review-updated" || requestedNotice === "review-withdrawn")
+     ? requestedNotice
+     : null;
++  const pilotPhotoReviewIds = env.STUDENT_REVIEW_PILOT_PHOTOS && history.length
++    ? await listPilotPhotoHistoryLinks(db, {
++      userId: user.id,
++      reviewIds: history.map(({ id }) => id),
++      seats: env.STUDENT_WORKSPACE_ENABLED === "true" ? env.STUDENT_REVIEW_PILOT_SEATS : undefined,
++      now,
++    }).catch(() => [])
++    : [];
+   const lastReview = history.at(-1);
+   const historyNextHref = history.length === 12 && lastReview ? `/reviewer/ratings?${new URLSearchParams({ beforeUpdatedAt: lastReview.updatedAt, beforeId: lastReview.id })}` : null;
+   return {
+@@ -76,6 +85,7 @@
+     publishedReviewId,
+     notice,
+     photoUploadEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED === "true",
++    pilotPhotoReviewIds,
+   };
+ }
+
+--- a/workers/app.ts
++++ b/workers/app.ts
+@@ -7,6 +7,8 @@
+ import { runScheduledParkingSync } from "../app/features/parking/scheduled-parking.server";
+ import { runScheduledOnboardingDataLifecycle } from "../app/features/onboarding/data-lifecycle.server";
+ import { isRsiCron } from "../app/features/operations/rsi-self-check";
++import { createDb } from "../app/db/client.server";
++import { cleanupPilotPhotos } from "../app/features/ratings/student-review-pilot-photo.server";
+ import { handleRsiOnDemandRequest, runScheduledRsiSelfCheck } from "../app/features/operations/rsi-self-check.server";
+
+ const requestHandler = createRequestHandler(
+@@ -14,7 +16,7 @@
+   import.meta.env.MODE,
+ );
+
+-export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED">>({
++export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED" | "STUDENT_REVIEW_PILOT_PHOTOS">>({
+   async fetch(request, env) {
+     const rsi = await handleRsiOnDemandRequest(request, env);
+     if (rsi) return withSecurityHeaders(rsi, request);
+@@ -25,6 +27,9 @@
+       ctx.waitUntil(runScheduledRsiSelfCheck(env));
+       return;
+     }
++    if (env.STUDENT_REVIEW_PILOT_PHOTOS) {
++      ctx.waitUntil(cleanupPilotPhotos(createDb(env.DB), env.STUDENT_REVIEW_PILOT_PHOTOS, new Date().toISOString()));
++    }
+     ctx.waitUntil(Promise.all([
+       runScheduledCandidateSync(env),
+       runScheduledRatingMaintenance(env),
