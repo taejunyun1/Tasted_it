@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
-import { placeSuggestions, reviewerApplications, reviewerProfiles, sessions, users } from "../../app/db/schema";
+import { placeSuggestions, reviewerApplications, reviewerProfiles, sessions, studentInvitations, studentSeats, users } from "../../app/db/schema";
 import { loader as mySuggestions } from "../../app/routes/my-suggestions";
 import { loader as reviewerApply } from "../../app/routes/reviewer-apply";
 import { loader as publicReviewer } from "../../app/routes/reviewer-profile";
@@ -92,4 +92,28 @@ it("returns only reviewer application status and offers a link only while the pu
       await expect(profile()).rejects.toMatchObject({ status: 404 });
     }
   }
+});
+
+it("publishes direct verification while keeping participant occupations private", async () => {
+  const { db, owners } = await ownerFixture();
+  const owner = owners[0]!;
+  const profile = () => publicReviewer({ params: { slug: owner.slug } } as never);
+  await expect(profile()).resolves.toMatchObject({
+    profile: { directlyVerified: false, occupation: "합성 활동 소개" },
+  });
+
+  await db.update(reviewerProfiles).set({ occupation: "합성 비공개 학생 신분" }).where(eq(reviewerProfiles.userId, owner.id));
+  await db.update(studentSeats).set({ userId: owner.id }).where(eq(studentSeats.code, "A"));
+  await expect(profile()).resolves.toMatchObject({
+    profile: { displayName: owner.name, directlyVerified: true, occupation: null },
+  });
+
+  await db.insert(studentInvitations).values({
+    id: crypto.randomUUID(), tokenHash: crypto.randomUUID(), seatCode: "A",
+    createdAt: now, expiresAt: now, consumedAt: now, consumedBy: owner.id,
+  });
+  await db.update(studentSeats).set({ userId: null }).where(eq(studentSeats.code, "A"));
+  await expect(profile()).resolves.toMatchObject({
+    profile: { displayName: owner.name, directlyVerified: true, occupation: null },
+  });
 });

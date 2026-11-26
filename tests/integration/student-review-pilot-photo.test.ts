@@ -200,7 +200,9 @@ it("runs two A/B photos on the exact 56 ledger plus 0065, with private intake, v
       photoRecords.push({ ...row!, reviewId, reviewer });
     }
 
-    expect(await listPublicPilotPhotos(createDb(database), placeId)).toHaveLength(2);
+    const publicPhotos = await listPublicPilotPhotos(createDb(database), placeId);
+    expect(publicPhotos).toHaveLength(2);
+    expect(publicPhotos.every((photo) => photo.directlyVerified)).toBe(true);
     await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: undefined }, async () => {
       for (const { id, reviewId, reviewer } of photoRecords) {
         const path = `/reviewer/pilot-photo/${reviewId}`;

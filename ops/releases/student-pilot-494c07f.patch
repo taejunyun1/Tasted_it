@@ -16,7 +16,7 @@
            <address>{data.place.address}</address>
            {data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
 +          {data.pilotPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="pilot-sheet-photo-title">
-+            <div><h2 id="pilot-sheet-photo-title">학생 리뷰어 방문 사진</h2></div>
++            <div><h2 id="pilot-sheet-photo-title">직접인증 방문 사진</h2></div>
 +            <div>
 +              {data.pilotPhotos.map((photo) => <figure key={photo.id}>
 +                <img src={photo.url} alt={`${data.place.name} 방문 리뷰 사진`} loading="lazy" />
@@ -257,7 +257,7 @@
            <p><Link to={`/corrections/new?${new URLSearchParams({ placeId: place.id })}`}>이 장소 정보 정정 요청</Link></p>
            <div className="directions"><a href={`https://map.naver.com/p/search/${query}`} target="_blank" rel="noreferrer">네이버 지도에서 길찾기</a></div>
 +          {pilotPhotos.length > 0 && <section className="review-photo-gallery" aria-labelledby="pilot-review-photo-title">
-+            <div><h2 id="pilot-review-photo-title">학생 리뷰어 방문 사진</h2></div>
++            <div><h2 id="pilot-review-photo-title">직접인증 방문 사진</h2></div>
 +            <div>
 +              {pilotPhotos.map((photo) => <figure key={photo.id}>
 +                <img src={photo.url} alt={`${place.name} 방문 리뷰 사진`} loading="lazy" />

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, like, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, like, ne, or, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
@@ -106,13 +106,19 @@ export async function applyReviewerDormancy(db: AppDb, input: { actorUserId: str
 }
 
 export async function getPublicReviewerProfile(db: AppDb, slug: string) {
-  const [row] = await db.select({ profile: reviewerProfiles, displayName: users.displayName, email: users.email }).from(reviewerProfiles)
+  const [row] = await db.select({
+    profile: reviewerProfiles,
+    displayName: users.displayName,
+    email: users.email,
+    directlyVerified: sql<boolean>`(exists(select 1 from student_seats where user_id=${reviewerProfiles.userId})
+      or exists(select 1 from student_invitations where consumed_by=${reviewerProfiles.userId} and consumed_at is not null))`.mapWith(Boolean),
+  }).from(reviewerProfiles)
     .innerJoin(users, eq(users.id, reviewerProfiles.userId))
     .where(and(eq(reviewerProfiles.slug, slug), eq(reviewerProfiles.status, "ACTIVE"), eq(users.role, "REVIEWER"))).limit(1);
   if (!row || isWithdrawnEmail(row.email)) return null;
   const specialtySlugs = parseSlugs(row.profile.specialtySlugs);
   const specialtyRows = specialtySlugs.length ? await db.select({ slug: categories.slug, name: categories.name, emoji: categories.emoji }).from(categories).where(inArray(categories.slug, specialtySlugs)) : [];
-  return { ...row.profile, displayName: row.displayName, specialties: specialtyRows };
+  return { ...row.profile, displayName: row.displayName, directlyVerified: row.directlyVerified, specialties: specialtyRows };
 }
 
 export async function getReviewerDashboard(db: AppDb, userId: string) {
