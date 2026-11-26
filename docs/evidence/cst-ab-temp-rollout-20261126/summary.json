@@ -1,0 +1,125 @@
+{
+  "revision": "8da68cfd1d10901df86be6aecce0a0e89a02a685",
+  "placeChoicePatchSha256": "0bddb4c0d9b90a8e9d18d618c361365f42857c90a8f1dc4854c4f7dba1cc09ab",
+  "profilePhotoPatchSha256": "a43ce6ecc6460f8d05d5fd3547897ba43583eb25e37e70046ac87f51881dba90",
+  "normalizedConfigMatchesPr561": true,
+  "unchangedBaselineAndPhotoRules": true,
+  "variants": {
+    "closed": {
+      "seats": null,
+      "buildSha256": "6e68b78dd7ea40d88863a779dc0df24f7513b237978621c74c0d88163fbc17d6",
+      "configSha256": "02845cee0b3299d2c33826db0f42b0c1f06ed80e89fdd0b718690f68454b1743"
+    },
+    "a": {
+      "seats": "A",
+      "buildSha256": "dfc581bb52bd1892bad4b5848b0b22b72ba34b8d7ca66bb7fb18bae748b8878c",
+      "configSha256": "425d9ac352e4552bc7e20b378846b5a36304ae5569278a86c6b4614691dca68d"
+    },
+    "ab": {
+      "seats": "A,B",
+      "buildSha256": "c7a7a8f0efc3029d10c9f718d0688d37fec0b98f8821d87ff1c43ef00b84081e",
+      "configSha256": "8cdcb7c6381763ccaf2951d613151aca077118de7f71c24fc1f750588073b7f8"
+    }
+  },
+  "strictDryRuns": {
+    "closed": true,
+    "a": true,
+    "ab": true
+  },
+  "placePicker": {
+    "revision": "8da68cfd1d10901df86be6aecce0a0e89a02a685",
+    "buildSha256": "48380c4fddc030321b393b1ccaa34b8f28130b6c1f5ef12924d707c7b8c76ed7",
+    "configSha256": "144f93fd64a272fa8d66980be469a142e7a29c3203725802b33e9a48f34e706f",
+    "migrations": 59,
+    "pilotSeats": "A",
+    "evidence": [
+      {
+        "viewportWidth": 1366,
+        "scrollWidth": 1366,
+        "tempVisible": true,
+        "tempDisabled": true,
+        "ordinarySelected": true,
+        "ordinaryContinuedToEvaluation": true
+      },
+      {
+        "viewportWidth": 320,
+        "scrollWidth": 320,
+        "tempVisible": true,
+        "tempDisabled": true,
+        "ordinarySelected": true,
+        "ordinaryContinuedToEvaluation": true
+      }
+    ],
+    "ordinaryWorkflowBTempSelectable": true,
+    "ordinaryWorkflowBContinuedToEvaluation": true,
+    "offPageTempDraftResourceHttp": 200,
+    "offPageTempDraftCleared": true,
+    "visitRows": 0,
+    "pilotPhotoObjects": 0,
+    "workerExternalRequests": 0,
+    "productionChanged": false
+  },
+  "placeProfilePhoto": {
+    "revision": "8da68cfd1d10901df86be6aecce0a0e89a02a685",
+    "buildSha256": "48380c4fddc030321b393b1ccaa34b8f28130b6c1f5ef12924d707c7b8c76ed7",
+    "configSha256": "144f93fd64a272fa8d66980be469a142e7a29c3203725802b33e9a48f34e706f",
+    "migrations": 59,
+    "placeEvidence": [
+      {
+        "viewportWidth": 1366,
+        "placeHttp": 200,
+        "imageHttp": 200,
+        "sharedPhotoPath": true,
+        "sharedImageHash": "06f917451c0e860b7130d903f752fba4098b3bd72a23630c61972cec1ce3a8d2",
+        "creditedProfileNavigation": true
+      },
+      {
+        "viewportWidth": 320,
+        "placeHttp": 200,
+        "imageHttp": 200,
+        "sharedPhotoPath": true,
+        "sharedImageHash": "06f917451c0e860b7130d903f752fba4098b3bd72a23630c61972cec1ce3a8d2",
+        "creditedProfileNavigation": true
+      }
+    ],
+    "pendingPlace": {
+      "placeHttp": 200,
+      "photoPathAbsent": true,
+      "approvedAuthorCreditPresent": true
+    },
+    "retiredPlace": {
+      "placeHttp": 200,
+      "photoPathAbsent": true,
+      "approvedAuthorCreditPresent": true
+    },
+    "withdrawnPlace": {
+      "placeHttp": 200,
+      "photoPathAbsent": true,
+      "approvedAuthorCreditPresent": true
+    },
+    "publishedPhotoHash": "06f917451c0e860b7130d903f752fba4098b3bd72a23630c61972cec1ce3a8d2",
+    "publishedPhotoBytes": 7061,
+    "publicGetAndHead": [
+      200,
+      200
+    ],
+    "pendingGetAndHead": [
+      404,
+      404
+    ],
+    "retiredGetAndHead": [
+      404,
+      404
+    ],
+    "withdrawalGetAndHead": [
+      404,
+      404
+    ],
+    "approvedVisitRemainsAfterPhotoWithdrawal": true,
+    "pilotSeatsConfigured": false,
+    "syntheticProfileOnly": true,
+    "privateCaptionAndOccupationAbsent": true,
+    "workerExternalRequests": 0,
+    "productionChanged": false
+  }
+}
