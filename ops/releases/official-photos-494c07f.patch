@@ -1,0 +1,97 @@
+diff --git a/app/cloudflare-env.d.ts b/app/cloudflare-env.d.ts
+index 72ac2fb..8da87aa 100644
+--- a/app/cloudflare-env.d.ts
++++ b/app/cloudflare-env.d.ts
+@@ -11,0 +12 @@ declare namespace Cloudflare {
++    POI_INSTAGRAM_PHOTO_ENABLED?: string;
+diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
+index 669b9d3..15dedd6 100644
+--- a/app/components/places/PlaceDetailSheet.tsx
++++ b/app/components/places/PlaceDetailSheet.tsx
+@@ -6,0 +7 @@ import { GuestSaveControl } from "../onboarding/GuestSaveControl";
++import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
+@@ -36 +37 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
+-        <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>
++        {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
+@@ -41,0 +43 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
++          {data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
+diff --git a/app/features/http/security-headers.ts b/app/features/http/security-headers.ts
+index 517ded3..fa04388 100644
+--- a/app/features/http/security-headers.ts
++++ b/app/features/http/security-headers.ts
+@@ -1,0 +2 @@ import { NO_STORE_HEADERS } from "../students/policy";
++import { INSTAGRAM_PHOTO_FRAME_SOURCES } from "../poi-media/instagram-photos";
+@@ -45 +46 @@ function isPrivateWorkspaceRequest(request: Request) {
+-export function withSecurityHeaders(response: Response, request?: Request) {
++export function withSecurityHeaders(response: Response, request?: Request, instagramPhotosEnabled?: string) {
+@@ -46,0 +48,4 @@ export function withSecurityHeaders(response: Response, request?: Request) {
++  if (instagramPhotosEnabled === "true" && INSTAGRAM_PHOTO_FRAME_SOURCES
++    && headers.get("Content-Type")?.startsWith("text/html") && !response.headers.has("Content-Security-Policy")) {
++    headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${INSTAGRAM_PHOTO_FRAME_SOURCES}`));
++  }
+diff --git a/app/features/places/place.server.ts b/app/features/places/place.server.ts
+index 2c12e54..d7e3666 100644
+--- a/app/features/places/place.server.ts
++++ b/app/features/places/place.server.ts
+@@ -161,0 +162,16 @@ function publicConditions(filters: PlaceFilters, slug?: string) {
++export async function isEligibleOfficialPhotoPlace(db: AppDb, place: { id: string; name: string; address: string }) {
++  const [eligible] = await db.select({ id: places.id }).from(places)
++    .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
++    .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
++    .where(and(
++      publicConditions({}),
++      eq(places.id, place.id),
++      eq(places.name, place.name),
++      eq(places.address, place.address),
++      sql`${places.closedAt} is null`,
++      sql`not exists (select 1 from temp_catalog_entries t join temp_catalog_batches b
++        on b.id=t.batch_id where t.place_id=${places.id} and b.status='PUBLISHED')`,
++    )).limit(1);
++  return Boolean(eligible);
++}
++
+diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
+index b05431a..c149bd0 100644
+--- a/app/routes/place-detail.tsx
++++ b/app/routes/place-detail.tsx
+@@ -6 +6 @@ import { createDb } from "../db/client.server";
+-import { getPlaceBySlug, resolvePlaceSlugRedirect } from "../features/places/place.server";
++import { getPlaceBySlug, isEligibleOfficialPhotoPlace, resolvePlaceSlugRedirect } from "../features/places/place.server";
+@@ -25,0 +26,2 @@ import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
++import { PlaceInstagramPhoto } from "../components/places/PlaceInstagramPhoto";
++import { curatedInstagramPhoto } from "../features/poi-media/instagram-photos";
+@@ -91 +93,4 @@ export async function loader({ request, params }: Route.LoaderArgs) {
+-  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos] = await Promise.all([
++  const officialPhoto = !place.heroImageUrl && !place.tempCatalog
++    ? curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED)
++    : null;
++  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible] = await Promise.all([
+@@ -96,0 +102 @@ export async function loader({ request, params }: Route.LoaderArgs) {
++    officialPhoto ? isEligibleOfficialPhotoPlace(db, place).catch(() => false) : false,
+@@ -133 +139 @@ export async function loader({ request, params }: Route.LoaderArgs) {
+-  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
++  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+@@ -206 +212 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
+-  const { place, rating, flavorPrint, reviewPhotos } = loaderData;
++  const { place, rating, flavorPrint, reviewPhotos, instagramPhoto } = loaderData;
+@@ -212 +218,3 @@ export default function PlaceDetail({ loaderData }: Route.ComponentProps) {
+-        <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>
++        {instagramPhoto ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
++          <PlaceInstagramPhoto photo={instagramPhoto} placeName={place.name} />
++        </div> : <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>}
+diff --git a/workers/app.ts b/workers/app.ts
+index a8479f7..312dce6 100644
+--- a/workers/app.ts
++++ b/workers/app.ts
+@@ -17 +17 @@ const requestHandler = createRequestHandler(
+-export default withDeploymentFence<Env>({
++export default withDeploymentFence<Env & Pick<Cloudflare.Env, "POI_INSTAGRAM_PHOTO_ENABLED">>({
+@@ -21 +21 @@ export default withDeploymentFence<Env>({
+-    return withSecurityHeaders(await requestHandler(request), request);
++    return withSecurityHeaders(await requestHandler(request), request, env.POI_INSTAGRAM_PHOTO_ENABLED);
+diff --git a/wrangler.jsonc b/wrangler.jsonc
+index e380675..254b863 100644
+--- a/wrangler.jsonc
++++ b/wrangler.jsonc
+@@ -23,0 +24 @@
++		"POI_INSTAGRAM_PHOTO_ENABLED": "true",
