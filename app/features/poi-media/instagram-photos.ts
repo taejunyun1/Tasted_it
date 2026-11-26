@@ -156,6 +156,12 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전남광주통합특별시 서구 상무민주로76번길 24, 1층 (쌍촌동)",
     shortcode: "DFMrO4iBXBd",
   },
+  {
+    id: "5b49906c-4863-4f89-832a-de2e88674208",
+    name: "전골 부엌",
+    address: "전남광주통합특별시 장흥군 장흥읍 건산동부로 100, 101호, 102호",
+    shortcode: "DfBS9xPT97d",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
