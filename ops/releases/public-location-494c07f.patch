@@ -1,0 +1,322 @@
+diff --git a/app/components/map/HomeCurationCards.tsx b/app/components/map/HomeCurationCards.tsx
+index 309c9fe..bd2a6e0 100644
+--- a/app/components/map/HomeCurationCards.tsx
++++ b/app/components/map/HomeCurationCards.tsx
+@@ -18,0 +19,3 @@ export type HomeCurationPresentationProps = {
++  locating: boolean;
++  locationBlocked: boolean;
++  locationNotice: string | null;
+diff --git a/app/components/map/HomeCurationPanel.tsx b/app/components/map/HomeCurationPanel.tsx
+index b85ee76..42f7e09 100644
+--- a/app/components/map/HomeCurationPanel.tsx
++++ b/app/components/map/HomeCurationPanel.tsx
+@@ -14 +14 @@ export function HomeCurationPanel(props: HomeCurationPresentationProps) {
+-      <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
++      <button type="button" className="home-curation-locate" disabled={props.locating || props.locationBlocked} aria-busy={props.locating} onClick={props.onLocate}>내 위치</button>
+@@ -15,0 +16 @@ export function HomeCurationPanel(props: HomeCurationPresentationProps) {
++    {props.locationNotice && <p className="home-curation-intro" role="status">{props.locationNotice}</p>}
+diff --git a/app/components/map/HomeCurationSheet.tsx b/app/components/map/HomeCurationSheet.tsx
+index 0b72caa..04584d9 100644
+--- a/app/components/map/HomeCurationSheet.tsx
++++ b/app/components/map/HomeCurationSheet.tsx
+@@ -79 +79 @@ export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCuration
+-        <button type="button" className="home-curation-locate" onClick={props.onLocate}>내 위치</button>
++        <button type="button" className="home-curation-locate" disabled={props.locating || props.locationBlocked} aria-busy={props.locating} onClick={props.onLocate}>내 위치</button>
+@@ -82,0 +83 @@ export function HomeCurationSheet({ snap, onSnapChange, ...props }: HomeCuration
++      {props.locationNotice && <p className="home-curation-intro" role="status">{props.locationNotice}</p>}
+diff --git a/app/components/map/MapExplorerPanel.tsx b/app/components/map/MapExplorerPanel.tsx
+index 865cb63..0e91bbf 100644
+--- a/app/components/map/MapExplorerPanel.tsx
++++ b/app/components/map/MapExplorerPanel.tsx
+@@ -14 +14 @@ export interface PublicCategoryGroup {
+-export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, hasSelectedPlace, onSelect, onSearch, onCategory, onLocate, onGroupSelect }: {
++export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, query, category, hasSelectedPlace, onSelect, onSearch, onCategory, locating, locationBlocked, locationNotice, onLocate, onGroupSelect }: {
+@@ -24,0 +25,3 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
++  locating: boolean;
++  locationBlocked: boolean;
++  locationNotice: string | null;
+@@ -69 +72 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
+-        <button type="button" className="map-locate" onClick={onLocate}>◎ 내 주변</button>
++        <button type="button" className="map-locate" disabled={locating || locationBlocked} aria-busy={locating} onClick={onLocate}>◎ 내 주변</button>
+@@ -70,0 +74 @@ export function MapExplorerPanel({ places, groups, regionGroups, clusterLevel, q
++      {locationNotice && <p className="mx-4" role="status">{locationNotice}</p>}
+diff --git a/app/components/map/PlaceMap.tsx b/app/components/map/PlaceMap.tsx
+index 4c8997a..e02995b 100644
+--- a/app/components/map/PlaceMap.tsx
++++ b/app/components/map/PlaceMap.tsx
+@@ -1 +1 @@
+-import { useEffect, useRef, useState } from "react";
++import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+@@ -99 +99 @@ export function mapBoundsDeliveryTarget(input: {
+-export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, initialBounds, locationBounds, locationNotice = null }: {
++export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15, clusters = [], focusCluster = null, markerRanks = {}, deferBounds = false, onSelect, onBounds, onPendingBounds = () => undefined, onZoom = () => undefined, onClusterSelect = () => undefined, onViewportIntent, initialBounds, locationBounds, locationNotice = null }: {
+@@ -113,0 +114 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++  onViewportIntent?: () => void;
+@@ -318,0 +320 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++    if (!map && !qaFallback) return;
+@@ -319,0 +322,8 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
++    onViewportIntent?.();
++  };
++  const handleMapKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
++    const target = event.target;
++    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
++    if (!event.key.startsWith("Arrow") || !(target instanceof Element) || !host.current?.contains(target)) return;
++    if (target.closest("button, input, select, textarea, a, [role=button], [contenteditable=true]")) return;
++    handleViewportIntent();
+@@ -369 +379 @@ export function PlaceMap({ places, selected, clientId, qaMode = false, zoom = 15
+-  return <div className="map-canvas" aria-label="장소 지도" data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent}>
++  return <div className="map-canvas" aria-label="장소 지도" data-map-unavailable={Boolean(error) || undefined} data-focused-place={selected || undefined} data-focused-region={focusCluster?.label} data-map-zoom={zoom} onPointerDown={handleViewportIntent} onWheel={handleViewportIntent} onKeyDownCapture={handleMapKeyDown}>
+diff --git a/app/features/http/security-headers.ts b/app/features/http/security-headers.ts
+index 517ded3..bfdffce 100644
+--- a/app/features/http/security-headers.ts
++++ b/app/features/http/security-headers.ts
+@@ -20 +20 @@ export const SECURITY_HEADERS = {
+-  "Permissions-Policy": "camera=(), microphone=(), payment=(), geolocation=()",
++  "Permissions-Policy": "camera=(), microphone=(), payment=(), geolocation=(self)",
+diff --git a/app/features/maps/location-policy.ts b/app/features/maps/location-policy.ts
+index cfcf3f2..b680841 100644
+--- a/app/features/maps/location-policy.ts
++++ b/app/features/maps/location-policy.ts
+@@ -1 +1 @@
+-import { activeMarketBbox } from "../regions/region-pack";
++import { isCoordinateInActiveMarket, isCoordinateInBounds, type GeoBounds } from "../regions/region-pack";
+@@ -4 +4 @@ import { DEFAULT_BBOX } from "./map-state";
+-export const OUTSIDE_SERVICE_AREA_MESSAGE = "현재 위치는 전라남도 범위 밖에 있습니다.";
++export const OUTSIDE_SERVICE_AREA_MESSAGE = "현재 위치는 광주·전남·전북 탐색 범위 밖에 있습니다.";
+@@ -6,2 +6,10 @@ export const OUTSIDE_SERVICE_AREA_MESSAGE = "현재 위치는 전라남도 범
+-// First-pass client gate for the active launch packs. Exact administrative
+-// polygon matching remains a separate product/data concern.
++// Provincial extremes rounded outward for the browse viewport only.
++// https://www.jeonbuk.go.kr/index.jeonbuk?menuCd=DOM_000000101004000000
++const JEONBUK_BROWSE_BOUNDS: GeoBounds = {
++  minLatitude: 35.28,
++  maxLatitude: 36.16,
++  minLongitude: 125.96,
++  maxLongitude: 127.92,
++};
++
++// Existing public venue rules still determine which results can be displayed.
+@@ -15,3 +23,2 @@ export function resolveLocationViewport({ latitude, longitude }: {
+-  const [west, south, east, north] = activeMarketBbox();
+-  const insideServiceArea = Number.isFinite(latitude) && Number.isFinite(longitude) &&
+-    longitude >= west && longitude <= east && latitude >= south && latitude <= north;
++  const insideBrowseArea = isCoordinateInActiveMarket(latitude, longitude)
++    || isCoordinateInBounds(JEONBUK_BROWSE_BOUNDS, latitude, longitude);
+@@ -19 +26 @@ export function resolveLocationViewport({ latitude, longitude }: {
+-  if (!insideServiceArea) {
++  if (!insideBrowseArea) {
+diff --git a/app/features/maps/use-map-location-request.ts b/app/features/maps/use-map-location-request.ts
+new file mode 100644
+index 0000000..b68a527
+--- /dev/null
++++ b/app/features/maps/use-map-location-request.ts
+@@ -0,0 +1,58 @@
++import { useCallback, useLayoutEffect, useRef, useState } from "react";
++import { resolveLocationViewport } from "./location-policy";
++
++type LocationViewport = ReturnType<typeof resolveLocationViewport>;
++
++const pendingNotice = "현재 위치를 확인하고 있습니다.";
++
++function locationErrorNotice(code: number, deniedNotice?: string) {
++  switch (code) {
++    case 1: return deniedNotice ?? "위치 권한이 꺼져 있습니다. 브라우저 설정에서 허용하거나 장소를 검색해 주세요.";
++    case 3: return "현재 위치 확인 시간이 초과됐습니다. 다시 시도하거나 장소를 검색해 주세요.";
++    default: return "현재 위치를 확인할 수 없습니다. 다시 시도하거나 지도를 직접 움직여 주세요.";
++  }
++}
++
++export function useMapLocationRequest(scope: string, deniedNotice?: string) {
++  const request = useRef<object | null>(null);
++  const [locating, setLocating] = useState(false);
++  const [notice, setNotice] = useState<string | null>(null);
++
++  useLayoutEffect(() => {
++    setLocating(false);
++    return () => { request.current = null; };
++  }, [scope]);
++
++  const clearLocation = useCallback(() => {
++    request.current = null;
++    setLocating(false);
++    setNotice(null);
++  }, []);
++
++  function locate(apply: (result: LocationViewport) => string | null) {
++    if (request.current) return;
++    const geolocation = navigator.geolocation;
++    if (typeof geolocation?.getCurrentPosition !== "function") {
++      setNotice("이 브라우저는 현재 위치를 지원하지 않습니다. 지도를 직접 움직이거나 장소를 검색해 주세요.");
++      return;
++    }
++
++    const token = {};
++    request.current = token;
++    setLocating(true);
++    setNotice(null);
++    const finish = () => {
++      if (request.current !== token) return false;
++      request.current = null;
++      setLocating(false);
++      return true;
++    };
++    geolocation.getCurrentPosition(({ coords }) => {
++      if (finish()) setNotice(apply(resolveLocationViewport(coords)));
++    }, (error) => {
++      if (finish()) setNotice(locationErrorNotice(error.code, deniedNotice));
++    }, { enableHighAccuracy: true, timeout: 8_000 });
++  }
++
++  return { locating, notice: locating ? pendingNotice : notice, clearLocation, locate };
++}
+diff --git a/app/routes/home.tsx b/app/routes/home.tsx
+index 338fff4..35d6632 100644
+--- a/app/routes/home.tsx
++++ b/app/routes/home.tsx
+@@ -4,0 +5,2 @@ import {
++  useLocation,
++  useNavigation,
+@@ -25 +27 @@ import {
+-import { resolveLocationViewport } from "../features/maps/location-policy";
++import { useMapLocationRequest } from "../features/maps/use-map-location-request";
+@@ -235,0 +238,5 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++  const location = useLocation();
++  const pendingLocation = useNavigation().location;
++  const { locating, notice: locationNotice, clearLocation, locate: requestLocation } = useMapLocationRequest(
++    `${location.key}:${pendingLocation?.key ?? ""}`,
++  );
+@@ -242 +248,0 @@ export default function Home({ loaderData }: Route.ComponentProps) {
+-  const [locationNotice, setLocationNotice] = useState<string | null>(null);
+@@ -378,0 +385 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++    clearLocation();
+@@ -387,0 +395 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++    clearLocation();
+@@ -396,15 +404,17 @@ export default function Home({ loaderData }: Route.ComponentProps) {
+-  const locate = () => navigator.geolocation?.getCurrentPosition(({ coords }) => {
+-    const result = resolveLocationViewport(coords);
+-    setLocationBounds(result.bbox);
+-    setLocationNotice(result.notice);
+-    setParams((current) => {
+-      const next = new URLSearchParams(current);
+-      next.set("bbox", result.bbox.map((value) => value.toFixed(5)).join(","));
+-      next.set("locationSource", "gps");
+-      next.delete("selected");
+-      return next;
+-    }, { replace: true });
+-    if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
+-  }, () => {
+-    setLocationNotice("위치 권한을 확인한 뒤 다시 시도해주세요.");
+-  }, { enableHighAccuracy: true, timeout: 8_000 });
++  const locate = () => {
++    if (pendingLocation) return;
++    requestLocation((result) => {
++      setLocationBounds(result.bbox);
++      setPendingBounds(null);
++      setFocusCluster(null);
++      setParams((current) => {
++        const next = new URLSearchParams(current);
++        next.set("bbox", result.bbox.map((value) => value.toFixed(5)).join(","));
++        next.set("locationSource", "gps");
++        next.delete("selected");
++        return next;
++      }, { replace: true, preventScrollReset: true });
++      if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
++      return result.notice ?? "현재 위치 주변으로 지도를 이동했습니다.";
++    });
++  };
+@@ -412,0 +423 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++    clearLocation();
+@@ -422,0 +434 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++    clearLocation();
+@@ -436,0 +449 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++    clearLocation();
+@@ -477,0 +491,3 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++    locating,
++    locationBlocked: Boolean(pendingLocation),
++    locationNotice,
+@@ -493,0 +510,3 @@ export default function Home({ loaderData }: Route.ComponentProps) {
++      locating={locating}
++      locationBlocked={Boolean(pendingLocation)}
++      locationNotice={locationNotice}
+@@ -507,2 +526,2 @@ export default function Home({ loaderData }: Route.ComponentProps) {
+-        deferBounds={isCurated}
+-        initialBounds={isCurated || params.has("bbox") ? liveMapState.bbox : undefined}
++        deferBounds
++        initialBounds={liveMapState.bbox}
+@@ -510 +529 @@ export default function Home({ loaderData }: Route.ComponentProps) {
+-        locationNotice={locationNotice}
++        onViewportIntent={clearLocation}
+@@ -513 +532 @@ export default function Home({ loaderData }: Route.ComponentProps) {
+-        onPendingBounds={setPendingBounds}
++        onPendingBounds={isCurated ? setPendingBounds : setBounds}
+diff --git a/app/routes/map-category.tsx b/app/routes/map-category.tsx
+index 1f63cc6..8ba9ffd 100644
+--- a/app/routes/map-category.tsx
++++ b/app/routes/map-category.tsx
+@@ -2 +2,2 @@ import { env } from "cloudflare:workers";
+-import { Form, Link, useSearchParams } from "react-router";
++import { useState } from "react";
++import { Form, Link, useLocation, useNavigation, useSearchParams } from "react-router";
+@@ -5,0 +7 @@ import { parseMapState } from "../features/maps/map-state";
++import { useMapLocationRequest } from "../features/maps/use-map-location-request";
+@@ -22,0 +25,6 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
++  const location = useLocation();
++  const pendingLocation = useNavigation().location;
++  const { locating, notice: locationNotice, clearLocation, locate: requestLocation } = useMapLocationRequest(
++    `${location.key}:${pendingLocation?.key ?? ""}`,
++  );
++  const [locationBounds, setLocationBounds] = useState<[number, number, number, number] | null>(null);
+@@ -23,0 +32,18 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
++  const setBounds = (bbox: [number, number, number, number], fromLocation = false) => {
++    setParams((current) => {
++      const next = new URLSearchParams(current);
++      next.set("bbox", bbox.map((value) => value.toFixed(5)).join(","));
++      if (fromLocation) next.delete("selected");
++      return next;
++    }, { replace: true, preventScrollReset: true });
++  };
++  const locate = () => {
++    if (pendingLocation) return;
++    requestLocation((result) => {
++      setLocationBounds(result.bbox);
++      setBounds(result.bbox, true);
++      return result.notice
++        ? `${result.notice} 광주 기본 지도로 이동했습니다.`
++        : "현재 위치 주변으로 지도를 이동했습니다.";
++    });
++  };
+@@ -34 +60,7 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
+-        <Form className="search-form"><label htmlFor="q">동네 또는 가게</label><input id="q" name="q" defaultValue={loaderData.state.query} placeholder="동명동, 라멘…" /><button>찾기</button></Form>
++        <Form className="search-form" onSubmit={clearLocation}>
++          <label htmlFor="q">동네 또는 가게</label>
++          <input key={loaderData.state.query} id="q" name="q" defaultValue={loaderData.state.query} placeholder="동명동, 라멘…" />
++          <input type="hidden" name="bbox" value={loaderData.state.bbox.join(",")} />
++          <input type="hidden" name="view" value={loaderData.state.view} />
++          <button>찾기</button>
++        </Form>
+@@ -36 +68,6 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
+-      <nav className="view-tabs shell" aria-label="보기 방식"><Link to={{ search: viewSearch("map") }}>지도</Link><Link to={{ search: viewSearch("list") }}>목록</Link><button type="button" onClick={() => navigator.geolocation.getCurrentPosition(() => undefined)}>내 주변</button></nav>
++      <nav className="view-tabs shell" aria-label="보기 방식">
++        <Link to={{ search: viewSearch("map") }} onClick={clearLocation}>지도</Link>
++        <Link to={{ search: viewSearch("list") }} onClick={clearLocation}>목록</Link>
++        <button type="button" disabled={locating || Boolean(pendingLocation)} aria-busy={locating} onClick={locate}>{locating ? "위치 확인 중…" : "내 주변"}</button>
++      </nav>
++      {locationNotice && <p className="shell" role="status">{locationNotice}</p>}
+@@ -39 +76,16 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
+-          <PlaceMap places={loaderData.places} selected={selected} clientId={loaderData.clientId} initialBounds={params.has("bbox") ? loaderData.state.bbox : undefined} onSelect={(id) => { setState("selected", id); document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" }); }} onBounds={(bbox) => setState("bbox", bbox.map((n) => n.toFixed(5)).join(","))} />
++          <PlaceMap
++            places={loaderData.places}
++            selected={selected}
++            clientId={loaderData.clientId}
++            deferBounds
++            initialBounds={loaderData.state.bbox}
++            locationBounds={locationBounds}
++            onViewportIntent={clearLocation}
++            onSelect={(id) => {
++              clearLocation();
++              setState("selected", id);
++              document.getElementById(`place-${id}`)?.scrollIntoView({ behavior: "smooth" });
++            }}
++            onBounds={setBounds}
++            onPendingBounds={setBounds}
++          />
