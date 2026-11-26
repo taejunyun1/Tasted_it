@@ -12,7 +12,7 @@ index 669b9d3..15dedd6 100644
 +import { PlaceInstagramPhoto } from "./PlaceInstagramPhoto";
 @@ -36 +37 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
 -        <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>
-+        {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
++        {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span className="px-5 text-center text-base tracking-normal">{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
 @@ -41,0 +43 @@ export function PlaceDetailSheet({ detailPath, slug, onClose }: {
 +          {data.instagramPhoto && <PlaceInstagramPhoto photo={data.instagramPhoto} placeName={data.place.name} />}
 diff --git a/app/features/http/security-headers.ts b/app/features/http/security-headers.ts
@@ -78,7 +78,7 @@ index b05431a..c149bd0 100644
 -        <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>
 +        {instagramPhoto ? <div className="min-w-0 bg-[var(--atlas-paper-deep)] p-4 sm:p-6">
 +          <PlaceInstagramPhoto photo={instagramPhoto} placeName={place.name} />
-+        </div> : <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span>RE:TASTE<br />FIELD NOTE</span>}</div>}
++        </div> : <div className="detail-hero">{place.heroImageUrl ? <img src={place.heroImageUrl} alt={`${place.name} 대표`} /> : <span className="px-5 text-center text-base tracking-normal">{place.primaryCategory.emoji}<br />{place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
 diff --git a/workers/app.ts b/workers/app.ts
 index a8479f7..312dce6 100644
 --- a/workers/app.ts

@@ -1,0 +1,29 @@
+diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/PlaceDetailSheet.tsx
+--- a/app/components/places/PlaceDetailSheet.tsx
++++ b/app/components/places/PlaceDetailSheet.tsx
+@@ -4,2 +4,3 @@
+ import type { clientLoader as placeDetailLoader } from "../../routes/place-detail";
++import { PlaceInformation } from "./PlaceInformation";
+ import { tabWrapTarget, visibleFocusableElements } from "../../features/a11y/dialog-focus";
+@@ -199,3 +200,3 @@
+         <div className="place-detail-sheet__body">
+-          <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "검수 완료"}</span></div>
++          <div className="place-detail-sheet__meta"><p className="eyebrow">{data.place.primaryCategory.emoji} {data.place.primaryCategory.name} · {data.place.neighborhood}</p><span className="place-verified-badge">{data.place.tempCatalog ? "TEMP · 영업 미확인" : "공개 장소"}</span></div>
+           <h2>{data.place.name}</h2>
+@@ -207,3 +208,3 @@
+           {data.flavorPrint.status === "VISIBLE" && <section><h3>Flavor Print</h3>{data.flavorPrint.dimensions.map((dimension) => <div className="place-detail-sheet__flavor" key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median} /><b>{dimension.median}/5</b></div>)}</section>}
+-          <dl><div><dt>주소</dt><dd>{data.place.address}</dd></div><div><dt>주차</dt><dd>{data.place.parkingSummary ?? "정보 확인 중"}</dd></div>{data.place.phone && <div><dt>전화</dt><dd>{data.place.phone}</dd></div>}</dl>
++          <PlaceInformation place={data.place} />
+           <VoteControl
+diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
+--- a/app/routes/place-detail.tsx
++++ b/app/routes/place-detail.tsx
+@@ -4,2 +4,3 @@
+ import type { Route } from "./+types/place-detail";
++import { PlaceInformation } from "../components/places/PlaceInformation";
+ import { createDb } from "../db/client.server";
+@@ -255,3 +256,3 @@
+           {flavorPrint.status === "VISIBLE" ? <section className="flavor-print"><h2>Flavor Print</h2>{flavorPrint.dimensions.map((dimension) => <div key={dimension.key}><span>{dimension.key}</span><meter min="1" max="5" value={dimension.median}>{dimension.median}</meter><strong>{dimension.median}/5</strong></div>)}</section> : <section className="flavor-print"><h2>Flavor Print</h2><p>리뷰어 평가 수집 중 · {flavorPrint.ratingCount}/3</p></section>}
+-          <dl><div><dt>주소</dt><dd>{place.address}</dd></div><div><dt>주차</dt><dd>{place.parkingSummary ?? "정보 확인 중"}</dd></div>{place.phone && <div><dt>전화</dt><dd>{place.phone}</dd></div>}</dl>
++          <PlaceInformation place={place} />
+           <VoteControl key={place.id} placeId={loaderData.place.id} vote={loaderData.vote} voteEventId={loaderData.voteEventId} saved={loaderData.saved} signedIn={Boolean(loaderData.user)} returnTo={loaderData.returnTo} />

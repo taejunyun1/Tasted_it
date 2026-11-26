@@ -491,7 +491,7 @@ diff --git a/app/components/places/PlaceDetailSheet.tsx b/app/components/places/
 +          <button type="button" onClick={onClose}>목록으로 돌아가기</button>
 +        </div>
 +      </div> : <>
-         {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span>{data.place.primaryCategory.emoji}</span>}</div>}
+         {!data.instagramPhoto && <div className="place-detail-sheet__hero">{data.place.heroImageUrl ? <img src={data.place.heroImageUrl} alt="" /> : <span className="px-5 text-center text-base tracking-normal">{data.place.primaryCategory.emoji}<br />{data.place.tempCatalog ? "TEMP · 사진 미제공" : "아직 등록된 사진이 없어요."}</span>}</div>}
 @@ -44,3 +203,2 @@
            <address>{data.place.address}</address>
 -          <p><Link className="inline-flex min-h-11 items-center underline" to={requestPath} reloadDocument>상세 페이지에서 평가하기</Link></p>
