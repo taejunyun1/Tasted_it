@@ -138,6 +138,24 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전북 전주시 완산구 풍남문2길 37-2 (전동)",
     shortcode: "DgL7hQpvLWs",
   },
+  {
+    id: "37c9fa6d-d0ce-4e02-9eec-f880d1250be5",
+    name: "코이로",
+    address: "전남광주통합특별시 북구 하서로523번길 107, 2층 (용두동)",
+    shortcode: "DfePJbrRyIh",
+  },
+  {
+    id: "d04619eb-f70a-400a-a53a-fb0aadf66af5",
+    name: "기찻길옆 황제식당",
+    address: "전남광주통합특별시 동구 제봉로17번길 13-32, 1층 (학동)",
+    shortcode: "DV40fQfAcyw",
+  },
+  {
+    id: "f2b28636-295e-43d8-8596-21373fc1f7fd",
+    name: "복덩이네",
+    address: "전남광주통합특별시 서구 상무민주로76번길 24, 1층 (쌍촌동)",
+    shortcode: "DFMrO4iBXBd",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
