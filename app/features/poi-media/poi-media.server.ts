@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, notExists, type SQL } from "drizzle-orm";
+import { and, desc, eq, exists, isNull, notExists, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import type { AppDb } from "../../db/client.server";
@@ -10,7 +10,7 @@ import {
   poiMediaSourceUrlSchema, type PublicPoiPhoto,
 } from "./poi-media";
 
-const publishedPoiMediaSchema = z.object({
+export const poiMediaEvidenceSchema = z.object({
   id: poiMediaIdSchema,
   sourceUrl: poiMediaSourceUrlSchema,
   attribution: poiMediaAttributionSchema,
@@ -22,37 +22,47 @@ const publishedPoiMediaSchema = z.object({
   reviewedAt: z.iso.datetime({ precision: 3 }),
 });
 
-type PublishedPoiMedia = z.infer<typeof publishedPoiMediaSchema>;
+type PoiMediaEvidence = z.infer<typeof poiMediaEvidenceSchema>;
 
-async function findPublishedPoiMedia(db: AppDb, match: SQL) {
-  const [row] = await db.select({
-    id: placePoiMedia.id,
-    sourceUrl: placePoiMedia.sourceUrl,
-    attribution: placePoiMedia.attribution,
-    rightsBasis: placePoiMedia.rightsBasis,
-    rightsEvidence: placePoiMedia.rightsEvidence,
-    sha256: placePoiMedia.sha256,
-    byteSize: placePoiMedia.byteSize,
-    contentType: placePoiMedia.contentType,
-    reviewedAt: placePoiMedia.reviewedAt,
-  })
-    .from(placePoiMedia)
-    .innerJoin(places, eq(places.id, placePoiMedia.placeId))
+export const poiMediaEvidenceFields = {
+  id: placePoiMedia.id,
+  sourceUrl: placePoiMedia.sourceUrl,
+  attribution: placePoiMedia.attribution,
+  rightsBasis: placePoiMedia.rightsBasis,
+  rightsEvidence: placePoiMedia.rightsEvidence,
+  sha256: placePoiMedia.sha256,
+  byteSize: placePoiMedia.byteSize,
+  contentType: placePoiMedia.contentType,
+  reviewedAt: placePoiMedia.reviewedAt,
+};
+
+export function eligiblePoiMediaPlace(db: AppDb, match: SQL): SQL {
+  return exists(db.select({ id: places.id })
+    .from(places)
     .innerJoin(placeCategories, eq(placeCategories.placeId, places.id))
     .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
     .where(and(
       match,
-      eq(placePoiMedia.state, "PUBLISHED"),
       publicConditions({}),
       isNull(places.closedAt),
       notExists(db.select({ id: tempCatalogEntries.id })
         .from(tempCatalogEntries)
         .innerJoin(tempCatalogBatches, eq(tempCatalogBatches.id, tempCatalogEntries.batchId))
         .where(and(eq(tempCatalogEntries.placeId, places.id), eq(tempCatalogBatches.status, "PUBLISHED")))),
+    )));
+}
+
+async function findPublishedPoiMedia(db: AppDb, match: SQL) {
+  const [row] = await db.select(poiMediaEvidenceFields)
+    .from(placePoiMedia)
+    .where(and(
+      match,
+      eq(placePoiMedia.state, "PUBLISHED"),
+      eligiblePoiMediaPlace(db, eq(places.id, placePoiMedia.placeId)),
     ))
     .orderBy(desc(placePoiMedia.reviewedAt), desc(placePoiMedia.id))
     .limit(1);
-  const validated = publishedPoiMediaSchema.safeParse(row);
+  const validated = poiMediaEvidenceSchema.safeParse(row);
   return validated.success ? validated.data : null;
 }
 
@@ -71,7 +81,7 @@ export function getPublishedPoiMedia(db: AppDb, id: string) {
   return findPublishedPoiMedia(db, eq(placePoiMedia.id, id));
 }
 
-export async function readVerifiedPoiMedia(bucket: R2Bucket, photo: PublishedPoiMedia) {
+export async function readVerifiedPoiMedia(bucket: R2Bucket, photo: Pick<PoiMediaEvidence, "id" | "sha256" | "byteSize">) {
   const object = await bucket.get(getPoiMediaObjectKey(photo.id, photo.sha256));
   if (!object) return null;
   if (object.size !== photo.byteSize || object.httpMetadata?.contentType !== POI_MEDIA_CONTENT_TYPE) {
