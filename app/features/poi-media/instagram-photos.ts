@@ -186,6 +186,36 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전남광주통합특별시 해남군 해남읍 수성2길 19, 1층",
     shortcode: "DfS6cnGSZCB",
   },
+  {
+    id: "place-intake-16952dd1db47eed5d9d52d76",
+    name: "몰리",
+    address: "전남광주 구례군 현천길 26 (계천리)",
+    shortcode: "DWYCJ7JEWAk",
+  },
+  {
+    id: "place-intake-d175220dc9d836225afbac34",
+    name: "물밀소",
+    address: "전북특별자치도 군산시 월명로 491 (월명동) 모투링애 102호",
+    shortcode: "DOiKN3mgZ8k",
+  },
+  {
+    id: "71f4eb60-bf26-4d53-80d4-f9482fc8ceb1",
+    name: "타마",
+    address: "전남광주통합특별시 동구 서석로7번길 12-31, 1층 (불로동)",
+    shortcode: "DddtzyRE6v4",
+  },
+  {
+    id: "e7b985a6-3d99-49e3-a183-b65486373df4",
+    name: "오스테리아 타닥",
+    address: "전남광주통합특별시 서구 월암신기길 186-13, 1층 (마륵동)",
+    shortcode: "DeAuKJaz1WD",
+  },
+  {
+    id: "place-intake-e637b6b09826ceb74c781bbe",
+    name: "돈키호테",
+    address: "전북 군산시 구영6길 111-7 (영화동)",
+    shortcode: "DdtapPDvhJX",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };

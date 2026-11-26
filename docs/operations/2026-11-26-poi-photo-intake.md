@@ -8,7 +8,7 @@
 
 지점과 사진이 일치하는 공개 게시물에 한해 Instagram이 제공하는 원본 임베드를 장소 상세와 모바일 상세에 표시한다. 사진 아래에 작은 **사진 출처 · Instagram 원문** 링크가 보인다. Worker가 사진 파일을 가져오거나 R2에 복사하는 단계는 없으며, 등록한 원문 경로만 브라우저 프레임에서 허용한다. [Instagram 공개 게시물 임베드](https://developers.facebook.com/documentation/instagram-platform/oembed)
 
-저장소에 등록한 30곳의 각 장소 ID·상호·상세주소와 게시물 1개를 대조했다. 공개 장소 조건, 폐업, TEMP와 현재 식별 자료는 상세 화면을 열 때 다시 검사한다. 새 게시물을 추가할 때는 운영 원장과 공식 작성 계정, 첫 화면에 표시되는 실제 매장·메뉴 사진, 비로그인 임베드 표시를 확인한다. 공동 업체 계정의 다른 지점, 행사 포스터, 현 주소 폐업 공지는 사진 후보에서 제외한다. 여러 장에 개인 사진이 함께 있으면 메뉴 사진 단독으로 표시되는 공식 임베드를 확인한다.
+저장소에 등록한 35곳의 각 장소 ID·상호·상세주소와 게시물 1개를 대조했다. 공개 장소 조건, 폐업, TEMP와 현재 식별 자료는 상세 화면을 열 때 다시 검사한다. 새 게시물을 추가할 때는 운영 원장과 공식 작성 계정, 첫 화면에 표시되는 실제 매장·메뉴 사진, 비로그인 임베드 표시를 확인한다. 공동 업체 계정의 다른 지점, 행사 포스터, 현 주소 폐업 공지는 사진 후보에서 제외한다. 여러 장에 개인 사진이 함께 있으면 메뉴 사진 단독으로 표시되는 공식 임베드를 확인한다.
 
 추가한 9곳은 마일드 스탠다드, 스테이케이션, 코롬방제과점, 음악이 흐른다, 룩투, 트레비아, 피트, 다수, 땡스덕 베르베르의집이다. 현재 매장 또는 업체가 직접 게시한 메뉴 사진을 확인했으며 코롬방제과점의 사진은 2024년 게시물이다. 대상과 원문의 연결은 [검수 레지스트리](../../app/features/poi-media/instagram-photos.ts)를 따른다.
 
@@ -16,11 +16,17 @@
 
 광주 코이로의 초밥과 사시미, 기찻길옆 황제식당의 해산물 상차림, 복덩이네의 한우, 장흥 전골 부엌의 버섯전골 사진을 추가했다. 네 곳의 상세주소와 업체 계정 연결을 대조하고 비로그인 임베드에서 사진을 확인했다. 복덩이네 사진은 2025년 설 선물세트 게시물이며 현재 판매 여부는 미확인이다. [코이로 업체 정보](https://m.place.naver.com/restaurant/2035791750/home) · [기찻길옆 황제식당 업체 정보](https://m.place.naver.com/restaurant/2046569219/home) · [복덩이네 업체 정보](https://m.place.naver.com/restaurant/1319568628/home) · [전골 부엌 업체 정보](https://m.place.naver.com/restaurant/2052397308/home)
 
-오푸르베이커리의 빵 진열대, 무아의 바노피 디저트, 스시에이와의 초밥, 해남의 아침 커피로스터리의 커피 사진을 추가 검수했다. 업체 계정과 매장 주소, 비로그인 공식 임베드 표시를 대조했다. 네 곳의 운영 배포는 대기다. [오푸르베이커리 업체 정보](https://m.place.naver.com/restaurant/2023163929/home) · [무아 업체 정보](https://m.place.naver.com/restaurant/2085184749/home) · [스시에이와 업체 정보](https://m.place.naver.com/restaurant/2053505823/home) · [해남의 아침 커피로스터리 업체 안내](https://m.blog.naver.com/haenamcoffee/224208955664)
+오푸르베이커리의 빵 진열대, 무아의 바노피 디저트, 스시에이와의 초밥, 해남의 아침 커피로스터리의 커피 사진을 추가 검수했다. 업체 계정과 매장 주소, 비로그인 공식 임베드 표시를 대조했다. 네 곳은 운영 상세에서도 확인했다. [#529 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/529) [오푸르베이커리 업체 정보](https://m.place.naver.com/restaurant/2023163929/home) · [무아 업체 정보](https://m.place.naver.com/restaurant/2085184749/home) · [스시에이와 업체 정보](https://m.place.naver.com/restaurant/2053505823/home) · [해남의 아침 커피로스터리 업체 안내](https://m.blog.naver.com/haenamcoffee/224208955664)
 
 젤라또 노베오의 실제 사진과 원문 링크를 합성 로컬 환경의 데스크톱 상세·모바일 시트에서 확인했다. 운영 D1에서 최종 후보의 ID·상호·주소·공개 상태는 읽기 전용으로 대조했다. [데스크톱](../evidence/cst-instagram-photos-20261126/desktop.png) · [모바일](../evidence/cst-instagram-photos-20261126/mobile.png)
 
-일반 빌드 설정의 `POI_INSTAGRAM_PHOTO_ENABLED`는 기본 미지정 상태다. 운영은 #526의 호환 빌드에서 플래그를 활성화했다. 26곳의 상세·출처와 대표 실제 사진의 데스크톱·모바일 표시를 대조했고, 대조 TEMP 장소의 상세에는 공식 임베드가 표시되지 않았다. 이 경로는 기존 D1을 읽으며 사진 파일은 R2에 반입하지 않는다. 게시물이 삭제되거나 변경되면 등록 항목을 철회한다. 전체 회수는 승인된 [운영 배포 절차](2026-11-26-official-photo-production-release.md#운영-확인과-회수)를 따른다. [#526 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/526) 네이버 블로그는 현 단계에서 외부 공유 원문 링크의 근거로 사용한다. [네이버 블로그 외부 공유](https://help.naver.com/service/5593/contents/15416) · [네이버 API 약관](https://developers.naver.com/products/terms/)
+일반 빌드 설정의 `POI_INSTAGRAM_PHOTO_ENABLED`는 기본 미지정 상태다. 운영 호환 빌드는 플래그를 활성화했다. #529에서 30곳의 상세·출처와 대표 실제 사진의 데스크톱·모바일 표시를 대조했고, 대조 TEMP 장소의 상세에는 공식 임베드가 표시되지 않았다. 이 경로는 기존 D1을 읽으며 사진 파일은 R2에 반입하지 않는다. 게시물이 삭제되거나 변경되면 등록 항목을 철회한다. 전체 회수는 승인된 [운영 배포 절차](2026-11-26-official-photo-production-release.md#운영-확인과-회수)를 따른다. [#529 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/529) 네이버 블로그는 현 단계에서 외부 공유 원문 링크의 근거로 사용한다. [네이버 블로그 외부 공유](https://help.naver.com/service/5593/contents/15416) · [네이버 API 약관](https://developers.naver.com/products/terms/)
+
+## 후속 사진 5곳
+
+몰리의 타코, 물밀소의 빵 진열대, 타마의 철판 오징어, 오스테리아 타닥의 마르게리타와 파스타, 돈키호테의 군산 매장 외관을 등록했다. 공개 원장의 정확한 상세주소와 공식 계정, 비로그인 임베드의 실제 정지 사진을 대조했다. 물밀소와 타닥의 단일 사진 출처는 Instagram이 같은 공식 묶음 게시물의 원문으로 연결한다. 다섯 곳의 운영 업데이트는 대기다. [몰리 업체 정보](https://m.place.naver.com/restaurant/2056343825/home) · [물밀소 이전 안내](https://www.instagram.com/p/DOiKOH-gdDJ/) · [타마 업체 정보](https://m.place.naver.com/restaurant/1171348154/home) · [오스테리아 타닥 업체 정보](https://m.place.naver.com/restaurant/2095578776/home) · [돈키호테 주소·계정](https://www.injangsa.com/place/587?page=4&sod=asc&sst=wr_subject)
+
+살림프리미엄채식뷔페 두암점은 공식 사진과 주소를 확인했다. 사업자가 다른 지점을 함께 운영해 체인 제외 기준을 대조할 때까지 사진 등록을 보류한다. [업체 안내](https://m.blog.naver.com/salimbuffet)
 
 ## 반입 준비
 
