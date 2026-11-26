@@ -1,0 +1,130 @@
+diff --git a/app/app.css b/app/app.css
+--- a/app/app.css
++++ b/app/app.css
+@@ -347,7 +347,7 @@
+ .discovery-section{padding:58px 0 12px}.discovery-heading{padding-bottom:18px;border-bottom:1px solid var(--discovery-ink)}.discovery-heading h2{font-weight:900}.discovery-heading>p{color:#69746c}.discovery-rail{border:0;background:transparent;gap:14px;overflow:visible;scroll-snap-type:none}.discovery-section .place-card{overflow:hidden;border:1px solid #b8c2ba;border-radius:22px;background:#fff}.discovery-section .place-card a{height:100%}.discovery-section .place-image{background:linear-gradient(145deg,#e8eee7,#f4f2e8)}.place-image__fallback{display:grid;place-items:center;gap:8px;color:#3d4a43;font:800 10px "IBM Plex Mono",monospace}.place-image__fallback i{font-size:48px;font-style:normal}.discovery-section .place-image b{left:13px;bottom:13px;border-radius:999px;background:rgba(255,255,255,.94);padding:7px 10px;color:var(--discovery-ink);font-size:10px}.discovery-section .place-copy{padding:19px}.discovery-section .place-copy h3{margin:7px 0 15px;font-size:21px;font-weight:900}.place-reason-list{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 13px}.place-copy .place-reason{display:inline-flex;margin:0;border:1px solid #9eb1a2;border-radius:999px;background:var(--discovery-mist);padding:6px 8px;color:var(--discovery-green);font-size:9px;font-weight:900}.discovery-section .place-copy>span{font-weight:800}.place-relay-index{position:absolute;right:13px;top:13px;width:40px;height:40px;display:grid;place-items:center;border-radius:13px;background:var(--discovery-ink);color:#fff;font:800 12px "IBM Plex Mono",monospace;font-style:normal}
+ .discovery-section[data-kind="personal"] .discovery-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:row}.discovery-section[data-kind="personal"] .place-card[data-variant="featured"]{grid-column:span 2;grid-row:span 2;border-color:var(--discovery-green);box-shadow:7px 7px 0 rgba(20,37,28,.1)}.discovery-section[data-kind="personal"] .place-card[data-variant="featured"] .place-image{height:330px}.discovery-section[data-kind="personal"] .place-card[data-variant="featured"] .place-copy h3{font-size:30px}.discovery-section[data-kind="personal"] .place-image{height:180px}
+ .discovery-section[data-kind="trusted"]{margin-top:24px;border-radius:30px;background:var(--discovery-mist);padding:36px}.discovery-section[data-kind="trusted"] .discovery-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:row}.discovery-section[data-kind="trusted"] .place-card{border-color:#aab7ad}.discovery-section[data-kind="trusted"] .place-image{height:160px}.discovery-section[data-kind="trusted"] .place-reason{border-color:#a5cc3e;background:var(--discovery-lime);color:var(--discovery-ink)}
+-.discovery-section[data-kind="golden"] .discovery-rail{display:grid;grid-template-columns:repeat(4,minmax(250px,1fr));overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:8px}.discovery-section[data-kind="golden"] .place-card{scroll-snap-align:start}.discovery-section[data-kind="golden"] .place-image{height:180px}.discovery-section[data-kind="golden"] .place-card:nth-child(even){margin-top:24px}
++.discovery-section[data-kind="golden"] .discovery-rail{display:grid;grid-template-columns:repeat(4,minmax(250px,1fr));overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:8px}.discovery-section[data-kind="golden"] .place-card{scroll-snap-align:start}.discovery-section[data-kind="golden"] .place-card>a:focus-visible{outline-offset:-4px;border-radius:inherit}.discovery-section[data-kind="golden"] .place-image{height:180px}.discovery-section[data-kind="golden"] .place-card:nth-child(even){margin-top:24px}
+ .discovery-empty{border-radius:18px;background:#fff}.discovery-all{padding-top:96px}.discovery-all .discovery-heading{border-bottom:1px solid var(--discovery-ink)}.discovery-search{margin-top:22px}.discovery-search input{border-color:#aeb9b0;border-radius:15px 0 0 15px;background:#fff}.discovery-search button{border-color:var(--discovery-ink);border-radius:0 15px 15px 0;background:var(--discovery-ink);font-weight:900}.discovery-grid{gap:14px;background:transparent;border:0}.discovery-grid .place-card{overflow:hidden;border:1px solid var(--discovery-line);border-radius:20px;background:#fff}.discovery-grid .place-image{height:180px}
+ @media(max-width:980px){.discovery-section[data-kind="personal"] .discovery-rail,.discovery-section[data-kind="trusted"] .discovery-rail{grid-template-columns:repeat(2,minmax(0,1fr))}.discovery-section[data-kind="golden"] .discovery-rail{grid-template-columns:repeat(4,minmax(270px,1fr))}.discovery-controls__heading{grid-template-columns:1fr}.discovery-controls__heading>p:last-child{margin-top:10px}}
+ @media(max-width:620px){.discovery-page{padding:28px 0 76px}.discovery-hero{padding-top:14px}.discovery-hero h1{font-size:49px}.discovery-hero>div>p:last-child{font-size:13px}.discovery-controls{margin-top:24px;border-radius:22px;padding:20px;box-shadow:5px 5px 0 rgba(20,37,28,.11)}.discovery-controls__heading h2{font-size:35px}.discovery-chip-list{gap:7px}.discovery-chip-list button{min-height:39px;padding:9px 12px;font-size:10px}.discovery-recommendations__title{padding-top:62px}.discovery-recommendations__title h2{font-size:46px}.discovery-section{padding-top:45px}.discovery-heading{display:block}.discovery-heading>p{margin-top:9px;text-align:left}.discovery-section[data-kind="personal"] .discovery-rail,.discovery-section[data-kind="trusted"] .discovery-rail{grid-template-columns:1fr}.discovery-section[data-kind="personal"] .place-card[data-variant="featured"]{grid-column:auto;grid-row:auto}.discovery-section[data-kind="personal"] .place-card[data-variant="featured"] .place-image{height:230px}.discovery-section[data-kind="trusted"]{margin-inline:-14px;border-radius:24px;padding:28px 14px}.discovery-section[data-kind="golden"] .discovery-rail{grid-template-columns:repeat(4,82vw);margin-right:-14px}.discovery-section[data-kind="golden"] .place-card:nth-child(even){margin-top:0}.discovery-all{padding-top:72px}.discovery-grid{grid-template-columns:1fr}.discovery-search{grid-template-columns:minmax(0,1fr) auto}}
+diff --git a/app/components/places/PlaceCard.tsx b/app/components/places/PlaceCard.tsx
+--- a/app/components/places/PlaceCard.tsx
++++ b/app/components/places/PlaceCard.tsx
+@@ -15,15 +15,18 @@
+   type RecommendationSourceRail,
+ } from "../../features/places/place-detail-path";
+
+-export function PlaceCard({ place, selected = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: (detailPath: string, opener: HTMLAnchorElement) => void }) {
++export type OpenPlaceDetail = (detailPath: string, opener: HTMLAnchorElement) => void;
++
++export function PlaceCard({ place, selected = false, listItem = false, distanceMeters, goldenPickAt, recommendationLabel, variant = "default", recommendationDiscoveryMode, relayIndex, onOpenDetail }: { place: DiscoveryPlace; selected?: boolean; listItem?: boolean; distanceMeters?: number; goldenPickAt?: string; recommendationLabel?: string; variant?: PlaceCardVariant; recommendationDiscoveryMode?: RecommendationDiscoveryMode; relayIndex?: number; onOpenDetail?: OpenPlaceDetail }) {
+   const ratingSummary = formatPublicRatingSummary(place);
+   const detailPath = recommendationPlacePath(place.slug, {
+     variant,
+     discoveryMode: recommendationDiscoveryMode ?? place.discoveryMode,
+   });
+   const isRecommendation = detailPath.includes("sourceRail=");
++  const CardRoot = listItem ? "div" : "article";
+   return (
+-    <article className="place-card" data-selected={selected || undefined} data-variant={variant} id={`place-${place.id}`}>
++    <CardRoot className="place-card" role={listItem ? "listitem" : undefined} data-selected={selected || undefined} data-variant={variant} id={`place-${place.id}`}>
+       <Link to={detailPath} reloadDocument={isRecommendation} aria-label={`${place.name} 상세 보기`} onClick={(event) => {
+         let requestPath = detailPath;
+         if (isRecommendation) {
+@@ -54,6 +57,6 @@
+           {goldenPickAt && <small>Golden Pick · {new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(goldenPickAt))}</small>}
+         </div>
+       </Link>
+-    </article>
++    </CardRoot>
+   );
+ }
+diff --git a/app/components/places/PlaceDiscoveryRail.tsx b/app/components/places/PlaceDiscoveryRail.tsx
+--- a/app/components/places/PlaceDiscoveryRail.tsx
++++ b/app/components/places/PlaceDiscoveryRail.tsx
+@@ -1,5 +1,13 @@
++import type { FocusEvent } from "react";
+ import type { DiscoveryPlace } from "../../features/places/place-discovery";
+-import { PlaceCard } from "./PlaceCard";
++import { PlaceCard, type OpenPlaceDetail } from "./PlaceCard";
++
++function revealFocusedCard({ target }: FocusEvent<HTMLDivElement>) {
++  if (target.matches(":focus-visible")) {
++    // Browser focus can leave a partially visible card clipped inside the rail.
++    target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
++  }
++}
+
+ export function PlaceDiscoveryRail({
+   title,
+@@ -12,7 +20,7 @@
+   description: string;
+   places: DiscoveryPlace[];
+   kind: "personal" | "trusted" | "golden";
+-  onOpenDetail?: (detailPath: string) => void;
++  onOpenDetail?: OpenPlaceDetail;
+ }) {
+   return <section className="discovery-section" data-kind={kind} aria-labelledby={`discovery-${kind}`}>
+     <header className="discovery-heading">
+@@ -22,10 +30,13 @@
+       </div>
+       <p>{description}</p>
+     </header>
+-    {places.length ? <div className="discovery-rail">
++    {places.length ? <div className="discovery-rail" role={kind === "golden" ? "list" : undefined}
++      aria-labelledby={kind === "golden" ? "discovery-golden" : undefined}
++      onFocus={kind === "golden" ? revealFocusedCard : undefined}>
+       {places.map((place, index) => <PlaceCard
+         key={place.id}
+         place={place}
++        listItem={kind === "golden"}
+         variant={kind === "personal" && index === 0 ? "featured" : kind}
+         relayIndex={kind === "golden" ? index + 1 : undefined}
+         distanceMeters={kind === "personal" ? place.distanceMeters : undefined}
+diff --git a/app/routes/place-list.tsx b/app/routes/place-list.tsx
+--- a/app/routes/place-list.tsx
++++ b/app/routes/place-list.tsx
+@@ -86,18 +86,20 @@
+     if (recommendationFetcher.data?.ok) setRecommendations(recommendationFetcher.data.recommendations);
+   }, [recommendationFetcher.data]);
+   const detailPath = safePlaceDetailRequestPath(params.get("place"));
++  const detailOpener = useRef<HTMLAnchorElement | null>(null);
+   const selected = loaderData.places.find((place) => place.id === params.get("selected"))?.id;
+-  const openDetail = (requestPath: string, placeId?: string) => {
++  const openDetail = (requestPath: string, placeId?: string, opener?: HTMLAnchorElement) => {
+     const safeRequestPath = safePlaceDetailRequestPath(requestPath);
+     if (!safeRequestPath) return;
++    detailOpener.current = opener ?? null;
+     setParams((current) => {
+       const next = new URLSearchParams(current);
+       next.set("place", safeRequestPath);
+       if (placeId) next.set("selected", placeId);
+       return next;
+-    });
++    }, { preventScrollReset: Boolean(opener) });
+   };
+-  const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true });
++  const closeDetail = () => setParams((current) => { const next = new URLSearchParams(current); next.delete("place"); return next; }, { replace: true, preventScrollReset: Boolean(detailOpener.current) });
+   const categoryName = loaderData.category ? `${loaderData.category.emoji} ${loaderData.category.name}` : "모든 카테고리";
+   const effectiveSearch = new URLSearchParams(loaderData.search);
+   effectiveSearch.delete("badge");
+@@ -145,7 +147,7 @@
+       <header className="discovery-recommendations__title"><p className="eyebrow">FOR YOUR MOMENT</p><h2>{recommendations.title}</h2></header>
+       <PlaceDiscoveryRail title="취향과 새로운 발견" description="익숙한 취향 네 곳, 이어지는 맛 두 곳, 평소와 다른 선택 두 곳을 섞었습니다." places={recommendations.personal} kind="personal" onOpenDetail={(path) => openDetail(path)} />
+       <PlaceDiscoveryRail title="Re:Taste 추천" description="높은 추천률보다 충분한 평가와 회원·리뷰어의 의견 일치를 먼저 봅니다." places={recommendations.trusted} kind="trusted" onOpenDetail={(path) => openDetail(path)} />
+-      <PlaceDiscoveryRail title="Golden Pick 취향 릴레이" description="서로 다른 리뷰어와 메뉴의 선택을 이어봅니다." places={recommendations.golden} kind="golden" onOpenDetail={(path) => openDetail(path)} />
++      <PlaceDiscoveryRail title="Golden Pick 취향 릴레이" description="서로 다른 리뷰어와 메뉴의 선택을 이어봅니다." places={recommendations.golden} kind="golden" onOpenDetail={(path, opener) => openDetail(path, undefined, opener)} />
+     </section>
+
+     <section className="discovery-section discovery-all" aria-labelledby="all-places">
+@@ -175,6 +177,6 @@
+         {loaderData.pagination.page < loaderData.pagination.totalPages ? <Link className="inline-flex min-h-11 items-center underline!" to={`${publicPlacePageHref(paginationSearch, loaderData.pagination.page + 1)}#all-places`}>다음 페이지</Link> : <span aria-disabled="true">다음 페이지</span>}
+       </nav>}
+     </section>
+-    <PlaceDetailSheet detailPath={detailPath} onClose={closeDetail} />
++    <PlaceDetailSheet detailPath={detailPath} opener={detailOpener.current} onClose={closeDetail} />
+   </main>;
+ }
