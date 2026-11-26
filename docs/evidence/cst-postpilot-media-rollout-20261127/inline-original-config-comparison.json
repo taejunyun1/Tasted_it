@@ -1,0 +1,50 @@
+{
+  "revision": "1bccb6ef7e7c53fe465b687fc8b5ce006c2501c5",
+  "sourceBuildSha256": "450f64e6f40cf46d47663d7007023e3459ac67dc68aeda017941765ef40304de",
+  "variants": {
+    "closed": {
+      "referenceConfigSha256": "02845cee0b3299d2c33826db0f42b0c1f06ed80e89fdd0b718690f68454b1743",
+      "verifiedConfigSha256": "0e228c2b65d158b70086a5bd7df232699f7035904e7643372e9987f82d002964",
+      "verifiedBuildSha256": "7b44292daf01a400239c9000c725c7ccbbcbf5a5a0fea661c2f926fa619ad1ac",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": false,
+      "previousApprovedConfigSha256": "a9e465104d433cd30e8bdd64fe3ce7a425bd942417ffadf37b857fd85cdd0216",
+      "matchesPreviousApprovedSettings": true
+    },
+    "ab": {
+      "referenceConfigSha256": "ad18a14741b70fc844edb156ac5821850a3eb46bb21096e0267cfeb888ad6ebf",
+      "verifiedConfigSha256": "1e4f99e7c849c127d22114ce62c291103650c2a4dbde1dec71bbfc7c8b6b781c",
+      "verifiedBuildSha256": "aae4422959e8ecf6f57865085b6befaffce91a39fb93c2c85bdd8477570dbd71",
+      "flagsAdded": [
+        "POI_YOUTUBE_VISUAL_ENABLED",
+        "POI_THREADS_PHOTO_ENABLED"
+      ],
+      "seatsConfigured": true,
+      "previousApprovedConfigSha256": "4c7574044dace5ce3f126653becdbd6eb0484b949206c3edf9f922cdc2ed38e0",
+      "matchesPreviousApprovedSettings": true
+    }
+  },
+  "configurationPurpose": "local later rollout readiness",
+  "runtimeFilesChangedSincePr589": [
+    "app/routes/place-detail.tsx",
+    "ops/releases/photo-source-links-494c07f.patch"
+  ],
+  "photoSourceLinksPatchSha256": "7f6fbbc522a686f543d2f863d7eb1cc49984db4d4a8df27747b139d1f5387a40",
+  "browser": {
+    "localOnly": true,
+    "fixture": "in-browser fulfilled synthetic iframe, no external traffic",
+    "detailAndSheetCases": 5,
+    "fallbackCases": 2,
+    "externalRequests": 0
+  },
+  "previousApproval": 589,
+  "strictDryRun": {
+    "closed": true,
+    "ab": true
+  },
+  "previousMediaUploadOrTrafficObserved": false,
+  "remoteUpload": false
+}
