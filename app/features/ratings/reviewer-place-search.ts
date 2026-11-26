@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 export const REVIEWER_PLACE_PAGE_SIZE = 20;
-export type ReviewerPlaceOption = { placeId: string; placeName: string; neighborhood: string | null; categoryId: string; categoryName: string; categoryEmoji: string };
+export type ReviewerPlaceOption = { placeId: string; placeName: string; address: string; neighborhood: string | null; categoryId: string; categoryName: string; categoryEmoji: string };
 export type ReviewerPlacePage = { query: string; places: ReviewerPlaceOption[]; nextCursor: string | null };
-export type ReviewerPlaceResponse = { ok: true; requestKey: string; page: ReviewerPlacePage; selectedPlace: ReviewerPlaceOption | null } | { ok: false; requestKey: string; message: string };
+export type ReviewerPlaceResponse = { ok: true; requestKey: string; page: ReviewerPlacePage; selectedPlace: ReviewerPlaceOption | null } | { ok: false; requestKey: string; message: string; restartSearch?: true };
 const safeText = z.string().regex(/^[^\u0000-\u001f\u007f]*$/u);
 const id = safeText.min(1).max(128);
 const cursorSchema = z.object({ query: safeText.max(100), id, reviewed: z.union([z.literal(0), z.literal(1)]) }).strict();

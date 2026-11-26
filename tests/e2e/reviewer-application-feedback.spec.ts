@@ -4,6 +4,9 @@ test("application keeps input and announces and focuses validation errors withou
   const url = String(testInfo.project.use.baseURL);
   await context.addCookies([{ name: "retaste_session", value: "qa-reviewer-member-session", url }]);
   await page.goto("/reviewer/apply");
+  const privacy = page.getByText(/직접인증 참여자의 소개는 내부 심사에만 사용합니다/);
+  await expect(privacy).toContainText("일반 리뷰어의 소개는 승인 뒤 공개 프로필에 표시됩니다.");
+  await privacy.locator("..").screenshot({ path: testInfo.outputPath("reviewer-application-privacy.png") });
   await page.getByLabel("맛집 선정 기준 의견서").fill(" ".repeat(110));
   await page.getByLabel("직업 또는 활동 소개").fill("지역 기록자");
   await page.getByLabel("취향 방향").fill("담백한 국물 요리");
@@ -38,10 +41,9 @@ test("application keeps input and announces and focuses validation errors withou
   await expect(choice).toBeChecked();
   await expect(page.getByLabel("직업 또는 활동 소개")).toHaveValue("지역 기록자");
   await expect(page.getByRole("button", { name: "리뷰어 신청 제출", exact: true })).toBeEnabled();
-  await expect(page.getByText(/리뷰어 심사에 사용되며/)).toBeVisible();
+  await expect(privacy).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
-  await page.screenshot({ path: `docs/evidence/2026-11-18-reviewer-application-${testInfo.project.name}.png`, fullPage: true });
 });
 
 test("footer links stay readable and touchable at desktop and narrow mobile widths", async ({ page }, testInfo) => {

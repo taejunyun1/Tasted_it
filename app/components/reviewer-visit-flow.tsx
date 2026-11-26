@@ -4,7 +4,7 @@ import { Link, useFetcher } from "react-router";
 
 import { AppToast, type AppToastValue } from "./app-toast";
 import { ReviewerPlacePicker } from "./reviewer-place-picker";
-import { reviewerPlaceSearchHref, type ReviewerPlacePage, type ReviewerPlaceResponse } from "../features/ratings/reviewer-place-search";
+import { reviewerPlaceSearchHref, type ReviewerPlaceOption, type ReviewerPlacePage, type ReviewerPlaceResponse } from "../features/ratings/reviewer-place-search";
 import { OwnerVisitActions, PhotoRightsFields, VisitEvidenceFields, photoRightsFromForm, reviewerModerationErrorMessage, reviewerVisitStatusLabels, type ReviewerVisitStatus } from "./reviewer-visit-moderation";
 import {
   prepareReviewerPhotoFiles,
@@ -16,15 +16,6 @@ import {
   type ReviewerCategoryName,
   type ReviewerEvaluation,
 } from "../features/ratings/reviewer-visit";
-
-type ReviewerPlace = {
-  placeId: string;
-  placeName: string;
-  neighborhood: string | null;
-  categoryId: string;
-  categoryName: string;
-  categoryEmoji: string;
-};
 
 type ReviewerCategory = { id: string; name: string; emoji: string };
 
@@ -54,7 +45,7 @@ type Props = {
   canSubmit?: boolean;
   historyNextHref?: string | null;
   historyHasCursor?: boolean;
-  places: ReviewerPlace[];
+  places: ReviewerPlaceOption[];
   placePage?: ReviewerPlacePage;
   categories: ReviewerCategory[];
   history: ReviewerHistory[];
@@ -111,7 +102,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
   const [categoryId, setCategoryId] = useState("");
   const [evaluation, setEvaluation] = useState<ReviewerEvaluation | null>(null);
   const [badges, setBadges] = useState<string[]>([]);
-  const [chosenPlace, setChosenPlace] = useState<ReviewerPlace | null>(null);
+  const [chosenPlace, setChosenPlace] = useState<ReviewerPlaceOption | null>(null);
   const [restoreError, setRestoreError] = useState("");
   const initialized = useRef(false);
   const restoreSequence = useRef(0);
@@ -179,7 +170,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
     void restoreFetcher.load(reviewerPlaceSearchHref("", key, null, draft.placeId));
   }
 
-  function applyRestoredDraft(draft: Draft, place: ReviewerPlace | null) {
+  function applyRestoredDraft(draft: Draft, place: ReviewerPlaceOption | null) {
     const category = categories.find((item) => item.id === draft.categoryId) ?? categories.find((item) => item.id === place?.categoryId);
     const allowed = category ? REVIEWER_BADGE_CATALOG[category.name as ReviewerCategoryName] ?? [] : [];
     setStep(place ? Math.max(1, Math.min(5, Number.isInteger(draft.step) ? draft.step : 1)) : 1);
@@ -224,7 +215,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
     setPublishLocked(false);
   }, [fetcher.state]);
 
-  function choosePlace(nextPlace: ReviewerPlace) {
+  function choosePlace(nextPlace: ReviewerPlaceOption) {
     if (nextPlace.placeId === placeId) return;
     if (nextPlace.placeId !== placeId) {
       setEvaluation(null);
