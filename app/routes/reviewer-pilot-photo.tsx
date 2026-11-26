@@ -32,7 +32,7 @@ const withdrawSchema = z.strictObject({
 const LABELS = { UPLOADING: "업로드 중", PENDING: "검수 대기", APPROVED: "공개 승인", RETIRED: "철회" };
 
 export const headers = () => PRIVATE;
-export const meta = () => [{ title: "방문 리뷰 사진 — Re:Taste" }];
+export const meta = () => [{ title: "직접인증 방문 사진 — Re:Taste" }];
 
 function failure(error: string, status: number, headers: Record<string, string> = PRIVATE) {
   return data({ ok: false as const, error }, { status, headers });
@@ -159,7 +159,7 @@ export default function ReviewerPilotPhoto({ loaderData: { review }, actionData 
 
   return <main id="main" className="reviewer-moderation-shell">
     <Link className="inline-flex min-h-11 items-center underline" to="/reviewer/ratings">방문 리뷰 기록으로</Link>
-    <h1>방문 리뷰 사진</h1>
+    <h1>직접인증 방문 사진</h1>
     <p className="reviewer-moderation-notice">{review.placeName} 방문 리뷰에 연결된 사진입니다. 방문 리뷰와 사진이 모두 승인되면 장소 상세에 표시됩니다.</p>
     {actionData?.ok === false && !preparationError && <p role="alert">{actionData.error}</p>}
     {actionData?.ok && !preparationError && <p role="status">{actionData.message}</p>}

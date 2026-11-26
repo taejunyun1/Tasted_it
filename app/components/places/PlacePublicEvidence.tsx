@@ -1,6 +1,5 @@
 import { useId } from "react";
 import { Link } from "react-router";
-import type { PublicPlaceReviewPhoto } from "../../features/ratings/reviewer-visit.server";
 
 export function PlaceRatingBadges({ goldenPick, hiddenGem }: { goldenPick: boolean; hiddenGem: boolean }) {
   return <>
@@ -32,7 +31,13 @@ export function PlacePublicReviewers({ reviewers, heading: Heading = "h2" }: {
   </section>;
 }
 
-type PlaceReviewPhoto = PublicPlaceReviewPhoto & { directlyVerified?: true };
+type PlaceReviewPhoto = {
+  id: string;
+  url: string;
+  reviewerSlug: string;
+  reviewerDisplayName: string;
+  directlyVerified?: true;
+};
 
 export function PlaceReviewPhotos({ placeName, photos }: { placeName: string; photos: readonly PlaceReviewPhoto[] }) {
   const title = useId();

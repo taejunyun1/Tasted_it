@@ -46,6 +46,7 @@ const pilotPatchTargets = [
   "workers/app.ts",
 ];
 const pilotMainFiles = [
+  "app/components/places/PlacePublicEvidence.tsx",
   "app/db/student-review-pilot-photo.ts",
   "app/features/ratings/student-review-pilot-photo.server.ts",
   "app/routes/admin-student-review-photos.tsx",
@@ -94,6 +95,12 @@ const directVerificationTargets = [
   "app/routes/reviewer-apply.tsx",
   "app/routes/reviewer-profile.tsx",
 ];
+const directVerificationAuthorsPatch = "ops/releases/direct-verification-authors-494c07f.patch";
+const directVerificationAuthorsTargets = [
+  "app/components/places/PlaceDetailSheet.tsx",
+  "app/features/ratings/reviewer-publication.server.ts",
+];
+const directVerificationFiles = ["app/features/reviewers/direct-verification.server.ts"];
 const poiMediaPublicPatch = "ops/releases/poi-media-public-494c07f.patch";
 const poiMediaPublicTargets = [
   "app/components/places/PlaceDetailSheet.tsx",
@@ -200,6 +207,7 @@ const publicVoteSupportFileSha256 = copyMainFiles(publicVoteSupportFiles);
 const publicVotePatchSha256 = applyReleasePatch(
   publicVotePatch, ".public-place-vote.patch", publicVoteTargets, ["--unidiff-zero"],
 );
+const directVerificationFileSha256 = copyMainFiles(directVerificationFiles);
 const directVerificationPatchSha256 = applyReleasePatch(
   directVerificationPatch, ".direct-verification-profile.patch", directVerificationTargets,
 );
@@ -210,6 +218,9 @@ const poiMediaProof = poiMedia ? {
   fileSha256: copyMainFiles(poiMediaFiles),
   requiredMigrations: poiMediaMigrations.map((file) => ({ file, sha256: digest(committed(file)), applied: false })),
 } : null;
+const directVerificationAuthorsPatchSha256 = studentPilot ? applyReleasePatch(
+  directVerificationAuthorsPatch, ".direct-verification-authors.patch", directVerificationAuthorsTargets,
+) : null;
 for (const args of [["install", "--frozen-lockfile", "--prod=false"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
@@ -226,6 +237,7 @@ const attestation = {
   publicVotePatchSha256,
   publicVoteSupportFileSha256,
   directVerificationPatchSha256,
+  directVerificationFileSha256,
   photoAssetSha256,
   configSha256: digest(configBytes),
   buildSha256: buildFingerprint(buildRoot),
@@ -247,6 +259,7 @@ if (pilotProof) {
   writeFileSync(join(output, "student-pilot-release.json"), JSON.stringify({
     ...attestation,
     ...pilotProof,
+    directVerificationAuthorsPatchSha256,
     ...(poiMediaProof ? { poiMedia: poiMediaProof } : {}),
     activation: "dark",
   }, null, 2) + "\n", { mode: 0o600, flag: "wx" });

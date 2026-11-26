@@ -1,14 +1,16 @@
 diff --git a/app/features/reviewers/reviewer.server.ts b/app/features/reviewers/reviewer.server.ts
-index fa995b5..919e16e 100644
+index 28da3f4..ed1fd37 100644
 --- a/app/features/reviewers/reviewer.server.ts
 +++ b/app/features/reviewers/reviewer.server.ts
-@@ -1,4 +1,4 @@
--import { and, asc, desc, eq, inArray, isNull, like, ne, or } from "drizzle-orm";
-+import { and, asc, desc, eq, inArray, isNull, like, ne, or, sql } from "drizzle-orm";
-
- import type { AppDb } from "../../db/client.server";
+@@ -4,6 +4,7 @@ import type { AppDb } from "../../db/client.server";
  import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
-@@ -106,13 +106,19 @@ export async function applyReviewerDormancy(db: AppDb, input: { actorUserId: str
+ import { isWithdrawnEmail } from "../auth/withdraw";
+ import { slugifyPlaceName } from "../places/place-slug";
++import { directlyVerifiedAuthorCondition } from "./direct-verification.server";
+ import { isDormantAt, type ReviewerApplicationInput, validateReviewerApplication } from "./reviewer-policy";
+
+ const OPEN_APPLICATIONS = ["APPLIED", "REVIEWING"] as const;
+@@ -106,19 +107,28 @@ export async function applyReviewerDormancy(db: AppDb, input: { actorUserId: str
  }
 
  export async function getPublicReviewerProfile(db: AppDb, slug: string) {
@@ -17,8 +19,7 @@ index fa995b5..919e16e 100644
 +    profile: reviewerProfiles,
 +    displayName: users.displayName,
 +    email: users.email,
-+    directlyVerified: sql<boolean>`(exists(select 1 from student_seats where user_id=${reviewerProfiles.userId})
-+      or exists(select 1 from student_invitations where consumed_by=${reviewerProfiles.userId} and consumed_at is not null))`.mapWith(Boolean),
++    directlyVerified: directlyVerifiedAuthorCondition(reviewerProfiles.userId),
 +  }).from(reviewerProfiles)
      .innerJoin(users, eq(users.id, reviewerProfiles.userId))
      .where(and(eq(reviewerProfiles.slug, slug), eq(reviewerProfiles.status, "ACTIVE"), eq(users.role, "REVIEWER"))).limit(1);
@@ -30,6 +31,18 @@ index fa995b5..919e16e 100644
  }
 
  export async function getReviewerDashboard(db: AppDb, userId: string) {
+   const [latestApplication, profile, approvedSuggestionCount] = await Promise.all([
+-    db.query.reviewerApplications.findFirst({ where: eq(reviewerApplications.userId, userId), orderBy: [desc(reviewerApplications.createdAt)] }),
+-    db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, userId) }),
++    db.query.reviewerApplications.findFirst({
++      columns: { status: true },
++      where: eq(reviewerApplications.userId, userId),
++      orderBy: [desc(reviewerApplications.createdAt)],
++    }),
++    db.query.reviewerProfiles.findFirst({ columns: { status: true, slug: true }, where: eq(reviewerProfiles.userId, userId) }),
+     countApprovedPlaceSuggestions(db, userId),
+   ]);
+   return { latestApplication, profile, approvedSuggestionCount };
 diff --git a/app/routes/reviewer-profile.tsx b/app/routes/reviewer-profile.tsx
 index f9d05f7..3ca88c8 100644
 --- a/app/routes/reviewer-profile.tsx

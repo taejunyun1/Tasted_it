@@ -41,7 +41,7 @@ diff --git a/app/features/places/place.server.ts b/app/features/places/place.ser
 diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
 --- a/app/routes/place-detail.tsx
 +++ b/app/routes/place-detail.tsx
-@@ -26,7 +26,9 @@
+@@ -26,9 +26,11 @@
  import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
  import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
  import { PlaceInstagramPhoto } from "../components/places/PlaceInstagramPhoto";
@@ -49,21 +49,24 @@ diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
  import { curatedInstagramPhoto } from "../features/poi-media/instagram-photos";
 +import { getPublicPoiPhoto } from "../features/poi-media/poi-media.server";
  import { listPublicPilotPhotos } from "../features/ratings/student-review-pilot-photo.server";
+ import { listPublicPlaceReviewers } from "../features/ratings/reviewer-publication.server";
+ import { PlacePublicReviewers } from "../components/places/PlacePublicEvidence";
 
  const actionSchema = z.discriminatedUnion("intent", [
 @@ -88,7 +90,7 @@
    const officialPhoto = !place.heroImageUrl && !place.tempCatalog
      ? curatedInstagramPhoto(place, env.POI_INSTAGRAM_PHOTO_ENABLED)
      : null;
--  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible, pilotPhotos] = await Promise.all([
-+  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible, pilotPhotos, poiPhoto] = await Promise.all([
+-  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible, pilotPhotos, publicReviewers] = await Promise.all([
++  const [snapshot, flavorPrint, goldenPicks, hiddenGem, reviewPhotos, instagramEligible, pilotPhotos, publicReviewers, poiPhoto] = await Promise.all([
      getLatestRatingSnapshot(db, place.id),
      getPlaceFlavorPrint(db, place.id),
      listActiveGoldenPicks(db, now),
-@@ -96,6 +98,7 @@
+@@ -96,7 +98,8 @@
      listPublishedPlaceReviewPhotos(db, place.id, 12),
      officialPhoto ? isEligibleOfficialPhotoPlace(db, place).catch(() => false) : false,
      env.STUDENT_REVIEW_PILOT_PHOTOS ? listPublicPilotPhotos(db, place.id).catch(() => []) : [],
+     listPublicPlaceReviewers(db, place.id),
 +    getPublicPoiPhoto(db, place.id, env.POI_MEDIA_PUBLIC_ENABLED),
    ]);
    const rating = snapshot ? {
@@ -72,8 +75,8 @@ diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
      });
    }
    const returnTo = provenance?.requestPath ?? `/places/${encodeURIComponent(place.slug)}`;
--  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, pilotPhotos, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
-+  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, pilotPhotos, poiPhoto, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
+-  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, pilotPhotos, publicReviewers, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
++  return { place, rating, flavorPrint, hiddenGem, reviewPhotos, pilotPhotos, publicReviewers, poiPhoto, instagramPhoto: instagramEligible ? officialPhoto : null, hasGoldenPick: goldenPicks.some((pick) => pick.placeId === place.id), user, vote: voteState?.value ?? null, voteEventId: voteState?.eventId ?? null, saved, returnTo };
  }
 
  export async function action({ request, params, url }: Route.ActionArgs) {
@@ -81,8 +84,8 @@ diff --git a/app/routes/place-detail.tsx b/app/routes/place-detail.tsx
        <Link to="/places">맛집 리스트로</Link>
      </main>;
    }
--  const { place, rating, flavorPrint, reviewPhotos, pilotPhotos, instagramPhoto } = loaderData;
-+  const { place, rating, flavorPrint, reviewPhotos, pilotPhotos, poiPhoto, instagramPhoto } = loaderData;
+-  const { place, rating, flavorPrint, reviewPhotos, pilotPhotos, publicReviewers, instagramPhoto } = loaderData;
++  const { place, rating, flavorPrint, reviewPhotos, pilotPhotos, publicReviewers, poiPhoto, instagramPhoto } = loaderData;
    const query = encodeURIComponent(place.address);
    return (
      <main id="main" className="detail shell">
