@@ -90,9 +90,12 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     id: "place-intake-4c5afcf5031e6bfbf8d3484e",
     name: "사거리통골뱅이",
     address: "광주 동구 충장로58번길 18-2 (충장동, 충장로4가)",
-    publisher: "네이버 클립 · 식샤를합시다",
-    url: "https://m.blog.naver.com/loveis7108/clip/7801577",
+    publisher: "YouTube · 스튜디오 워매",
+    disclosure: "2023년 공개 영상",
+    url: "https://www.youtube.com/shorts/edU_JvgAprI",
     mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/edU_JvgAprI" },
+    fallback: { publisher: "네이버 클립 · 식샤를합시다", url: "https://m.blog.naver.com/loveis7108/clip/7801577", mediaKind: "video" },
   },
   {
     id: "0bf5c86b-5043-4d3f-98ce-5949f2db2800",
@@ -217,9 +220,11 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     id: "place-intake-296fe52a6f1a1f39f8a2a9f6",
     name: "오비수산",
     address: "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
-    publisher: "오비수산 · 네이버 플레이스 소식",
-    url: "https://m.place.naver.com/restaurant/2004979994/feed",
+    publisher: "YouTube · 3초 후",
+    url: "https://www.youtube.com/shorts/nILy25jCyaI",
     mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/nILy25jCyaI" },
+    fallback: { publisher: "오비수산 · 네이버 플레이스 소식", url: "https://m.place.naver.com/restaurant/2004979994/feed", mediaKind: "video" },
   },
   {
     id: "place-intake-7a534081f2e2fca2ce7b27c8",
@@ -254,6 +259,13 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     publisher: "네이버 클립 · 져니콩",
     url: "https://m.blog.naver.com/jiwon4348/clip/5134953",
     mediaKind: "video",
+  },
+  {
+    id: "place-intake-17422a656ab8d3e89bc20013",
+    name: "반달곰식당",
+    address: "전남광주 구례군 중앙로 88 (봉북리)",
+    publisher: "네이버 블로그 · young624",
+    url: "https://m.blog.naver.com/studio_young0425/224365538127",
   },
 ];
 
