@@ -127,11 +127,15 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 25년 장인아구찜은 나주와 광주 쌍촌점의 업체 소개 문구와 메뉴가 일치해 기존 다점포 검토를 유지한다. 살림프리미엄채식뷔페는 운영자가 두 지점을 안내했고, 올더스캣은 기존 매장 운영 종료 공지를 확인했다. 세 곳의 새 사진 연결은 보류한다. [나주 업체 정보](https://m.place.naver.com/restaurant/1795398348/information) · [쌍촌 업체 정보](https://m.place.naver.com/restaurant/1109865631/information) · [살림프리미엄채식뷔페 업주 안내](https://m.blog.naver.com/salimbuffet) · [올더스캣 B09 기록](2026-11-26-allderscat-b09-recall.md)
 
-### 광성식당·복록수의 공개 영상
+### 광성식당·복록수·고템커피·들뫼풍경의 공개 영상
 
-광성식당은 영제이의 하루하루 원본 설명의 광한서로 7, 영상 04초의 간판과 15초의 상차림을 확인했다. 원문에 표시된 협찬 문구를 상세에도 표시한다. 복록수는 먹데이비슨 원본 45초의 붉은 간판·메뉴판·입구를 서석로10번길 9의 방문 기록과 대조했다. 상세의 원본 링크와 플레이어는 45초에서 시작한다. [광성식당 원본](https://www.youtube.com/watch?v=oJ7_FxUjR18) · [복록수 원본](https://www.youtube.com/watch?v=Ij9nvE4oGwE&t=45s) · [복록수 주소·외관 대조](https://wisdom-blog.tistory.com/entry/%EA%B4%91%EC%A3%BC-%EA%B5%AC%EC%8B%9C%EC%B2%AD-%EC%96%91%EA%BC%AC%EC%B9%98-%EB%A7%9B%EC%A7%91-%EB%B3%B5%EB%A1%9D%EC%88%98-10%EB%B2%88-%EB%84%98%EA%B2%8C-%EA%B0%84-%EC%A4%91%EA%B5%AD-%ED%98%84%EC%A7%80%EC%89%90%ED%94%84-%EB%A7%9B%EC%A7%91)
+광성식당은 영제이의 하루하루 원본 설명의 광한서로 7, 영상 4초의 간판과 15초의 상차림을 확인했다. 원문에 표시된 협찬 문구를 상세에도 표시한다. 복록수는 먹데이비슨 원본 45초의 붉은 간판·메뉴판·입구를 서석로10번길 9의 방문 기록과 대조했다. 상세의 원본 링크와 플레이어는 45초에서 시작한다. [광성식당 원본](https://www.youtube.com/watch?v=oJ7_FxUjR18) · [복록수 원본](https://www.youtube.com/watch?v=Ij9nvE4oGwE&t=45s) · [복록수 주소·외관 대조](https://wisdom-blog.tistory.com/entry/%EA%B4%91%EC%A3%BC-%EA%B5%AC%EC%8B%9C%EC%B2%AD-%EC%96%91%EA%BC%AC%EC%B9%98-%EB%A7%9B%EC%A7%91-%EB%B3%B5%EB%A1%9D%EC%88%98-10%EB%B2%88-%EB%84%98%EA%B2%8C-%EA%B0%84-%EC%A4%91%EA%B5%AD-%ED%98%84%EC%A7%80%EC%89%90%ED%94%84-%EB%A7%9B%EC%A7%91)
 
-두 장소는 방문자가 재생을 선택할 때만 정확한 공급자 프레임을 연다. 화면의 **출처** 한 개는 해당 작성자의 원문을 연다. 영상 옵션이 꺼진 경우 기존 네이버 클립으로 연결한다. 일반 공개 78곳 기준 후보는 상세 표시 64곳, 원문 링크만 11곳, 보류 3곳이다. 운영 적용은 승인된 후속 실행 범위의 정확한 후보에서 확인한다. [브라우저 검증](../evidence/cst-sourced-venue-videos-20261127/summary.json)
+고템커피는 2026년 원본 설명의 남계리 829-1을 고흥로 1670-7과 대조하고, 해당 주소의 별도 방문 기록에서 같은 유리 온실 건물을 확인했다. 들뫼풍경은 2019년 epigram 원본 설명의 전봉준로 108과 영상의 매장명·찻집 내부를 확인했다. 상세에 공개 연도를 표시한다. [고템커피 원본](https://www.youtube.com/watch?v=dwhKx8NkcfI) · [고흥군 장소 기록](https://www.goheung.go.kr/economy/contentsView.do?pageId=economy36) · [고템커피 외관 대조](https://m.blog.naver.com/algml3779/224020078990) · [들뫼풍경 원본](https://www.youtube.com/watch?v=KGm3K1ezZ3I) · [고창군 장소 기록](https://www.gochang.go.kr/council/board/list.gochang?boardId=BBS_0000216&paging=ok&startPage=191)
+
+원조목살집·광성식당의 네이버 클립은 원문에서 비로그인 재생과 공유 메뉴의 URL 복사를 확인했다. [원조목살집 네이버 원문](https://m.blog.naver.com/jiwon4348/clip/5134953) · [광성식당 네이버 원문](https://m.blog.naver.com/every100/clip/9398864)
+
+네 장소는 방문자가 재생을 선택할 때만 정확한 공급자 프레임을 연다. 화면의 **출처** 한 개는 해당 작성자의 원문을 연다. 영상 옵션이 꺼지면 각 장소의 기존 네이버 클립이나 업체 사진으로 연결한다. 일반 공개 78곳 기준 후보는 상세 표시 66곳, 원문 링크만 9곳, 보류 3곳이다. 운영 적용은 승인된 후속 실행 범위의 정확한 후보에서 확인한다. [브라우저 검증](../evidence/cst-sourced-venue-videos-20261127/summary.json)
 
 ## 적용과 회수 기준
 

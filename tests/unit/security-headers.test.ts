@@ -97,8 +97,10 @@ describe("applySecurityHeaders", () => {
       "https://www.youtube-nocookie.com/embed/fFQgQMYL8ag",
       "https://www.youtube-nocookie.com/embed/oJ7_FxUjR18",
       "https://www.youtube-nocookie.com/embed/INk0aC5hoK4",
+      "https://www.youtube-nocookie.com/embed/dwhKx8NkcfI",
       "https://www.youtube-nocookie.com/embed/glRm4NcRhac",
       "https://www.youtube-nocookie.com/embed/nILy25jCyaI",
+      "https://www.youtube-nocookie.com/embed/KGm3K1ezZ3I",
       "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg",
       "https://www.youtube-nocookie.com/embed/osYf3qz36HI",
     ]);

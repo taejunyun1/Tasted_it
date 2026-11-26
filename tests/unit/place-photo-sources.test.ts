@@ -73,6 +73,7 @@ describe("place photo source links", () => {
     const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
     const source = reviewedPlacePhotoOriginal({ id, name, address });
     expect(source).toEqual({ url, publisher: "네이버 플레이스 · 업체 사진" });
+    expect(reviewedPlacePhotoOriginal({ id, name, address }, { youtube: "false" })).toEqual(source);
     expect(reviewedPlacePhotoOriginal({ id, name, address: `${address} 2층` })).toBeNull();
     expectExactPhotoSource(renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! })), url);
   });
@@ -125,8 +126,12 @@ describe("place photo source links", () => {
       "https://hwa2ting.tistory.com/429", undefined, undefined],
     ["place-intake-950ba22fa1c3cd0685fbbdde", "목살집", "전남광주 남구 광복마을6길 1 (진월동)",
       "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s", "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120", undefined],
+    ["c893e7dc-c6a0-4467-82b8-8859051d24c8", "고템커피", "전남광주통합특별시 고흥군 고흥읍 고흥로 1670-7",
+      "https://www.youtube.com/watch?v=dwhKx8NkcfI", "https://www.youtube-nocookie.com/embed/dwhKx8NkcfI", undefined],
     ["place-intake-296fe52a6f1a1f39f8a2a9f6", "오비수산", "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
       "https://www.youtube.com/shorts/nILy25jCyaI", "https://www.youtube-nocookie.com/embed/nILy25jCyaI", undefined],
+    ["place-intake-7a534081f2e2fca2ce7b27c8", "들뫼풍경", "전북 고창군 전봉준로 108 (율계리)",
+      "https://www.youtube.com/watch?v=KGm3K1ezZ3I", "https://www.youtube-nocookie.com/embed/KGm3K1ezZ3I", "2019년 공개 영상"],
     ["place-intake-17422a656ab8d3e89bc20013", "반달곰식당", "전남광주 구례군 중앙로 88 (봉북리)",
       "https://m.blog.naver.com/studio_young0425/224365538127", undefined, undefined],
     ["place-intake-04a99c49889c69595df5332a", "자매통닭&호프", "광주 동구 천변우로 363-26 (호남동)",
