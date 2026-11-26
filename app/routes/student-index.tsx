@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { data, Link, redirect } from "react-router";
 import type { Route } from "./+types/student-index";
-import { studentSeats } from "../db/schema";
+import { reviewerProfiles, studentSeats } from "../db/schema";
 import { clearPendingInvite } from "../features/students/pending-invite";
 import { createDb } from "../db/client.server";
 import { requireUser } from "../features/auth/session.server";
@@ -21,7 +21,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     const page = Number(new URL(request.url).searchParams.get("page") ?? 1);
     const result = await listStudentTasks(db, { userId: user.id, now: new Date().toISOString(), page });
-    return data({ ...result, seat: { code: result.seat.code, label: result.seat.label, expiresAt: result.seat.expiresAt } }, { headers: NO_STORE_HEADERS });
+    const reviewer = user.role === "REVIEWER" ? await db.query.reviewerProfiles.findFirst({
+      where: eq(reviewerProfiles.userId, user.id),
+      columns: { status: true },
+    }) : null;
+    return data({
+      ...result,
+      seat: { code: result.seat.code, label: result.seat.label, expiresAt: result.seat.expiresAt },
+      canSubmitVisitReview: reviewer?.status === "ACTIVE",
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     if (error instanceof Error && error.message === "STUDENT_ACCESS_DENIED" && user.role !== "ADMIN") {
       const seat = await db.query.studentSeats.findFirst({ where: eq(studentSeats.userId, user.id), columns: { code: true } });
@@ -37,6 +45,17 @@ export default function StudentIndex({ loaderData: result }: Route.ComponentProp
   useEffect(() => { try { clearPendingInvite(window.sessionStorage); } catch { /* Storage may be disabled. */ } }, []);
   return <StudentFrame title={`${result.seat.label}의 작업`} description="배정된 자료를 분류하고 다른 학생의 지정 자료를 교차 확인합니다.">
     <p className="student-help">1차 담당 작업은 직접 제출하고, 교차 확인 작업은 제출된 근거를 확인하세요. 사용 기한은 {new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "long", timeStyle: "short" }).format(new Date(Date.parse(result.seat.expiresAt) - 1))}까지입니다.</p>
+    <section className="student-section" aria-labelledby="student-visit-review">
+      <h2 id="student-visit-review">방문 리뷰</h2>
+      <p>{result.canSubmitVisitReview
+        ? "직접 방문한 장소의 평가를 작성하고 검수를 요청할 수 있습니다."
+        : "방문 리뷰를 제출하려면 활동 리뷰어 승인이 필요합니다."}</p>
+      <div className="student-actions">
+        {result.canSubmitVisitReview
+          ? <Link to="/reviewer/ratings">방문 리뷰 제출</Link>
+          : <Link to="/reviewer/apply">리뷰어 신청 및 상태 확인</Link>}
+      </div>
+    </section>
     {result.tasks.length ? <ul className="student-task-list">{result.tasks.map((task) => <li key={task.id}><Link to={`/student/tasks/${task.id}`}><div><strong>{task.title}</strong><small>{kindLabels[task.kind]} · {task.assignedSeat === result.seat.code ? "내가 1차 담당" : `${task.assignedSeat} 학생의 자료 교차 확인`}</small></div><span className="student-status">{statusLabels[task.status]}</span></Link></li>)}</ul> : <p className="student-empty">아직 배정된 작업이 없습니다. 담당자에게 이번 주 작업을 요청하세요.</p>}
     <nav className="student-pagination" aria-label="작업 목록 페이지">{result.page > 1 && <Link to={`?page=${result.page - 1}`}>이전</Link>}<span>{result.page}쪽 · 총 {result.total}건</span>{result.page * 50 < result.total && <Link to={`?page=${result.page + 1}`}>다음</Link>}</nav>
   </StudentFrame>;

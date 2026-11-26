@@ -4,9 +4,9 @@ import { asc, eq } from "drizzle-orm";
 import type { Route } from "./+types/reviewer-ratings";
 
 import { ReviewerVisitFlow } from "../components/reviewer-visit-flow";
-import { createDb } from "../db/client.server";
+import { createDb, type AppDb } from "../db/client.server";
 import { categories, reviewerProfiles } from "../db/schema";
-import { requireUser } from "../features/auth/session.server";
+import { requireUser, type SessionUser } from "../features/auth/session.server";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { getGoldenPickQuota } from "../features/ratings/golden-pick.server";
 import {
@@ -18,8 +18,19 @@ import {
 import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit-publish.server";
 import { listReviewerPlacePage } from "../features/ratings/reviewer-place-search.server";
 import { parseReviewerPlaceSearch, ReviewerPlaceSearchInputError } from "../features/ratings/reviewer-place-search";
+import { canUploadReviewerPhotos } from "../features/students/reviewer-photo-pilot.server";
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
+
+function photoUploadAvailable(db: AppDb, user: SessionUser, now: string) {
+  return canUploadReviewerPhotos(db, {
+    user,
+    now,
+    globalEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED,
+    studentWorkspaceEnabled: env.STUDENT_WORKSPACE_ENABLED,
+    pilotSeats: env.STUDENT_REVIEWER_PHOTO_PILOT_SEATS,
+  });
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
@@ -31,11 +42,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (before && !before.success) throw new Response("기록 페이지 주소를 다시 확인해 주세요.", { status: 400 });
   const cursor = before?.success ? before.data : undefined;
   const now = new Date().toISOString();
-  const reviewer = await db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, user.id) });
+  const reviewer = await db.query.reviewerProfiles.findFirst({
+    where: eq(reviewerProfiles.userId, user.id),
+    columns: { status: true },
+  });
   const canSubmit = user.role === "REVIEWER" && reviewer?.status === "ACTIVE";
   let placeInput;
   try { placeInput = parseReviewerPlaceSearch(search); } catch (error) { if (error instanceof ReviewerPlaceSearchInputError) throw new Response("장소 검색 조건을 확인해 주세요.", { status: 400 }); throw error; }
-  const [placeResult, categoryRows, history, goldenQuota] = await Promise.all([
+  const [placeResult, categoryRows, history, goldenQuota, photoUploadEnabled] = await Promise.all([
     canSubmit ? listReviewerPlacePage(db, user.id, placeInput) : { page: { query: "", places: [], nextCursor: null }, selectedPlace: null },
     canSubmit ? db.select({ id: categories.id, name: categories.name, emoji: categories.emoji })
       .from(categories)
@@ -43,6 +57,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       .orderBy(asc(categories.sortOrder)) : [],
     listReviewerVisitHistory(db, user.id, 12, cursor),
     getGoldenPickQuota(db, user.id, now),
+    canSubmit && photoUploadAvailable(db, user, now),
   ]);
   const reviewableNames = new Set(Object.keys(REVIEWER_BADGE_CATALOG));
   const reviewCategories = categoryRows.filter((category) => reviewableNames.has(category.name));
@@ -66,18 +81,21 @@ export async function loader({ request }: Route.LoaderArgs) {
     goldenQuota,
     publishedReviewId,
     notice,
-    photoUploadEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED === "true",
+    photoUploadEnabled,
   };
 }
 
 export async function action({ request }: Route.ActionArgs) {
   if (!isSameOriginMutation(request)) throw new Response("이 요청은 현재 서비스에서 다시 실행해 주세요.", { status: 403, statusText: "FORBIDDEN" });
   const user = await requireUser(request);
+  const db = createDb(env.DB);
+  const now = new Date().toISOString();
   return publishReviewerRatingRequest(request, {
-    db: createDb(env.DB),
+    db,
     photoBucket: env.REVIEW_PHOTOS,
-    photoUploadEnabled: env.REVIEW_PHOTO_UPLOAD_ENABLED === "true",
+    photoUploadEnabled: await photoUploadAvailable(db, user, now),
     reviewerUserId: user.id,
+    now,
   });
 }
 

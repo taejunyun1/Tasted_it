@@ -1,10 +1,11 @@
-import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { env, withEnv } from "cloudflare:workers";
+import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../../app/db/client.server";
 import { MAX_REVIEWER_RATING_REQUEST_BYTES } from "../../app/features/ratings/reviewer-visit-publish.server";
 import { getReviewerPhotoObjectKey } from "../../app/features/ratings/reviewer-photo.server";
 import { publishReviewerRatingRequest } from "../../app/features/ratings/reviewer-visit-publish.server";
+import { action as submitRating, loader as loadRating } from "../../app/routes/reviewer-ratings";
 
 const now = "2026-08-13T00:00:00.000Z";
 
@@ -202,5 +203,157 @@ describe("reviewer ratings publish action", () => {
         .bind(seeded.reviewerId)
         .first(),
     ).resolves.toBeNull();
+  });
+});
+
+type RouteFixture = Awaited<ReturnType<typeof seedReviewerRouteData>>;
+
+function ratingsRequest(sessionId: string, body?: FormData) {
+  return new Request("https://retaste.test/reviewer/ratings", {
+    method: body ? "POST" : "GET",
+    headers: {
+      Cookie: `retaste_session=${sessionId}`,
+      Origin: "https://retaste.test",
+    },
+    body,
+  });
+}
+
+async function linkPilotSeat(fixture: RouteFixture, code: "A" | "B" | "C") {
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET email_verified_at = ? WHERE id = ?").bind(now, fixture.reviewerId),
+    env.DB.prepare("UPDATE student_seats SET user_id = ?, is_active = 1, expires_at = '2099-01-01T00:00:00.000Z' WHERE code = ?")
+      .bind(fixture.reviewerId, code),
+  ]);
+}
+
+function useUploadConfig<T>(input: { seats?: string; global?: string; workspace?: string }, run: () => Promise<T>) {
+  return withEnv({
+    DB: env.DB,
+    REVIEW_PHOTOS: env.REVIEW_PHOTOS,
+    REVIEW_PHOTO_UPLOAD_ENABLED: input.global ?? "false",
+    STUDENT_WORKSPACE_ENABLED: input.workspace ?? "true",
+    STUDENT_REVIEWER_PHOTO_PILOT_SEATS: input.seats,
+  }, run) as Promise<T>;
+}
+
+describe("student reviewer photo pilot", () => {
+  it("lets two selected active students submit photos for the same place", async () => {
+    const first = await seedReviewerRouteData("pilot-first");
+    const second = await seedReviewerRouteData("pilot-second");
+    await linkPilotSeat(first, "A");
+    await linkPilotSeat(second, "B");
+
+    await useUploadConfig({ seats: "A,B" }, async () => {
+      for (const author of [first, second]) {
+        const data = await loadRating({ request: ratingsRequest(author.sessionId) } as never);
+        expect(data).toMatchObject({ canSubmit: true, photoUploadEnabled: true });
+        const response = await submitRating({ request: ratingsRequest(author.sessionId, reviewPhotoForm(first)) } as never);
+        expect(response.status).toBe(303);
+        expect(response.headers.get("location")).toContain("notice=review-with-photos-submitted");
+      }
+    });
+
+    const reviews = await env.DB.prepare(
+      "SELECT id, reviewer_user_id AS author, status, photo_count AS photoCount FROM reviewer_visit_reviews WHERE place_id = ?",
+    ).bind(first.placeId).all<{ id: string; author: string; status: string; photoCount: number }>();
+    expect(reviews.results).toHaveLength(2);
+    expect(new Set(reviews.results.map((review) => review.author))).toEqual(new Set([first.reviewerId, second.reviewerId]));
+    for (const review of reviews.results) {
+      expect(review).toMatchObject({ status: "PENDING", photoCount: 1 });
+      const photo = await env.DB.prepare("SELECT id FROM reviewer_visit_photos WHERE review_id = ?").bind(review.id).first<{ id: string }>();
+      expect(photo?.id).toBeTruthy();
+      await expect(env.REVIEW_PHOTOS.head(getReviewerPhotoObjectKey(review.id, photo!.id))).resolves.toBeTruthy();
+    }
+  });
+
+  it("fails closed for malformed settings and ineligible students while preserving photo-free reviews", async () => {
+    const author = await seedReviewerRouteData("pilot-ineligible");
+    await linkPilotSeat(author, "C");
+    const put = vi.spyOn(env.REVIEW_PHOTOS, "put");
+    const probe = async (input: Parameters<typeof useUploadConfig>[0]) => {
+      await useUploadConfig(input, async () => {
+        expect(await loadRating({ request: ratingsRequest(author.sessionId) } as never))
+          .toMatchObject({ canSubmit: true, photoUploadEnabled: false });
+        const response = await submitRating({ request: ratingsRequest(author.sessionId, reviewPhotoForm(author)) } as never);
+        expect(response.status).toBe(409);
+        await expect(response.json()).resolves.toMatchObject({ error: "REVIEW_PHOTO_UPLOAD_DISABLED" });
+      });
+    };
+    try {
+      for (const seats of [undefined, "", "A,B", "C,C", "A,B,C", "C,invalid", "C,"]) {
+        await probe({ seats });
+      }
+      await probe({ seats: "C", workspace: "false" });
+      await env.DB.prepare("UPDATE student_seats SET is_active = 0 WHERE code = 'C'").run();
+      await probe({ seats: "C" });
+      await env.DB.prepare("UPDATE student_seats SET is_active = 1, expires_at = '2020-01-01T00:00:00.000Z' WHERE code = 'C'").run();
+      await probe({ seats: "C" });
+      await env.DB.prepare("UPDATE student_seats SET expires_at = '2099-01-01T00:00:00.000Z' WHERE code = 'C'").run();
+      await env.DB.prepare("UPDATE users SET email_verified_at = NULL WHERE id = ?").bind(author.reviewerId).run();
+      await probe({ seats: "C" });
+      expect(put).not.toHaveBeenCalled();
+      await expect(env.DB.prepare("SELECT id FROM reviewer_visit_reviews WHERE reviewer_user_id = ?")
+        .bind(author.reviewerId).first()).resolves.toBeNull();
+
+      await useUploadConfig({ seats: "C" }, async () => {
+        const response = await submitRating({ request: ratingsRequest(author.sessionId, reviewPhotoForm(author, false)) } as never);
+        expect(response.status).toBe(303);
+        expect(response.headers.get("location")).toContain("notice=review-submitted");
+      });
+      expect(put).not.toHaveBeenCalled();
+    } finally {
+      put.mockRestore();
+    }
+  });
+
+  it("rejects the next request when a selected reviewer loses member access", async () => {
+    const author = await seedReviewerRouteData("pilot-restricted");
+    await linkPilotSeat(author, "A");
+    await useUploadConfig({ seats: "A" }, async () => {
+      expect(await loadRating({ request: ratingsRequest(author.sessionId) } as never))
+        .toMatchObject({ photoUploadEnabled: true });
+    });
+
+    const at = Date.now();
+    await env.DB.prepare(`INSERT INTO member_access_restrictions
+      (user_id, version, reason, starts_at, expires_at, updated_at)
+      VALUES (?, 1, '합성 계정 검증', ?, ?, ?)`)
+      .bind(author.reviewerId, new Date(at - 1000).toISOString(), new Date(at + 60_000).toISOString(), new Date(at).toISOString())
+      .run();
+    const put = vi.spyOn(env.REVIEW_PHOTOS, "put");
+    try {
+      await useUploadConfig({ seats: "A" }, async () => {
+        await expect(loadRating({ request: ratingsRequest(author.sessionId) } as never)).rejects.toMatchObject({ status: 302 });
+        await expect(submitRating({
+          request: ratingsRequest(author.sessionId, reviewPhotoForm(author)),
+        } as never)).rejects.toMatchObject({ status: 302 });
+      });
+      expect(put).not.toHaveBeenCalled();
+    } finally {
+      put.mockRestore();
+    }
+  });
+
+  it("requires an active reviewer and preserves the explicit global setting", async () => {
+    const author = await seedReviewerRouteData("pilot-reviewer-state");
+    await linkPilotSeat(author, "A");
+    await env.DB.prepare("UPDATE reviewer_profiles SET status = 'DORMANT' WHERE user_id = ?").bind(author.reviewerId).run();
+    await useUploadConfig({ seats: "A" }, async () => {
+      expect(await loadRating({ request: ratingsRequest(author.sessionId) } as never))
+        .toMatchObject({ canSubmit: false, photoUploadEnabled: false });
+      const response = await submitRating({ request: ratingsRequest(author.sessionId, reviewPhotoForm(author)) } as never);
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({ error: "ACTIVE_REVIEWER_REQUIRED" });
+    });
+
+    await env.DB.prepare("UPDATE reviewer_profiles SET status = 'ACTIVE' WHERE user_id = ?").bind(author.reviewerId).run();
+    await useUploadConfig({ global: "true", workspace: "false" }, async () => {
+      expect(await loadRating({ request: ratingsRequest(author.sessionId) } as never))
+        .toMatchObject({ canSubmit: true, photoUploadEnabled: true });
+      const response = await submitRating({ request: ratingsRequest(author.sessionId, reviewPhotoForm(author)) } as never);
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toContain("notice=review-with-photos-submitted");
+    });
   });
 });
