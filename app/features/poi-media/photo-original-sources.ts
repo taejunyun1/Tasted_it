@@ -12,9 +12,6 @@ type ReviewedSource = PlaceIdentity & PlacePhotoOriginalSource & {
   fallback?: Omit<PlacePhotoOriginalSource, "embed">;
 };
 
-// The official embed script produces this narrowly scoped frame for the selected post.
-export const THREADS_PHOTO_FRAME_SOURCE = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
-
 export function allowsPlaceVisualFrames(pathname: string) {
   return pathname === "/" || /^\/(?:places|maps)(?:\/|$)/u.test(pathname);
 }
@@ -71,7 +68,7 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     address: "전남광주 화순군 시장길 33 (삼천리)",
     publisher: "Threads · @hwasun_dubu",
     url: "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W",
-    embed: { provider: "threads", url: THREADS_PHOTO_FRAME_SOURCE },
+    embed: { provider: "threads", url: "https://www.threads.com/t/DWkUdT7E-7W/embed/" },
   },
   {
     id: "place-intake-e724797f168726b01426c9cc",
@@ -281,7 +278,39 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     publisher: "네이버 블로그 · 박소술",
     url: "https://m.blog.naver.com/sososo2516/224145188426",
   },
+  {
+    id: "61b9993d-673b-47ed-b3b9-95875cc35ce5",
+    name: "야들족발",
+    address: "전남광주통합특별시 광산구 하남산단1번로 61, 1층 132호 (하남동)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/2004050569/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "90807efb-7daa-4d5b-b99d-66ee73962a75",
+    name: "점심한끼",
+    address: "전남광주통합특별시 서구 월산로 257, 1층 (농성동)",
+    publisher: "네이버 플레이스 · 업체 사진",
+    url: "https://m.place.naver.com/restaurant/1156425740/photo?filterType=%EC%97%85%EC%B2%B4",
+  },
+  {
+    id: "c4c2e79d-00a4-4dc5-9dfd-e051bc213bd7",
+    name: "이것이아구찜이다",
+    address: "전남광주통합특별시 광양시 중마청룡1길 7-7, 3층중 1층일부 (중동)",
+    publisher: "Threads · 이것이아구찜이다",
+    url: "https://www.threads.com/@jinvima123/post/DcxYATFkzc9",
+    embed: { provider: "threads", url: "https://www.threads.com/t/DcxYATFkzc9/embed/" },
+  },
+  {
+    id: "18c0fe3a-227b-4602-9d83-f6e9e88e0636",
+    name: "뉴욕감자탕",
+    address: "전남광주통합특별시 나주시 상야4길 10, 124,125호 (빛가람동)",
+    publisher: "네이버 플레이스 · 사진",
+    url: "https://map.naver.com/p/entry/place/2029828674?placePath=%2Fphoto",
+  },
 ];
+
+export const THREADS_PHOTO_FRAME_SOURCES = REVIEWED_SOURCES.flatMap(({ embed }) =>
+  embed?.provider === "threads" ? [embed.url] : []);
 
 // CSP source expressions match the video path. The player URL carries playback bounds.
 export const YOUTUBE_VIDEO_FRAME_SOURCES = REVIEWED_SOURCES.flatMap(({ embed }) =>
