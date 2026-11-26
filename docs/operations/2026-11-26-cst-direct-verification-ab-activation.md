@@ -41,6 +41,7 @@ pnpm exec wrangler versions deploy "${new_version}@100" --name retaste-beta --ye
 - 대상·해시·버전이 어긋나거나 B08 결과를 확인할 수 없으면 같은 요청을 반복하기 전에 실제 배포·신청과 동일 작업 ID의 영수증·감사를 읽는다. 확정하지 못한 결과는 UNKNOWN으로 남긴다. 초기 접수 종료 전환에서 중대한 회귀가 있고 대상 활동 승인과 실제 방문·사진 제출이 시작되기 전이면 기존 사진 바인딩을 가진 직전 #556 버전으로 한 번 복구한다.
 - A·B 접수에서 범위가 어긋나거나 접수 기간이 끝나면, 이 PR의 #560 접수 종료 버전으로 단계당 한 번 되돌려 새 사진 첨부를 닫는다. `pnpm exec wrangler rollback "$restore_version" --name retaste-beta --yes --profile tastedit-production`의 복구 대상은 영수증과 대조한 정확한 버전이다. 단독 100%와 새 첨부 종료, 기존 심사·사진·R2 정리 경로를 확인한다. 공개 사진에 문제가 있으면 실제 실증 대상 중 해당 사진만 관리자 경로로 한 번 회수하고 익명 GET·HEAD 404를 대조한다. 좌석의 실제 만료 시각을 각 단계 직전에 확인한다. 사용자·방문·감사·D1·R2 기록을 보존한다. [Cloudflare 복구](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/)
 - #560 변경 자체의 회귀로 같은 접수 종료 버전을 사용할 수 없으면 [#559에 고정된 e021071 접수 종료 번들](https://github.com/taejunyun1/Tasted_it/blob/8605b4d7af6e01cdce6bc7897b9c029707f07455/docs/operations/2026-11-26-cst-direct-verification-ab-activation.md)로 비상 전환을 한 번 허용한다. 정확한 기존 버전의 영수증을 대조하고, 업로드된 버전이 없으면 위 strict 경로로 정확한 지문을 확인한 번들을 최대 한 번 업로드한다. 기존 장소 사진과 승인·회수 경로를 확인하고 공개 프로필 사진 복구를 별도 기록한다.
+- 복구 트래픽을 전환한 뒤 복구된 정확한 버전의 RSI와 일치하는 D1 감사를 확인한다. 운영 경계 확인과 결과를 복구 영수증에 남긴다.
 
 #557 정확한 호환 빌드와 격리 59개 장부에서 신청 결과, 320px 재신청, 관리자 메모 비노출과 과거 중복 상태를 확인했다. 세 설정의 strict dry-run과 일반 사진 구성·접수 좌석 대조도 끝냈다. [신청 증거](../evidence/cst-reviewer-application-outcome-20261126/summary.json) · [좌석별 사진 경계 선행 검증](2026-11-26-cst-student-production-compat.md#후속-후보의-접수-설정-준비)
 
