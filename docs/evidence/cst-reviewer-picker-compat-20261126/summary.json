@@ -1,0 +1,35 @@
+{
+  "revision": "55fd9d7f96fe0b6cc1e4c7d58b2738b8dcdc956a",
+  "pilotBuildSha256": "74d19f2c97269533ab0b8b17fd309e89c2fe67be60dc465a6842144782e9e82a",
+  "ordinaryBuildSha256": "e373c68d5c5fc4af5e5e499dacd95eb39d08af6d8cca6d0f3ac9d6299207f3df",
+  "pickerPatchSha256": "1aad30c324a43badc382462d4d2f80a244a83d74efaa408d6a408cca57011686",
+  "scope": "localhost only",
+  "migrations": 57,
+  "placesWithSameNameAndNeighborhoodSelectedByPublicAddress": 2,
+  "publicSearchResourceAnonymousStatus": 302,
+  "publicSearchResourceInactiveReviewerStatus": 403,
+  "applicationPrivacyCopyDesktopAndMobile": true,
+  "pilot": {
+    "check": "first-visit-desktop-mobile-pilot-review",
+    "status": "PASS",
+    "startedFromZeroVisitRows": true,
+    "nativeReviewApproval": true,
+    "photoApprovalSeparate": true,
+    "ownership": true,
+    "previewPrivate": true,
+    "publicAttribution": true,
+    "withdrawal": true
+  },
+  "legacyBucketUntouched": true,
+  "externalWorkerAttempts": 0,
+  "mainTargetedDesktopMobileBrowserChecks": 6,
+  "mainNarrowMobileWidth": 320,
+  "mainSearchRecoveredFromExpiredCursor": true,
+  "mainSelectionAndDraftRestored": true,
+  "screenshots": [
+    "desktop-picker.png",
+    "mobile-picker.png",
+    "desktop-application.png",
+    "mobile-application.png"
+  ]
+}

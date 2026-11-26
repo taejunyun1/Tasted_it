@@ -45,7 +45,13 @@ test("pages through all places and retains an off-page selection and draft acros
   const resetSearch = page.getByRole("button", { name: "첫 페이지 다시 확인", exact: true });
   await expect(resetSearch).toBeVisible();
   await page.unroute("**/resources/reviewer-places.data*");
+  const firstPage = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === "/resources/reviewer-places.data" && !url.searchParams.has("cursor");
+  });
   await resetSearch.click();
+  expect((await firstPage).status()).toBe(200);
+  await expect(results).toHaveAttribute("aria-busy", "false");
   await page.getByRole("button", { name: "다음 장소", exact: true }).click();
   await expect(results).toContainText("끝까지선택검증 20");
   await page.getByRole("button", { name: "다음 장소", exact: true }).click();
