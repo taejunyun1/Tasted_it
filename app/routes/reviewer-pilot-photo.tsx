@@ -10,7 +10,7 @@ import { readBoundedBody } from "../features/http/bounded-body";
 import { isSameOriginMutation } from "../features/http/same-origin";
 import { prepareReviewerPhotoFiles, reviewerPhotoErrorMessage, ReviewerPhotoPreparationError } from "../features/ratings/reviewer-photo.client";
 import { MAX_REVIEWER_PHOTO_BYTES, parseReviewerPhotoFiles, ReviewerPhotoValidationError } from "../features/ratings/reviewer-photo";
-import { getOwnedPilotPhotoReview, PilotPhotoError, submitPilotPhoto, withdrawPilotPhoto } from "../features/ratings/student-review-pilot-photo.server";
+import { getOwnedPilotPhotoReview, pilotPhotoKoreaDay, PilotPhotoError, submitPilotPhoto, withdrawPilotPhoto } from "../features/ratings/student-review-pilot-photo.server";
 import "../styles/reviewer-moderation.css";
 
 const PRIVATE = { "Cache-Control": "private, no-store", Vary: "Cookie", "X-Robots-Tag": "noindex, nofollow" };
@@ -38,24 +38,32 @@ function failure(error: string, status: number, headers: Record<string, string> 
   return data({ ok: false as const, error }, { status, headers });
 }
 
+function takenOnFailure() {
+  return data({
+    ok: false as const, invalidTakenOn: true as const,
+    error: "촬영일은 방문일부터 오늘(한국 시간)까지 선택해 주세요.",
+  }, { status: 400, headers: PRIVATE });
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const user = await requireUser(request);
   if (!env.STUDENT_REVIEW_PILOT_PHOTOS || !recordId.safeParse(params.reviewId).success) {
     throw new Response("사진을 첨부할 방문 리뷰를 찾을 수 없습니다.", { status: 404, headers: PRIVATE });
   }
+  const now = new Date();
   let review;
   try {
     review = await getOwnedPilotPhotoReview(createDb(env.DB), {
       userId: user.id,
       reviewId: params.reviewId,
-      now: new Date().toISOString(),
+      now: now.toISOString(),
       seats: env.STUDENT_WORKSPACE_ENABLED === "true" ? env.STUDENT_REVIEW_PILOT_SEATS : undefined,
     });
   } catch {
     throw new Response("방문 리뷰를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", { status: 503, headers: PRIVATE });
   }
   if (!review) throw new Response("사진을 첨부할 방문 리뷰를 찾을 수 없습니다.", { status: 404, headers: PRIVATE });
-  return data({ review }, { headers: PRIVATE });
+  return data({ review, latestTakenOn: pilotPhotoKoreaDay(now) }, { headers: PRIVATE });
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -94,8 +102,15 @@ export async function action({ request, params }: Route.ActionArgs) {
       }
       if (new Set(form.keys()).size !== [...form.keys()].length) return failure("사진 입력 항목을 확인해 주세요.", 400);
       const parsed = uploadSchema.safeParse(Object.fromEntries(form));
-      if (!parsed.success) return failure("사진 한 장과 촬영일, 설명, 직접 촬영 및 개인정보 확인을 모두 입력해 주세요.", 400);
+      if (!parsed.success) {
+        if (parsed.error.issues.some((issue) => issue.path[0] === "takenOn")) return takenOnFailure();
+        return failure("사진 한 장과 촬영일, 설명, 직접 촬영 및 개인정보 확인을 모두 입력해 주세요.", 400);
+      }
 
+      const now = new Date();
+      if (!review.visitedOn || parsed.data.takenOn < review.visitedOn || parsed.data.takenOn > pilotPhotoKoreaDay(now)) {
+        return takenOnFailure();
+      }
       const photos = await parseReviewerPhotoFiles(form);
       if (photos.length !== 1) return failure("사진을 한 장 선택해 주세요.", 400);
       await submitPilotPhoto(db, bucket, {
@@ -104,7 +119,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         reviewId: review.id,
         expectedContentVersion: parsed.data.expectedContentVersion,
         seats: env.STUDENT_WORKSPACE_ENABLED === "true" ? env.STUDENT_REVIEW_PILOT_SEATS : undefined,
-        now: new Date().toISOString(),
+        now: now.toISOString(),
         photo: photos[0],
         caption: parsed.data.caption,
         takenOn: parsed.data.takenOn,
@@ -128,11 +143,12 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 }
 
-export default function ReviewerPilotPhoto({ loaderData: { review }, actionData }: Route.ComponentProps) {
+export default function ReviewerPilotPhoto({ loaderData: { review, latestTakenOn }, actionData }: Route.ComponentProps) {
   const submit = useSubmit();
   const pending = useNavigation().state !== "idle";
   const [preparing, setPreparing] = useState(false);
   const [preparationError, setPreparationError] = useState<string | null>(null);
+  const invalidTakenOn = !preparationError && actionData?.ok === false && "invalidTakenOn" in actionData;
 
   async function prepareUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -161,7 +177,7 @@ export default function ReviewerPilotPhoto({ loaderData: { review }, actionData 
     <Link className="inline-flex min-h-11 items-center underline" to="/reviewer/ratings">방문 리뷰 기록으로</Link>
     <h1>직접인증 방문 사진</h1>
     <p className="reviewer-moderation-notice">{review.placeName} 방문 리뷰에 연결된 사진입니다. 방문 리뷰와 사진이 모두 승인되면 장소 상세에 표시됩니다.</p>
-    {actionData?.ok === false && !preparationError && <p role="alert">{actionData.error}</p>}
+    {actionData?.ok === false && !preparationError && <p role="alert" id={invalidTakenOn ? "pilot-taken-on-error" : undefined}>{actionData.error}</p>}
     {actionData?.ok && !preparationError && <p role="status">{actionData.message}</p>}
     {preparationError && <p role="alert">{preparationError}</p>}
 
@@ -184,19 +200,25 @@ export default function ReviewerPilotPhoto({ loaderData: { review }, actionData 
 
     {review.mayUpload ? <section aria-labelledby="pilot-upload-heading" className="max-w-xl border-t border-neutral-300 py-5">
       <h2 id="pilot-upload-heading" className="text-lg font-semibold">사진 한 장 첨부</h2>
-      <Form method="post" encType="multipart/form-data" onSubmit={prepareUpload} className="mt-3 grid gap-4">
+      <Form method="post" encType="multipart/form-data" onSubmit={prepareUpload} className="mt-3 grid grid-cols-1 gap-4">
         <input type="hidden" name="intent" value="upload" />
         <input type="hidden" name="expectedContentVersion" value={review.contentVersion} />
         <label className="grid gap-2">
           직접 촬영한 사진
           <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" required
-            aria-describedby="pilot-photo-format" className="min-h-11 max-w-full rounded-md border border-neutral-500 p-2" />
+            aria-describedby="pilot-photo-format" className="min-h-11 w-full min-w-0 rounded-md border border-neutral-500 p-2" />
           <span id="pilot-photo-format" className="text-sm">JPEG·PNG·WebP 파일 한 장을 선택하세요.</span>
         </label>
-        <label className="grid gap-2">
-          촬영일
-          <input type="date" name="takenOn" required className="min-h-11 w-full rounded-md border border-neutral-500 px-2" />
-        </label>
+        <div className="grid gap-2">
+          <label htmlFor="pilot-taken-on">촬영일</label>
+          <input id="pilot-taken-on" type="date" name="takenOn" min={review.visitedOn ?? undefined} max={latestTakenOn} required
+            aria-invalid={invalidTakenOn || undefined}
+            aria-describedby={invalidTakenOn ? "pilot-taken-on-range pilot-taken-on-error" : "pilot-taken-on-range"}
+            className="min-h-11 w-full min-w-0 rounded-md border border-neutral-500 px-2" />
+          <span id="pilot-taken-on-range" className="text-sm">
+            방문일 {review.visitedOn}부터 오늘 {latestTakenOn}까지 선택할 수 있어요. 날짜는 한국 시간 기준입니다.
+          </span>
+        </div>
         <label className="grid gap-2">
           사진 설명
           <textarea name="caption" rows={3} maxLength={240} required className="w-full rounded-md border border-neutral-500 p-2" />

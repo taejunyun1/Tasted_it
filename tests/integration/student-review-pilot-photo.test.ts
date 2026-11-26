@@ -128,10 +128,10 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
       expect(response.status, await response.clone().text()).toBe(303);
       return new URL(response.headers.get("location")!, origin).searchParams.get("submitted")!;
     };
-    const submitPhoto = (reviewId: string, session: string) => {
+    const submitPhoto = (reviewId: string, session: string, takenOn = date) => {
       const body = new FormData();
       for (const [key, value] of Object.entries({
-        intent: "upload", expectedContentVersion: "1", caption: "직접 촬영한 합성 사진", takenOn: date,
+        intent: "upload", expectedContentVersion: "1", caption: "직접 촬영한 합성 사진", takenOn,
         ownWork: "on", privacyChecked: "on",
       })) body.set(key, value);
       body.set("photos", new File([jpeg], "synthetic.jpg", { type: "image/jpeg" }));
@@ -159,6 +159,24 @@ it("runs closed, A and A/B photo intake on the exact 56 ledger plus 0065, with p
       expect(await database.prepare("SELECT count(*) AS count FROM student_review_pilot_photos").first<number>("count")).toBe(0);
       expect((await bucket.list()).objects).toHaveLength(0);
     };
+    const formPath = `/reviewer/pilot-photo/${aReview.reviewId}`;
+    const koreaDay = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" });
+    const dayBeforeLoading = koreaDay.format(new Date());
+    const photoDateForm = await photoForm({
+      request: request(formPath, a.session), params: { reviewId: aReview.reviewId },
+    } as never);
+    expect(photoDateForm.data.review).toMatchObject({ visitedOn: date });
+    expect([dayBeforeLoading, koreaDay.format(new Date())]).toContain(photoDateForm.data.latestTakenOn);
+    for (const invalidDate of [
+      new Date(+moment - 86_400_000).toISOString().slice(0, 10),
+      new Date(+moment + 2 * 86_400_000).toISOString().slice(0, 10),
+    ]) {
+      expect(await submitPhoto(aReview.reviewId, a.session, invalidDate)).toMatchObject({
+        init: { status: 400 },
+        data: { ok: false, invalidTakenOn: true, error: "촬영일은 방문일부터 오늘(한국 시간)까지 선택해 주세요." },
+      });
+      await expectNoPhotoWrites();
+    }
     await withEnv({ ...pilotEnvironment, STUDENT_REVIEW_PILOT_SEATS: undefined }, async () => {
       for (const { reviewer, reviewId } of [aReview, bReview]) {
         expect(await submitPhoto(reviewId, reviewer.session)).toMatchObject({ init: { status: 409 } });
