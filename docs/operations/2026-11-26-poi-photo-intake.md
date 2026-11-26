@@ -117,6 +117,16 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 자매통닭&호프는 천변우로 363-26 장소 카드와 매장·음식 사진이 포함된 2026년 1월 13일 방문기를 확인했다. 두 곳은 각각 사진을 확인한 원문을 **출처**로 연결한다. [자매통닭&호프 원문](https://m.blog.naver.com/sososo2516/224145188426)
 
+### 광양 업주 게시물과 광주·나주 사진 원문
+
+이것이아구찜이다의 9월 2일 Threads 원게시물 사진이 중마청룡1길 7-7을 표시한 당근 업주 갤러리의 첫 음식 사진과 일치한다. 계정과 상호를 확인했고 비로그인 임베드에서 실제 사진이 표시됐다. 방문자가 사진을 열기 전에는 프레임 요청을 보내지 않으며, 출처 링크는 업주 게시물로 연결한다. [업주 게시물](https://www.threads.com/@jinvima123/post/DcxYATFkzc9) · [업주 갤러리](https://www.daangn.com/kr/local-profile/이것이아구찜이다-zdy5konr8r26/)
+
+야들족발은 하남산단1번로 61의 1층 132호 업체 사진, 점심한끼는 월산로 257의 1층 업체 사진에서 매장 간판이 확인됐다. 두 곳의 **출처**는 해당 매장의 업체 사진 탭으로 연결한다. [야들족발](https://m.place.naver.com/restaurant/2004050569/photo?filterType=%EC%97%85%EC%B2%B4) · [점심한끼](https://m.place.naver.com/restaurant/1156425740/photo?filterType=%EC%97%85%EC%B2%B4)
+
+뉴욕감자탕은 상야4길 10의 124·125호를 표시한 네이버 사진 탭에서 매장 외관과 음식을 확인했다. 카카오맵의 같은 주소 시설 사진에서도 외관을 대조했다. [네이버 사진](https://map.naver.com/p/entry/place/2029828674?placePath=%2Fphoto) · [카카오맵 매장](https://place.map.kakao.com/1727771536)
+
+25년 장인아구찜은 나주와 광주 쌍촌점의 업체 소개 문구와 메뉴가 일치해 기존 다점포 검토를 유지한다. 살림프리미엄채식뷔페는 운영자가 두 지점을 안내했고, 올더스캣은 기존 매장 운영 종료 공지를 확인했다. 세 곳의 새 사진 연결은 보류한다. [나주 업체 정보](https://m.place.naver.com/restaurant/1795398348/information) · [쌍촌 업체 정보](https://m.place.naver.com/restaurant/1109865631/information) · [살림프리미엄채식뷔페 업주 안내](https://m.blog.naver.com/salimbuffet) · [올더스캣 B09 기록](2026-11-26-allderscat-b09-recall.md)
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.

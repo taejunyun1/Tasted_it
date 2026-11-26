@@ -56,16 +56,19 @@ describe("applySecurityHeaders", () => {
       .headers.get("Content-Security-Policy")).toBe(CONTENT_SECURITY_POLICY);
   });
 
-  it("allows only the selected Threads frame in public HTML when enabled", () => {
-    const frame = "https://www.threads.com/t/DWkUdT7E-7W/embed/";
+  it("allows only the selected Threads frames in public HTML when enabled", () => {
+    const frames = [
+      "https://www.threads.com/t/DWkUdT7E-7W/embed/",
+      "https://www.threads.com/t/DcxYATFkzc9/embed/",
+    ].join(" ");
     const html = () => new Response(null, { headers: { "Content-Type": "text/html; charset=utf-8" } });
     const publicRequest = new Request("https://example.test/places");
     const policy = (response: Response) => response.headers.get("Content-Security-Policy");
     const threadsEnabled = { threads: "true" };
     expect(policy(withSecurityHeaders(html(), publicRequest, undefined, threadsEnabled))).toBe(
-      CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${frame}`),
+      CONTENT_SECURITY_POLICY.replace("frame-src 'none'", `frame-src ${frames}`),
     );
-    expect(policy(withSecurityHeaders(html(), publicRequest, "true", threadsEnabled))).toContain(`${frame};`);
+    expect(policy(withSecurityHeaders(html(), publicRequest, "true", threadsEnabled))).toContain(`${frames};`);
     for (const path of ["/admin/places", "/me/privacy", "/reviewer/pilot-photo/fixture", "/login", "/privacy"]) {
       expect(policy(withSecurityHeaders(html(), new Request(`https://example.test${path}`), undefined, threadsEnabled))).toBe(CONTENT_SECURITY_POLICY);
     }

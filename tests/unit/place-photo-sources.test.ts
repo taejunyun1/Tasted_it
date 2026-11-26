@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { PlaceInstagramPhoto } from "../../app/components/places/PlaceInstagramPhoto";
 import { PlacePoiPhoto } from "../../app/components/places/PlacePoiPhoto";
 import { PlacePhotoOriginalLink } from "../../app/components/places/PlacePhotoOriginalLink";
-import { reviewedPlacePhotoOriginal, THREADS_PHOTO_FRAME_SOURCE } from "../../app/features/poi-media/photo-original-sources";
+import { reviewedPlacePhotoOriginal } from "../../app/features/poi-media/photo-original-sources";
 import { TempCatalogNotice } from "../../app/features/temp-catalog/TempCatalogNotice";
 
 function expectExactPhotoSource(html: string, url: string) {
@@ -67,6 +67,8 @@ describe("place photo source links", () => {
     ["place-intake-02c40d8d0a6e5409b7425fda", "담양현재국수", "전남광주 담양군 객사3길 24 (객사리)", "1870179264"],
     ["place-intake-7a534081f2e2fca2ce7b27c8", "들뫼풍경", "전북 고창군 전봉준로 108 (율계리)", "32246867"],
     ["place-intake-5d7a3a429e2c173c6e3c2d5d", "실키밀키", "전남광주 광산구 첨단내촌로 46-1 (월계동)", "1942978740"],
+    ["61b9993d-673b-47ed-b3b9-95875cc35ce5", "야들족발", "전남광주통합특별시 광산구 하남산단1번로 61, 1층 132호 (하남동)", "2004050569"],
+    ["90807efb-7daa-4d5b-b99d-66ee73962a75", "점심한끼", "전남광주통합특별시 서구 월산로 257, 1층 (농성동)", "1156425740"],
   ])("links the owner gallery for %s", (id, name, address, naverId) => {
     const url = `https://m.place.naver.com/restaurant/${naverId}/photo?filterType=%EC%97%85%EC%B2%B4`;
     const source = reviewedPlacePhotoOriginal({ id, name, address });
@@ -75,17 +77,23 @@ describe("place photo source links", () => {
     expectExactPhotoSource(renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! })), url);
   });
 
-  it("offers the registered Threads gallery only when enabled and waits for a click", () => {
-    const place = { id: "place-intake-1d21bef4545b2941c0c68f66", name: "옛날두부", address: "전남광주 화순군 시장길 33 (삼천리)" };
+  it.each([
+    ["place-intake-1d21bef4545b2941c0c68f66", "옛날두부", "전남광주 화순군 시장길 33 (삼천리)", "hwasun_dubu", "DWkUdT7E-7W"],
+    ["c4c2e79d-00a4-4dc5-9dfd-e051bc213bd7", "이것이아구찜이다", "전남광주통합특별시 광양시 중마청룡1길 7-7, 3층중 1층일부 (중동)", "jinvima123", "DcxYATFkzc9"],
+  ])("offers the registered Threads gallery only when enabled and waits for a click for %s", (id, name, address, account, shortcode) => {
+    const place = { id, name, address };
+    const originalUrl = `https://www.threads.com/@${account}/post/${shortcode}`;
     const disabled = reviewedPlacePhotoOriginal(place);
     expect(disabled?.embed).toBeUndefined();
+    expect(disabled?.url).toBe(originalUrl);
     const source = reviewedPlacePhotoOriginal(place, { threads: "true" });
-    expect(source?.embed).toEqual({ provider: "threads", url: THREADS_PHOTO_FRAME_SOURCE });
+    expect(source?.embed).toEqual({ provider: "threads", url: `https://www.threads.com/t/${shortcode}/embed/` });
     const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
     expect(html).toContain("Threads에 연결해 사진 보기");
     expect(html).not.toContain("<iframe");
-    expectExactPhotoSource(html, "https://www.threads.com/@hwasun_dubu/post/DWkUdT7E-7W");
+    expectExactPhotoSource(html, originalUrl);
     expect(reviewedPlacePhotoOriginal({ ...place, name: "다른 업소" }, { threads: "true" })).toBeNull();
+    expect(reviewedPlacePhotoOriginal({ ...place, address: `${address} 2층` }, { threads: "true" })).toBeNull();
   });
 
   it("keeps the county video source available with its player independently gated", () => {
@@ -123,6 +131,8 @@ describe("place photo source links", () => {
       "https://m.blog.naver.com/studio_young0425/224365538127", undefined, undefined],
     ["place-intake-04a99c49889c69595df5332a", "자매통닭&호프", "광주 동구 천변우로 363-26 (호남동)",
       "https://m.blog.naver.com/sososo2516/224145188426", undefined, undefined],
+    ["18c0fe3a-227b-4602-9d83-f6e9e88e0636", "뉴욕감자탕", "전남광주통합특별시 나주시 상야4길 10, 124,125호 (빛가람동)",
+      "https://map.naver.com/p/entry/place/2029828674?placePath=%2Fphoto", undefined, undefined],
     ["place-intake-4413539f62e7921d84f7f1d1", "대나무골", "전남광주 담양군 대전로 182 (태목리)",
       "https://www.youtube.com/watch?v=oZOV6I1EbHg", "https://www.youtube-nocookie.com/embed/oZOV6I1EbHg", "2020년 공개 영상"],
     ["place-intake-70adfdd5a852000637f61b24", "구수향", "전남광주 동구 예술길 23-6 (궁동)",
