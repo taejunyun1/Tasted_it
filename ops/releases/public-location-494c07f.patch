@@ -184,7 +184,7 @@ index 0000000..b68a527
 +  return { locating, notice: locating ? pendingNotice : notice, clearLocation, locate };
 +}
 diff --git a/app/routes/home.tsx b/app/routes/home.tsx
-index 338fff4..35d6632 100644
+index 338fff4..338f8d0 100644
 --- a/app/routes/home.tsx
 +++ b/app/routes/home.tsx
 @@ -4,0 +5,2 @@ import {
@@ -235,7 +235,7 @@ index 338fff4..35d6632 100644
 +        return next;
 +      }, { replace: true, preventScrollReset: true });
 +      if (isCurated) loadRecommendations(liveHomeState.mode, result.bbox, "gps");
-+      return result.notice ?? "현재 위치 주변으로 지도를 이동했습니다.";
++      return result.notice ?? "현재 위치 주변 장소를 검색했습니다.";
 +    });
 +  };
 @@ -412,0 +423 @@ export default function Home({ loaderData }: Route.ComponentProps) {
@@ -264,7 +264,7 @@ index 338fff4..35d6632 100644
 -        onPendingBounds={setPendingBounds}
 +        onPendingBounds={isCurated ? setPendingBounds : setBounds}
 diff --git a/app/routes/map-category.tsx b/app/routes/map-category.tsx
-index 1f63cc6..de4e4d9 100644
+index 1f63cc6..c6ad04d 100644
 --- a/app/routes/map-category.tsx
 +++ b/app/routes/map-category.tsx
 @@ -2 +2,2 @@ import { env } from "cloudflare:workers";
@@ -295,8 +295,8 @@ index 1f63cc6..de4e4d9 100644
 +      setLocationBounds(result.bbox);
 +      setBounds(result.bbox, true);
 +      return result.notice
-+        ? `${result.notice} 광주 기본 지도로 이동했습니다.`
-+        : "현재 위치 주변으로 지도를 이동했습니다.";
++        ? `${result.notice} 광주 기본 범위로 검색했습니다.`
++        : "현재 위치 주변 장소를 검색했습니다.";
 +    });
 +  };
 @@ -25 +51 @@ export default function CategoryMap({ loaderData }: Route.ComponentProps) {
