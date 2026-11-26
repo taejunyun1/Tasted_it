@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, like, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, like, ne, notExists, or, sql } from "drizzle-orm";
 
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, categories, placeSuggestions, reviewerApplications, reviewerProfiles, users } from "../../db/schema";
@@ -18,24 +18,38 @@ export async function countApprovedPlaceSuggestions(db: AppDb, userId: string) {
 export async function submitReviewerApplication(db: AppDb, input: ReviewerApplicationInput & { userId: string; now: string }) {
   const errors = validateReviewerApplication(input);
   if (Object.keys(errors).length) throw new Error(`REVIEWER_APPLICATION_INVALID:${JSON.stringify(errors)}`);
-  const open = await db.query.reviewerApplications.findFirst({
-    where: and(eq(reviewerApplications.userId, input.userId), inArray(reviewerApplications.status, [...OPEN_APPLICATIONS])),
-  });
-  if (open) throw new Error("REVIEWER_APPLICATION_IN_PROGRESS");
-  const profile = await db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, input.userId) });
-  if (profile) throw new Error("REVIEWER_PROFILE_EXISTS");
+  const openApplications = db.select({ id: reviewerApplications.id }).from(reviewerApplications)
+    .where(and(eq(reviewerApplications.userId, input.userId), inArray(reviewerApplications.status, OPEN_APPLICATIONS)))
+    .limit(1);
+  const existingProfiles = db.select({ userId: reviewerProfiles.userId }).from(reviewerProfiles)
+    .where(eq(reviewerProfiles.userId, input.userId)).limit(1);
+  const assertCanApply = async () => {
+    if (await openApplications.get()) throw new Error("REVIEWER_APPLICATION_IN_PROGRESS");
+    if (await existingProfiles.get()) throw new Error("REVIEWER_PROFILE_EXISTS");
+  };
+  await assertCanApply();
+
   const specialties = [...new Set(input.specialtySlugs)];
   const specialtyRows = await db.select({ slug: categories.slug }).from(categories)
     .where(and(inArray(categories.slug, specialties), isNull(categories.parentId), eq(categories.isActive, true)));
   if (specialtyRows.length !== specialties.length) throw new Error("REVIEWER_SPECIALTY_NOT_FOUND");
   const id = crypto.randomUUID();
   const approvedSuggestionCount = await countApprovedPlaceSuggestions(db, input.userId);
-  await db.insert(reviewerApplications).values({
-    id, userId: input.userId, status: "APPLIED", statement: input.statement.trim(), occupation: input.occupation.trim(),
-    tasteDirection: input.tasteDirection.trim(), regionCode: input.regionCode, specialtySlugs: JSON.stringify(specialties),
-    approvedSuggestionCount, createdAt: input.now, updatedAt: input.now,
-  });
-  return { id, approvedSuggestionCount };
+  const [application] = await db.all<{ id: string }>(sql`
+    insert into ${reviewerApplications}
+      (id, user_id, status, statement, occupation, taste_direction, region_code, specialty_slugs,
+       approved_suggestion_count, created_at, updated_at)
+    select ${id}, ${input.userId}, 'APPLIED', ${input.statement.trim()}, ${input.occupation.trim()},
+      ${input.tasteDirection.trim()}, ${input.regionCode}, ${JSON.stringify(specialties)},
+      ${approvedSuggestionCount}, ${input.now}, ${input.now}
+    where ${notExists(openApplications)} and ${notExists(existingProfiles)}
+    returning id
+  `);
+  if (!application) {
+    await assertCanApply();
+    throw new Error("REVIEWER_APPLICATION_IN_PROGRESS");
+  }
+  return { id: application.id, approvedSuggestionCount };
 }
 
 export async function reviewReviewerApplication(db: AppDb, input: {
@@ -126,7 +140,12 @@ export async function getReviewerDashboard(db: AppDb, userId: string) {
     db.query.reviewerApplications.findFirst({
       columns: { status: true },
       where: eq(reviewerApplications.userId, userId),
-      orderBy: [desc(reviewerApplications.createdAt)],
+      // Older duplicate submissions can leave a pending application after a later rejection.
+      orderBy: [
+        desc(inArray(reviewerApplications.status, OPEN_APPLICATIONS)),
+        desc(reviewerApplications.createdAt),
+        desc(reviewerApplications.id),
+      ],
     }),
     db.query.reviewerProfiles.findFirst({ columns: { status: true, slug: true }, where: eq(reviewerProfiles.userId, userId) }),
     countApprovedPlaceSuggestions(db, userId),

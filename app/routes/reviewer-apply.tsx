@@ -77,6 +77,8 @@ export default function ReviewerApply({ loaderData, actionData }: Route.Componen
   const profile = loaderData.dashboard.profile;
   const canApply = !profile;
   const hasOpen = latest?.status === "APPLIED" || latest?.status === "REVIEWING";
+  const isReapplication = canApply && latest?.status === "REJECTED";
+  const submitLabel = isReapplication ? "리뷰어 재신청 제출" : "리뷰어 신청 제출";
   return <main id="main" className="mx-auto min-h-screen max-w-5xl px-5 py-12 md:px-10">
     <p className="font-mono text-[11px] font-medium tracking-[0.2em] text-emerald-800">REVIEWER / APPLICATION</p>
     <div className="mt-3 grid gap-8 border-b border-neutral-900 pb-8 md:grid-cols-[1fr_260px] md:items-end">
@@ -85,6 +87,10 @@ export default function ReviewerApply({ loaderData, actionData }: Route.Componen
     </div>
     {actionData?.error && <p ref={errorRef} tabIndex={-1} role="alert" className="mt-6 border border-rose-500 bg-rose-50 px-4 py-3 text-sm text-rose-800">{actionData.error}</p>}
     {actionData?.ok && <p role="status" className="mt-6 border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">신청이 접수됐습니다. 관리자 검토를 기다려 주세요.</p>}
+    {isReapplication && <section aria-labelledby="reviewer-application-result" className="mt-8 border border-amber-500 bg-amber-50 p-6">
+      <h2 id="reviewer-application-result" className="text-xl font-semibold">이전 신청은 승인되지 않았습니다.</h2>
+      <p className="mt-2 text-sm text-neutral-600">신청 내용을 보완해 다시 제출할 수 있습니다.</p>
+    </section>}
     {profile ? <section className="mt-8 border border-neutral-300 bg-white p-6">
       <h2 className="text-xl font-semibold">{profile.status === "ACTIVE" ? "현재 활동 중인 리뷰어입니다." : profile.status === "DORMANT" ? "현재 휴면 상태입니다." : "현재 활동이 정지됐습니다."}</h2>
       <p className="mt-2 text-sm text-neutral-600">{profile.publicSlug ? "승인된 리뷰어 프로필과 활동 기록을 관리할 수 있습니다." : "새로 신청하지 않고 운영자 확인 후 상태를 변경합니다."}</p>
@@ -100,7 +106,7 @@ export default function ReviewerApply({ loaderData, actionData }: Route.Componen
         <p className="text-sm leading-6 text-neutral-600">직업 또는 활동 소개는 리뷰어 심사에 사용합니다. 직접인증 참여자의 소개는 내부 심사에만 사용합니다. 일반 리뷰어의 소개는 승인 뒤 공개 프로필에 표시됩니다. 보관·삭제 기준은 <Link className="underline" to="/privacy">개인정보 처리방침</Link>에서 확인해 주세요.</p>
         <Field id="reviewer-taste" label="취향 방향" hint="최대 200자" error={errors.tasteDirection}><textarea name="tasteDirection" rows={3} maxLength={200} required defaultValue={actionData?.values.tasteDirection ?? ""} /></Field>
         <fieldset aria-invalid={errors.specialtySlugs ? true : undefined} aria-describedby={errors.specialtySlugs ? "reviewer-specialty-error" : undefined}><legend className="text-sm font-semibold">전문 카테고리 <span className="font-normal text-neutral-500">1~3개</span></legend><div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">{loaderData.parentCategories.map((category) => <label key={category.id} className="flex items-center gap-2 border border-neutral-300 px-3 py-3 text-sm"><input type="checkbox" name="specialtySlugs" value={category.slug} defaultChecked={actionData?.values.specialtySlugs.includes(category.slug)} /> <span>{category.emoji} {category.name}</span></label>)}</div>{errors.specialtySlugs && <p id="reviewer-specialty-error" className="mt-2 text-sm text-rose-800">{errors.specialtySlugs}</p>}</fieldset>
-        <button type="submit" disabled={pending} className="bg-neutral-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">{pending ? "신청을 제출하고 있어요…" : "리뷰어 신청 제출"}</button>
+        <button type="submit" disabled={pending} className="bg-neutral-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">{pending ? "신청을 제출하고 있어요…" : submitLabel}</button>
       </Form>}
   </main>;
 }

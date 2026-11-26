@@ -1,0 +1,16 @@
+{
+  "scope": "isolated local Worker with synthetic accounts and D1",
+  "browserProjects": ["chromium", "mobile-chromium"],
+  "mobileViewportCssPixels": 320,
+  "nativeFormSubmitWithoutJavaScript": true,
+  "actualAdminPreviewAndRejectionReceipt": true,
+  "rejectionVisibleOnApplicantResultPage": true,
+  "adminNoteAbsentFromApplicantResponse": true,
+  "applicantResponsePrivateNoStore": true,
+  "newApplicationClearsPreviousRejection": true,
+  "browserCasesPassed": 2,
+  "integrationCasesPassed": 4,
+  "parallelOpenApplicationsPersisted": 1,
+  "legacyOpenStatusTakesPrecedence": true,
+  "productionChanged": false
+}
