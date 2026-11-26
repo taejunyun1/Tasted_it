@@ -12,6 +12,11 @@ function approvedReviewers(surface: Locator) {
   return surface.getByRole("region", { name: "승인된 방문을 남긴 리뷰어", exact: true });
 }
 
+function reviewerPhotoCredit(surface: Locator) {
+  return surface.getByRole("region", { name: "리뷰어가 남긴 사진", exact: true })
+    .getByRole("link", { name: `사진 제공 · ${profileName}`, exact: true });
+}
+
 function expectNoPrivateVisitEvidence(content: string) {
   expect(content).not.toContain("qa-active-reviewer");
   expect(content).not.toContain("자동시험을 위해 직접 생성한 합성 이미지입니다.");
@@ -248,6 +253,7 @@ test("administrator requests corrections and approves resubmitted private materi
     mark("pending-fixture:ready");
     const pendingPlace = await openPublicPlace(actors.publicPage, testInfo.project.name === "mobile-chromium");
     await expect(approvedReviewers(pendingPlace)).toHaveCount(0);
+    await expect(reviewerPhotoCredit(pendingPlace)).toHaveCount(0);
     await actors.publicPage.goto(profilePath);
     await expect(actors.publicPage.getByText("공개 승인된 방문 자료가 아직 없어요.")).toBeVisible();
     await moderate("CHANGES_REQUESTED", "합성 검수: 방문 근거를 더 구체적으로 보완해 주세요.");
@@ -278,6 +284,15 @@ test("administrator requests corrections and approves resubmitted private materi
     await expect(actors.publicPage).toHaveURL((url) => url.pathname === placePath);
     await expect(actors.publicPage.locator(`.review-photo-gallery img[src="${publicUrl}"]`)).toBeVisible();
     const detail = actors.publicPage.getByRole("main");
+    const credit = reviewerPhotoCredit(detail);
+    await expect(credit).toHaveAttribute("href", profilePath);
+    await expect(credit).toHaveCSS("text-decoration-line", "underline");
+    if (testInfo.project.name === "chromium") {
+      await credit.focus();
+      await expect(credit).toBeFocused();
+      await detail.getByRole("region", { name: "리뷰어가 남긴 사진", exact: true })
+        .screenshot({ path: testInfo.outputPath("t04-desktop-photo-credit.png"), animations: "disabled" });
+    }
     const profileLink = approvedReviewers(detail).getByRole("link", { name: profileName, exact: true });
     await expect(profileLink).toHaveAttribute("href", profilePath);
     await expect(profileLink).toHaveCSS("text-decoration-line", "underline");
@@ -289,7 +304,8 @@ test("administrator requests corrections and approves resubmitted private materi
       await expect.poll(() => actors.publicPage.evaluate(() => window.scrollY)).toBe(0);
       await actors.publicPage.screenshot({ path: testInfo.outputPath("t04-desktop-place-reviewer.png"), fullPage: true, animations: "disabled" });
     }
-    await profileLink.click();
+    await credit.focus();
+    await credit.press("Enter");
     await expect(actors.publicPage).toHaveURL((url) => url.pathname === profilePath);
     await expect(actors.publicPage.getByRole("heading", { name: profileName, exact: true })).toBeVisible();
     if (testInfo.project.name === "mobile-chromium") {
@@ -304,7 +320,12 @@ test("administrator requests corrections and approves resubmitted private materi
       await expect(sheetLink).toHaveCSS("text-decoration-line", "underline");
       await sheetLink.scrollIntoViewIfNeeded();
       await actors.publicPage.screenshot({ path: testInfo.outputPath("t04-mobile-sheet-reviewer.png"), animations: "disabled" });
-      await sheetLink.click();
+      const sheetCredit = reviewerPhotoCredit(sheet);
+      await expect(sheetCredit).toHaveAttribute("href", profilePath);
+      await expect(sheetCredit).toHaveCSS("text-decoration-line", "underline");
+      await sheetCredit.tap({ trial: true });
+      await actors.publicPage.screenshot({ path: testInfo.outputPath("t04-mobile-photo-credit.png"), animations: "disabled" });
+      await sheetCredit.tap();
       await expect(actors.publicPage).toHaveURL((url) => url.pathname === profilePath);
       await expect(actors.publicPage.getByRole("heading", { name: profileName, exact: true })).toBeVisible();
     }

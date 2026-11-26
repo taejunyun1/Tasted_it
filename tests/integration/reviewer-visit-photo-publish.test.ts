@@ -328,15 +328,15 @@ describe("publishReviewerVisitWithPhotos", () => {
     ).resolves.toEqual({ count: 1 });
   });
 
-  it("projects only approved opaque public photo URLs and preserves unapproved rows privately", async () => {
+  it("credits the public submitter of approved photos without exposing private photo metadata", async () => {
     const db = createDb(env.DB);
     const result = await publishReviewerVisitWithPhotos(db, env.REVIEW_PHOTOS, {
       ...reviewInput({ id: "public-photo-new" }),
-      photoMetadata: [0, 1].map((position) => ({
+      photoMetadata: (["OWN_WORK", "PERMISSION"] as const).map((rightsBasis, position) => ({
         position,
         takenOn: "2026-08-12",
-        rightsBasis: "OWN_WORK" as const,
-        rightsNote: "",
+        rightsBasis,
+        rightsNote: rightsBasis === "PERMISSION" ? "비공개 이용허락 기록" : "",
         caption: "음식 사진",
         privacyChecked: true as const,
       })),
@@ -371,14 +371,22 @@ describe("publishReviewerVisitWithPhotos", () => {
         id: "public-photo-new-1",
         url: "/review-photos/public-photo-new-1",
         position: 0,
+        reviewerSlug: reviewerUserId,
+        reviewerDisplayName: "사진 리뷰어",
       }),
       expect.objectContaining({
         id: "public-photo-new-2",
         url: "/review-photos/public-photo-new-2",
         position: 1,
+        reviewerSlug: reviewerUserId,
+        reviewerDisplayName: "사진 리뷰어",
       }),
     ]);
-    expect(photos.some((p) => "objectKey" in p)).toBe(false);
+    for (const photo of photos) {
+      expect(photo).not.toHaveProperty("objectKey");
+      expect(photo).not.toHaveProperty("email");
+      expect(photo).not.toHaveProperty("rightsNote");
+    }
   });
 
   it("includes only opaque photo URLs in the reviewer’s own history", async () => {

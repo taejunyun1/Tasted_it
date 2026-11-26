@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Link } from "react-router";
+import type { PublicPlaceReviewPhoto } from "../../features/ratings/reviewer-visit.server";
 
 export function PlaceRatingBadges({ goldenPick, hiddenGem }: { goldenPick: boolean; hiddenGem: boolean }) {
   return <>
@@ -28,11 +29,18 @@ export function PlacePublicReviewers({ reviewers, heading: Heading = "h2" }: {
   </section>;
 }
 
-export function PlaceReviewPhotos({ placeName, photos }: { placeName: string; photos: readonly { id: string; url: string }[] }) {
+export function PlaceReviewPhotos({ placeName, photos }: { placeName: string; photos: readonly PublicPlaceReviewPhoto[] }) {
   const title = useId();
   if (!photos.length) return null;
   return <section className="review-photo-gallery" aria-labelledby={title}>
     <div><p className="eyebrow">REVIEWER / PHOTO</p><h2 id={title}>리뷰어가 남긴 사진</h2></div>
-    <div>{photos.map((photo) => <img key={photo.id} src={photo.url} alt={`${placeName} 리뷰 사진`} loading="lazy" />)}</div>
+    <div>{photos.map((photo) => <figure key={photo.id} className="min-w-0">
+      <img src={photo.url} alt={`${placeName} 리뷰 사진`} loading="lazy" />
+      <figcaption className="text-xs text-neutral-700 [overflow-wrap:anywhere]">
+        <Link className="inline-flex min-h-11 max-w-full items-center underline! underline-offset-4" to={`/reviewers/${encodeURIComponent(photo.reviewerSlug)}`}>
+          <span>사진 제공 · {photo.reviewerDisplayName}</span>
+        </Link>
+      </figcaption>
+    </figure>)}</div>
   </section>;
 }

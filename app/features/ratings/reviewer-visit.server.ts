@@ -10,6 +10,7 @@ import {
   reviewerReviewTransitions,
   reviewerVisitPhotos,
   reviewerVisitReviews,
+  users,
 } from "../../db/schema";
 import { cleanupUncommittedReviewerPhotoUpload, ensureUncommittedPhotoRecovery } from "./reviewer-photo-deletion.server";
 import { eligibleReviewCondition } from "./reviewer-publication.server";
@@ -513,6 +514,11 @@ export async function listReviewerVisitHistory(
   }));
 }
 
+export type PublicPlaceReviewPhoto = PublishedReviewerPhoto & {
+  reviewerSlug: string;
+  reviewerDisplayName: string;
+};
+
 export async function listPublishedPlaceReviewPhotos(
   db: AppDb,
   placeId: string,
@@ -524,12 +530,16 @@ export async function listPublishedPlaceReviewPhotos(
       reviewId: reviewerVisitPhotos.reviewId,
       position: reviewerVisitPhotos.position,
       publishedAt: reviewerVisitReviews.publishedAt,
+      reviewerSlug: reviewerProfiles.slug,
+      reviewerDisplayName: users.displayName,
     })
     .from(reviewerVisitPhotos)
     .innerJoin(
       reviewerVisitReviews,
       eq(reviewerVisitReviews.id, reviewerVisitPhotos.reviewId),
     )
+    .innerJoin(reviewerProfiles, eq(reviewerProfiles.userId, reviewerVisitReviews.reviewerUserId))
+    .innerJoin(users, eq(users.id, reviewerVisitReviews.reviewerUserId))
     .where(
       and(
         eq(reviewerVisitReviews.placeId, placeId),
