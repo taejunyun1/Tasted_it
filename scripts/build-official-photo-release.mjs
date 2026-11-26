@@ -52,6 +52,19 @@ const pilotMainFiles = [
   "app/routes/reviewer-pilot-photo.tsx",
   "app/routes/student-review-photo.ts",
 ];
+const reviewerPlacePickerPatch = "ops/releases/reviewer-place-picker-494c07f.patch";
+const reviewerPlacePickerTargets = [
+  "app/components/reviewer-visit-flow.tsx",
+  "app/routes.ts",
+  "app/routes/reviewer-ratings.tsx",
+];
+const reviewerPlacePickerFiles = [
+  "app/components/reviewer-place-picker.tsx",
+  "app/features/ratings/reviewer-place-search.server.ts",
+  "app/features/ratings/reviewer-place-search.ts",
+  "app/routes/reviewer-places-resource.ts",
+  "app/styles/reviewer-place-picker.css",
+];
 const placeDetailVoteLinkPatch = "ops/releases/place-detail-vote-link-494c07f.patch";
 const placeDetailVoteLinkTargets = ["app/components/places/PlaceDetailSheet.tsx"];
 const publicVotePatch = "ops/releases/public-place-vote-494c07f.patch";
@@ -78,6 +91,7 @@ const publicVoteSupportFiles = [
 const directVerificationPatch = "ops/releases/direct-verification-profile-494c07f.patch";
 const directVerificationTargets = [
   "app/features/reviewers/reviewer.server.ts",
+  "app/routes/reviewer-apply.tsx",
   "app/routes/reviewer-profile.tsx",
 ];
 const pilotMigration = "drizzle/0065_student_review_pilot_photos.sql";
@@ -143,6 +157,10 @@ const publicLocationPatchSha256 = applyReleasePatch(publicLocationPatch, ".publi
 const pilotProof = studentPilot ? {
   studentPilotPatchSha256: applyReleasePatch(pilotPatch, ".student-pilot.patch", pilotPatchTargets),
   studentPilotFileSha256: copyMainFiles(pilotMainFiles),
+  reviewerPlacePickerPatchSha256: applyReleasePatch(
+    reviewerPlacePickerPatch, ".reviewer-place-picker.patch", reviewerPlacePickerTargets,
+  ),
+  reviewerPlacePickerFileSha256: copyMainFiles(reviewerPlacePickerFiles),
   migration: { file: pilotMigration, sha256: digest(committed(pilotMigration)), applied: false },
   orderedBaselineLedgerSha256,
 } : null;

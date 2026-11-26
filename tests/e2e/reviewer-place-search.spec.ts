@@ -10,7 +10,8 @@ test.skip(Boolean(remote && !["127.0.0.1", "localhost"].includes(new URL(remote)
 test.beforeAll(() => {
   const sql = Array.from({ length: 43 }, (_, index) => {
     const number = String(index).padStart(2, "0"), id = `qa-picker-${number}`;
-    return `INSERT OR IGNORE INTO places(id,slug,name,status,address,neighborhood,latitude,longitude,search_text,created_at,updated_at) VALUES('${id}','${id}','끝까지선택검증 ${number}','PUBLISHED','합성 주소 ${number}','합성동',35.15,126.92,'끝까지선택검증','2026-11-18T00:00:00Z','2026-11-18T00:00:00Z'); INSERT OR IGNORE INTO place_categories(place_id,category_id,is_primary) VALUES('${id}','cat-ramen',1);`;
+    const name = index === 41 ? "42" : number;
+    return `INSERT OR IGNORE INTO places(id,slug,name,status,address,neighborhood,latitude,longitude,search_text,created_at,updated_at) VALUES('${id}','${id}','끝까지선택검증 ${name}','PUBLISHED','합성 주소 ${number}','합성동',35.15,126.92,'끝까지선택검증','2026-11-18T00:00:00Z','2026-11-18T00:00:00Z'); INSERT OR IGNORE INTO place_categories(place_id,category_id,is_primary) VALUES('${id}','cat-ramen',1);`;
   }).join("\n");
   execFileSync(process.execPath, ["node_modules/wrangler/bin/wrangler.js", "d1", "execute", "DB", "--local", "--config", "wrangler.e2e.jsonc", "--persist-to", ".wrangler/e2e-state", "--command", sql], { stdio: "pipe" });
 });
@@ -27,6 +28,7 @@ test.beforeEach(async ({ context, page }, testInfo) => {
 test.afterEach(async ({ page }) => { expect(errors.get(page)).toEqual([]); });
 
 test("pages through all places and retains an off-page selection and draft across searches and reload", async ({ page }, testInfo) => {
+  if (testInfo.project.name === "mobile-chromium") await page.setViewportSize({ width: 320, height: 844 });
   await page.goto("/reviewer/ratings");
   const search = page.getByPlaceholder("다녀온 장소 검색");
   await search.fill("끝까지선택검증");
@@ -34,16 +36,31 @@ test("pages through all places and retains an off-page selection and draft acros
   const results = page.getByLabel("장소 검색 결과", { exact: true });
   await expect(results.getByRole("button")).toHaveCount(20);
   await expect(results).toContainText("끝까지선택검증 00");
+  await page.route("**/resources/reviewer-places.data*", (route) => {
+    const url = new URL(route.request().url());
+    url.searchParams.set("cursor", "expired");
+    return route.continue({ url: url.href });
+  });
+  await page.getByRole("button", { name: "다음 장소", exact: true }).click();
+  const resetSearch = page.getByRole("button", { name: "첫 페이지 다시 확인", exact: true });
+  await expect(resetSearch).toBeVisible();
+  await page.unroute("**/resources/reviewer-places.data*");
+  await resetSearch.click();
   await page.getByRole("button", { name: "다음 장소", exact: true }).click();
   await expect(results).toContainText("끝까지선택검증 20");
   await page.getByRole("button", { name: "다음 장소", exact: true }).click();
   await expect(results.getByRole("button")).toHaveCount(3);
-  await results.getByRole("button", { name: /끝까지선택검증 42/ }).click();
+  await expect(results.getByRole("button", { name: /끝까지선택검증 42.*합성 주소 41/ })).toBeVisible();
+  const matchingBranch = results.getByRole("button", { name: /끝까지선택검증 42.*합성 주소 42/ });
+  await matchingBranch.click();
+  await expect(matchingBranch).toHaveAttribute("aria-pressed", "true");
+  await results.screenshot({ path: testInfo.outputPath("reviewer-place-addresses.png") });
   await page.getByRole("button", { name: "다음: 평가", exact: true }).click();
   await page.getByRole("button", { name: "보류", exact: true }).click();
   await page.getByRole("button", { name: "이전", exact: true }).click();
   await search.fill("끝까지선택검증 00");
   await expect(results.getByRole("button")).toHaveCount(1);
+  await expect(page.getByText(/선택한 장소.*합성 주소 42/)).toBeVisible();
   await expect(page.locator('input[name="placeId"]')).toHaveValue("qa-picker-42");
   await expect(page.locator('input[name="evaluation"]')).toHaveValue("HOLD");
   await page.reload();
@@ -52,7 +69,6 @@ test("pages through all places and retains an off-page selection and draft acros
   await expect(page.locator('input[name="evaluation"]')).toHaveValue("HOLD");
   await expect(page.locator(".reviewer-live-summary")).toContainText("끝까지선택검증 42");
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
-  await page.screenshot({ path: `docs/evidence/2026-11-18-reviewer-place-search-${testInfo.project.name}.png`, fullPage: true });
 });
 
 test("keeps the current results when search fails and allows an explicit retry", async ({ page }) => {

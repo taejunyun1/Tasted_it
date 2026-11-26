@@ -1,0 +1,278 @@
+diff --git a/app/components/reviewer-visit-flow.tsx b/app/components/reviewer-visit-flow.tsx
+--- a/app/components/reviewer-visit-flow.tsx
++++ b/app/components/reviewer-visit-flow.tsx
+@@ -3,6 +3,8 @@
+ import { Link, useFetcher } from "react-router";
+
+ import { AppToast, type AppToastValue } from "./app-toast";
++import { ReviewerPlacePicker } from "./reviewer-place-picker";
++import { reviewerPlaceSearchHref, type ReviewerPlacePage, type ReviewerPlaceResponse, type ReviewerPlaceOption } from "../features/ratings/reviewer-place-search";
+ import { OwnerVisitActions, PhotoRightsFields, VisitEvidenceFields, photoRightsFromForm, reviewerModerationErrorMessage, reviewerVisitStatusLabels, type ReviewerVisitStatus } from "./reviewer-visit-moderation";
+ import {
+   prepareReviewerPhotoFiles,
+@@ -15,15 +17,7 @@
+   type ReviewerEvaluation,
+ } from "../features/ratings/reviewer-visit";
+
+-type ReviewerPlace = {
+-  placeId: string;
+-  placeName: string;
+-  neighborhood: string | null;
+-  categoryId: string;
+-  categoryName: string;
+-  categoryEmoji: string;
+-};
+-
++type ReviewerPlace = ReviewerPlaceOption;
+ type ReviewerCategory = { id: string; name: string; emoji: string };
+
+ type ReviewerHistory = {
+@@ -53,6 +47,7 @@
+   historyNextHref?: string | null;
+   historyHasCursor?: boolean;
+   places: ReviewerPlace[];
++  placePage?: ReviewerPlacePage;
+   categories: ReviewerCategory[];
+   history: ReviewerHistory[];
+   goldenQuota: { used: number; limit: number; remaining: number };
+@@ -100,14 +95,19 @@
+   }
+ }
+
+-export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, pilotPhotoAfterSubmission = false, pilotPhotoReviewIds = [], notice }: Props) {
++export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, placePage, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, pilotPhotoAfterSubmission = false, pilotPhotoReviewIds = [], notice }: Props) {
+   const fetcher = useFetcher<{ ok: false; error: string }>();
++  const restoreFetcher = useFetcher<ReviewerPlaceResponse>();
+   const [step, setStep] = useState(1);
+   const [placeId, setPlaceId] = useState("");
+   const [categoryId, setCategoryId] = useState("");
+   const [evaluation, setEvaluation] = useState<ReviewerEvaluation | null>(null);
+   const [badges, setBadges] = useState<string[]>([]);
+-  const [placeQuery, setPlaceQuery] = useState("");
++  const [chosenPlace, setChosenPlace] = useState<ReviewerPlace | null>(null);
++  const [restoreError, setRestoreError] = useState("");
++  const initialized = useRef(false);
++  const restoreSequence = useRef(0);
++  const pendingDraft = useRef<{ draft: Draft; key: string } | null>(null);
+   const [categoryQuery, setCategoryQuery] = useState("");
+   const [badgeError, setBadgeError] = useState("");
+   const [photos, setPhotos] = useState<Array<{ file: File; position: number; previewUrl: string; selectionKey: string }>>([]);
+@@ -125,32 +125,28 @@
+   const [hydrated, setHydrated] = useState(false);
+   const [draftVersion, setDraftVersion] = useState(0);
+
+-  const selectedPlace = places.find((place) => place.placeId === placeId) ?? null;
++  const selectedPlace = chosenPlace?.placeId === placeId ? chosenPlace : places.find((place) => place.placeId === placeId) ?? null;
++  const initialPlacePage = useMemo(() => placePage ?? { query: "", places, nextCursor: null }, [placePage, places]);
+   const selectedCategory = categories.find((category) => category.id === categoryId) ?? null;
+   const categoryName = selectedCategory?.name as ReviewerCategoryName | undefined;
+   const badgeOptions = categoryName ? REVIEWER_BADGE_CATALOG[categoryName] ?? [] : [];
+-  const filteredPlaces = useMemo(() => {
+-    const query = placeQuery.trim().toLocaleLowerCase("ko");
+-    if (!query) return places.slice(0, 12);
+-    return places.filter((place) => `${place.placeName} ${place.neighborhood ?? ""} ${place.categoryName}`.toLocaleLowerCase("ko").includes(query)).slice(0, 20);
+-  }, [placeQuery, places]);
+   const filteredCategories = useMemo(() => {
+     const query = categoryQuery.trim().toLocaleLowerCase("ko");
+     return categories.filter((category) => !query || `${category.emoji} ${category.name}`.toLocaleLowerCase("ko").includes(query));
+   }, [categories, categoryQuery]);
+
+   useEffect(() => {
++    if (initialized.current) return;
++    initialized.current = true;
++    if (!canSubmit) { setHydrated(true); return; }
+     try {
+       const saved = localStorage.getItem(DRAFT_KEY);
+       if (saved) {
+         const draft = JSON.parse(saved) as Draft;
+-        if (draft.placeId && places.some((place) => place.placeId === draft.placeId)) {
+-          setStep(Math.max(1, Math.min(5, draft.step)));
+-          setPlaceId(draft.placeId);
+-          setCategoryId(draft.categoryId);
+-          setEvaluation(draft.evaluation);
+-          setBadges(draft.badges.slice(0, 2));
+-          setRestored(true);
++        if (typeof draft.placeId === "string" && draft.placeId.length > 0 && draft.placeId.length <= 128 && Array.isArray(draft.badges)) {
++          const available = places.find((place) => place.placeId === draft.placeId);
++          if (available) applyRestoredDraft(draft, available);
++          else { requestDraftPlace(draft); return; }
+         }
+       }
+     } catch {
+@@ -158,6 +154,34 @@
+     }
+     setHydrated(true);
+   }, [places]);
++
++  useEffect(() => {
++    const pending = pendingDraft.current;
++    if (!pending || !restoreFetcher.data || restoreFetcher.state !== "idle" || restoreFetcher.data.requestKey !== pending.key) return;
++    if (!restoreFetcher.data.ok) { setRestoreError(restoreFetcher.data.message); return; }
++    applyRestoredDraft(pending.draft, restoreFetcher.data.selectedPlace);
++    pendingDraft.current = null;
++    setHydrated(true);
++  }, [restoreFetcher.data, restoreFetcher.state]);
++
++  function requestDraftPlace(draft: Draft) {
++    const key = `draft-${++restoreSequence.current}`;
++    pendingDraft.current = { draft, key };
++    setRestoreError("");
++    void restoreFetcher.load(reviewerPlaceSearchHref("", key, null, draft.placeId));
++  }
++
++  function applyRestoredDraft(draft: Draft, place: ReviewerPlace | null) {
++    const category = categories.find((item) => item.id === draft.categoryId) ?? categories.find((item) => item.id === place?.categoryId);
++    const allowed = category ? REVIEWER_BADGE_CATALOG[category.name as ReviewerCategoryName] ?? [] : [];
++    setStep(place ? Math.max(1, Math.min(5, Number.isInteger(draft.step) ? draft.step : 1)) : 1);
++    setPlaceId(place?.placeId ?? ""); setChosenPlace(place);
++    setCategoryId(category?.id ?? "");
++    setEvaluation(["RECOMMEND", "HOLD", "NOT_RECOMMEND"].includes(draft.evaluation ?? "") ? draft.evaluation : null);
++    setBadges(draft.badges.filter((badge) => typeof badge === "string" && (allowed as readonly string[]).includes(badge)).slice(0, 2));
++    setRestored(Boolean(place));
++    if (!place) setToast({ kind: "info", message: "작성 중이던 장소를 더 이상 선택할 수 없어요. 다른 검수 장소를 골라주세요." });
++  }
+
+   useEffect(() => {
+     if (!hydrated || (publishedReviewId && !placeId)) return;
+@@ -193,6 +217,7 @@
+   }, [fetcher.state]);
+
+   function choosePlace(nextPlace: ReviewerPlace) {
++    if (nextPlace.placeId === placeId) return;
+     if (nextPlace.placeId !== placeId) {
+       setEvaluation(null);
+       replacePhotos([]);
+@@ -202,6 +227,7 @@
+       if (placeId) setToast({ kind: "info", message: "장소를 바꿨어요. 방문 근거와 사진을 다시 확인해 주세요." });
+     }
+     setPlaceId(nextPlace.placeId);
++    setChosenPlace(nextPlace);
+     const primary = categories.find((category) => category.id === nextPlace.categoryId);
+     setCategoryId(primary?.id ?? "");
+     setBadges([]);
+@@ -229,6 +255,8 @@
+   }
+
+   function discardDraft() {
++    pendingDraft.current = null;
++    setRestoreError(""); setHydrated(true); setChosenPlace(null);
+     removeStoredDraft();
+     setStep(1);
+     setPlaceId("");
+@@ -367,6 +395,7 @@
+       {!canSubmit && <p className="reviewer-moderation-notice">새 리뷰 제출과 내용 수정은 활동 리뷰어만 할 수 있어요. 본인이 남긴 자료의 상태 확인과 철회·사진 삭제는 아래 제출 기록에서 할 수 있습니다.</p>}
+       {canSubmit && <>
+       {!hydrated && <p className="reviewer-moderation-notice" role="status">화면 준비 중이에요. 준비가 끝나면 장소를 선택해 주세요.</p>}
++      {restoreError && <div role="alert"><p>{restoreError}</p><button type="button" className="reviewer-secondary" disabled={restoreFetcher.state !== "idle"} onClick={() => { if (pendingDraft.current) requestDraftPlace(pendingDraft.current.draft); }}>작성 중인 장소 다시 확인</button><button type="button" className="reviewer-secondary" onClick={discardDraft}>새로 작성</button></div>}
+       <nav className="reviewer-steps" aria-label="리뷰 제출 단계">
+         {["1. 장소", "2. 평가", "3. 맛 배지", `4. ${photoStepLabel}`, "5. 확인"].map((label, index) => (
+           <button key={label} type="button" aria-current={step === index + 1 ? "step" : undefined} disabled={!hydrated || index + 1 > step || publishing || preparingPhotos} onClick={() => setStep(index + 1)}>
+@@ -392,20 +421,7 @@
+             <p className="eyebrow">STEP 01 / PLACE</p>
+             <h2 id="review-step-place">어디를 다녀오셨나요?</h2>
+             <p>검수된 장소를 검색해 선택하세요. 선택한 장소의 대표 카테고리를 먼저 보여드려요.</p>
+-            <label className="reviewer-search">
+-              <span>장소 검색</span>
+-              <input value={placeQuery} onChange={(event) => setPlaceQuery(event.target.value)} placeholder="다녀온 장소 검색" />
+-            </label>
+-            <div className="reviewer-place-grid" aria-label="장소 검색 결과">
+-              {filteredPlaces.map((place) => (
+-                <button key={place.placeId} type="button" aria-pressed={placeId === place.placeId} onClick={() => choosePlace(place)}>
+-                  <span>{place.categoryEmoji} {place.categoryName} · {place.neighborhood}</span>
+-                  <strong>{place.placeName}</strong>
+-                  <small>{placeId === place.placeId ? "선택됨" : "이 장소 선택"}</small>
+-                </button>
+-              ))}
+-              {!filteredPlaces.length && <p className="reviewer-empty">일치하는 검수 장소가 없어요. 장소 제안에서 먼저 알려주세요.</p>}
+-            </div>
++            <ReviewerPlacePicker initialPage={initialPlacePage} selectedPlace={selectedPlace} onChoose={choosePlace} />
+           </section>
+
+           <section className="reviewer-step-card" hidden={step !== 2} aria-labelledby="review-step-evaluation">
+diff --git a/app/routes.ts b/app/routes.ts
+--- a/app/routes.ts
++++ b/app/routes.ts
+@@ -36,6 +36,7 @@
+   route("reviewer/apply", "routes/reviewer-apply.tsx"),
+   route("reviewer/ratings", "routes/reviewer-ratings.tsx"),
+   route("reviewer/pilot-photo/:reviewId", "routes/reviewer-pilot-photo.tsx"),
++  route("resources/reviewer-places", "routes/reviewer-places-resource.ts"),
+   route("review-photos/:photoId", "routes/reviewer-photo.ts"),
+   route("student-review-photos/:photoId", "routes/student-review-photo.ts"),
+   route("reviewers/:slug", "routes/reviewer-profile.tsx"),
+diff --git a/app/routes/reviewer-ratings.tsx b/app/routes/reviewer-ratings.tsx
+--- a/app/routes/reviewer-ratings.tsx
++++ b/app/routes/reviewer-ratings.tsx
+@@ -1,11 +1,11 @@
+ import { env } from "cloudflare:workers";
+ import { z } from "zod";
+-import { and, asc, eq } from "drizzle-orm";
++import { asc, eq } from "drizzle-orm";
+ import type { Route } from "./+types/reviewer-ratings";
+
+ import { ReviewerVisitFlow } from "../components/reviewer-visit-flow";
+ import { createDb } from "../db/client.server";
+-import { categories, placeCategories, places, reviewerProfiles } from "../db/schema";
++import { categories, reviewerProfiles } from "../db/schema";
+ import { requireUser } from "../features/auth/session.server";
+ import { isSameOriginMutation } from "../features/http/same-origin";
+ import { getGoldenPickQuota } from "../features/ratings/golden-pick.server";
+@@ -15,8 +15,9 @@
+ import {
+   listReviewerVisitHistory,
+ } from "../features/ratings/reviewer-visit.server";
+-import { reviewerSubmissionPlaceCondition } from "../features/ratings/reviewer-publication.server";
+ import { publishReviewerRatingRequest } from "../features/ratings/reviewer-visit-publish.server";
++import { listReviewerPlacePage } from "../features/ratings/reviewer-place-search.server";
++import { parseReviewerPlaceSearch, ReviewerPlaceSearchInputError } from "../features/ratings/reviewer-place-search";
+ import { canAdmitPilotPhotoAuthor, listPilotPhotoHistoryLinks } from "../features/ratings/student-review-pilot-photo.server";
+
+ export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store", Vary: "Cookie" });
+@@ -33,19 +34,15 @@
+   const now = new Date().toISOString();
+   const reviewer = await db.query.reviewerProfiles.findFirst({ where: eq(reviewerProfiles.userId, user.id) });
+   const canSubmit = user.role === "REVIEWER" && reviewer?.status === "ACTIVE";
+-  const [placeRows, categoryRows, history, goldenQuota] = await Promise.all([
+-    canSubmit ? db.select({
+-      placeId: places.id,
+-      placeName: places.name,
+-      neighborhood: places.neighborhood,
+-      categoryId: categories.id,
+-      categoryName: categories.name,
+-      categoryEmoji: categories.emoji,
+-    }).from(places)
+-      .innerJoin(placeCategories, and(eq(placeCategories.placeId, places.id), eq(placeCategories.isPrimary, true)))
+-      .innerJoin(categories, eq(categories.id, placeCategories.categoryId))
+-      .where(reviewerSubmissionPlaceCondition())
+-      .orderBy(asc(places.name)) : [],
++  let placeInput;
++  try {
++    placeInput = parseReviewerPlaceSearch(search);
++  } catch (error) {
++    if (error instanceof ReviewerPlaceSearchInputError) throw new Response("장소 검색 조건을 확인해 주세요.", { status: 400 });
++    throw error;
++  }
++  const [placeResult, categoryRows, history, goldenQuota] = await Promise.all([
++    canSubmit ? listReviewerPlacePage(db, user.id, placeInput) : { page: { query: "", places: [], nextCursor: null }, selectedPlace: null },
+     canSubmit ? db.select({ id: categories.id, name: categories.name, emoji: categories.emoji })
+       .from(categories)
+       .where(eq(categories.isActive, true))
+@@ -55,8 +52,6 @@
+   ]);
+   const reviewableNames = new Set(Object.keys(REVIEWER_BADGE_CATALOG));
+   const reviewCategories = categoryRows.filter((category) => reviewableNames.has(category.name));
+-  const reviewCategoryIds = new Set(reviewCategories.map((category) => category.id));
+-  const reviewPlaces = placeRows.filter((place) => reviewCategoryIds.has(place.categoryId));
+   const requestedPublishedId = new URL(request.url).searchParams.get("submitted");
+   const publishedReviewId = history.some((review) => review.id === requestedPublishedId) ? requestedPublishedId : null;
+   const requestedNotice = new URL(request.url).searchParams.get("notice");
+@@ -81,7 +76,8 @@
+     canSubmit,
+     historyNextHref,
+     historyHasCursor: Boolean(cursor),
+-    places: canSubmit ? reviewPlaces : [],
++    places: placeResult.page.places,
++    placePage: placeResult.page,
+     categories: reviewCategories,
+     history,
+     goldenQuota,

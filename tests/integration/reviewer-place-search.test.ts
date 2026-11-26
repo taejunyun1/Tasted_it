@@ -36,7 +36,9 @@ it("bounds the initial reviewer place picker instead of loading every eligible p
 
 it("pages through every matching place once and resolves a saved selection outside the first page", async () => {
   const f = await fixture(), seen: string[] = [];
-  for (const placeId of [f.ids[21], f.ids[22]]) await f.db.update(places).set({ name: `${f.prefix} 같은 이름` }).where(eq(places.id, placeId));
+  const duplicateName = `${f.prefix} 같은 이름`;
+  const duplicateIds = [f.ids[21], f.ids[22]];
+  for (const placeId of duplicateIds) await f.db.update(places).set({ name: duplicateName }).where(eq(places.id, placeId));
   await seedApprovedReviewerVote(f.db, { reviewerId: f.userId, placeId: f.ids[42], eventId: `${f.prefix}-visited`, value: 1, now, projectVote: false });
   let cursor: string | null = null;
   do {
@@ -47,7 +49,7 @@ it("pages through every matching place once and resolves a saved selection outsi
     expect(response.data.ok).toBe(true);
     if (!response.data.ok) throw new Error("Expected a search page");
     expect(response.data.page.places.length).toBeLessThanOrEqual(20);
-    expect(response.data.selectedPlace?.placeId).toBe(f.ids[42]);
+    expect(response.data.selectedPlace).toMatchObject({ placeId: f.ids[42], address: "광주 42" });
     seen.push(...response.data.page.places.map((place) => place.placeId));
     cursor = response.data.page.nextCursor;
   } while (cursor);
@@ -55,11 +57,16 @@ it("pages through every matching place once and resolves a saved selection outsi
   expect(new Set(seen).size).toBe(43);
   expect(new Set(seen)).toEqual(new Set(f.ids));
   expect(seen.at(-1)).toBe(f.ids[42]);
+  const matches = await listReviewerPlacePage(f.db, f.userId, parseReviewerPlaceSearch(new URLSearchParams({ q: duplicateName })));
+  expect(matches.page.places).toMatchObject([
+    { placeId: duplicateIds[0], placeName: duplicateName, neighborhood: "합성동", address: "광주 21" },
+    { placeId: duplicateIds[1], placeName: duplicateName, neighborhood: "합성동", address: "광주 22" },
+  ]);
 });
 
 it("does not return hidden, closed, inactive-category or unsupported-category places through search or selected ID", async () => {
   const f = await fixture();
-  await f.db.update(places).set({ status: "HIDDEN" }).where(eq(places.id, f.ids[0]));
+  await f.db.update(places).set({ status: "HIDDEN", address: "합성 비공개 주소" }).where(eq(places.id, f.ids[0]));
   await f.db.update(places).set({ closedAt: now }).where(eq(places.id, f.ids[1]));
   const query = new URLSearchParams({ q: `${f.prefix} 맛집 0`, selectedId: f.ids[0] });
   await listReviewerPlacePage(f.db, f.userId, parseReviewerPlaceSearch(query));
@@ -69,6 +76,7 @@ it("does not return hidden, closed, inactive-category or unsupported-category pl
   expect(response.data.page.places.map((place) => place.placeId)).not.toContain(f.ids[0]);
   expect(response.data.page.places.map((place) => place.placeId)).not.toContain(f.ids[1]);
   expect(response.data.selectedPlace).toBeNull();
+  expect(JSON.stringify(response.data)).not.toContain("합성 비공개 주소");
   await f.db.update(categories).set({ isActive: false }).where(eq(categories.id, f.categoryId));
   response = await searchLoader({ request: new Request(`https://retaste.test/resources/reviewer-places?${query}`, { headers: { Cookie: `retaste_session=${f.sessionId}` } }) } as never);
   expect(response.data).toMatchObject({ ok: true, page: { places: [] }, selectedPlace: null });

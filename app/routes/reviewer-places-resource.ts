@@ -33,7 +33,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     requestKey = input.requestKey;
     return data<ReviewerPlaceResponse>({ ok: true, requestKey, ...await listReviewerPlacePage(db, user.id, input) }, { headers });
   } catch (error) {
-    return data<ReviewerPlaceResponse>({ ok: false, requestKey, message: error instanceof ReviewerPlaceSearchInputError ? "검색 조건이 변경되었어요. 검색을 처음부터 다시 실행해 주세요." : "장소를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: error instanceof ReviewerPlaceSearchInputError ? 400 : 503, headers });
+    if (error instanceof ReviewerPlaceSearchInputError) {
+      return data<ReviewerPlaceResponse>({ ok: false, requestKey, restartSearch: true, message: "검색 조건이 변경되었어요. 첫 페이지부터 다시 확인해 주세요." }, { status: 400, headers });
+    }
+    return data<ReviewerPlaceResponse>({ ok: false, requestKey, message: "장소를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers });
   }
 }
 export async function clientLoader({ request, serverLoader }: Route.ClientLoaderArgs): Promise<ReviewerPlaceResponse> {

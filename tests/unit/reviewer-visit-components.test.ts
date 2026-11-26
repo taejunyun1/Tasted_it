@@ -14,6 +14,7 @@ const props = {
   places: [{
     placeId: "sample-place-1",
     placeName: "Re:Taste 샘플 라멘 동명",
+    address: "광주 동구 합성로 21",
     neighborhood: "동명동",
     categoryId: "cat-ramen",
     categoryName: "라멘",
@@ -36,6 +37,7 @@ describe("ReviewerVisitFlow", () => {
     const html = renderToStaticMarkup(createElement(ReviewerVisitFlow, props));
     expect(html).toContain("방문 리뷰 제출");
     expect(html).toContain("1. 장소");
+    expect(html).toContain("광주 동구 합성로 21");
     expect(html).toContain("2. 평가");
     expect(html).toContain("3. 맛 배지");
     expect(html).toContain("4. 사진·Golden");
