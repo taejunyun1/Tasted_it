@@ -1,0 +1,28 @@
+{
+  "verifiedRevision": "bac0d2814114836b64970e3fd8dd3a5dec7b3901",
+  "scope": "local synthetic Workers and browser accounts",
+  "publicationIntegrationTests": 34,
+  "plainCompatibility": {
+    "migrationCount": 57,
+    "authorOnDesktopAndMobile": true,
+    "unapprovedVisitAuthorsHidden": true,
+    "authorVisibleBeforePhotoApproval": true,
+    "authorVisibleAfterPhotoWithdrawal": true,
+    "withdrawnPhotoAnonymousGetAndHeadStatus": 404,
+    "participantPhotoActionAndPageLabel": true,
+    "legacyBucketUntouched": true,
+    "workerOutboundRequests": 0
+  },
+  "poiMediaCompatibility": {
+    "migrationCount": 59,
+    "directVerificationAuthorAndPoiAttributionOnBothLayouts": true,
+    "workerOutboundRequests": 0
+  },
+  "participantLogin": {
+    "desktopWidth": 1366,
+    "mobileWidth": 320,
+    "directVerificationHeading": true
+  },
+  "strictWranglerDryRuns": 2,
+  "productionChanged": false
+}
