@@ -1,0 +1,104 @@
+{
+  "sourceSha": "bc7241da3650cbd2e61f6a5c09aec4e5dbc9df3f",
+  "appTree": "ddec9fecff788fff653a07bc303420730d7ba134",
+  "completedAtKst": "2026-11-22T13:17:20.044+09:00",
+  "environment": "격리 Workers D1 두 개와 합성 입력",
+  "deploymentObservation": {
+    "reference": "https://github.com/taejunyun1/Tasted_it/pull/475",
+    "recordedReleaseSource": "494c07f56c174df42a3b027b1639772e2d9796b7",
+    "workerVersion": "ff51553c-c8fb-462d-a9ae-a72c4f9e1082",
+    "trafficPercent": 100,
+    "recordedLaterMigrations": [
+      "0050",
+      "0051",
+      "0052",
+      "0061",
+      "0062"
+    ],
+    "heldMigrations": [
+      "0053",
+      "0054",
+      "0055",
+      "0056",
+      "0059",
+      "0060"
+    ],
+    "liveMigrationLedgerObservation": "READ_ONLY",
+    "liveMigrationLedgerCount": 56,
+    "liveMigrationLedgerNamesFrom0050": [
+      "0050_admin_rating_job_control.sql",
+      "0051_admin_public_sync.sql",
+      "0052_admin_parking_job_control.sql",
+      "0061_private_place_intake.sql",
+      "0062_place_intake_review_links.sql"
+    ],
+    "liveMigrationLedgerReadAtKst": "2026-11-22T13:19:10+09:00"
+  },
+  "cases": [
+    {
+      "consumer": "listNaverRegionDailyUsage",
+      "documentedSchema": "provider_daily_quotas 테이블 누락으로 실패",
+      "fullSchema": "지역 결과 2건"
+    },
+    {
+      "consumer": "reserveNaverAttempt",
+      "documentedSchema": "NAVER_ACCOUNTING_UNAVAILABLE",
+      "fullSchema": "NAVER_LOCAL_SEARCH_QUOTA (전환 승인 레코드 없는 초기 HOLD)"
+    },
+    {
+      "consumer": "readAutoReviewControl(baseline=true)",
+      "documentedSchema": "available=false, effective=false",
+      "fullSchema": "available=true, effective=true"
+    },
+    {
+      "consumer": "runScheduledRatingMaintenance(REVIEW_PHOTO_UPLOAD_ENABLED=false)",
+      "documentedSchema": "photoCleanup.failed=1, deleted=0",
+      "fullSchema": "photoCleanup.failed=0, deleted=0"
+    },
+    {
+      "consumer": "listOwnPrivacyRequests",
+      "documentedSchema": "개인정보 요청 테이블 누락으로 실패",
+      "fullSchema": "합성 빈 목록 []"
+    },
+    {
+      "consumer": "getActiveRatingConfig",
+      "documentedSchema": "동일한 기존 공개 평가 설정을 읽음",
+      "fullSchema": "같은 설정 ID"
+    },
+    {
+      "consumer": "reviewer_publication_recompute",
+      "documentedSchema": "기존 trigger, 설정 부재 특수 감사 분기 없음",
+      "fullSchema": "0060 변경 trigger의 적격 설정 분기 확인"
+    }
+  ],
+  "providerRequests": 0,
+  "productionExecuted": false,
+  "deploymentReadiness": "BLOCKED_DOCUMENTED_SCHEMA_COMPATIBILITY",
+  "restoreEvidence": "./d1-rehearsal.json",
+  "postFixRouteProbe": {
+    "reference": "https://github.com/taejunyun1/Tasted_it/pull/510",
+    "sourceSha": "9de8b9b36b26ca5ab2fbea9f4b5da8bdf5844efa",
+    "appTree": "518bea92f4714e140a114eed3dae3e6b036f426f",
+    "environment": "컴파일한 로컬 Worker, 운영 원장과 파일명 및 적용 순서가 일치하는 합성 D1 56개 migration",
+    "b09": {
+      "status": 200,
+      "queue": true,
+      "unknownUsageNotice": true,
+      "counterDisplayed": false
+    },
+    "public": {
+      "status": 200,
+      "fixtureRendered": true
+    },
+    "memberBaseline": {
+      "status": 200,
+      "syntheticSessionAuthenticated": true
+    },
+    "memberPrivacy": {
+      "status": 500,
+      "privacyFormRendered": false
+    },
+    "observedAt": "2026-11-22T13:22:05+09:00",
+    "privacyFailure": "privacy_requests 테이블 없음"
+  }
+}

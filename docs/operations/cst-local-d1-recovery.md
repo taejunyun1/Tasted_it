@@ -38,3 +38,8 @@ pnpm test tests/unit/cst-local-d1-recovery.test.ts
 처음 검증한 main에는 `0041` guest migration이 있고 `0040` 리뷰어 migration은 아직 병합 전이었다. 순번의 간극을 기존 파일 수정으로 메우지 않았다. backend 병합 뒤 최신 main에서 별도 run으로 전체 migration 적용·복구를 재검증해야 한다. 사진/R2 일관성·삭제 후 백업 복원으로 정보가 재유입되지 않는 운영 정책·복구 시점/권한·원격 복원·백업 보관/암호화·RPO/RTO는 별도 작업이다. 이 도구의 PASS로 대체하지 않는다.
 
 도구를 제거하려면 해당 PR을 revert한다. 운영 데이터 rollback이나 migration 역변경은 없다.
+
+
+## 2026-11-22 최신 main 리허설
+
+`bc7241d`의 migration 62개를 모두 적용한 합성 D1에서 export와 별도 복원을 실행했다. 스키마 객체 315개, 도메인 테이블 94개의 160행, 전체 스키마·행 digest가 일치했다. 외래키 위반은 0건이고 양쪽 integrity 검사와 손상·누락 백업의 import 전 거절을 확인했다. 실제 복구 시점과 정책의 수용 증거는 운영 검수에 남아 있다. [실행 증거](../evidence/cst-runtime-schema-baseline-20261122/d1-rehearsal.json)
