@@ -126,6 +126,8 @@ describe("place photo source links", () => {
       "https://hwa2ting.tistory.com/429", undefined, undefined],
     ["place-intake-950ba22fa1c3cd0685fbbdde", "목살집", "전남광주 남구 광복마을6길 1 (진월동)",
       "https://www.youtube.com/watch?v=INk0aC5hoK4&t=120s", "https://www.youtube-nocookie.com/embed/INk0aC5hoK4?start=120", undefined],
+    ["place-intake-e73658c5cb8bf44d666e628a", "고부정", "전남광주 담양군 지침6길 53 (지침리)",
+      "https://www.youtube.com/watch?v=goG50n4pO98", "https://www.youtube-nocookie.com/embed/goG50n4pO98", undefined],
     ["c893e7dc-c6a0-4467-82b8-8859051d24c8", "고템커피", "전남광주통합특별시 고흥군 고흥읍 고흥로 1670-7",
       "https://www.youtube.com/watch?v=dwhKx8NkcfI", "https://www.youtube-nocookie.com/embed/dwhKx8NkcfI", undefined],
     ["place-intake-296fe52a6f1a1f39f8a2a9f6", "오비수산", "전남광주 광산구 장신로19번안길 23-4 (장덕동)",
@@ -135,7 +137,7 @@ describe("place photo source links", () => {
     ["place-intake-17422a656ab8d3e89bc20013", "반달곰식당", "전남광주 구례군 중앙로 88 (봉북리)",
       "https://m.blog.naver.com/studio_young0425/224365538127", undefined, undefined],
     ["place-intake-04a99c49889c69595df5332a", "자매통닭&호프", "광주 동구 천변우로 363-26 (호남동)",
-      "https://m.blog.naver.com/sososo2516/224145188426", undefined, undefined],
+      "https://www.youtube.com/watch?v=sdU5W_AqNB0&t=8s", "https://www.youtube-nocookie.com/embed/sdU5W_AqNB0?start=8", undefined],
     ["18c0fe3a-227b-4602-9d83-f6e9e88e0636", "뉴욕감자탕", "전남광주통합특별시 나주시 상야4길 10, 124,125호 (빛가람동)",
       "https://map.naver.com/p/entry/place/2029828674?placePath=%2Fphoto", undefined, undefined],
     ["place-intake-4413539f62e7921d84f7f1d1", "대나무골", "전남광주 담양군 대전로 182 (태목리)",
@@ -187,6 +189,16 @@ describe("place photo source links", () => {
     expect(source?.publisher).toBe("남원시 사진기록관");
     expect(source?.url).toContain("dataId=922811");
     expect(source?.embed).toBeUndefined();
+  });
+
+  it("keeps the exact Naver photo post when the 자매통닭&호프 video is disabled", () => {
+    const place = { id: "place-intake-04a99c49889c69595df5332a", name: "자매통닭&호프", address: "광주 동구 천변우로 363-26 (호남동)" };
+    const url = "https://m.blog.naver.com/sososo2516/224145188426";
+    const source = reviewedPlacePhotoOriginal(place, { youtube: "false" });
+    expect(source).toEqual({ url, publisher: "네이버 블로그 · 박소술" });
+    const html = renderToStaticMarkup(createElement(PlacePhotoOriginalLink, { source: source! }));
+    expectExactPhotoSource(html, url);
+    expect(html).not.toContain("YouTube에 연결해 영상 보기");
   });
 
   it.each([

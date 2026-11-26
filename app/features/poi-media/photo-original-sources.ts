@@ -203,8 +203,14 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     id: "place-intake-e73658c5cb8bf44d666e628a",
     name: "고부정",
     address: "전남광주 담양군 지침6길 53 (지침리)",
-    publisher: "네이버 플레이스 · 업체 사진",
-    url: "https://m.place.naver.com/restaurant/32230517/photo?filterType=%EC%97%85%EC%B2%B4",
+    publisher: "YouTube · 사랑나무",
+    url: "https://www.youtube.com/watch?v=goG50n4pO98",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/goG50n4pO98" },
+    fallback: {
+      publisher: "네이버 플레이스 · 업체 사진",
+      url: "https://m.place.naver.com/restaurant/32230517/photo?filterType=%EC%97%85%EC%B2%B4",
+    },
   },
   {
     id: "c893e7dc-c6a0-4467-82b8-8859051d24c8",
@@ -301,8 +307,14 @@ const REVIEWED_SOURCES: readonly ReviewedSource[] = [
     id: "place-intake-04a99c49889c69595df5332a",
     name: "자매통닭&호프",
     address: "광주 동구 천변우로 363-26 (호남동)",
-    publisher: "네이버 블로그 · 박소술",
-    url: "https://m.blog.naver.com/sososo2516/224145188426",
+    publisher: "YouTube · 길거리맛집",
+    url: "https://www.youtube.com/watch?v=sdU5W_AqNB0&t=8s",
+    mediaKind: "video",
+    embed: { provider: "youtube", url: "https://www.youtube-nocookie.com/embed/sdU5W_AqNB0?start=8" },
+    fallback: {
+      publisher: "네이버 블로그 · 박소술",
+      url: "https://m.blog.naver.com/sososo2516/224145188426",
+    },
   },
   {
     id: "61b9993d-673b-47ed-b3b9-95875cc35ce5",
