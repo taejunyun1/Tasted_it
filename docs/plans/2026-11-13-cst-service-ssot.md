@@ -30,6 +30,8 @@ A·B 접수 시작 전 #562의 정확한 병합 소스 `8da68cf`로 #559·#561�
 
 후속 후보에 활동 리뷰어의 서버 기반 장소 검색과 공개 상세주소를 연결했다. 한 동네에서 상호가 같은 두 장소를 상세주소로 선택하고, 페이지가 바뀌거나 작성 중인 리뷰를 다시 열어도 선택을 유지한다. 만료된 검색 위치는 첫 페이지부터 다시 조회한다. 신청 화면에 직접인증 참여자의 직업·활동 소개는 내부 심사에 쓰인다고 안내한다. 운영과 같은 56개 장부에 0065를 적용한 합성 환경에서 데스크톱·모바일 두 좌석의 방문 장소 선택, 사진 제출, 별도 승인과 철회를 확인했다. 운영 반영과 실제 참여는 대기다. [검증 결과](../evidence/cst-reviewer-picker-compat-20261126/summary.json) · [데스크톱 장소 검색](../evidence/cst-reviewer-picker-compat-20261126/desktop-picker.png) · [모바일 장소 검색](../evidence/cst-reviewer-picker-compat-20261126/mobile-picker.png)
 
+직접인증 사진의 촬영일 입력에 방문일부터 한국 시각 오늘까지 범위를 안내한다. 범위를 벗어난 요청에는 촬영일을 고칠 수 있는 안내를 주며 사진을 저장하지 않는다. 합성 A 좌석의 데스크톱·320px 모바일에서 방문일 당일 입력과 화면 너비를 확인했다. [데스크톱](../evidence/cst-direct-photo-date-20261127/desktop.png) · [모바일](../evidence/cst-direct-photo-date-20261127/mobile.png)
+
 ## 2026-11-26 Instagram 공식 사진 표시
 
 운영 Worker `1343a5e8` 100%에서 일반 공개 장소 78곳 중 등록된 공식 Instagram 사진 30곳의 실제 이미지와 원문 링크를 비로그인 데스크톱 Chromium으로 대조했다. 젤라또 노베오의 모바일 상세에서도 실제 이미지를 확인했다. 장부 56개와 원장 856건, 검수 연결 83건을 배포 전후에 대조했다. 대접나주배닭강정과 렌더링커피의 공식 정지 사진을 포함해 #539 기준 저장소 등록은 38곳이다. 추가 여덟 곳의 운영 반영과 나머지 40곳의 출처 확인은 #515에서 추적한다. 21:47 KST에 이 버전의 정기 RSI와 감사 기록이 일치했고, 뒤이은 1단계 배포에서도 등록 30곳의 실제 표시를 다시 확인했다. [#529 운영 영수증](https://github.com/taejunyun1/Tasted_it/pull/529) · [#537 사진 등록](https://github.com/taejunyun1/Tasted_it/pull/537) · [#539 사진 등록](https://github.com/taejunyun1/Tasted_it/pull/539) · [#515 사진 추적](https://github.com/taejunyun1/Tasted_it/issues/515) · [사진 운영 절차](../operations/2026-11-26-poi-photo-intake.md#공식-instagram-사진-게시물)

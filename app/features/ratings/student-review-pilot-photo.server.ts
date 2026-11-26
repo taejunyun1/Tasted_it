@@ -141,7 +141,7 @@ export async function listPilotPhotoHistoryLinks(db: AppDb, input: {
 export async function getOwnedPilotPhotoReview(db: AppDb, input: ReviewInput) {
   const [review] = await db.select({
     id: reviewerVisitReviews.id, placeName: places.name, contentVersion: reviewerVisitReviews.contentVersion,
-    status: reviewerVisitReviews.status,
+    status: reviewerVisitReviews.status, visitedOn: reviewerVisitReviews.visitedOn,
     canAdmit: sql<number>`case when ${reviewCanHavePhoto()} and ${admission(input.userId, input.seats, effectiveTime(input.now))} then 1 else 0 end`,
   }).from(reviewerVisitReviews).innerJoin(places, eq(places.id, reviewerVisitReviews.placeId))
     .where(and(eq(reviewerVisitReviews.id, input.reviewId), eq(reviewerVisitReviews.reviewerUserId, input.userId))).limit(1);
@@ -153,17 +153,21 @@ export async function getOwnedPilotPhotoReview(db: AppDb, input: ReviewInput) {
   return { ...result, mayUpload: canAdmit === 1 && entries.length === 0, photos: entries };
 }
 
+export function pilotPhotoKoreaDay(now: Date) {
+  return new Date(now.getTime() + 9 * 60 * 60_000).toISOString().slice(0, 10);
+}
+
 function validatePhoto(input: {
   photo: ValidatedReviewerPhoto; caption: string; takenOn: string; now: string; expectedContentVersion: number;
 }) {
   const caption = input.caption.trim();
   const date = Date.parse(`${input.takenOn}T00:00:00.000Z`);
-  const now = Date.parse(input.now);
+  const now = new Date(input.now);
   const bytes = input.photo.bytes;
   if (!caption || caption.length > 240 || !Number.isFinite(date)
     || new Date(date).toISOString().slice(0, 10) !== input.takenOn
-    || !Number.isFinite(now)
-    || input.takenOn > new Date(now + 9 * 60 * 60_000).toISOString().slice(0, 10)
+    || !Number.isFinite(now.getTime())
+    || input.takenOn > pilotPhotoKoreaDay(now)
     || input.photo.contentType !== "image/jpeg"
     || bytes.byteLength !== input.photo.byteSize || bytes.byteLength < 4 || bytes.byteLength > MAX_REVIEWER_PHOTO_BYTES
     || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9

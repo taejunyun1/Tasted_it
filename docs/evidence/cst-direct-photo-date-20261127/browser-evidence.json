@@ -1,0 +1,34 @@
+[
+  {
+    "viewport": 1440,
+    "koreanDay": "2026-11-27",
+    "validFrom": "2026-11-24",
+    "layout": {
+      "client": 1440,
+      "scroll": 1440,
+      "right": 766,
+      "fileRight": 766,
+      "minimumHeight": 44
+    },
+    "underflowBlocked": true,
+    "overflowBlocked": true,
+    "sameDayAccepted": true,
+    "screenshot": "desktop.png"
+  },
+  {
+    "viewport": 320,
+    "koreanDay": "2026-11-27",
+    "validFrom": "2026-11-24",
+    "layout": {
+      "client": 320,
+      "scroll": 320,
+      "right": 300,
+      "fileRight": 300,
+      "minimumHeight": 44
+    },
+    "underflowBlocked": true,
+    "overflowBlocked": true,
+    "sameDayAccepted": true,
+    "screenshot": "mobile.png"
+  }
+]
