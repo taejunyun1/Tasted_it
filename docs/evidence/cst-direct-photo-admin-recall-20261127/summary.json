@@ -1,0 +1,41 @@
+{
+  "revision": "b80f637ff57404d8a5c88d3454f7925e75ea99d1",
+  "buildSha256": "eb4fa3515b52a4622f2edc51e783e0778253ff6b677d5dcb374ddbee60db713f",
+  "migrations": 59,
+  "productionChanged": false,
+  "hostedServices": "synthetic loopback worker, in-memory D1 and R2",
+  "views": [
+    {
+      "layout": "desktop",
+      "viewportWidth": 1280,
+      "exactStoredAddress": true,
+      "reauthNotice": true,
+      "retirementControl": true,
+      "noPreview": true,
+      "noApproval": true,
+      "hiddenCaption": true,
+      "noOverflow": true,
+      "browserOutboundBlocked": 2
+    },
+    {
+      "layout": "mobile",
+      "viewportWidth": 320,
+      "exactStoredAddress": true,
+      "reauthNotice": true,
+      "retirementControl": true,
+      "noPreview": true,
+      "noApproval": true,
+      "hiddenCaption": true,
+      "noOverflow": true,
+      "browserOutboundBlocked": 2
+    }
+  ],
+  "actions": {
+    "publicPhotoHiddenByLivenessExclusion": true,
+    "unassuredRetirementRedirected": true,
+    "passwordReauthentication": true,
+    "retiredAndAuditedOnce": true,
+    "localPlaceRestorationDoesNotReExposePhoto": true
+  },
+  "workerOutbound": 0
+}
