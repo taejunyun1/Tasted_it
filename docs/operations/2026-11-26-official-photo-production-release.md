@@ -27,6 +27,6 @@ pnpm exec wrangler deploy --dry-run --config "$release_parent/candidate/build/se
 
 ## 운영 확인과 회수
 
-- 승인 PR에 명시된 빌드만 `wrangler deploy --config`로 1회 배포한다. 환경 시작 전후의 이전 버전, 새 버전과 트래픽 비율을 대조한다.
+- 승인 PR에 명시된 빌드를 `wrangler versions upload --config`로 1회 올린다. 이전 버전이 트래픽 100%를 받고 있는지, 새 버전의 바인딩·설정이 일치하는지 재확인한 뒤 `wrangler versions deploy`로 새 버전에 100%를 배정한다. 기존 트리거와 공개 호스트 설정은 그대로 사용한다. [Cloudflare 배포 관리](https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/)
 - 공개 홈·장소 목록·로그인·정책 페이지와 관리자 접근 보호를 확인한다. 승인된 전체 사진 장소의 공개 상세에서 등록된 정확한 임베드와 출처 URL을 읽는다. 대표 1곳에서 데스크톱·모바일의 실제 사진을 확인한다. 기존 RSI 결과의 확인 범위와 데이터 변경 여부를 배포 영수증에 기록한다.
 - 공개 상세 실패, 대상 아닌 사진 노출, 인증·보안 헤더나 56개 장부의 예상 밖 차이가 나오면 같은 Worker를 이전 100% 버전으로 롤백한다. 버전과 공개 화면을 다시 대조한다. [Cloudflare 버전과 배포](https://developers.cloudflare.com/workers/versions-and-deployments/)
