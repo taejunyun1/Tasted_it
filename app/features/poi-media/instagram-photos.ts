@@ -162,6 +162,18 @@ const CURATED_POSTS: readonly CuratedInstagramPost[] = [
     address: "전남광주통합특별시 장흥군 장흥읍 건산동부로 100, 101호, 102호",
     shortcode: "DfBS9xPT97d",
   },
+  {
+    id: "place-intake-4174e89e7b6a858d07f24798",
+    name: "오푸르베이커리",
+    address: "전남광주 광산구 장덕로95번길 16 (206동)",
+    shortcode: "DflKqw8y9T4",
+  },
+  {
+    id: "place-intake-fe4fe09a2aa38f9f0e8f3c9d",
+    name: "무아",
+    address: "전남광주 서구 화정로 272 (농성동)",
+    shortcode: "Df3sfqKS21-",
+  },
 ];
 
 export type PublicInstagramPhoto = { postUrl: string; embedUrl: string };
