@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -65,12 +65,17 @@ for (const args of [["install", "--frozen-lockfile"], ["run", "build"]]) {
   execFileSync("pnpm", args, { cwd: output, env: environment, stdio: "inherit" });
 }
 
-const buildConfig = join(output, "build/server/wrangler.json");
+const buildRoot = join(output, "build");
+const buildConfig = join(buildRoot, "server/wrangler.json");
+const emittedFiles = readdirSync(buildRoot, { recursive: true }).sort()
+  .filter((file) => lstatSync(join(buildRoot, file)).isFile())
+  .map((file) => [file, digest(readFileSync(join(buildRoot, file)))]);
 writeFileSync(join(output, "official-photo-release.json"), JSON.stringify({
   revision,
   baseline,
   patchSha256: digest(patchBytes),
   photoAssetSha256: Object.fromEntries(mainAssets.map((file) => [file, digest(committed(file))])),
   configSha256: digest(readFileSync(buildConfig)),
+  buildSha256: digest(JSON.stringify(emittedFiles)),
 }, null, 2) + "\n", { mode: 0o600, flag: "wx" });
 console.log(buildConfig);
