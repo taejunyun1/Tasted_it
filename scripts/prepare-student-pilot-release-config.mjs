@@ -27,6 +27,11 @@ const manifest = JSON.parse(readFileSync(join(candidate, "student-pilot-release.
 if (manifest.activation !== "dark" || manifest.revision !== expectedRevision) {
   throw new Error("Expected a dark candidate from the specified revision");
 }
+const directVerificationPatches = [manifest.directVerificationPatchSha256, manifest.directVerificationAuthorsPatchSha256];
+if (phase !== "closed" && directVerificationPatches.some((hash) =>
+  typeof hash !== "string" || !/^[0-9a-f]{64}$/.test(hash))) {
+  throw new Error("Opening pilot seats requires a candidate with the public direct verification labels");
+}
 const sourceBuild = join(candidate, "build");
 const sourceBuildSha256 = buildFingerprint(sourceBuild);
 const configBytes = readFileSync(join(sourceBuild, configPath));

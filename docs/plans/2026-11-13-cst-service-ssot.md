@@ -12,6 +12,8 @@ Re:Taste 자체 방문 콘텐츠의 공개 명칭은 **직접인증**이다. 승
 
 직접인증 작성자 공개는 방문 리뷰 승인으로 결정한다. 사진이 검수 중이거나 사진만 철회된 뒤에도 승인된 작성자와 프로필 링크를 유지한다. 데스크톱 장소 상세와 모바일 시트에 같은 기준을 적용했다. 참여 전용 로그인에 **직접인증 로그인**, 방문 리뷰 영수증과 내 제출 기록에 **직접인증 사진 관리**를 적용했다. 운영 반영은 대기다. [검증 결과](../evidence/cst-direct-verification-authors-20261126/summary.json) · [데스크톱 장소](../evidence/cst-direct-verification-authors-20261126/desktop-place.png) · [모바일 장소 시트](../evidence/cst-direct-verification-authors-20261126/mobile-place.png)
 
+자체 방문 콘텐츠의 공개 표기로 **직접인증**을 적용한 후보에서 A·B 접수를 연다. 준비 도구는 공개 프로필·장소 작성자 표기 증거가 빠진 후보의 접수 설정 생성을 차단한다. 직접인증 빌드의 운영 반영과 참여자 직업 정보 비노출을 확인한 뒤 A·B의 활동 승인 절차를 시작한다. [후속 접수 설정 절차](../operations/2026-11-26-cst-student-production-compat.md#후속-후보의-접수-설정-준비)
+
 후속 호환 후보의 접수 종료, A만, A·B 설정을 원본 빌드와 분리해 준비한다. 합성 57개 장부에서 접수 종료 시 A·B, A만 접수 시 B의 사진 제출이 각각 409였고 D1·R2 잔여는 0건이었다. 허용된 좌석의 실제 사진 저장과 접수 종료 후 기존 승인 사진 조회를 확인했다. 운영 1단계는 [#533](https://github.com/taejunyun1/Tasted_it/pull/533)의 승인된 고정 입력과 21:47 KST 정기 RSI 확인을 따른다. [후속 접수 설정 절차](../operations/2026-11-26-cst-student-production-compat.md#후속-후보의-접수-설정-준비)
 
 후속 후보에 활동 리뷰어의 서버 기반 장소 검색과 공개 상세주소를 연결했다. 한 동네에서 상호가 같은 두 장소를 상세주소로 선택하고, 페이지가 바뀌거나 작성 중인 리뷰를 다시 열어도 선택을 유지한다. 만료된 검색 위치는 첫 페이지부터 다시 조회한다. 신청 화면에 직접인증 참여자의 직업·활동 소개는 내부 심사에 쓰인다고 안내한다. 운영과 같은 56개 장부에 0065를 적용한 합성 환경에서 데스크톱·모바일 두 좌석의 방문 장소 선택, 사진 제출, 별도 승인과 철회를 확인했다. 운영 반영과 실제 참여는 대기다. [검증 결과](../evidence/cst-reviewer-picker-compat-20261126/summary.json) · [데스크톱 장소 검색](../evidence/cst-reviewer-picker-compat-20261126/desktop-picker.png) · [모바일 장소 검색](../evidence/cst-reviewer-picker-compat-20261126/mobile-picker.png)
