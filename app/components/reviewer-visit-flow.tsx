@@ -61,6 +61,7 @@ type Props = {
   goldenQuota: { used: number; limit: number; remaining: number };
   publishedReviewId: string | null;
   photoUploadEnabled: boolean;
+  pilotPhotoReviewIds?: string[];
   notice: "review-submitted" | "review-with-photos-submitted" | "review-updated" | "review-withdrawn" | null;
 };
 
@@ -101,7 +102,7 @@ function parseBadges(value: string) {
   }
 }
 
-export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, placePage, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, notice }: Props) {
+export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, historyHasCursor = false, places, placePage, categories, history, goldenQuota, publishedReviewId, photoUploadEnabled, pilotPhotoReviewIds = [], notice }: Props) {
   const fetcher = useFetcher<{ ok: false; error: string }>();
   const restoreFetcher = useFetcher<ReviewerPlaceResponse>();
   const [step, setStep] = useState(1);
@@ -535,6 +536,7 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
         {history.length ? <div className="reviewer-history-list">{history.map((review) => {
           const reviewBadges = parseBadges(review.badgesJson).slice(0, 2);
           const firstPhoto = review.photos[0];
+          const hasPilotPhotoLink = pilotPhotoReviewIds.includes(review.id);
           return (
             <article className="reviewer-history-row" data-has-photo={firstPhoto ? "true" : undefined} key={review.id} id={`review-${review.id}`}>
               {firstPhoto ? <img className="reviewer-history-thumb" src={firstPhoto.url} alt="" loading="lazy" /> : null}
@@ -552,7 +554,8 @@ export function ReviewerVisitFlow({ canSubmit = true, historyNextHref = null, hi
                 </div> : null}
               </div>
               <div className="reviewer-history-summary">
-                <span className="reviewer-history-photo-count">{review.photos.length ? `사진 ${review.photos.length}장` : "사진 없음"}</span>
+                {hasPilotPhotoLink && <Link className="reviewer-history-place-link" to={`/reviewer/pilot-photo/${encodeURIComponent(review.id)}`}>실증 사진 관리</Link>}
+                {(!hasPilotPhotoLink || review.photos.length > 0) && <span className="reviewer-history-photo-count">{review.photos.length ? `사진 ${review.photos.length}장` : "사진 없음"}</span>}
                 <time dateTime={review.publishedAt}>{formatReviewerPublishedDate(review.publishedAt)}</time>
               </div>
               {review.reviewReason && <p className="reviewer-moderation-reason">검수 사유: {review.reviewReason}</p>}

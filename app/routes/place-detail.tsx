@@ -36,6 +36,7 @@ import {
 import { VoteControl } from "../components/ratings/VoteControl";
 import { listPublicPlaceReviewers } from "../features/ratings/reviewer-publication.server";
 import { listPublishedPlaceReviewPhotos } from "../features/ratings/reviewer-visit.server";
+import { listPublicPilotPhotos } from "../features/ratings/student-review-pilot-photo.server";
 import { TempCatalogNotice } from "../features/temp-catalog/TempCatalogNotice";
 import { loadPlaceDetailSafely, mutatePlaceDetailSafely } from "../features/places/place-detail-client";
 import { placePageMeta, publicPageMeta, resolvePublicOrigin } from "../features/places/public-metadata";
@@ -121,7 +122,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getCurrentVoteState(db, { placeId: place.id, userId: user.id }),
     getSaved(db, { placeId: place.id, userId: user.id }),
   ]) : [null, false] as const;
-  const [flavorPrint, goldenPicks, hiddenGem, reviewPhotos, publicReviewers, poiPhoto, instagramPhoto] = await Promise.all([
+  const [flavorPrint, goldenPicks, hiddenGem, nativeReviewPhotos, publicReviewers, poiPhoto, instagramPhoto, pilotPhotos] = await Promise.all([
     getPlaceFlavorPrint(db, place.id),
     listActiveGoldenPicks(db, now),
     getHiddenGemStatus(db, { placeId: place.id, now }),
@@ -129,7 +130,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     listPublicPlaceReviewers(db, place.id),
     getPublicPoiPhoto(db, place.id, env.POI_MEDIA_PUBLIC_ENABLED),
     getPublicInstagramPhoto(db, place),
+    env.STUDENT_REVIEW_PILOT_PHOTOS ? listPublicPilotPhotos(db, place.id).catch(() => []) : [],
   ]);
+  const reviewPhotos = pilotPhotos.length
+    ? [...nativeReviewPhotos, ...pilotPhotos].sort((left, right) =>
+      right.publishedAt.localeCompare(left.publishedAt) || right.reviewId.localeCompare(left.reviewId) ||
+      left.position - right.position).slice(0, 12)
+    : nativeReviewPhotos;
   const rating = publicRatingFromPlace(place);
   if (provenance) {
     await recordPlaceProductEvent(db, {

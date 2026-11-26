@@ -1,8 +1,8 @@
-import { and, asc, desc, eq, inArray, ne, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, ne, notExists, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AppDb } from "../../db/client.server";
 import { adminAuditLogs, places, reviewerProfiles, reviewerVisitReviews, users } from "../../db/schema";
 import { studentReviewPilotPhotos as photos } from "../../db/student-review-pilot-photo";
-import { eligibleReviewCondition, reviewerSubmissionPlaceCondition } from "./reviewer-publication.server";
+import { eligibleReviewCondition, eligibleReviewPlaceCondition } from "./reviewer-publication.server";
 import { MAX_REVIEWER_PHOTO_BYTES, type ValidatedReviewerPhoto } from "./reviewer-photo";
 
 type PilotBucket = Pick<R2Bucket, "put" | "head" | "delete">;
@@ -14,6 +14,11 @@ const retryDelayMs = 6 * 60 * 60_000;
 const cleanupLimit = 16;
 const objectMarker = "studentReviewPilotPhotoId";
 const databaseNow = sql<string>`strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`;
+
+export function matchesPilotPhotoObject(object: R2Object | null, expected: { photoId: string; byteSize: number }): object is R2Object {
+  return object?.size === expected.byteSize && object.httpMetadata?.contentType === "image/jpeg"
+    && object.customMetadata?.[objectMarker] === expected.photoId;
+}
 
 export class PilotPhotoError extends Error {
   constructor(readonly status: number, readonly code: string) {
@@ -73,7 +78,7 @@ function admission(userId: string, seats: string | undefined, now: SQLWrapper) {
 
 function reviewCanHavePhoto() {
   return and(
-    reviewerSubmissionPlaceCondition(),
+    eligibleReviewPlaceCondition(places.id),
     sql`not exists (
       select 1 from temp_catalog_entries e
       join temp_catalog_batches b on b.id = e.batch_id
@@ -209,7 +214,7 @@ export async function submitPilotPhoto(db: AppDb, bucket: Pick<PilotBucket, "put
         currentSession(input.userId, input.sessionId, now)));
     const [finished] = await db.update(photos).set({ status: "PENDING", sealed })
       .where(and(eq(photos.id, id), eq(photos.status, "UPLOADING"), sql`${photos.uploadExpiresAt} > ${now}`,
-        sql`exists (${ready})`)).returning({ id: photos.id });
+        exists(ready))).returning({ id: photos.id });
     if (!finished) throw new PilotPhotoError(409, "PILOT_PHOTO_ADMISSION");
     return finished;
   } catch (error) {
@@ -224,7 +229,7 @@ export function listPilotPhotosForAdmin(db: AppDb) {
   return db.select({
     id: photos.id, reviewId: photos.reviewId, status: photos.status, caption: photos.caption, takenOn: photos.takenOn,
     placeName: places.name, reviewerDisplayName: users.displayName,
-    mayApprove: sql<boolean>`case when ${canPublish()} then 1 else 0 end`.mapWith(Boolean),
+    mayApprove: sql<boolean>`case when ${photos.status} = 'PENDING' and ${canPublish()} then 1 else 0 end`.mapWith(Boolean),
   }).from(photos)
     .innerJoin(reviewerVisitReviews, eq(reviewerVisitReviews.id, photos.reviewId))
     .innerJoin(places, eq(places.id, reviewerVisitReviews.placeId))
@@ -252,7 +257,11 @@ export async function decidePilotPhoto(db: AppDb, input: {
   const [decided] = await db.batch([
     db.update(photos).set({ ...(approving ? { status: "APPROVED" as const } : retireFields(now)), decisionId })
       .where(and(eq(photos.id, input.photoId), adminActor(input.adminUserId, now), currentSession(input.adminUserId, input.sessionId, now),
-        approving ? and(eq(photos.status, "PENDING"), sql`exists (${eligible})`) : inArray(photos.status, ["UPLOADING", "PENDING", "APPROVED"])))
+        sql`exists (
+          select 1 from admin_session_assurances a where a.session_id = ${input.sessionId} and a.actor_user_id = ${input.adminUserId}
+            and a.verified_at <= ${now} and a.expires_at > ${now}
+        )`,
+        approving ? and(eq(photos.status, "PENDING"), exists(eligible)) : inArray(photos.status, ["UPLOADING", "PENDING", "APPROVED"])))
       .returning({ id: photos.id }),
     db.insert(adminAuditLogs).select(sql`
       select ${decisionId}, ${input.adminUserId}, ${approving ? "STUDENT_REVIEW_PILOT_PHOTO_APPROVED" : "STUDENT_REVIEW_PILOT_PHOTO_RETIRED"},
@@ -263,9 +272,11 @@ export async function decidePilotPhoto(db: AppDb, input: {
   if (!decided.length) throw new PilotPhotoError(409, "PILOT_PHOTO_DECISION");
 }
 
-export async function withdrawPilotPhoto(db: AppDb, input: { photoId: string; userId: string; now: string }) {
+export async function withdrawPilotPhoto(db: AppDb, input: { photoId: string; userId: string; sessionId: string; now: string }) {
+  const now = effectiveTime(input.now);
   const [row] = await db.update(photos).set(retireFields(effectiveTime(input.now)))
-    .where(and(eq(photos.id, input.photoId), eq(photos.authorUserId, input.userId), ne(photos.status, "RETIRED")))
+    .where(and(eq(photos.id, input.photoId), eq(photos.authorUserId, input.userId), ne(photos.status, "RETIRED"),
+      currentSession(input.userId, input.sessionId, now), hasMemberAccess(input.userId, now)))
     .returning({ id: photos.id });
   if (!row) throw new PilotPhotoError(404, "PILOT_PHOTO_NOT_FOUND");
 }
@@ -303,7 +314,7 @@ export async function cleanupPilotPhotos(db: AppDb, bucket: Pick<PilotBucket, "h
   const stale = db.select({ id: photos.id }).from(photos).where(and(ne(photos.status, "RETIRED"),
     or(
       and(eq(photos.status, "UPLOADING"), sql`${photos.uploadExpiresAt} <= ${now}`),
-      sql`not exists (${currentReview})`,
+      notExists(currentReview),
     ))).orderBy(asc(photos.createdAt), asc(photos.id)).limit(cleanupLimit);
   await db.update(photos).set(retireFields(now)).where(inArray(photos.id, stale)).run();
   const jobs = await db.select({ id: photos.id, objectKey: photos.objectKey, sealed: photos.sealed }).from(photos)
