@@ -154,7 +154,7 @@ PR #472의 UI를 기존 PR #470에 합류하고 ADMIN 항목별 결과/제안 �
 
 320px와 390px 목록에서 Tab을 누르면 화면 밖 카드가 보이고 초점 윤곽선이 표시된다. Enter로 같은 장소의 상세를 열고 Escape로 닫으면 원래 카드와 가로 위치로 돌아온다. 1440px 데스크톱을 포함한 합성 브라우저 검증을 통과했다. 운영 반영은 대기다. [T07 검증](../evidence/cst-golden-keyboard-20261126/summary.json)
 
-골든픽 후속 호환 후보는 선택 옵션으로 생성한다. 격리 Worker에서 320px·390px의 키보드 이동을 검증하고, A·B 좌석과 일반 장소 사진 설정을 #563과 맞춘 구성의 strict dry-run을 통과했다. 운영 실행은 후속 빌드와 현행 운영 상태를 대조한 뒤 별도로 기록한다. [호환 후보 검증](../evidence/cst-golden-compat-20261126/summary.json)
+골든픽 후속 호환 후보는 선택 옵션으로 생성한다. 격리 Worker에서 320px·390px의 키보드 이동을 검증하고, A·B 좌석과 일반 장소 사진 설정을 #563과 맞춘 구성의 strict dry-run을 통과했다. #567의 병합 소스에서 최종 빌드와 설정 지문을 고정했다. #563의 마지막 A·B 전환을 아직 시작하지 않은 경우에 적용하며, 실제 참여와 선행 운영 증거를 확인한다. [호환 후보 검증](../evidence/cst-golden-compat-20261126/summary.json) · [A·B 운영 실행서](../operations/2026-11-26-cst-golden-keyboard-ab-rollout.md)
 
 ## 2026-11-18 ADMIN 후속: 코드 검증과 운영 차단
 
