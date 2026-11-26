@@ -1,0 +1,99 @@
+{
+  "localMigrations": 59,
+  "results": [
+    {
+      "name": "대나무골",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 0.545617,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "복순이네",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 0.157161,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "엄지빈",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 0.075147,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "한마음포차",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 765.150536,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "조단부부",
+      "width": 1280,
+      "playerStarted": true,
+      "mediaTime": 512.05683,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "대나무골",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 0.165821,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "복순이네",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 0.172877,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "엄지빈",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 0.169755,
+      "endVerified": false,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "한마음포차",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 765.116158,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    },
+    {
+      "name": "조단부부",
+      "width": 320,
+      "playerStarted": true,
+      "mediaTime": 512.248532,
+      "endVerified": true,
+      "noRequestBeforeClick": true,
+      "sourceLinkCount": 1
+    }
+  ],
+  "productionChanged": false,
+  "refererOriginOnly": true,
+  "host": "localhost",
+  "configurationActivation": "local explicit opt-in"
+}

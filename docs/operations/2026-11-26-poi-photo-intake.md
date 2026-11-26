@@ -93,6 +93,10 @@ node scripts/build-official-photo-release.mjs "$release_dir/candidate" --student
 
 그랑깨는 작성자 설명의 광한서로 52와 영상 속 간판·상차림을 대조한 뒤 01:20부터 연결한다. 영상 표시를 끄면 남원시 사진기록관 원문에 연결한다. [그랑깨 게시자 원본](https://www.youtube.com/watch?v=ZnbtJLRHUzM&t=80s)
 
+대나무골은 원게시자 설명의 태목리 481-7과 원장 도로명 대전로 182를 대조했다. 상세에 2020년 공개 영상임을 표시한다. 복순이네와 엄지빈은 영상에서 각각 남광주시장의 음식과 화순 매장의 간판을 확인하고 기존 관광 자료의 주소와 대조했다. [대나무골 영상](https://www.youtube.com/watch?v=oZOV6I1EbHg) · [도로명 대조](https://findby.co.kr/details/57331-127103286003-st-6a4c28c467acb17848cf135d) · [복순이네 영상](https://www.youtube.com/watch?v=XdOXi2ctQQo) · [엄지빈 영상](https://www.youtube.com/watch?v=g9UdzGNidBA)
+
+한마음포차는 간판, 건물번호와 상차림이 나오는 12:45–13:00, 조단부부는 구례군 영상에서 간판과 마라해장국이 나오는 08:32–08:45를 연결한다. 두 장소의 상세주소를 업체 링크와 대조했다. 각 영상의 **출처**는 원게시물을 가리키며, 영상 표시를 끄면 이어서 볼 수 있는 기존 원문 링크가 나타난다. 조단부부는 로컬 도메인에서 재생을 확인했고 숫자 루프백 주소에서는 제공자의 원문 재생 안내를 확인했다. [한마음포차 원본](https://www.youtube.com/watch?v=bLChzMGGUSI&t=765s) · [조단부부 구례군 영상](https://www.youtube.com/watch?v=UuAk8wjryzY&t=512s)
+
 ## 적용과 회수 기준
 
 - 운영 작업은 전환 PR이 승인한 자원과 상한으로 제한한다. 먼저 후보 Worker 전체의 D1 호환성을 검증한다. 운영 장부와 같은 56개 마이그레이션에 0063·0064를 추가한 로컬 D1은 기존 스키마 객체 420개를 보존했다. 이 검증의 범위는 장소 사진 스키마와 데이터다. 0063·0064 운영 적용과 사진 기능 활성화는 대기다. B17·#397은 보류다.
