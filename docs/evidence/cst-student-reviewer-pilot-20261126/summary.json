@@ -1,0 +1,26 @@
+{
+  "runtimeSha": "35dc94b2f3a33819890e9206768d26c0b965c675",
+  "screenshotsSha": "687310dfc5040ab4a04d763e92ab8972a1cf8905",
+  "environment": "Isolated Cloudflare local Worker with synthetic roles, D1 and R2",
+  "integrationCommand": "pnpm run test:integration tests/integration/reviewer-ratings-route.test.ts tests/integration/student-routes.test.ts",
+  "integrationPassed": 19,
+  "integrationFailed": 0,
+  "browserChecks": 4,
+  "browserCoverage": [
+    "Desktop and Pixel 7, applicant links to reviewer application",
+    "Desktop and Pixel 7, approved active reviewer links to visit review submission"
+  ],
+  "writeCoverage": [
+    "Two allowed seats each saved a new pending review and one R2 photo for the same place",
+    "Third, expired, disabled, restricted, and unverified seats do not upload",
+    "Exact 56-migration fixture and partial cleanup schema keep uploads disabled with 409 and zero R2 writes",
+    "Photo-free review and the existing global behavior remain supported"
+  ],
+  "screenshots": [
+    "desktop-student-applicant.png",
+    "desktop-active-reviewer.png",
+    "mobile-student-applicant.png",
+    "mobile-active-reviewer.png"
+  ],
+  "limits": "Synthetic visits and photos. No production activation, actual student activity, or email delivery."
+}
